@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
+  ImagePlus,
   ArrowRight,
   ArrowUpRight,
   BookOpen,
@@ -37,7 +38,9 @@ import {
   Trash2,
 } from "lucide-react";
 import Board from "./components/Board";
-import BoardEditor from "./components/BoardEditor";
+import BoardStudio from "./components/BoardStudio";
+import ScreenshotImport from "./components/ScreenshotImport";
+import { importBoard } from "../shared/screenshot";
 import Modal from "./components/Modal";
 import Results from "./components/Results";
 import { store, useStore } from "./store";
@@ -55,10 +58,12 @@ import {
 } from "../shared/model";
 
 type Dialog =
+  | "screenshot"
   | "new"
   | "boards"
   | "dictionaries"
   | "profile"
+  | "rename-profile"
   | "history"
   | "help"
   | "rename"
@@ -99,6 +104,8 @@ export default function App() {
   const worker = useRef<Worker | null>(null),
     request = useRef(0),
     wordInput = useRef<HTMLInputElement>(null),
+    keepWordFocus = useRef(false),
+    importBase = useRef<Game | null>(null),
     rackInput = useRef<HTMLInputElement>(null);
   const game = data?.games.find((g) => g.id === gameId),
     profile = data?.profiles.find((p) => p.id === profileId);
@@ -189,6 +196,7 @@ export default function App() {
     setFormBusy(false);
     setDialog(next);
     setSidebar(false);
+    if (next === "screenshot") importBase.current = game || null;
     if (next === "new") {
       setFormName("");
       setFormTemplate("scrabble");
@@ -201,6 +209,10 @@ export default function App() {
     }
     if (next === "rename") setFormName(game?.name || "");
     if (next === "profile") setFormName("");
+    if (next === "rename-profile") setFormName(profile?.name || "");
+  }
+  function toggleDirection() {
+    setDirection((current) => (current === "across" ? "down" : "across"));
   }
   async function action(fn: () => Promise<void>) {
     setFormBusy(true);
@@ -419,7 +431,7 @@ export default function App() {
             <span className="status-dot" />
             Your games. Your home server.
           </div>
-          <label className="profile-picker">
+          <div className="profile-picker">
             <span className="avatar">
               <UserRound size={18} />
             </span>
@@ -445,7 +457,15 @@ export default function App() {
                 <option value="new">+ New profile</option>
               </select>
             </span>
-          </label>
+            <button
+              className="icon-button"
+              aria-label="Rename current profile"
+              title="Rename profile"
+              onClick={() => openDialog("rename-profile")}
+            >
+              <Pencil size={15} />
+            </button>
+          </div>
         </div>
       </aside>
       <main className="main-content">
@@ -600,6 +620,14 @@ export default function App() {
                   <div className="board-actions">
                     <button
                       className="icon-button"
+                      aria-label="Import screenshot"
+                      title="Import screenshot"
+                      onClick={() => openDialog("screenshot")}
+                    >
+                      <ImagePlus size={17} />
+                    </button>
+                    <button
+                      className="icon-button"
                       disabled={!game.past.length}
                       aria-label="Undo"
                       title="Undo"
@@ -672,9 +700,21 @@ export default function App() {
                     <button
                       className="text-button direction-button"
                       aria-label="Toggle entry direction"
-                      onClick={() =>
-                        setDirection(direction === "across" ? "down" : "across")
-                      }
+                      title="Switch Across/Down (Shift+Enter)"
+                      aria-keyshortcuts="Shift+Enter"
+                      onPointerDown={(e) => {
+                        keepWordFocus.current =
+                          document.activeElement === wordInput.current;
+                        // Prevent the pointer's default focus transfer, keeping
+                        // the iPhone keyboard open and preserving the caret.
+                        if (keepWordFocus.current) e.preventDefault();
+                      }}
+                      onClick={() => {
+                        toggleDirection();
+                        if (keepWordFocus.current)
+                          wordInput.current?.focus({ preventScroll: true });
+                        keepWordFocus.current = false;
+                      }}
                     >
                       {direction === "across" ? (
                         <ArrowRight size={16} />
@@ -682,6 +722,9 @@ export default function App() {
                         <ArrowDown size={16} />
                       )}{" "}
                       {direction === "across" ? "Across" : "Down"}
+                      <kbd className="direction-shortcut" aria-hidden="true">
+                        ⇧↵
+                      </kbd>
                     </button>
                   </div>
                   <form
@@ -712,6 +755,15 @@ export default function App() {
                         )
                       }
                       onKeyDown={(e) => {
+                        if (
+                          e.key === "Enter" &&
+                          e.shiftKey &&
+                          !e.nativeEvent.isComposing
+                        ) {
+                          e.preventDefault();
+                          if (!e.repeat) toggleDirection();
+                          return;
+                        }
                         if (selected === null) return;
                         if (e.key === "Escape") {
                           setSelected(null);
@@ -1017,14 +1069,39 @@ export default function App() {
           {toast}
         </div>
       )}
+      {dialog === "screenshot" && importBase.current && (
+        <ScreenshotImport
+          template={importBase.current.template}
+          onClose={() => setDialog(null)}
+          onApply={(board) => {
+            const base = importBase.current!;
+            const latest = store
+              .getSnapshot()
+              .data?.games.find((g) => g.id === base.id);
+            if (!latest || latest.board.join(".") !== base.board.join("."))
+              throw new Error(
+                "The board changed while you were reviewing. Close this import and try again with the latest game.",
+              );
+            update(importBoard(latest, board));
+            setDialog(null);
+            setSelected(null);
+            setEntry("");
+            notify("Screenshot imported. You can undo this change.");
+          }}
+        />
+      )}
       {dialog === "boards" && (
-        <BoardEditor
+        <BoardStudio
           templates={data.templates}
           onClose={() => setDialog(null)}
-          onSave={async (template) => {
-            await store.saveTemplate(template);
-            setDialog(null);
-            notify("Board saved. Choose it when creating a new game.");
+          onSave={async (template, editing) => {
+            if (editing) await store.updateTemplate(template);
+            else await store.saveTemplate(template);
+            notify(
+              editing
+                ? "Board updated for future games."
+                : "Board saved. Choose it when creating a new game.",
+            );
           }}
         />
       )}
@@ -1120,19 +1197,32 @@ export default function App() {
           </form>
         </Modal>
       )}
-      {dialog === "profile" && (
+      {(dialog === "profile" || dialog === "rename-profile") && (
         <Modal
-          title="Make yourself at home."
-          subtitle="Pick the same profile on every device to find your games."
+          title={
+            dialog === "rename-profile"
+              ? "Rename your profile"
+              : "Make yourself at home."
+          }
+          subtitle={
+            dialog === "rename-profile"
+              ? "Your new name will appear on all your devices. Your games stay with this profile."
+              : "Pick the same profile on every device to find your games."
+          }
           onClose={() => setDialog(null)}
         >
           <form
             onSubmit={(e) => {
               e.preventDefault();
               void action(async () => {
-                const p = await store.createProfile(formName.trim());
-                setProfileId(p.id);
-                setGameId("");
+                if (dialog === "rename-profile") {
+                  await store.renameProfile(profileId, formName.trim());
+                  notify("Profile renamed.");
+                } else {
+                  const p = await store.createProfile(formName.trim());
+                  setProfileId(p.id);
+                  setGameId("");
+                }
                 setDialog(null);
               });
             }}
@@ -1158,7 +1248,11 @@ export default function App() {
                 className="button primary"
                 disabled={formBusy || !formName.trim()}
               >
-                Create profile
+                {formBusy
+                  ? "Saving…"
+                  : dialog === "rename-profile"
+                    ? "Save name"
+                    : "Create profile"}
               </button>
             </footer>
           </form>

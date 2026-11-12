@@ -122,3 +122,44 @@ test("a background poll cannot erase a game created while it was in flight", asy
     cleanup();
   }
 });
+
+test("background polls preserve profile renames and template edits made during the request", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    const template = {
+      ...PRESETS[0],
+      id: "custom",
+      name: "Custom",
+      builtin: false,
+    };
+    client.snapshot.data!.templates = [...PRESETS, template];
+    const oldState = structuredClone(client.snapshot.data!);
+    let finish!: (r: Response) => void;
+    globalThis.fetch = async (url, options) => {
+      if (String(url).endsWith("/state"))
+        return new Promise<Response>((r) => (finish = r));
+      if (String(url).includes("/profiles/"))
+        return response({ id: "p", name: "Renamed" });
+      return response(JSON.parse(options!.body as string));
+    };
+    const refreshing = client.refresh();
+    await client.renameProfile("p", "Renamed");
+    await client.updateTemplate({ ...template, name: "Edited", bingo: 25 });
+    finish(response(oldState));
+    await refreshing;
+    assert.equal(client.snapshot.data!.profiles[0].name, "Renamed");
+    assert.equal(
+      client.snapshot.data!.templates.find((t) => t.id === "custom")!.bingo,
+      25,
+    );
+    assert.deepEqual(client.snapshot.data!.games[0], game);
+    // A subsequent poll must still accept changes made on another device.
+    const remote = structuredClone(client.snapshot.data!);
+    remote.profiles[0].name = "Another device";
+    globalThis.fetch = async () => response(remote);
+    await client.refresh();
+    assert.equal(client.snapshot.data!.profiles[0].name, "Another device");
+  } finally {
+    cleanup();
+  }
+});

@@ -7,3 +7,5 @@ data/
 *.log
 coverage/
 .local/
+public/ocr/
+*.traineddata

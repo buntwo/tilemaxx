@@ -4,6 +4,7 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { createStore } from "./store";
 import { gameSchema, nameSchema, templateSchema } from "./validation";
+import { PRESETS } from "../shared/presets";
 
 export function createApp(store: ReturnType<typeof createStore>) {
   const app = express();
@@ -31,6 +32,17 @@ export function createApp(store: ReturnType<typeof createStore>) {
   app.post("/api/profiles", (req, res) =>
     res.status(201).json(store.createProfile(nameSchema.parse(req.body.name))),
   );
+  app.put("/api/profiles/:id", (req, res) => {
+    const renamed = store.renameProfile(
+      req.params.id,
+      nameSchema.parse(req.body.name),
+    );
+    if (!renamed) {
+      res.status(404).json({ error: "Profile not found." });
+      return;
+    }
+    res.json(renamed);
+  });
   app.post("/api/games", (req, res) => {
     const game = gameSchema.parse({
       ...req.body,
@@ -64,12 +76,10 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
     const saved = store.saveGame(game);
     if (!saved) {
-      res
-        .status(409)
-        .json({
-          error: "This game was updated on another device.",
-          game: store.getGame(game.id),
-        });
+      res.status(409).json({
+        error: "This game was updated on another device.",
+        game: store.getGame(game.id),
+      });
       return;
     }
     res.json(saved);
@@ -77,6 +87,28 @@ export function createApp(store: ReturnType<typeof createStore>) {
   app.post("/api/templates", (req, res) =>
     res.status(201).json(store.saveTemplate(templateSchema.parse(req.body))),
   );
+  app.put("/api/templates/:id", (req, res) => {
+    if (PRESETS.some((preset) => preset.id === req.params.id)) {
+      res
+        .status(403)
+        .json({
+          error:
+            "Built-in boards cannot be edited. Create a custom board instead.",
+        });
+      return;
+    }
+    const template = templateSchema.parse(req.body);
+    if (template.id !== req.params.id || template.builtin) {
+      res.status(400).json({ error: "Invalid custom board identity." });
+      return;
+    }
+    const saved = store.updateTemplate(template);
+    if (!saved) {
+      res.status(404).json({ error: "Custom board not found." });
+      return;
+    }
+    res.json(saved);
+  });
   app.get("/api/dictionaries/:id", (req, res) => {
     const text = store.dictionaryText(req.params.id);
     if (text === undefined) {
@@ -121,12 +153,10 @@ export function createApp(store: ReturnType<typeof createStore>) {
         return;
       }
       console.error(err);
-      res
-        .status(500)
-        .json({
-          error:
-            "Could not save this change. Your local draft is still available.",
-        });
+      res.status(500).json({
+        error:
+          "Could not save this change. Your local draft is still available.",
+      });
     },
   );
   return app;

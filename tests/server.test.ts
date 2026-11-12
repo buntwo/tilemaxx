@@ -41,6 +41,19 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
         name: "Phone game",
       })
     ).json();
+    const renamed = await (
+      await req(`/profiles/${profile.id}`, "PUT", { name: "Renamed player" })
+    ).json();
+    assert.deepEqual(renamed, { id: profile.id, name: "Renamed player" });
+    assert.equal(store.getGame(created.id)!.profileId, profile.id);
+    assert.equal(
+      (await req(`/profiles/${profile.id}`, "PUT", { name: "   " })).status,
+      400,
+    );
+    assert.equal(
+      (await req("/profiles/missing", "PUT", { name: "Missing" })).status,
+      404,
+    );
     const first = await req(`/games/${game.id}`, "PUT", {
       ...game,
       rack: "CAT",
@@ -85,6 +98,64 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
     ).json();
     assert.equal(template.size, 5);
     assert.equal(template.builtin, false);
+    const customGame = await (
+      await req("/games", "POST", {
+        ...game,
+        template,
+        board: Array(25).fill(""),
+        name: "Keep original layout",
+      })
+    ).json();
+    const templateChanges = {
+      ...template,
+      name: "Edited custom",
+      size: 7,
+      start: 24,
+      premiums: Array(49).fill("DL"),
+      bingo: 40,
+    };
+    const editedTemplate = await (
+      await req(`/templates/${template.id}`, "PUT", templateChanges)
+    ).json();
+    assert.equal(editedTemplate.id, template.id);
+    assert.equal(editedTemplate.name, "Edited custom");
+    assert.equal(editedTemplate.size, 7);
+    assert.deepEqual(store.getGame(customGame.id)!.template, template);
+    assert.equal(store.state().templates.length, 4);
+    assert.equal(
+      (
+        await req(`/templates/${template.id}`, "PUT", {
+          ...templateChanges,
+          id: "wrong-id",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await req("/templates/missing", "PUT", {
+          ...templateChanges,
+          id: "missing",
+        })
+      ).status,
+      404,
+    );
+    for (const preset of state.templates) {
+      assert.equal(
+        (
+          await req(`/templates/${preset.id}`, "PUT", {
+            ...preset,
+            builtin: false,
+            name: "Changed preset",
+          })
+        ).status,
+        403,
+      );
+      assert.deepEqual(
+        store.state().templates.find((t) => t.id === preset.id),
+        preset,
+      );
+    }
     const dictionary = await (
       await req("/dictionaries", "POST", {
         name: "House words",
@@ -105,8 +176,18 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
     store = createStore(dir, process.cwd());
     assert.equal(store.getGame(game.id)!.rack, "CAT");
     assert.equal(store.state().profiles.length, 2);
+    assert.equal(
+      store.state().profiles.find((p) => p.id === profile.id)!.name,
+      "Renamed player",
+    );
+    assert.equal(store.getGame(created.id)!.profileId, profile.id);
     assert.ok(store.getGame(created.id));
     assert.equal(store.state().templates.length, 4);
+    assert.deepEqual(
+      store.state().templates.find((t) => t.id === template.id),
+      editedTemplate,
+    );
+    assert.deepEqual(store.getGame(customGame.id)!.template, template);
     assert.equal(store.dictionaries().length, 3);
   } finally {
     server.close();

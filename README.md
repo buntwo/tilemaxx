@@ -24,15 +24,17 @@ npm start
 
 ## Everyday use
 
-- **Enter the board:** select a square, type a word, and press Enter or Add. Toggle Across/Down. A dot skips one square. The entry replaces the specified cells and does not consume your rack. An empty entry field supports arrow keys to move the cursor and Backspace/Delete to erase the selected square.
+- **Enter the board:** select a square, type a word, and press Enter or Add. Press **Shift+Enter** in the word input to toggle Across/Down. Tapping the direction button while typing keeps focus in that input (including on iPhone). A dot skips one square. The entry replaces the specified cells and does not consume your rack. An empty entry field supports arrow keys to move the cursor and Backspace/Delete to erase the selected square.
+- **Import a screenshot:** use the image icon above the board. Choose a PNG/JPEG/WebP, mark the top-left and bottom-right board corners, then **Read board**. Review the recognized board alongside the original, correct letters, and mark assigned blanks before **Use this board**. Import replaces the board, preserves the rack, and is undoable. Recognition runs locally with bundled Tesseract assets. Designed for straight-on Scrabble GO screenshots; decorative tile skins, low resolution and inaccurate crops can need corrections. No automatic rack or blank recognition. Tested with synthetic images; real Scrabble GO samples will help tune accuracy.
 - **Existing blanks:** select their square and switch “Blank tile” on. They display zero points and retain their assigned letter.
 - **Rack:** type up to seven letters (or the custom board's rack size). `?` represents a blank. Find moves searches the whole board.
-- **Suggestions:** desktop hover previews and clicking plays. On a phone, tap once to preview, then tap again or use Play. Filter words or sort by score, alphabet, word length, tiles used, rack leave, or blanks used. All moves remain available in the scrolling list; only the visible rows are rendered.
+- **Suggestions:** desktop hover previews and clicking plays. On a phone, tap once to preview, then tap again or use Play. Filter words or sort by score, alphabet, word length, tiles used, rack leave A–Z, or blanks used. Rack leave A–Z compares the unused letters alphabetically, with higher move scores breaking ties; it is not a strategic leave valuation. An empty leave sorts first. All moves remain available in the scrolling list; only the visible rows are rendered.
 - **Continue playing:** add your new rack letters manually, then transcribe the opponent's move. This is a companion, not a full game with a bag or automated opponents.
 - **Undo/redo:** restores both board and rack. Move history includes board edits and the last 100 changes. Rack text edits save immediately without adding separate history entries.
 - **Switch devices:** select the same profile and game on the same server. Wait for “All changes saved” before switching. Open tabs refresh about every four seconds and when brought back to the foreground.
+- **Rename a profile:** use the pencil next to the profile picker in the sidebar (open the games menu on phone). The new name syncs to your other devices; game ownership and selection stay intact.
 - **Conflicts:** if two devices edit the same revision, neither silently wins. Choose the server's version or preserve your local version as a separate game.
-- **Board studio:** start from a preset, choose size (5–25), paint bonuses, set the opening square, rack size (1–10), tile values, and full-rack bonus. Mirroring paints both axes. Save a template and select it when creating a new game. Editing a new template never alters existing games.
+- **Board studio:** choose **New custom board**, start from a preset, choose size (5–25), paint bonuses, set the opening square, rack size (1–10), tile values, and full-rack bonus. Mirroring paints both axes. Saved custom boards have an **Edit** button; built-in boards are read-only. Template edits apply to future games. Existing games retain the layout they started with.
 - **Archive:** hide completed games and restore them later. Duplicate a game to explore alternatives. Clearing the board can be undone.
 - **Theme:** light, dark, and system-following settings are saved per browser.
 
@@ -83,13 +85,15 @@ Use `docker compose down` without `-v` to preserve saved data.
 ## Development and verification
 
 ```sh
-npm run check
-npm test
-npm run benchmark
-npm run build
+npm run verify       # all tests, TypeScript, production build
+npm run test:unit    # solver, persistence, sync and actual OCR
+npm run test:ui      # repeatable React interaction workflows
+npm run benchmark   # optional local CSW24 performance check
 ```
 
-Tests compare every generated placement and score against an independent exhaustive enumerator over 30 small positions; they also cover cross words, blank assignments, premiums, opening rules, bingo bonuses, undo/redo, dictionary parsing, validation, stale writes, and persistence after restart. Benchmark times are machine-specific and exclude network loading and UI rendering.
+Tests compare every generated placement and score against an independent exhaustive enumerator over 30 small positions; they also cover cross words, blank assignments, premiums, opening rules, bingo bonuses, undo/redo, dictionary parsing, validation, stale writes, and persistence after restart. All previous tests remain part of `npm test`. The UI suite exercises word entry, direction shortcuts/focus, blanks, erase, solver/play/undo/redo, sorting/filtering, desktop and touch-style previews, multiple games, profile renaming, custom template editing, and screenshot review/correction/cancellation. UI tests use jsdom with a real solver and simulated server/worker transport; they complement browser testing rather than replacing it. The OCR fixture test runs the real recognition engine. A GitHub Actions workflow runs `npm run verify` on pushes and pull requests if the repository is hosted on GitHub.
+
+Benchmark times are machine-specific and exclude network loading and UI rendering.
 
 The compact trie avoids hundreds of thousands of per-node objects. The current CSW24 index uses about 5.9 MiB of typed arrays. Dictionary parsing temporarily uses additional memory. A worker keeps search off the UI thread, and a virtual result list keeps large result sets scrollable.
 

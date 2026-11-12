@@ -133,6 +133,22 @@ export class GameStore {
           ) || [];
         (remote[key] as { id: string }[]).push(...created);
       }
+      // Preserve successful metadata edits made while this poll was in flight.
+      // The following poll will pick up any later edits from another device.
+      for (const key of ["profiles", "templates"] as const) {
+        for (let index = 0; index < remote[key].length; index++) {
+          const item = remote[key][index];
+          const original = before?.[key].find(
+            (previous) => previous.id === item.id,
+          );
+          const local = this.snapshot.data?.[key].find(
+            (current) => current.id === item.id,
+          );
+          if (original && local && original !== local) {
+            (remote[key] as { id: string }[])[index] = local;
+          }
+        }
+      }
       this.snapshot = {
         ...this.snapshot,
         data: remote,
@@ -223,11 +239,43 @@ export class GameStore {
     this.emit();
     return profile;
   }
+  async renameProfile(id: string, name: string) {
+    const profile = await api<Profile>(
+      `/profiles/${encodeURIComponent(id)}`,
+      "PUT",
+      { name },
+    );
+    this.snapshot.data = {
+      ...this.snapshot.data!,
+      profiles: this.snapshot.data!.profiles.map((item) =>
+        item.id === id ? profile : item,
+      ),
+    };
+    this.persist();
+    this.emit();
+    return profile;
+  }
   async saveTemplate(template: BoardTemplate) {
     const saved = await api<BoardTemplate>("/templates", "POST", template);
     this.snapshot.data = {
       ...this.snapshot.data!,
       templates: [...this.snapshot.data!.templates, saved],
+    };
+    this.persist();
+    this.emit();
+    return saved;
+  }
+  async updateTemplate(template: BoardTemplate) {
+    const saved = await api<BoardTemplate>(
+      `/templates/${encodeURIComponent(template.id)}`,
+      "PUT",
+      template,
+    );
+    this.snapshot.data = {
+      ...this.snapshot.data!,
+      templates: this.snapshot.data!.templates.map((item) =>
+        item.id === saved.id ? saved : item,
+      ),
     };
     this.persist();
     this.emit();

@@ -20,3 +20,9 @@ User-provided word lists are stored in `data/dictionaries`, excluded from Git an
 - Layout reference: https://scrabble-solver.org/ and its published board configurations. No implementation code or artwork was copied from that project. Tilewise has its own solver and UI.
 
 Scrabble and Words With Friends names belong to their respective owners. Tilewise is an independent personal companion and is not affiliated with them.
+
+## Screenshot recognition
+
+[Tesseract.js](https://github.com/naptha/tesseract.js) and [Tesseract.js-core](https://github.com/naptha/tesseract.js-core) are Apache-2.0 licensed. The English model is supplied by the MIT-licensed [`@tesseract.js-data/eng`](https://github.com/naptha/tessdata) package. `npm run prepare:ocr` copies their browser assets into `public/ocr`; all OCR requests stay on the local server. The screenshot itself stays in the browser. Generated OCR assets are excluded from Git and rebuilt from locked npm dependencies.
+
+`tests/fixtures/board.png` is original synthetic test artwork, generated with `scripts/create-ocr-fixture.ts`. It is not a screenshot from Scrabble GO. Real app screenshots, tile skins and physical iPhone keyboard behavior still need device testing.

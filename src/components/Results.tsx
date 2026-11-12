@@ -93,7 +93,7 @@ export default function Results({
             <option value="word">A–Z</option>
             <option value="length">Word length</option>
             <option value="tiles">Tiles used</option>
-            <option value="leave">Rack leave</option>
+            <option value="leave">Rack leave A–Z</option>
             <option value="blanks">Fewest blanks</option>
           </select>
         </label>

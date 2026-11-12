@@ -158,6 +158,12 @@ export function createStore(directory: string, root: string) {
       );
       return profile;
     },
+    renameProfile(id: string, name: string) {
+      const result = db
+        .prepare("UPDATE profiles SET name=? WHERE id=?")
+        .run(name, id);
+      return result.changes ? { id, name } : undefined;
+    },
     saveGame(game: Game): Game | undefined {
       const saved = {
         ...game,
@@ -176,6 +182,14 @@ export function createStore(directory: string, root: string) {
         JSON.stringify(saved),
       );
       return saved;
+    },
+    updateTemplate(template: BoardTemplate) {
+      if (PRESETS.some((preset) => preset.id === template.id)) return undefined;
+      const saved = { ...template, builtin: false };
+      const result = db
+        .prepare("UPDATE templates SET data=? WHERE id=?")
+        .run(JSON.stringify(saved), saved.id);
+      return result.changes ? saved : undefined;
     },
     dictionaryText(id: string) {
       const row = db

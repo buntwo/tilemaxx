@@ -457,6 +457,75 @@ label + label {
   width: 100%;
   font-weight: 600;
 }
+.profile-picker > .icon-button {
+  flex-shrink: 0;
+  width: 26px;
+  height: 30px;
+}
+.direction-shortcut {
+  font-size: 10px;
+  font-weight: 400;
+  margin-left: 3px;
+  padding: 1px 3px;
+}
+.studio-section-title {
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  color: var(--muted);
+  font-weight: 600;
+  margin: 25px 0 8px;
+}
+.studio-section-title:first-child {
+  margin-top: 0;
+}
+.studio-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+}
+.studio-item > svg {
+  color: var(--muted);
+}
+.studio-item > div {
+  flex: 1;
+  min-width: 0;
+}
+.studio-item strong {
+  font-size: 13px;
+  display: block;
+  overflow-wrap: anywhere;
+}
+.studio-item small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 5px;
+}
+.studio-item .button {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 11px;
+}
+.studio-readonly {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.studio-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 10px 0;
+}
+@media (hover: none), (max-width: 650px) {
+  .direction-shortcut {
+    display: none;
+  }
+}
 .no-games {
   padding: 10px;
 }
@@ -2378,5 +2447,150 @@ kbd {
   * {
     transition: none !important;
     animation-duration: 2s !important;
+  }
+}
+
+.screenshot-upload {
+  position: relative;
+  overflow: hidden;
+  width: fit-content;
+  cursor: pointer;
+}
+.screenshot-upload input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+.screenshot-upload:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+.import-note,
+.crop-instruction {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.crop-instruction {
+  color: var(--text);
+}
+.crop-stage {
+  display: flex;
+  justify-content: center;
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 12px;
+}
+.crop-image {
+  position: relative;
+  width: fit-content;
+  line-height: 0;
+  cursor: crosshair;
+}
+.crop-image img {
+  display: block;
+  max-height: 450px;
+  max-width: 100%;
+  width: auto;
+  user-select: none;
+}
+.crop-grid {
+  position: absolute;
+  pointer-events: none;
+  border: 2px solid #eea834;
+  box-shadow: 0 0 0 999px #0004;
+  clip-path: inset(-450px);
+  background-image:
+    linear-gradient(to right, #eea834a0 1px, transparent 1px),
+    linear-gradient(to bottom, #eea834a0 1px, transparent 1px);
+}
+.crop-stage {
+  overflow: hidden;
+}
+.crop-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: #eea834;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.crop-adjust {
+  margin-top: 12px;
+  font-size: 13px;
+}
+.crop-adjust summary {
+  cursor: pointer;
+}
+.crop-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding-top: 12px;
+}
+.crop-fields label {
+  text-transform: capitalize;
+}
+.import-review {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+  margin: 16px 0;
+}
+.import-original svg {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  border-radius: 6px;
+}
+.import-review .board-wrap {
+  padding: 8px 0 0;
+}
+.import-review .field-label {
+  font-size: 10px;
+}
+.import-correction {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: end;
+  margin-top: 16px;
+}
+.import-correction input:not([type="checkbox"]) {
+  width: 100px;
+  text-align: center;
+}
+.import-correction .checkbox {
+  min-height: 40px;
+}
+.uncertain-squares {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+@media (max-width: 650px) {
+  .import-review {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .import-original {
+    max-width: 240px;
+    margin: auto;
+  }
+  .crop-fields {
+    gap: 6px;
+  }
+  .crop-image img {
+    max-height: 370px;
+  }
+  .import-correction {
+    gap: 12px;
   }
 }

@@ -11,19 +11,21 @@ import { PRESETS } from "../../shared/presets";
 
 export default function BoardEditor({
   templates,
+  initial,
   onSave,
   onClose,
 }: {
   templates: BoardTemplate[];
+  initial?: BoardTemplate;
   onSave: (t: BoardTemplate) => Promise<void>;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<BoardTemplate>({
-    ...PRESETS[0],
-    id: "custom",
-    name: "My custom board",
+    ...(initial || PRESETS[0]),
+    id: initial?.id || "custom",
+    name: initial?.name || "My custom board",
     builtin: false,
-    premiums: [...PRESETS[0].premiums],
+    premiums: [...(initial || PRESETS[0]).premiums],
   });
   const [brush, setBrush] = useState<Premium | "start">("DW"),
     [symmetry, setSymmetry] = useState(true),
@@ -64,8 +66,12 @@ export default function BoardEditor({
   }
   return (
     <Modal
-      title="Make it your board"
-      subtitle="Choose a bonus, then paint the squares. Your layout will be ready for future games."
+      title={initial ? "Edit your board" : "Make it your board"}
+      subtitle={
+        initial
+          ? "Update this template for new games. Existing games keep their current layout."
+          : "Choose a bonus, then paint the squares. Your layout will be ready for future games."
+      }
       onClose={onClose}
       wide
     >
@@ -93,28 +99,30 @@ export default function BoardEditor({
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               />
             </label>
-            <label>
-              Start from
-              <select
-                defaultValue="scrabble"
-                onChange={(e) => {
-                  const t = templates.find((t) => t.id === e.target.value)!;
-                  setDraft({
-                    ...t,
-                    name: draft.name,
-                    id: "custom",
-                    builtin: false,
-                    premiums: [...t.premiums],
-                  });
-                }}
-              >
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {!initial && (
+              <label>
+                Start from
+                <select
+                  defaultValue="scrabble"
+                  onChange={(e) => {
+                    const t = templates.find((t) => t.id === e.target.value)!;
+                    setDraft({
+                      ...t,
+                      name: draft.name,
+                      id: "custom",
+                      builtin: false,
+                      premiums: [...t.premiums],
+                    });
+                  }}
+                >
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className="form-row">
               <label>
                 Board size
@@ -228,7 +236,11 @@ export default function BoardEditor({
             disabled={busy || !draft.name.trim()}
           >
             <Check size={16} />
-            {busy ? "Saving…" : "Save board template"}
+            {busy
+              ? "Saving…"
+              : initial
+                ? "Save changes"
+                : "Save board template"}
           </button>
         </footer>
       </form>

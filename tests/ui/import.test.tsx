@@ -1,0 +1,103 @@
+import { beforeEach, expect, test, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import ScreenshotImport from "../../src/components/ScreenshotImport";
+import { recognizeBoard } from "../../src/recognize";
+import { emptyBoard } from "../../shared/model";
+import { PRESETS } from "../../shared/presets";
+vi.mock("../../src/recognize", () => ({ recognizeBoard: vi.fn() }));
+beforeEach(() => {
+  vi.stubGlobal(
+    "Image",
+    class {
+      naturalWidth = 750;
+      naturalHeight = 750;
+      src = "";
+      async decode() {}
+    },
+  );
+  URL.createObjectURL = vi.fn(() => "blob:test");
+  URL.revokeObjectURL = vi.fn();
+  vi.mocked(recognizeBoard).mockReset();
+});
+async function setup() {
+  const onApply = vi.fn(),
+    onClose = vi.fn(),
+    user = userEvent.setup();
+  render(
+    <ScreenshotImport
+      template={PRESETS[0]}
+      onApply={onApply}
+      onClose={onClose}
+    />,
+  );
+  await user.upload(
+    screen.getByLabelText("Screenshot file"),
+    new File(["fixture"], "board.png", { type: "image/png" }),
+  );
+  await waitFor(() =>
+    expect(
+      (screen.getByRole("button", { name: "Read board" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false),
+  );
+  return { user, onApply, onClose };
+}
+test("recognition is a draft until applied; corrections and blanks reach the import", async () => {
+  const board = emptyBoard(15);
+  board[112] = "C";
+  board[113] = "A";
+  board[114] = "T";
+  vi.mocked(recognizeBoard).mockResolvedValue({
+    board,
+    uncertain: [113],
+    candidates: 3,
+  });
+  const { user, onApply } = await setup();
+  await user.click(screen.getByRole("button", { name: "Read board" }));
+  await screen.findByRole("button", { name: "Use this board" });
+  expect(onApply).not.toHaveBeenCalled();
+  await user.clear(
+    screen.getByRole("textbox", { name: "Recognized tile letter" }),
+  );
+  await user.type(
+    screen.getByRole("textbox", { name: "Recognized tile letter" }),
+    "E",
+  );
+  await user.click(
+    screen.getByRole("checkbox", { name: "Assigned blank (0 points)" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Use this board" }));
+  expect(onApply.mock.calls[0][0][113]).toBe("e");
+  expect(board[113]).toBe("A");
+});
+test("cancel aborts recognition and never applies a partial board", async () => {
+  let signal: AbortSignal | undefined;
+  vi.mocked(recognizeBoard).mockImplementation(
+    async (_image, _crop, _size, _progress, s) => {
+      signal = s;
+      return new Promise(() => {});
+    },
+  );
+  const { user, onApply, onClose } = await setup();
+  await user.click(screen.getByRole("button", { name: "Read board" }));
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(signal?.aborted).toBe(true);
+  expect(onApply).not.toHaveBeenCalled();
+  expect(onClose).toHaveBeenCalledOnce();
+});
+test("recognition errors leave import unapplied and allow retry", async () => {
+  vi.mocked(recognizeBoard).mockRejectedValue(
+    new Error("Recognition unavailable"),
+  );
+  const { user, onApply } = await setup();
+  await user.click(screen.getByRole("button", { name: "Read board" }));
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "Recognition unavailable",
+  );
+  expect(onApply).not.toHaveBeenCalled();
+  expect(
+    (screen.getByRole("button", { name: "Read board" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(false);
+});
