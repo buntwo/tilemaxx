@@ -1,0 +1,98 @@
+# Tilewise
+
+A self-hosted Scrabble companion for desktop and mobile browsers. Enter a board and rack, find every legal placement, preview a suggestion, then play it. Profiles and games live on a small SQLite server; solving runs in a browser worker.
+
+## Run locally
+
+Requires Node 22.13+ (Node 24 LTS recommended).
+
+```sh
+npm ci
+npm run dev
+```
+
+Open [http://localhost:4173](http://localhost:4173) on the host. To use another device on the same network, open the host's LAN address on port 4173. No internet connection is needed after dependencies and word lists are installed.
+
+For production without Docker:
+
+```sh
+npm run build
+npm start
+```
+
+`PORT` defaults to `4173`, `HOST` to `0.0.0.0`, and `DATA_DIR` to `./data`. To restrict access to the host, set `HOST=127.0.0.1`. There are no accounts, passwords, analytics, or cloud services. Profiles are a convenience, not an access restriction; use this on a trusted local network, without forwarding its port to the internet.
+
+## Everyday use
+
+- **Enter the board:** select a square, type a word, and press Enter or Add. Toggle Across/Down. A dot skips one square. The entry replaces the specified cells and does not consume your rack. An empty entry field supports arrow keys to move the cursor and Backspace/Delete to erase the selected square.
+- **Existing blanks:** select their square and switch “Blank tile” on. They display zero points and retain their assigned letter.
+- **Rack:** type up to seven letters (or the custom board's rack size). `?` represents a blank. Find moves searches the whole board.
+- **Suggestions:** desktop hover previews and clicking plays. On a phone, tap once to preview, then tap again or use Play. Filter words or sort by score, alphabet, word length, tiles used, rack leave, or blanks used. All moves remain available in the scrolling list; only the visible rows are rendered.
+- **Continue playing:** add your new rack letters manually, then transcribe the opponent's move. This is a companion, not a full game with a bag or automated opponents.
+- **Undo/redo:** restores both board and rack. Move history includes board edits and the last 100 changes. Rack text edits save immediately without adding separate history entries.
+- **Switch devices:** select the same profile and game on the same server. Wait for “All changes saved” before switching. Open tabs refresh about every four seconds and when brought back to the foreground.
+- **Conflicts:** if two devices edit the same revision, neither silently wins. Choose the server's version or preserve your local version as a separate game.
+- **Board studio:** start from a preset, choose size (5–25), paint bonuses, set the opening square, rack size (1–10), tile values, and full-rack bonus. Mirroring paints both axes. Save a template and select it when creating a new game. Editing a new template never alters existing games.
+- **Archive:** hide completed games and restore them later. Duplicate a game to explore alternatives. Clearing the board can be undone.
+- **Theme:** light, dark, and system-following settings are saved per browser.
+
+## Dictionaries
+
+- **CSW24:** import a Collins Scrabble Words 2024 text file you have permission to use under **Word lists**. It is not bundled.
+- **ENABLE:** bundled open word-game list. It is not identical to the current Words With Friends lexicon.
+- **Wordnik (2021):** bundled MIT-licensed English word-game list; not an official tournament list.
+- **Other lists:** Word lists → Import word list accepts a `.txt` file with one word per line, including NWL or other CSW editions you provide. Blank lines, duplicates, and nonalphabetic entries are removed. Quotes are stripped and words are normalized to uppercase; a definition after whitespace is ignored. Accepted word lengths are 2–25.
+
+Word lists are shared by profiles on this server. Each game chooses its own list. Imported files and game state persist independently of the browser. See [THIRD_PARTY.md](THIRD_PARTY.md) for sources and attribution.
+
+## Deploy on Synology with Docker
+
+Use Container Manager's **Project** feature; no SSH is required.
+
+1. Copy this project to a folder on the NAS. You can omit `.git`, `node_modules`, `dist`, `dist-server`, `.local`, and `data` for a fresh deployment.
+2. Open **Container Manager → Project → Create**. Name it `tilewise`, select that folder, and use the included `compose.yaml`.
+3. Build and start the project. The first build needs internet access to download Node and npm dependencies.
+4. Open `http://YOUR-NAS-IP:4173` from a browser on the same network. If DSM's firewall is enabled, allow this port from your local subnet.
+5. Open **Word lists → Import word list** to add a supported dictionary, then select it when creating or editing a game.
+6. On iPhone, use Safari's **Share → Add to Home Screen** for a shortcut.
+
+The default Compose configuration uses the persistent Docker volume `tilewise-data` (Compose prefixes its actual name with the project name). It survives container rebuilds and ordinary project stops. Do not delete the volume when updating.
+
+If you have a prebuilt image for your NAS architecture, import it under **Container Manager → Image → Add → Add from file**. Use `compose.prebuilt.yaml` in place of `compose.yaml`, with the image name and tag set to match the imported image.
+
+If you prefer an ordinary NAS folder for backup, replace the volume mapping with `./data:/app/data`. Create `data/dictionaries` first and grant UID/GID `1000:1000` read/write access to that folder; the image runs as the unprivileged `node` user. Alternatively set Compose's `user` to the UID:GID of a NAS user that owns the data folder. Avoid granting broad permissions to unrelated NAS directories.
+
+### Move saved games to another server
+
+Stop the source server and copy its entire data directory (default: `./data`) to an empty data directory on the destination. Keep the database and word-list files together. For Docker, use the data mount described above and set its permissions before starting the destination server. Connect all devices to the destination server to keep games in sync.
+
+### Backup and update
+
+Stop the container before backing up its data volume/folder, including `tilewise.sqlite`, any SQLite `-wal`/`-shm` files, and `dictionaries/`. Restart afterward. Restore into an empty data volume/folder with the same permissions. For updates, replace the source and rebuild the project while keeping the volume.
+
+Equivalent Docker commands on a machine with Docker running:
+
+```sh
+docker compose up -d --build
+docker compose logs -f
+docker compose down
+```
+
+Use `docker compose down` without `-v` to preserve saved data.
+
+## Development and verification
+
+```sh
+npm run check
+npm test
+npm run benchmark
+npm run build
+```
+
+Tests compare every generated placement and score against an independent exhaustive enumerator over 30 small positions; they also cover cross words, blank assignments, premiums, opening rules, bingo bonuses, undo/redo, dictionary parsing, validation, stale writes, and persistence after restart. Benchmark times are machine-specific and exclude network loading and UI rendering.
+
+The compact trie avoids hundreds of thousands of per-node objects. The current CSW24 index uses about 5.9 MiB of typed arrays. Dictionary parsing temporarily uses additional memory. A worker keeps search off the UI thread, and a virtual result list keeps large result sets scrollable.
+
+Browser drafts are written immediately to local storage; server writes are debounced by 300 ms. A dropped connection preserves drafts and retries when the server returns. This is not a fully offline-installable PWA: loading the app and a new dictionary still needs the home server. A browser storage warning means drafts could not be cached; wait for server confirmation before closing that tab.
+
+Source map: `shared/` contains game rules and solver; `server/` contains the SQLite API; `src/` contains the React UI and worker. The server uses Node's built-in SQLite API, which may print an experimental-feature warning on older supported Node versions.

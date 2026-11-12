@@ -1,0 +1,19 @@
+services:
+  tilewise:
+    image: tilewise:local
+    ports:
+      - "4173:4173"
+    volumes:
+      - tilewise-data:/app/data
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      NODE_ENV: production
+      DATA_DIR: /app/data
+
+volumes:
+  tilewise-data:
