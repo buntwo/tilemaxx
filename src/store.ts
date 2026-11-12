@@ -53,6 +53,7 @@ export class GameStore {
     Object.entries(read<Record<string, Game>>("tilewise:drafts", {})),
   );
   listeners = new Set<() => void>();
+  deletedGames = new Set<string>();
   busy = false;
   refreshing = false;
   timer: ReturnType<typeof setTimeout> | undefined;
@@ -98,6 +99,7 @@ export class GameStore {
     };
   }
   update(game: Game) {
+    if (this.deletedGames.has(game.id)) return;
     this.replace(game);
     this.drafts.set(game.id, game);
     this.persist();
@@ -149,6 +151,10 @@ export class GameStore {
           }
         }
       }
+      const remoteIds = new Set(remote.games.map((g) => g.id));
+      for (const game of before?.games || [])
+        if (!remoteIds.has(game.id)) this.forgetGame(game.id);
+      remote.games = remote.games.filter((g) => !this.deletedGames.has(g.id));
       this.snapshot = {
         ...this.snapshot,
         data: remote,
@@ -179,6 +185,7 @@ export class GameStore {
         const draft = this.drafts.get(id)!;
         try {
           const saved = await api<Game>(`/games/${id}`, "PUT", draft);
+          if (this.deletedGames.has(id)) continue;
           this.snapshot.online = true;
           if (this.drafts.get(id) === draft) {
             this.drafts.delete(id);
@@ -194,7 +201,10 @@ export class GameStore {
           }
         } catch (error) {
           const err = error as Error & { status?: number; game?: Game };
-          if (err.status === 409 && err.game) {
+          if (this.deletedGames.has(id)) continue;
+          if (err.status === 404) {
+            this.forgetGame(id);
+          } else if (err.status === 409 && err.game) {
             this.snapshot.conflicts = {
               ...this.snapshot.conflicts,
               [id]: err.game,
@@ -228,6 +238,24 @@ export class GameStore {
     this.persist();
     this.emit();
     return saved;
+  }
+  private forgetGame(id: string) {
+    this.deletedGames.add(id);
+    this.drafts.delete(id);
+    const conflicts = { ...this.snapshot.conflicts };
+    delete conflicts[id];
+    this.snapshot.conflicts = conflicts;
+    if (this.snapshot.data)
+      this.snapshot.data = {
+        ...this.snapshot.data,
+        games: this.snapshot.data.games.filter((g) => g.id !== id),
+      };
+  }
+  async deleteGame(id: string) {
+    await api(`/games/${encodeURIComponent(id)}`, "DELETE", {});
+    this.forgetGame(id);
+    this.persist();
+    this.emit();
   }
   async createProfile(name: string) {
     const profile = await api<Profile>("/profiles", "POST", { name });

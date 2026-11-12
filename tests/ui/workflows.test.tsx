@@ -71,6 +71,7 @@ beforeEach(() => {
   };
   clearTimeout(store.timer);
   store.drafts.clear();
+  store.deletedGames.clear();
   store.busy = false;
   store.refreshing = false;
   store.snapshot = {
@@ -87,7 +88,12 @@ beforeEach(() => {
     vi.fn(async (url: string, options?: RequestInit) => {
       let value: unknown = remote;
       const body = options?.body ? JSON.parse(options.body as string) : null;
-      if (url.startsWith("/api/games/") && options?.method === "PUT") {
+      if (url.startsWith("/api/games/") && options?.method === "DELETE") {
+        remote.games = remote.games.filter(
+          (g) => g.id !== url.split("/").at(-1),
+        );
+        value = { deleted: true };
+      } else if (url.startsWith("/api/games/") && options?.method === "PUT") {
         value = { ...body, revision: body.revision + 1 };
         remote.games = remote.games.map((g) =>
           g.id === body.id ? (value as Game) : g,
@@ -291,4 +297,19 @@ test("editing the rack terminates an active search and permits new input", async
   expect(screen.queryByRole("button", { name: "Cancel search" })).toBeNull();
   await user.type(screen.getByRole("textbox", { name: "Rack letters" }), "CAT");
   expect(current().rack).toBe("CAT");
+});
+
+test("delete game requires confirmation, cancel retains it, deleting last game shows empty workspace", async () => {
+  const user = await start();
+  await user.click(screen.getByRole("button", { name: "Game options" }));
+  await user.click(screen.getByRole("button", { name: /^Delete game/ }));
+  expect(remote.games).toHaveLength(1);
+  await user.click(screen.getByRole("button", { name: "Keep game" }));
+  expect(current()).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Game options" }));
+  await user.click(screen.getByRole("button", { name: /^Delete game/ }));
+  await user.click(screen.getByRole("button", { name: "Delete permanently" }));
+  await waitFor(() => expect(remote.games).toHaveLength(0));
+  expect(store.snapshot.data!.games).toHaveLength(0);
+  expect(screen.getByRole("button", { name: "Create a game" })).toBeTruthy();
 });

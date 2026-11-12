@@ -14,6 +14,7 @@ import { acceptsScreenshot, isHeif } from "../../shared/heif";
 import { convertHeif } from "../heif";
 import { recognizeBoard } from "../recognize";
 import Board from "./Board";
+import { findBoard } from "../detect-board";
 import Modal from "./Modal";
 
 export default function ScreenshotImport({
@@ -25,6 +26,7 @@ export default function ScreenshotImport({
   onApply: (board: BoardState) => void;
   onClose: () => void;
 }) {
+  const [detected, setDetected] = useState(false);
   const [source, setSource] = useState(""),
     [image, setImage] = useState<HTMLImageElement | null>(null);
   const [crop, setCrop] = useState<Crop>({
@@ -94,14 +96,17 @@ export default function ScreenshotImport({
       setSource(next);
       setImage(img);
       setCorner(null);
-      // Start with a square centered in the screenshot; the user marks exact edges.
+      const found = findBoard(img, template.size);
+      setDetected(!!found);
       const side = Math.min(img.naturalWidth, img.naturalHeight);
-      setCrop({
-        left: 0,
-        top: (img.naturalHeight - side) / 2,
-        width: side,
-        height: side,
-      });
+      setCrop(
+        found || {
+          left: 0,
+          top: (img.naturalHeight - side) / 2,
+          width: side,
+          height: side,
+        },
+      );
     } catch (err) {
       URL.revokeObjectURL(next);
       if (version === fileVersion.current && !controller.signal.aborted)
@@ -162,7 +167,7 @@ export default function ScreenshotImport({
   return (
     <Modal
       title="Import a screenshot"
-      subtitle="Choose a Scrabble GO screenshot, frame the board, then review the letters."
+      subtitle="Choose a screenshot. We’ll look for the board, then you can review the letters."
       wide
       onClose={close}
     >
@@ -187,7 +192,9 @@ export default function ScreenshotImport({
               <p className="crop-instruction">
                 {corner
                   ? "Now tap the board’s bottom-right corner."
-                  : "Tap the board’s top-left corner, then its bottom-right corner. Exclude coordinate labels and the rack."}
+                  : detected
+                    ? "Board detected. Check the grid, then choose Read board. To adjust it, tap the top-left and bottom-right corners."
+                    : "Couldn’t confidently find the board. Tap its top-left corner, then its bottom-right corner. Exclude coordinate labels and the rack."}
               </p>
               <div className="crop-stage">
                 <div

@@ -164,6 +164,9 @@ export function createStore(directory: string, root: string) {
         .run(name, id);
       return result.changes ? { id, name } : undefined;
     },
+    deleteGame(id: string) {
+      db.prepare("DELETE FROM games WHERE id=?").run(id);
+    },
     saveGame(game: Game): Game | undefined {
       const saved = {
         ...game,

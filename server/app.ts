@@ -84,17 +84,19 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
     res.json(saved);
   });
+  app.delete("/api/games/:id", (req, res) => {
+    store.deleteGame(req.params.id);
+    res.json({ deleted: true });
+  });
   app.post("/api/templates", (req, res) =>
     res.status(201).json(store.saveTemplate(templateSchema.parse(req.body))),
   );
   app.put("/api/templates/:id", (req, res) => {
     if (PRESETS.some((preset) => preset.id === req.params.id)) {
-      res
-        .status(403)
-        .json({
-          error:
-            "Built-in boards cannot be edited. Create a custom board instead.",
-        });
+      res.status(403).json({
+        error:
+          "Built-in boards cannot be edited. Create a custom board instead.",
+      });
       return;
     }
     const template = templateSchema.parse(req.body);

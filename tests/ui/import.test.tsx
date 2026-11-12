@@ -2,10 +2,12 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ScreenshotImport from "../../src/components/ScreenshotImport";
+import { findBoard } from "../../src/detect-board";
 import { convertHeif } from "../../src/heif";
 import { recognizeBoard } from "../../src/recognize";
 import { emptyBoard } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
+vi.mock("../../src/detect-board", () => ({ findBoard: vi.fn(() => null) }));
 vi.mock("../../src/heif", () => ({ convertHeif: vi.fn() }));
 vi.mock("../../src/recognize", () => ({ recognizeBoard: vi.fn() }));
 beforeEach(() => {
@@ -131,4 +133,24 @@ for (const type of ["image/heic", "image/heif", ""]) {
 test("native HEIC decoding skips fallback conversion", async () => {
   await setup(new File(["heic"], "board.heic", { type: "image/heic" }));
   expect(convertHeif).not.toHaveBeenCalled();
+});
+
+test("detected board preselects the crop and keeps manual adjustment available", async () => {
+  vi.mocked(findBoard).mockReturnValueOnce({
+    left: 10,
+    top: 20,
+    width: 600,
+    height: 600,
+  });
+  const { user } = await setup();
+  expect(screen.getByText(/Board detected/)).toBeTruthy();
+  await user.click(screen.getByText("Fine-tune crop (pixels)"));
+  expect((screen.getByLabelText("Crop left") as HTMLInputElement).value).toBe(
+    "10",
+  );
+  await user.clear(screen.getByLabelText("Crop left"));
+  await user.type(screen.getByLabelText("Crop left"), "12");
+  expect((screen.getByLabelText("Crop left") as HTMLInputElement).value).toBe(
+    "12",
+  );
 });

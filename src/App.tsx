@@ -67,6 +67,7 @@ type Dialog =
   | "history"
   | "help"
   | "rename"
+  | "delete"
   | "manage"
   | null;
 function saved(key: string, fallback = "") {
@@ -1476,6 +1477,49 @@ export default function App() {
           </p>
         </Modal>
       )}
+      {dialog === "delete" && game && (
+        <Modal
+          title="Delete this game?"
+          subtitle={game.name}
+          onClose={() => {
+            if (!formBusy) setDialog(null);
+          }}
+        >
+          <p>
+            This permanently deletes this game’s board, rack and move history
+            from all devices. It cannot be undone. Your profile and saved board
+            templates stay available.
+          </p>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <footer className="modal-footer">
+            <button
+              className="button secondary"
+              disabled={formBusy}
+              onClick={() => setDialog(null)}
+            >
+              Keep game
+            </button>
+            <button
+              className="button danger"
+              disabled={formBusy}
+              onClick={() =>
+                void action(async () => {
+                  await store.deleteGame(game.id);
+                  setDialog(null);
+                  setGameId("");
+                  notify("Game deleted.");
+                })
+              }
+            >
+              {formBusy ? "Deleting…" : "Delete permanently"}
+            </button>
+          </footer>
+        </Modal>
+      )}
       {dialog === "manage" && game && (
         <Modal
           title="A little housekeeping."
@@ -1541,6 +1585,14 @@ export default function App() {
               <span>
                 <strong>Clear board and rack</strong>
                 <small>Start fresh. You can undo this.</small>
+              </span>
+              <ArrowUpRight size={16} />
+            </button>
+            <button disabled={formBusy} onClick={() => openDialog("delete")}>
+              <Trash2 size={19} />
+              <span>
+                <strong>Delete game</strong>
+                <small>Permanently remove this game and its history.</small>
               </span>
               <ArrowUpRight size={16} />
             </button>

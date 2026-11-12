@@ -2594,3 +2594,12 @@ kbd {
     gap: 12px;
   }
 }
+
+.button.danger {
+  background: #a83b36;
+  color: white;
+  border-color: #a83b36;
+}
+.button.danger:hover {
+  background: #8b2b28;
+}

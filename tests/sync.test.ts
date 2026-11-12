@@ -163,3 +163,45 @@ test("background polls preserve profile renames and template edits made during t
     cleanup();
   }
 });
+
+test("a stale poll and in-flight save cannot resurrect a locally deleted game", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    const old = structuredClone(client.snapshot.data!);
+    let poll!: (r: Response) => void, save!: (r: Response) => void;
+    globalThis.fetch = async (url, options) =>
+      options?.method === "DELETE"
+        ? response({ deleted: true })
+        : String(url).endsWith("/state")
+          ? new Promise((r) => (poll = r))
+          : new Promise((r) => (save = r));
+    const refreshing = client.refresh();
+    client.update({ ...game, rack: "CAT" });
+    const saving = client.flush();
+    await client.deleteGame(game.id);
+    poll(response(old));
+    save(response({ ...game, rack: "CAT", revision: 1 }));
+    await Promise.all([refreshing, saving]);
+    assert.equal(client.snapshot.data!.games.length, 0);
+    assert.equal(client.drafts.size, 0);
+    client.update(game);
+    assert.equal(client.drafts.size, 0);
+  } finally {
+    cleanup();
+  }
+});
+test("remote deletion removes obsolete drafts; failed deletion keeps the game", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    globalThis.fetch = async () => response({ error: "Unavailable" }, 503);
+    await assert.rejects(() => client.deleteGame(game.id));
+    assert.equal(client.snapshot.data!.games.length, 1);
+    client.update({ ...game, rack: "CAT" });
+    globalThis.fetch = async () => response({ error: "Game not found." }, 404);
+    await client.flush();
+    assert.equal(client.drafts.size, 0);
+    assert.equal(client.snapshot.data!.games.length, 0);
+  } finally {
+    cleanup();
+  }
+});
