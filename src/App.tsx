@@ -103,6 +103,7 @@ export default function App() {
     [showArchive, setShowArchive] = useState(false);
   const worker = useRef<Worker | null>(null),
     request = useRef(0),
+    searching = useRef(false),
     wordInput = useRef<HTMLInputElement>(null),
     keepWordFocus = useRef(false),
     importBase = useRef<Game | null>(null),
@@ -163,6 +164,11 @@ export default function App() {
     } catch {}
   }, [theme]);
   useEffect(() => {
+    if (searching.current) {
+      worker.current?.terminate();
+      worker.current = null;
+      searching.current = false;
+    }
     setMoves(null);
     setPreview(null);
     setWarnings([]);
@@ -229,6 +235,7 @@ export default function App() {
     if (busy) {
       worker.current?.terminate();
       worker.current = null;
+      searching.current = false;
       setBusy("");
       request.current++;
       return;
@@ -246,6 +253,7 @@ export default function App() {
           setBusy(result.status);
           return;
         }
+        searching.current = false;
         setBusy("");
         if (result.error) {
           setSolveError(result.error);
@@ -256,6 +264,7 @@ export default function App() {
         setElapsed(result.elapsed);
       };
       worker.current.onerror = () => {
+        searching.current = false;
         setBusy("");
         setSolveError("The solver stopped unexpectedly. Try again.");
         worker.current?.terminate();
@@ -265,6 +274,7 @@ export default function App() {
     setPreview(null);
     setSolveError("");
     setBusy("Finding moves…");
+    searching.current = true;
     worker.current.postMessage({
       id: ++request.current,
       dictionaryId: game.dictionaryId,

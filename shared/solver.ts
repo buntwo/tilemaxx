@@ -9,16 +9,55 @@ import {
 } from "./model";
 
 const ALL = (1 << 26) - 1;
+export const SEARCH_LIMITS = {
+  maxNodes: 2_000_000,
+  maxMoves: 150_000,
+  maxMs: 2_000,
+};
+export class SearchLimitError extends Error {
+  constructor() {
+    super(
+      "This search is too large to finish safely. Replace one or more blanks with known letters, or use a smaller word list, then try again. No partial results were shown.",
+    );
+    this.name = "SearchLimitError";
+  }
+}
 export function solve(
   lexicon: Lexicon,
   board: Board,
   rack: string,
   template: BoardTemplate,
+  limits: Partial<typeof SEARCH_LIMITS> = {},
 ): Move[] {
+  const budget = { ...SEARCH_LIMITS, ...limits };
+  for (const key of Object.keys(
+    SEARCH_LIMITS,
+  ) as (keyof typeof SEARCH_LIMITS)[]) {
+    if (
+      !Number.isFinite(budget[key]) ||
+      budget[key] < 0 ||
+      budget[key] > SEARCH_LIMITS[key]
+    )
+      throw new Error("Invalid search budget.");
+  }
+  const deadline = performance.now() + budget.maxMs;
+  let nodes = 0;
   const n = template.size,
     scores = SCORES[template.rules];
-  if (board.length !== n * n)
+  if (
+    !Number.isInteger(n) ||
+    n < 5 ||
+    n > 25 ||
+    board.length !== n * n ||
+    template.premiums.length !== n * n
+  )
     throw new Error("The board size does not match its layout.");
+  if (
+    !/^[A-Z?]*$/i.test(rack) ||
+    rack.length > template.rackSize ||
+    rack.length > 10
+  )
+    throw new Error("The rack contains invalid tiles or too many letters.");
   const counts = new Int8Array(27);
   for (const c of rack.toUpperCase())
     counts[c === "?" ? 26 : c.charCodeAt(0) - 65]++;
@@ -82,6 +121,7 @@ export function solve(
       }
     for (let line = 0; line < n; line++)
       for (let start = 0; start < n; start++) {
+        if (performance.now() >= deadline) throw new SearchLimitError();
         if (start > 0 && board[index(line, start - 1)]) continue;
         // Skip starts that cannot reach an anchor with the tiles in this rack.
         let needed = 0,
@@ -108,6 +148,11 @@ export function solve(
           connected: boolean,
           blanks: number,
         ) {
+          if (
+            ++nodes > budget.maxNodes ||
+            (nodes % 256 === 0 && performance.now() >= deadline)
+          )
+            throw new SearchLimitError();
           const i = pos < n ? index(line, pos) : -1;
           if (
             lexicon.terminal[node] &&
@@ -121,6 +166,7 @@ export function solve(
               .sort()
               .join(",");
             if (!seen.has(id)) {
+              if (moves.length >= budget.maxMoves) throw new SearchLimitError();
               seen.add(id);
               let leave = "";
               for (let k = 0; k < 27; k++)

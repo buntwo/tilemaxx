@@ -95,6 +95,8 @@ Tests compare every generated placement and score against an independent exhaust
 
 Benchmark times are machine-specific and exclude network loading and UI rendering.
 
+Searches are bounded to 2 million traversal steps, 150,000 accumulated results and a 2-second traversal budget (checked periodically). Exceeding any limit stops the search with a clear message; partial results are discarded. Changing the board, rack or dictionary terminates any active search worker. Cancel remains available. These limits apply to custom boards and blank-heavy racks as well.
+
 The compact trie avoids hundreds of thousands of per-node objects. The current CSW24 index uses about 5.9 MiB of typed arrays. Dictionary parsing temporarily uses additional memory. A worker keeps search off the UI thread, and a virtual result list keeps large result sets scrollable.
 
 Browser drafts are written immediately to local storage; server writes are debounced by 300 ms. A dropped connection preserves drafts and retries when the server returns. This is not a fully offline-installable PWA: loading the app and a new dictionary still needs the home server. A browser storage warning means drafts could not be cached; wait for server confirmation before closing that tab.

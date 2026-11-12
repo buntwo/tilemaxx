@@ -319,3 +319,20 @@ test("all legal placements and scores match exhaustive enumeration across 30 pos
     assert.deepEqual(actual, expected, `Trial ${trial}, rack ${rack}`);
   }
 });
+
+test("blank-heavy searches stop at work, result and time budgets instead of returning partial moves", () => {
+  const dict = lex(
+    "AT CAT ACT TAC CATS SCAT CAST DOG DOGS RAT RATS STAR TARS ART ARTS",
+  );
+  const t = PRESETS[0],
+    board = emptyBoard(15);
+  for (const limits of [{ maxNodes: 10 }, { maxMoves: 2 }, { maxMs: 0 }]) {
+    assert.throws(() => solve(dict, board, "???????", t, limits), {
+      name: "SearchLimitError",
+    });
+  }
+  // An interrupted search must not poison its cached lexicon or the next solve.
+  assert.equal(solve(lex("CAT AT ACT TAC DOG"), board, "CAT", t).length, 22);
+  assert.throws(() => solve(dict, board, "???????????", t), /too many/);
+  assert.throws(() => solve(dict, board, "CAT!", t), /invalid/);
+});

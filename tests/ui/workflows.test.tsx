@@ -268,3 +268,27 @@ test("multiple games retain separate racks and theme selection survives remount"
     store.snapshot.data!.games.find((g) => g.name === "Second game")!.rack,
   ).toBe("DOG");
 });
+
+test("editing the rack terminates an active search and permits new input", async () => {
+  let running: SolverWorker | undefined;
+  class DeferredWorker extends SolverWorker {
+    constructor() {
+      super();
+      running = this;
+    }
+    postMessage() {}
+  }
+  vi.stubGlobal("Worker", DeferredWorker);
+  const user = await start();
+  await user.type(
+    screen.getByRole("textbox", { name: "Rack letters" }),
+    "???????",
+  );
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  expect(screen.getByRole("button", { name: "Cancel search" })).toBeTruthy();
+  await user.clear(screen.getByRole("textbox", { name: "Rack letters" }));
+  expect(running!.terminate).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("button", { name: "Cancel search" })).toBeNull();
+  await user.type(screen.getByRole("textbox", { name: "Rack letters" }), "CAT");
+  expect(current().rack).toBe("CAT");
+});
