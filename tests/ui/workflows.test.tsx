@@ -72,6 +72,7 @@ beforeEach(() => {
   clearTimeout(store.timer);
   store.drafts.clear();
   store.deletedGames.clear();
+  store.deletedTemplates.clear();
   store.busy = false;
   store.refreshing = false;
   store.snapshot = {

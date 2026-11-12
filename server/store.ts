@@ -194,6 +194,11 @@ export function createStore(directory: string, root: string) {
         .run(JSON.stringify(saved), saved.id);
       return result.changes ? saved : undefined;
     },
+    deleteTemplate(id: string) {
+      if (PRESETS.some((preset) => preset.id === id)) return false;
+      db.prepare("DELETE FROM templates WHERE id=?").run(id);
+      return true;
+    },
     dictionaryText(id: string) {
       const row = db
         .prepare("SELECT file FROM dictionaries WHERE id=?")

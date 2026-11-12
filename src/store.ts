@@ -54,6 +54,7 @@ export class GameStore {
   );
   listeners = new Set<() => void>();
   deletedGames = new Set<string>();
+  deletedTemplates = new Set<string>();
   busy = false;
   refreshing = false;
   timer: ReturnType<typeof setTimeout> | undefined;
@@ -151,6 +152,9 @@ export class GameStore {
           }
         }
       }
+      remote.templates = remote.templates.filter(
+        (t) => !this.deletedTemplates.has(t.id),
+      );
       const remoteIds = new Set(remote.games.map((g) => g.id));
       for (const game of before?.games || [])
         if (!remoteIds.has(game.id)) this.forgetGame(game.id);
@@ -292,6 +296,16 @@ export class GameStore {
     this.persist();
     this.emit();
     return saved;
+  }
+  async deleteTemplate(id: string) {
+    await api(`/templates/${encodeURIComponent(id)}`, "DELETE", {});
+    this.deletedTemplates.add(id);
+    this.snapshot.data = {
+      ...this.snapshot.data!,
+      templates: this.snapshot.data!.templates.filter((t) => t.id !== id),
+    };
+    this.persist();
+    this.emit();
   }
   async updateTemplate(template: BoardTemplate) {
     const saved = await api<BoardTemplate>(

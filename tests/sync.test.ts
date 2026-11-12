@@ -205,3 +205,31 @@ test("remote deletion removes obsolete drafts; failed deletion keeps the game", 
     cleanup();
   }
 });
+
+test("custom board deletion survives stale polling and leaves templates intact on failure", async () => {
+  const { client, cleanup } = setup();
+  try {
+    const custom = { ...PRESETS[0], id: "custom", builtin: false };
+    client.snapshot.data!.templates = [...PRESETS, custom];
+    globalThis.fetch = async () => response({ error: "Unavailable" }, 503);
+    await assert.rejects(() => client.deleteTemplate(custom.id));
+    assert.equal(client.snapshot.data!.templates.length, 4);
+    const old = structuredClone(client.snapshot.data!);
+    let poll!: (r: Response) => void;
+    globalThis.fetch = async (_url, options) =>
+      options?.method === "DELETE"
+        ? response({ deleted: true })
+        : new Promise((r) => (poll = r));
+    const refreshing = client.refresh();
+    await client.deleteTemplate(custom.id);
+    poll(response(old));
+    await refreshing;
+    assert.deepEqual(client.snapshot.data!.templates, PRESETS);
+    assert.deepEqual(
+      JSON.parse(localStorage.getItem("tilewise:cache")!).templates,
+      PRESETS,
+    );
+  } finally {
+    cleanup();
+  }
+});

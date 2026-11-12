@@ -111,6 +111,13 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
     res.json(saved);
   });
+  app.delete("/api/templates/:id", (req, res) => {
+    if (!store.deleteTemplate(req.params.id)) {
+      res.status(403).json({ error: "Built-in boards cannot be deleted." });
+      return;
+    }
+    res.json({ deleted: true });
+  });
   app.get("/api/dictionaries/:id", (req, res) => {
     const text = store.dictionaryText(req.params.id);
     if (text === undefined) {

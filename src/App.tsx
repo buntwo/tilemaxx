@@ -1103,6 +1103,10 @@ export default function App() {
       )}
       {dialog === "boards" && (
         <BoardStudio
+          onDelete={async (id) => {
+            await store.deleteTemplate(id);
+            notify("Custom board deleted. Existing games keep their layouts.");
+          }}
           templates={data.templates}
           onClose={() => setDialog(null)}
           onSave={async (template, editing) => {
@@ -1128,7 +1132,11 @@ export default function App() {
               void action(async () => {
                 const template = data.templates.find(
                   (t) => t.id === formTemplate,
-                )!;
+                );
+                if (!template)
+                  throw new Error(
+                    "That board template was deleted. Choose another board.",
+                  );
                 const created = await store.createGame({
                   profileId,
                   name:

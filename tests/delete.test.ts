@@ -61,3 +61,41 @@ test("delete persists across restart, rejects stale saves and preserves profile 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("custom template deletion preserves existing game snapshots and protects all presets", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilewise-board-delete-"));
+  let store = createStore(dir, process.cwd());
+  const server = createApp(store).listen(0, "127.0.0.1");
+  await new Promise<void>((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/templates/`;
+  const initial = store.state(),
+    template = store.saveTemplate({
+      ...initial.templates[0],
+      name: "Custom test",
+    });
+  const game = store.createGame({ ...initial.games[0], template });
+  const request = (id: string, method = "DELETE", body: unknown = {}) =>
+    fetch(base + id, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  try {
+    for (const preset of initial.templates) {
+      assert.equal((await request(preset.id)).status, 403);
+      assert.equal(store.deleteTemplate(preset.id), false);
+    }
+    assert.equal((await request(template.id)).status, 200);
+    assert.equal((await request(template.id, "PUT", template)).status, 404);
+    assert.deepEqual(store.getGame(game.id)!.template, template);
+    await new Promise<void>((r) => server.close(() => r()));
+    store.db.close();
+    store = createStore(dir, process.cwd());
+    assert.deepEqual(store.state().templates, initial.templates);
+    assert.deepEqual(store.getGame(game.id)!.template, template);
+  } finally {
+    server.close();
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Grid2X2, LockKeyhole, Pencil, Plus } from "lucide-react";
+import { Grid2X2, LockKeyhole, Pencil, Plus, Trash2 } from "lucide-react";
 import type { BoardTemplate } from "../../shared/model";
 import BoardEditor from "./BoardEditor";
 import Modal from "./Modal";
@@ -7,14 +7,67 @@ import Modal from "./Modal";
 export default function BoardStudio({
   templates,
   onSave,
+  onDelete,
   onClose,
 }: {
   templates: BoardTemplate[];
   onSave: (template: BoardTemplate, editing: boolean) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
   onClose: () => void;
 }) {
   // undefined is the library; null creates a new board.
   const [editing, setEditing] = useState<BoardTemplate | null | undefined>();
+  const [deleting, setDeleting] = useState<BoardTemplate | null>(null);
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  if (deleting)
+    return (
+      <Modal
+        title="Delete this board?"
+        subtitle={deleting.name}
+        onClose={() => {
+          if (!busy) setDeleting(null);
+        }}
+      >
+        <p>
+          This removes the custom board from Board studio on all devices.
+          Existing games keep their saved layout. Deleting this template cannot
+          be undone.
+        </p>
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <footer className="modal-footer">
+          <button
+            className="button secondary"
+            disabled={busy}
+            onClick={() => setDeleting(null)}
+          >
+            Keep board
+          </button>
+          <button
+            className="button danger"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError("");
+              try {
+                await onDelete(deleting.id);
+                setDeleting(null);
+              } catch (err) {
+                setError((err as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? "Deleting…" : "Delete permanently"}
+          </button>
+        </footer>
+      </Modal>
+    );
   if (editing !== undefined)
     return (
       <BoardEditor
@@ -54,6 +107,17 @@ export default function BoardStudio({
               >
                 <Pencil size={14} />
                 Edit
+              </button>
+              <button
+                className="icon-button"
+                aria-label={`Delete ${template.name}`}
+                title={`Delete ${template.name}`}
+                onClick={() => {
+                  setDeleting(template);
+                  setError("");
+                }}
+              >
+                <Trash2 size={16} />
               </button>
             </div>
           ))}
