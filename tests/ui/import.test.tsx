@@ -2,9 +2,11 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ScreenshotImport from "../../src/components/ScreenshotImport";
+import { convertHeif } from "../../src/heif";
 import { recognizeBoard } from "../../src/recognize";
 import { emptyBoard } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
+vi.mock("../../src/heif", () => ({ convertHeif: vi.fn() }));
 vi.mock("../../src/recognize", () => ({ recognizeBoard: vi.fn() }));
 beforeEach(() => {
   vi.stubGlobal(
@@ -19,8 +21,11 @@ beforeEach(() => {
   URL.createObjectURL = vi.fn(() => "blob:test");
   URL.revokeObjectURL = vi.fn();
   vi.mocked(recognizeBoard).mockReset();
+  vi.mocked(convertHeif).mockReset();
 });
-async function setup() {
+async function setup(
+  file = new File(["fixture"], "board.png", { type: "image/png" }),
+) {
   const onApply = vi.fn(),
     onClose = vi.fn(),
     user = userEvent.setup();
@@ -31,10 +36,7 @@ async function setup() {
       onClose={onClose}
     />,
   );
-  await user.upload(
-    screen.getByLabelText("Screenshot file"),
-    new File(["fixture"], "board.png", { type: "image/png" }),
-  );
+  await user.upload(screen.getByLabelText("Screenshot file"), file);
   await waitFor(() =>
     expect(
       (screen.getByRole("button", { name: "Read board" }) as HTMLButtonElement)
@@ -100,4 +102,33 @@ test("recognition errors leave import unapplied and allow retry", async () => {
     (screen.getByRole("button", { name: "Read board" }) as HTMLButtonElement)
       .disabled,
   ).toBe(false);
+});
+
+for (const type of ["image/heic", "image/heif", ""]) {
+  test(`HEIF import converts unsupported native images with MIME '${type}'`, async () => {
+    vi.stubGlobal(
+      "Image",
+      class {
+        naturalWidth = 750;
+        naturalHeight = 750;
+        src = "";
+        attempt = 0;
+        async decode() {
+          if (!this.attempt++) throw new Error("Native decoder unavailable");
+        }
+      },
+    );
+    vi.mocked(convertHeif).mockResolvedValue(
+      new Blob(["png"], { type: "image/png" }),
+    );
+    const file = new File(["heif"], "board.HEIF", { type });
+    const { onApply } = await setup(file);
+    expect(convertHeif).toHaveBeenCalledOnce();
+    expect(vi.mocked(convertHeif).mock.calls[0][0]).toBe(file);
+    expect(onApply).not.toHaveBeenCalled();
+  });
+}
+test("native HEIC decoding skips fallback conversion", async () => {
+  await setup(new File(["heic"], "board.heic", { type: "image/heic" }));
+  expect(convertHeif).not.toHaveBeenCalled();
 });

@@ -26,3 +26,7 @@ Scrabble and Words With Friends names belong to their respective owners. Tilewis
 [Tesseract.js](https://github.com/naptha/tesseract.js) and [Tesseract.js-core](https://github.com/naptha/tesseract.js-core) are Apache-2.0 licensed. The English model is supplied by the MIT-licensed [`@tesseract.js-data/eng`](https://github.com/naptha/tessdata) package. `npm run prepare:ocr` copies their browser assets into `public/ocr`; all OCR requests stay on the local server. The screenshot itself stays in the browser. Generated OCR assets are excluded from Git and rebuilt from locked npm dependencies.
 
 `tests/fixtures/board.png` is original synthetic test artwork, generated with `scripts/create-ocr-fixture.ts`. It is not a screenshot from Scrabble GO. Real app screenshots, tile skins and physical iPhone keyboard behavior still need device testing.
+
+## HEIF import
+
+[libheif-js](https://github.com/catdad-experiments/libheif-js) 1.23.5 supplies the local HEIF decoder (LGPL-3.0). Its unmodified WebAssembly build loads only for conversion; no image is sent to a conversion service. Upstream source and build scripts are available in that repository. Package and decoder license notices are copied to `public/ocr/`. `tests/fixtures/board.heic` was generated from our original `board.png` fixture using macOS `sips`.

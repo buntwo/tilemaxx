@@ -26,3 +26,12 @@ await copyFile(
   join(core, "LICENSE"),
   new URL("TESSERACT-CORE-LICENSE.txt", destination),
 );
+
+await copyFile(
+  require.resolve("libheif-js/LICENSE"),
+  new URL("LIBHEIF-JS-LICENSE.txt", destination),
+);
+await copyFile(
+  require.resolve("libheif-js/libheif-wasm/LICENSE"),
+  new URL("LIBHEIF-WASM-LICENSE.txt", destination),
+);

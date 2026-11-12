@@ -10,6 +10,8 @@ import {
   type Recognition,
   validateCrop,
 } from "../../shared/screenshot";
+import { acceptsScreenshot, isHeif } from "../../shared/heif";
+import { convertHeif } from "../heif";
 import { recognizeBoard } from "../recognize";
 import Board from "./Board";
 import Modal from "./Modal";
@@ -56,21 +58,30 @@ export default function ScreenshotImport({
     task.current?.abort();
     setError("");
     setResult(null);
-    setBusy("");
-    if (
-      !/^image\/(png|jpeg|webp)$/.test(file.type) ||
-      file.size > 20 * 1024 * 1024
-    ) {
-      setError("Choose a PNG, JPEG or WebP screenshot under 20 MB.");
+    const version = ++fileVersion.current;
+    if (!acceptsScreenshot(file)) {
+      setError("Choose a PNG, JPEG, WebP, HEIF or HEIC image under 20 MB.");
       return;
     }
-    const version = ++fileVersion.current,
-      next = URL.createObjectURL(file),
-      img = new Image();
+    const controller = new AbortController();
+    task.current = controller;
+    setBusy("Opening image…");
+    let next = URL.createObjectURL(file);
+    const img = new Image();
     try {
       img.src = next;
-      await img.decode();
-      if (version !== fileVersion.current) {
+      try {
+        await img.decode();
+      } catch {
+        if (!isHeif(file)) throw new Error("Could not open this image.");
+        setBusy("Converting HEIF image…");
+        const converted = await convertHeif(file, controller.signal);
+        URL.revokeObjectURL(next);
+        next = URL.createObjectURL(converted);
+        img.src = next;
+        await img.decode();
+      }
+      if (version !== fileVersion.current || controller.signal.aborted) {
         URL.revokeObjectURL(next);
         return;
       }
@@ -93,14 +104,16 @@ export default function ScreenshotImport({
       });
     } catch (err) {
       URL.revokeObjectURL(next);
-      if (version === fileVersion.current)
+      if (version === fileVersion.current && !controller.signal.aborted)
         setError(
-          (err as Error).message.includes("too large")
-            ? (err as Error).message
-            : "Could not open this image. Try a PNG or JPEG screenshot.",
+          (err as Error).message ||
+            "Could not open this image. Try another screenshot.",
         );
+    } finally {
+      if (version === fileVersion.current) setBusy("");
     }
   }
+
   async function read() {
     if (!image) return;
     setError("");
@@ -160,7 +173,7 @@ export default function ScreenshotImport({
             <input
               aria-label="Screenshot file"
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/png,image/jpeg,image/webp,image/heic,image/heif,image/heic-sequence,image/heif-sequence,.heic,.heif"
               disabled={!!busy}
               onChange={(e) => void load(e.target.files?.[0])}
             />
