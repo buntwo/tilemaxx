@@ -53,10 +53,14 @@ import {
 } from "./components/GameDetails";
 import ArchivedGames, { type ArchiveSort } from "./components/ArchivedGames";
 import GameScores from "./components/GameScores";
+import ScoreBreakdown from "./components/ScoreBreakdown";
+import ExchangeAnalysis from "./components/ExchangeAnalysis";
+import { placeTiles } from "../shared/move-analysis";
 import {
   emptyScoring,
   playTrackedMove,
   recordOpponentPlay,
+  scorePlacement,
   tracksScores,
   setScoreTracking,
   treatBoardEditAsCorrection,
@@ -273,6 +277,16 @@ export default function App() {
   const signature = game
     ? `${game.id}|${game.dictionaryId}|${game.rack}|${game.excludedRackSlots?.join(",") ?? ""}|${game.board.join(".")}`
     : "";
+  const [exchange, setExchange] = useState<{ key: string; slots: number[] }>();
+  const previewScore =
+    game && preview
+      ? scorePlacement(
+          game.board,
+          placeTiles(game.board, preview),
+          game.template,
+          preview.direction,
+        )
+      : null;
   const hasPlayableRack = !!game && !!splitRack(game).available;
   useEffect(() => {
     updateFavicon();
@@ -1062,6 +1076,7 @@ export default function App() {
                   game={game}
                   onChange={update}
                   onSolve={solve}
+                  onExchange={(slots) => setExchange({ key: signature, slots })}
                 />
                 <TilePool key={`tile-pool:${game.id}`} game={game} />
               </section>
@@ -1123,6 +1138,11 @@ export default function App() {
                 boardOddsError={boardOddsError}
                 onBoardOdds={runBoardOdds}
                 onCancelBoardOdds={cancelBoardOdds}
+                scoreBreakdown={
+                  previewScore ? (
+                    <ScoreBreakdown breakdown={previewScore} />
+                  ) : undefined
+                }
               />
               {warnings.length > 0 && (
                 <div className="board-warnings">
@@ -1204,6 +1224,7 @@ export default function App() {
             <span className="eyebrow">PREVIEW</span>
             <strong>{preview.word}</strong>
             <span>{preview.score} points</span>
+            {previewScore && <ScoreBreakdown breakdown={previewScore} />}
             <small>
               {coordinate(
                 preview.row * game.template.size + preview.col,
@@ -1217,6 +1238,13 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+      {game && exchange?.key === signature && (
+        <ExchangeAnalysis
+          game={game}
+          slots={exchange.slots}
+          onClose={() => setExchange(undefined)}
+        />
       )}
       {toast && (
         <div className="toast" role="status">

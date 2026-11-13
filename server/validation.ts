@@ -88,6 +88,23 @@ const scoringSchema = z.object({
   pendingBase: z.array(cell).max(625).optional(),
   imported: z.boolean().optional(),
 });
+const review = z
+  .object({
+    board: z.array(cell).max(625),
+    rack: rack.optional(),
+    dictionaryId: z.string().max(100),
+    tiles: z
+      .array(
+        z.object({
+          index: z.number().int().min(0).max(624),
+          letter: z.string().regex(/^[a-zA-Z]$/),
+        }),
+      )
+      .min(1)
+      .max(10),
+    direction: z.enum(["across", "down"]).optional(),
+  })
+  .optional();
 const trackedMoves = z
   .array(
     z.object({
@@ -96,6 +113,7 @@ const trackedMoves = z
       score: z.number().int().nonnegative(),
       bingo: z.boolean().optional(),
       at: z.string().max(50),
+      review,
     }),
   )
   .optional();
@@ -109,6 +127,7 @@ const historySchema = z.object({
   player: z.enum(["you", "opponent"]).optional(),
   scoring: scoringSchema.optional(),
   trackedMoves,
+  review,
   at: z.string().max(50),
 });
 const gameProgress = z.object({
@@ -139,7 +158,18 @@ export const gameSchema = gameProgress
   })
   .refine((g) => {
     const size = g.template.size ** 2;
+    const validReview = (position: z.infer<typeof review>) =>
+      !position ||
+      (position.board.length === size &&
+        (position.rack?.length ?? 0) <= g.template.rackSize &&
+        position.tiles.every(
+          (tile) => tile.index < size && !position.board[tile.index],
+        ) &&
+        new Set(position.tiles.map((tile) => tile.index)).size ===
+          position.tiles.length);
     const validProgress = (progress: z.infer<typeof gameProgress>) =>
+      (progress.trackedMoves?.every((move) => validReview(move.review)) ??
+        true) &&
       [progress, ...progress.past, ...progress.future].every(
         (entry) =>
           entry.rack.length <= g.template.rackSize &&
@@ -153,7 +183,11 @@ export const gameSchema = gameProgress
             entry.scoring.pendingBase.length === size),
       ) &&
       [...progress.past, ...progress.future].every(
-        (entry) => entry.board.length === size,
+        (entry) =>
+          entry.board.length === size &&
+          validReview(entry.review) &&
+          (entry.trackedMoves?.every((move) => validReview(move.review)) ??
+            true),
       );
     return (
       g.board.length === size &&

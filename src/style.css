@@ -3767,3 +3767,20 @@ kbd {
 .bingo-odds-status {
   color: var(--text);
 }
+
+.score-breakdown { margin-top: 6px; font-size: 12px; }
+.score-breakdown summary { cursor: pointer; color: var(--primary); }
+.score-breakdown ul, .practice-results { margin: 7px 0; padding-left: 19px; }
+.score-breakdown li small, .practice-results small { display: block; color: var(--muted); }
+.practice-body { display: grid; justify-items: start; gap: 9px; }
+.practice-body p { margin: 0; }
+.practice-results li + li { margin-top: 6px; }
+.turn-review-board { width: min(100%, 450px); }
+.score-review-link { color: var(--primary); background: none; border: 0; padding: 0; font: inherit; font-weight: 700; text-align: inherit; overflow-wrap: anywhere; min-width: 0; }
+.score-review-link:hover { text-decoration: underline; }
+.rack-entry-actions { flex-wrap: wrap; }
+.rack-exchange-actions { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.rack-exchange-actions .button { font-size: 11px; min-height: 32px; }
+.rack-entry .rack-tile.exchange-mark { border-color: #b7772f; box-shadow: inset 0 0 0 1px #b7772f; }
+.rack-exchange-icon { position: absolute; top: 3px; right: 3px; color: #9a5619; }
+.mobile-preview-dock { max-height: 60dvh; overflow: auto; }

@@ -1,5 +1,6 @@
 import {
   applyMove,
+  coordinate,
   letterBonuses,
   remember,
   trackedMoveHistory,
@@ -65,11 +66,12 @@ export function treatBoardEditAsCorrection(game: Game): Game {
 
 type ScoredPlay = { word: string; score: number; bingo: boolean };
 
-function scorePlacement(
+export function scorePlacement(
   base: Board,
   board: Board,
   template: BoardTemplate,
-): ScoredPlay | null {
+  direction?: Move["direction"],
+) {
   const { size, premiums, rules } = template;
   const placed: number[] = [];
   for (const [index, tile] of board.entries()) {
@@ -81,7 +83,9 @@ function scorePlacement(
   if (!placed.length || placed.length > template.rackSize) return null;
   const row = (i: number) => Math.floor(i / size);
   const first = placed[0];
-  const across = placed.every((i) => row(i) === row(first));
+  const across = direction
+    ? direction === "across"
+    : placed.every((i) => row(i) === row(first));
   if (!across && !placed.every((i) => i % size === first % size)) return null;
   const step = across ? 1 : size;
   const along = (i: number, by: number) =>
@@ -96,20 +100,39 @@ function scorePlacement(
       multiplier = 1,
       newTiles = 0,
       touchesExisting = false;
+    const tiles = [];
     for (let i = start; ; i += stride) {
       word += board[i].toUpperCase();
       const points = tileScore(board[i], rules);
+      const premium = base[i] ? "" : premiums[i];
+      const letterMultiplier = letterBonuses[premium] ?? 1;
+      tiles.push({
+        letter: board[i].toUpperCase(),
+        square: coordinate(i, size),
+        blank: board[i] === board[i].toLowerCase(),
+        points,
+        premium,
+        letterMultiplier,
+      });
       if (base[i]) {
         sum += points;
         touchesExisting = true;
       } else {
-        sum += points * (letterBonuses[premiums[i]] ?? 1);
+        sum += points * letterMultiplier;
         multiplier *= wordBonuses[premiums[i]] ?? 1;
         newTiles++;
       }
       if (!along(i, stride) || !board[i + stride]) break;
     }
-    return { word, score: sum * multiplier, newTiles, touchesExisting };
+    return {
+      word,
+      score: sum * multiplier,
+      newTiles,
+      touchesExisting,
+      tiles,
+      sum,
+      multiplier,
+    };
   }
   const main = wordAt(first, step);
   if (main.newTiles !== placed.length) return null;
@@ -130,10 +153,12 @@ function scorePlacement(
       bingo ? template.bingo : 0,
     ),
     bingo,
+    words,
+    bonus: bingo ? template.bingo : 0,
   };
 }
 
-export function pendingOpponentPlay(game: Game): ScoredPlay | null {
+export function pendingOpponentPlay(game: Game) {
   const base = game.scoring?.pendingBase;
   return tracksScores(game) && base
     ? scorePlacement(base, game.board, game.template)
@@ -161,9 +186,16 @@ function addScore(
 export function recordOpponentPlay(game: Game): Game {
   const play = pendingOpponentPlay(game);
   if (!play) return game;
+  const base = game.scoring!.pendingBase!;
   return {
     ...game,
-    ...remember(game, play.word, play.score, "opponent", play.bingo),
+    ...remember(game, play.word, play.score, "opponent", play.bingo, {
+      board: base.map((tile, index) => (tile ? game.board[index] : "")),
+      dictionaryId: game.dictionaryId,
+      tiles: game.board.flatMap((letter, index) =>
+        letter && !base[index] ? [{ index, letter }] : [],
+      ),
+    }),
     scoring: addScore(game.scoring!, "opponent", play),
   };
 }
@@ -214,6 +246,7 @@ export function correctTrackedMove(
   const previous = insert ? undefined : moves[index];
   const next = [...moves];
   next.splice(index, insert ? 0 : 1, {
+    ...previous,
     ...change,
     at: previous?.at ?? new Date().toISOString(),
   });

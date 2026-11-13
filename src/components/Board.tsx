@@ -24,7 +24,7 @@ export default function Board({
   template: BoardTemplate;
   board: BoardState;
   archivedBoard?: BoardState;
-  preview?: Move | null;
+  preview?: Pick<Move, "tiles"> | null;
   selected?: number | null;
   onSelect?: (index: number, repeatTap?: boolean) => void;
   paint?: boolean;

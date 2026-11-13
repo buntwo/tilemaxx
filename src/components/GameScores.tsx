@@ -9,6 +9,8 @@ import {
   tracksScores,
 } from "../../shared/game-scoring";
 import Modal from "./Modal";
+import ScoreBreakdown from "./ScoreBreakdown";
+import TurnReview from "./TurnReview";
 
 export default function GameScores({
   game,
@@ -39,6 +41,7 @@ export default function GameScores({
     historyKey: string;
   }>();
   const [error, setError] = useState("");
+  const [review, setReview] = useState<number | null>();
   function openEditor(index?: number) {
     const move = index === undefined ? undefined : history[index];
     setEditor({
@@ -109,6 +112,7 @@ export default function GameScores({
                   "Board edits pending. Enter one connected play or keep the edits as a correction."
                 )}
               </p>
+              {play && <ScoreBreakdown breakdown={play} />}
               <div>
                 {play && (
                   <button className="button secondary" onClick={onRecord}>
@@ -165,7 +169,14 @@ export default function GameScores({
                     <td>
                       {move.player === "you" && (
                         <div className="score-move-play">
-                          <strong>{move.word}</strong>{" "}
+                          <button
+                            type="button"
+                            className="score-review-link"
+                            aria-label={`Review move ${move.number}: ${move.word}`}
+                            onClick={() => setReview(move.number - 1)}
+                          >
+                            {move.word}
+                          </button>{" "}
                           <small className="score-move-total">
                             ({move.total})
                           </small>
@@ -191,7 +202,14 @@ export default function GameScores({
                           <small className="score-move-total">
                             ({move.total})
                           </small>{" "}
-                          <strong>{move.word}</strong>
+                          <button
+                            type="button"
+                            className="score-review-link"
+                            aria-label={`Review move ${move.number}: ${move.word}`}
+                            onClick={() => setReview(move.number - 1)}
+                          >
+                            {move.word}
+                          </button>
                         </div>
                       )}
                     </td>
@@ -210,7 +228,23 @@ export default function GameScores({
         >
           <Plus size={14} aria-hidden="true" /> Add missed move
         </button>
+        {!!moves.length && (
+          <button
+            type="button"
+            className="button secondary score-add-move"
+            onClick={() => setReview(null)}
+          >
+            Review game
+          </button>
+        )}
       </details>
+      {review !== undefined && (
+        <TurnReview
+          game={game}
+          index={review}
+          onClose={() => setReview(undefined)}
+        />
+      )}
       {editor && (
         <Modal
           title={

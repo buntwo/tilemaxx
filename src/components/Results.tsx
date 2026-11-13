@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect, type ReactNode } from "react";
 import {
   ArrowDownWideNarrow,
   ArrowRight,
@@ -47,6 +47,7 @@ export default function Results({
   boardOddsError,
   onBoardOdds,
   onCancelBoardOdds,
+  scoreBreakdown,
 }: {
   moves: Move[] | null;
   busy: string;
@@ -69,6 +70,7 @@ export default function Results({
   boardOddsError?: string;
   onBoardOdds?: (moves: Move[], bagSize: number) => void;
   onCancelBoardOdds?: () => void;
+  scoreBreakdown?: ReactNode;
 }) {
   const [filter, setFilter] = useState(""),
     [sort, setSort] = useState("score"),
@@ -344,6 +346,7 @@ export default function Results({
                     onPointerEnter={(e) => {
                       if (
                         !analyzing &&
+                        !locked &&
                         e.pointerType === "mouse" &&
                         matchMedia("(min-width:651px)").matches
                       )
@@ -353,7 +356,19 @@ export default function Results({
                       if (e.pointerType === "mouse" && !locked) onPreview(null);
                     }}
                     onFocus={() => {
-                      if (!analyzing) onPreview(m);
+                      if (!analyzing && !locked) onPreview(m);
+                    }}
+                    onContextMenu={(event) => {
+                      if (analyzing) return;
+                      event.preventDefault();
+                      setLocked(m.id);
+                      onPreview(m);
+                    }}
+                    onKeyDown={(event) => {
+                      if (analyzing || event.key.toLowerCase() !== "p") return;
+                      event.preventDefault();
+                      setLocked(m.id);
+                      onPreview(m);
                     }}
                     onClick={(e) => {
                       if (analyzing) {
@@ -457,7 +472,7 @@ export default function Results({
         ) : (
           <>
             <span className="desktop-hint">
-              Hover to preview · click to play
+              Hover to preview · right-click or P to pin · click to play
             </span>
             <span className="mobile-hint">
               Tap to preview · tap again to play
@@ -485,6 +500,7 @@ export default function Results({
                 ? ` · also ${preview.crosses.join(", ")}`
                 : ""}
             </span>
+            {scoreBreakdown}
           </div>
           <button
             className="button primary"

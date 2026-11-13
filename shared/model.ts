@@ -29,6 +29,14 @@ export interface TrackedMove {
   score: number;
   bingo?: boolean;
   at: string;
+  review?: TurnPosition;
+}
+export interface TurnPosition {
+  board: Board;
+  rack?: string;
+  dictionaryId: string;
+  tiles: Placement[];
+  direction?: Move["direction"];
 }
 export interface PlayerScore {
   points: number;
@@ -50,6 +58,7 @@ export interface HistoryEntry extends Position {
   scoring?: GameScoring;
   // Only score-log edits need to snapshot the whole log for undo and redo.
   trackedMoves?: TrackedMove[];
+  review?: TurnPosition;
   at: string;
 }
 export interface Game extends Position {
@@ -261,6 +270,7 @@ function trackedMove(
       word: entry.label,
       score: entry.score,
       ...(bingo !== undefined && { bingo }),
+      ...(entry.review && { review: entry.review }),
       at: entry.at,
     };
 }
@@ -298,6 +308,7 @@ export function remember(
   score?: number,
   player?: Player,
   bingo?: boolean,
+  review?: TurnPosition,
 ): Pick<Game, "past" | "future" | "trackedMoves"> {
   const entry: HistoryEntry = {
     board: [...game.board],
@@ -307,6 +318,7 @@ export function remember(
     score,
     player,
     bingo,
+    review,
     scoring: game.scoring,
     at: new Date().toISOString(),
   };
@@ -333,6 +345,15 @@ export function applyMove(game: Game, move: Move, player?: Player): Game {
       move.score,
       player,
       player ? move.tiles.length === game.template.rackSize : undefined,
+      player
+        ? {
+            board: game.board,
+            rack: game.rack,
+            dictionaryId: game.dictionaryId,
+            tiles: move.tiles,
+            direction: move.direction,
+          }
+        : undefined,
     ),
     board,
     rack: rackAfterMove(game, move.tiles, move.leave),
@@ -363,6 +384,7 @@ export function undo(game: Game): Game {
         score: step.score,
         player: step.player,
         bingo: trackedMove(step, game.scoring)?.bingo,
+        review: step.review,
         scoring: game.scoring,
         trackedMoves: step.trackedMoves && trackedMoveHistory(game),
         at: step.at,
@@ -393,6 +415,7 @@ export function redo(game: Game): Game {
         score: step.score,
         player: step.player,
         bingo: move?.bingo,
+        review: step.review,
         scoring: game.scoring,
         trackedMoves: step.trackedMoves && trackedMoveHistory(game),
         at: step.at,

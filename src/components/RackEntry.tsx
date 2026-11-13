@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { enterRack, eraseRack, rackLetters } from "../../shared/rack-entry";
 import { tileScore, type Game } from "../../shared/model";
-import { Ban } from "lucide-react";
+import { Ban, Repeat2 } from "lucide-react";
 
 const SENTINEL = "\u200b";
 
@@ -9,15 +9,21 @@ export default function RackEntry({
   game,
   onChange,
   onSolve,
+  onExchange,
 }: {
   game: Game;
   onChange: (game: Game) => void;
   onSolve: () => void;
+  onExchange: (slots: number[]) => void;
 }) {
   const [cursor, setCursor] = useState(game.rack.length);
   const [focused, setFocused] = useState(false);
   const [selectAll, setSelectAll] = useState(false);
   const [excludeMode, setExcludeMode] = useState(false);
+  const [exchangeMode, setExchangeMode] = useState(false);
+  const [exchangeMarks, setExchangeMarks] = useState<Record<number, string>>(
+    {},
+  );
   const input = useRef<HTMLInputElement>(null);
   // A directly selected tile is replaced/erased once; typing and deletion
   // return to insertion-cursor behavior for subsequent Backspaces.
@@ -26,6 +32,9 @@ export default function RackEntry({
   const capacity = game.template.rackSize;
   const position = Math.min(cursor, capacity);
   const excludedSlots = game.excludedRackSlots ?? [];
+  const exchangeSlots = Object.keys(exchangeMarks)
+    .map(Number)
+    .filter((i) => game.rack[i] === exchangeMarks[i]);
   useEffect(() => {
     const blur = () => {
       setFocused(false);
@@ -58,6 +67,17 @@ export default function RackEntry({
       });
     setCursor(result.cursor);
     setSelectAll(false);
+    setExchangeMarks(
+      Object.fromEntries(
+        exchangeSlots
+          .filter(
+            (slot) =>
+              !selectAll &&
+              (slot < from || slot >= Math.max(from + 1, result.cursor)),
+          )
+          .map((slot) => [slot, game.rack[slot]]),
+      ),
+    );
   }
   function enter(text: string) {
     if (!/[a-z ?]/i.test(text)) return;
@@ -94,26 +114,53 @@ export default function RackEntry({
       : [...excludedSlots, slot].sort((a, b) => a - b);
     onChange({ ...game, excludedRackSlots: next.length ? next : undefined });
   }
+  function toggleExchange(slot: number) {
+    if (!game.rack[slot] || game.rack[slot] === ".") return;
+    const marks = Object.fromEntries(
+      exchangeSlots.map((i) => [i, game.rack[i]]),
+    );
+    if (exchangeSlots.includes(slot)) delete marks[slot];
+    else marks[slot] = game.rack[slot];
+    setExchangeMarks(marks);
+  }
   return (
     <div className="rack-entry">
       <div className="rack-tiles" role="group" aria-label="Your rack tiles">
         {Array.from({ length: capacity }, (_, i) => {
           const tile = game.rack[i] === "." ? "" : game.rack[i];
           const excluded = excludedSlots.includes(i);
+          const exchanging = exchangeSlots.includes(i);
           const active =
             focused && (selectAll || i === Math.min(position, capacity - 1));
           return (
             <button
               type="button"
               key={i}
-              className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${active ? "selected" : ""}`}
-              aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}`}
-              aria-pressed={excludeMode ? excluded : active}
-              aria-disabled={excludeMode && !tile ? true : undefined}
+              className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""}`}
+              aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${exchanging ? ", marked for exchange" : ""}`}
+              aria-pressed={
+                exchangeMode ? exchanging : excludeMode ? excluded : active
+              }
+              aria-disabled={
+                (excludeMode || exchangeMode) && !tile ? true : undefined
+              }
               onPointerDown={(e) => e.preventDefault()}
-              onClick={() => (excludeMode ? toggleExcluded(i) : focus(i))}
+              onClick={() =>
+                exchangeMode
+                  ? toggleExchange(i)
+                  : excludeMode
+                    ? toggleExcluded(i)
+                    : focus(i)
+              }
             >
               {tile === "?" ? "" : tile || "·"}
+              {exchanging && (
+                <Repeat2
+                  className="rack-exchange-icon"
+                  size={12}
+                  aria-hidden="true"
+                />
+              )}
               {excluded && (
                 <Ban
                   className="rack-excluded-icon"
@@ -176,6 +223,7 @@ export default function RackEntry({
               "ArrowLeft",
               "ArrowRight",
               "ArrowDown",
+              "ArrowUp",
               "Home",
               "End",
               "Escape",
@@ -211,6 +259,9 @@ export default function RackEntry({
             case "ArrowDown":
               if (!selectAll) toggleExcluded(Math.min(position, capacity - 1));
               break;
+            case "ArrowUp":
+              if (!selectAll) toggleExchange(Math.min(position, capacity - 1));
+              break;
             case "Home":
               eraseSelected.current = true;
               setCursor(0);
@@ -233,11 +284,13 @@ export default function RackEntry({
       />
       <div className="rack-entry-actions">
         <p id={helpId} className="rack-entry-help">
-          {excludeMode
-            ? "Tap tiles to hold or release them"
-            : focused && selectAll
-              ? "All tiles selected · type to replace"
-              : "Space = blank · ↓ = hold tile"}
+          {exchangeMode
+            ? "Tap tiles to mark for exchange"
+            : excludeMode
+              ? "Tap tiles to hold or release them"
+              : focused && selectAll
+                ? "All tiles selected · type to replace"
+                : "Space = blank · ↓ Hold · ↑ Exchange"}
         </p>
         <button
           type="button"
@@ -245,12 +298,43 @@ export default function RackEntry({
           aria-pressed={excludeMode}
           onClick={() => {
             input.current?.blur();
+            setExchangeMode(false);
             setExcludeMode(!excludeMode);
           }}
         >
           {excludeMode ? "Done" : "Exclude tiles"}
         </button>
+        <button
+          type="button"
+          className="button secondary rack-exclude-button"
+          aria-pressed={exchangeMode}
+          onClick={() => {
+            input.current?.blur();
+            setExcludeMode(false);
+            setExchangeMode(!exchangeMode);
+          }}
+        >
+          {exchangeMode ? "Done marking" : "Mark exchange"}
+        </button>
       </div>
+      {!!exchangeSlots.length && (
+        <div className="rack-exchange-actions">
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => onExchange(exchangeSlots)}
+          >
+            Simulate exchange ({exchangeSlots.length})
+          </button>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => setExchangeMarks({})}
+          >
+            Clear marks
+          </button>
+        </div>
+      )}
     </div>
   );
 }
