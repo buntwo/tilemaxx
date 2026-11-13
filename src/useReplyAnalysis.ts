@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   REPLY_LIMIT,
   replyScorelessLimit,
+  type ReplyDetailOptions,
   type ReplyPosition,
   type ReplyRequest,
   type ReplyResult,
@@ -125,7 +126,10 @@ export function useReplyAnalysis(
           line: message.line,
           error: message.error,
         };
-        setDetail(next);
+        setDetail((previous) => ({
+          ...next,
+          result: next.result ?? previous?.result,
+        }));
       }
     };
     active.onerror = () => {
@@ -160,17 +164,25 @@ export function useReplyAnalysis(
     };
   }, [moveList, runKey, dictionaryId, invalid]);
 
-  function requestDetail(kind: "reply-refine" | "reply-line", candidate: Move) {
+  function requestDetail(candidate: Move, options: ReplyDetailOptions) {
     if (!worker.current || !reference || !position || !dictionaryId) return;
-    const key = `${kind}:${candidate.id}`;
+    const key = `${options.kind}:${candidate.id}`;
     const id = ++requestId.current;
     activeDetail.current = { id, key };
-    setDetail({ key, runKey, pending: true });
+    setDetail((previous) => ({
+      key,
+      runKey,
+      pending: true,
+      result:
+        previous?.key === key && previous.runKey === runKey
+          ? previous.result
+          : undefined,
+    }));
     const request: ReplyRequest = {
       ...position,
       dictionaryId,
       id,
-      kind,
+      ...options,
       candidate,
       reference,
     };

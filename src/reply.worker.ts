@@ -1,7 +1,6 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
 import {
   prepareReplyAnalysis,
-  REPLY_REFINED_SAMPLES,
   REPLY_SAMPLES,
   replyEndgameLine,
   type ReplyRequest,
@@ -56,7 +55,6 @@ async function run() {
             reference,
             REPLY_SAMPLES,
             () => deadline,
-            true,
           );
           for (const move of request.candidates) {
             deadline = performance.now() + 5_000;
@@ -107,9 +105,9 @@ async function runDetail(
         lexicon,
         request,
         reference,
-        REPLY_REFINED_SAMPLES,
+        request.samples,
         () => deadline,
-        true,
+        request.captureHeatmap,
       );
       self.postMessage({ id, kind, result: analyze(candidate) });
     }

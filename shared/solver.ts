@@ -190,7 +190,7 @@ export function prepareSolver(
     options: Options,
     summaryOnly: boolean,
     premiumSearch?: PremiumSearch,
-    captureBigReply = false,
+    bigReplies?: PremiumReply[],
   ) {
     const budget = { ...SEARCH_LIMITS, ...limits };
     for (const key of Object.keys(
@@ -223,9 +223,8 @@ export function prepareSolver(
     const moves: Move[] = [];
     let bestScore = 0,
       hasBingo = false;
-    let bigReply: PremiumReply | undefined;
     if (!rackLength || (options.bingoOnly && rackLength < rackSize))
-      return { moves, bestScore, hasBingo, bigReply };
+      return { moves, bestScore, hasBingo };
     if (performance.now() >= deadline) throw new SearchLimitError();
 
     const counts = premiumSearch ? new Uint16Array(26) : new Uint8Array(26);
@@ -322,18 +321,19 @@ export function prepareSolver(
         if (summaryOnly) {
           if (score > bestScore) {
             bestScore = score;
-            if (captureBigReply && score >= BIG_REPLY_SCORE) {
-              let word = "";
-              for (let i = 0; i < length; i++) word += LETTERS[wordCodes[i]];
-              bigReply = {
-                word,
-                score,
-                tiles: Array.from({ length: used }, (_, i) => ({
-                  index: tileCells[i],
-                  letter: LETTERS[tileCodes[i]],
-                })),
-              };
-            }
+            if (bigReplies) bigReplies.length = 0;
+          }
+          if (bigReplies && score >= BIG_REPLY_SCORE && score === bestScore) {
+            let word = "";
+            for (let i = 0; i < length; i++) word += LETTERS[wordCodes[i]];
+            bigReplies.push({
+              word,
+              score,
+              tiles: Array.from({ length: used }, (_, i) => ({
+                index: tileCells[i],
+                letter: LETTERS[tileCodes[i]],
+              })),
+            });
           }
           hasBingo ||= used === rackSize;
           return;
@@ -427,7 +427,7 @@ export function prepareSolver(
           const code = codes[cell];
           const child = lexicon.child(node, code);
           if (!child) return false;
-          if (!summaryOnly || captureBigReply) wordCodes[length] = code;
+          if (!summaryOnly || bigReplies) wordCodes[length] = code;
           return walk(
             cell + step,
             length + 1,
@@ -456,7 +456,7 @@ export function prepareSolver(
           const bit = 1 << code;
           possible ^= bit;
           const child = first[node] + popcount(allChildren >>> (code + 1));
-          if (!summaryOnly || captureBigReply) wordCodes[length] = code;
+          if (!summaryOnly || bigReplies) wordCodes[length] = code;
           if (available & bit) {
             const points = letterPoints[code] * lm[cell];
             const left = --counts[code] ? available : available ^ bit;
@@ -511,7 +511,7 @@ export function prepareSolver(
         startLine = start.line;
         startPosition = start.position;
         if (walk(start.cell, 0, 0, 0, rackMask, blankCount, 0, 1, 0, false)) {
-          return { moves, bestScore, hasBingo, bigReply };
+          return { moves, bestScore, hasBingo };
         }
       }
     }
@@ -524,7 +524,7 @@ export function prepareSolver(
           a.id.localeCompare(b.id),
       );
     }
-    return { moves, bestScore, hasBingo, bigReply };
+    return { moves, bestScore, hasBingo };
   }
 
   return {
@@ -535,15 +535,9 @@ export function prepareSolver(
       return { score: bestScore, bingo: hasBingo };
     },
     summarizeReply: (rack: string, limits: Limits = {}) => {
-      const { bestScore, bigReply } = run(
-        rack,
-        limits,
-        {},
-        true,
-        undefined,
-        true,
-      );
-      return { score: bestScore, bigReply };
+      const bigReplies: PremiumReply[] = [];
+      const { bestScore } = run(rack, limits, {}, true, undefined, bigReplies);
+      return { score: bestScore, bigReplies };
     },
     premiumReplies(
       counts: readonly number[],

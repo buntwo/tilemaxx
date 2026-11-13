@@ -180,7 +180,7 @@ test("reply rows resolve individually and compare against the highest score afte
         kind: "reply-summary",
         id: request.id,
         moveId: "b",
-        result: reply,
+        result: { ...reply, heatmap: undefined },
       },
     }),
   );
@@ -201,7 +201,24 @@ test("reply rows resolve individually and compare against the highest score afte
   const dialog = screen.getByRole("dialog");
   expect(within(dialog).getByText("35.0 → 31.0 pts")).toBeTruthy();
   expect(within(dialog).getByText("Reference · After CATS")).toBeTruthy();
+  expect(worker!.request?.kind).toBe("reply-summary");
   await user.click(within(dialog).getByRole("button", { name: "Heatmap" }));
+  const heatmapRequest = worker!.request!;
+  expect(heatmapRequest).toMatchObject({
+    kind: "reply-detail",
+    candidate: { id: "b" },
+    reference: { id: "a" },
+    samples: 500,
+    captureHeatmap: true,
+  });
+  expect(within(dialog).getByRole("status").textContent).toContain(
+    "Checking heatmap",
+  );
+  act(() =>
+    worker!.onmessage?.({
+      data: { kind: "reply-detail", id: heatmapRequest.id, result: reply },
+    }),
+  );
   await user.click(within(dialog).getByRole("button", { name: /ZA.*45 pts/ }));
   expect(
     dialog.querySelector('[data-cell="0"]')?.classList.contains("ghost"),
@@ -214,8 +231,13 @@ test("reply rows resolve individually and compare against the highest score afte
   await user.click(
     within(dialog).getByRole("button", { name: "Refine to 5,000 racks" }),
   );
-  expect(worker!.request?.kind).toBe("reply-refine");
-  expect(worker!.request?.reference.id).toBe("a");
+  expect(worker!.request).toMatchObject({
+    kind: "reply-detail",
+    reference: { id: "a" },
+    samples: 5_000,
+    captureHeatmap: true,
+  });
+  expect(within(dialog).getByText("16% → 0% of checked racks")).toBeTruthy();
   expect(onPlay).not.toHaveBeenCalled();
 });
 
