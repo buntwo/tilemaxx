@@ -4,6 +4,7 @@ import { act, render, screen, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Results from "../../src/components/Results";
 import { emptyBoard, type Game, type Move } from "../../shared/model";
+import { TILE_SYMBOLS } from "../../shared/tile-pool";
 import { PRESETS } from "../../shared/presets";
 import type {
   ReplyRequest,
@@ -187,6 +188,57 @@ test("reply rows resolve individually and compare against the highest score afte
   expect(worker!.request?.kind).toBe("reply-refine");
   expect(worker!.request?.reference.id).toBe("a");
   expect(onPlay).not.toHaveBeenCalled();
+});
+
+test("empty-bag replies start automatically and can be overridden", async () => {
+  const requests: ReplyRequest[] = [];
+  const terminate = vi.fn();
+  vi.stubGlobal(
+    "Worker",
+    class {
+      terminate = terminate;
+      postMessage(request: ReplyRequest) {
+        requests.push(request);
+      }
+    },
+  );
+  const game: Game = {
+    id: "endgame",
+    name: "Endgame",
+    profileId: "p",
+    board: emptyBoard(15),
+    rack: "CATS",
+    template: {
+      ...PRESETS[0],
+      tileCounts: Object.fromEntries(
+        TILE_SYMBOLS.map((letter) => [
+          letter,
+          Number("CATSZ".includes(letter)),
+        ]),
+      ),
+    },
+    dictionaryId: "test",
+    past: [],
+    future: [],
+    revision: 0,
+    updatedAt: "",
+    archived: false,
+  };
+  const { user } = setup(false, { analysisGame: game, replyEnabled: true });
+  expect(requests.map(({ bagSize }) => bagSize)).toEqual([0]);
+  expect(screen.getByText("Bag assumed empty")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Bag is empty" })).toBeNull();
+  await user.click(screen.getByText("Reply settings"));
+  await user.type(
+    screen.getByRole("spinbutton", { name: "Tiles in bag" }),
+    "1",
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Update reply analysis" }),
+  );
+  expect(requests.map(({ bagSize }) => bagSize)).toEqual([0, 1]);
+  expect(terminate).toHaveBeenCalledOnce();
+  expect(screen.queryByText("Bag assumed empty")).toBeNull();
 });
 test("rack odds sort every move and board odds rank checked moves separately", async () => {
   const { user } = setup(true, {

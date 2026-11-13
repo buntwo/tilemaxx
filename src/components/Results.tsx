@@ -124,7 +124,7 @@ export default function Results({
       : undefined;
   const replyDetail = replyMove && replyAnalysis.results?.[replyMove.id];
   const replyScores =
-    analysisGame && replyAnalysis.bagSize === 0 && !replyAnalysis.needsBag
+    analysisGame && replyAnalysis.bagSize === 0
       ? replyScoreTotals(analysisGame)
       : undefined;
   const topScore = useMemo(
@@ -361,24 +361,19 @@ export default function Results({
           {replyEnabled && analysisGame && (
             <div className="reply-controls" key={analysisKey}>
               <ReplySettings analysis={replyAnalysis} />
-              {replyAnalysis.needsBag && !replyAnalysis.invalid && (
-                <button
-                  type="button"
-                  className="button secondary"
-                  onClick={() => replyAnalysis.setOptions(0, 0)}
-                >
-                  Bag is empty
-                </button>
-              )}
               {replyAnalysis.invalid && (
                 <span>Check tile counts for reply analysis.</span>
               )}
               {replyAnalysis.error && (
                 <span role="status">{replyAnalysis.error}</span>
               )}
-              {!replyAnalysis.invalid &&
-                !replyAnalysis.needsBag &&
-                replyAnalysis.bagSize === 0 && <span>Empty bag</span>}
+              {!replyAnalysis.invalid && replyAnalysis.bagSize === 0 && (
+                <span>
+                  {replyAnalysis.bagAssumedEmpty
+                    ? "Bag assumed empty"
+                    : "Empty bag"}
+                </span>
+              )}
             </div>
           )}
           <div className="result-legend" aria-label="Move letter colors">

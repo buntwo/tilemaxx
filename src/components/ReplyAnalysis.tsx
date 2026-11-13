@@ -125,8 +125,8 @@ export function ReplySettings({ analysis }: { analysis: Analysis }) {
     <details className="reply-settings">
       <summary>Reply settings</summary>
       <p>
-        Two-player game. The estimate sets aside up to one full opponent rack.
-        Confirm the bag count when you know it.
+        The bag estimate assumes one opponent who refilled their rack after
+        playing. Enter the bag count if your position differs.
       </p>
       <form
         onSubmit={(event) => {
@@ -476,7 +476,9 @@ export default function ReplyAnalysis({
       title={`Reply after ${move.word}`}
       subtitle={
         result.kind === "empty-bag"
-          ? "Empty bag · Known opponent rack"
+          ? analysis.bagAssumedEmpty
+            ? "Bag assumed empty · Opponent rack from unseen tiles"
+            : "Empty bag · Known opponent rack"
           : undefined
       }
       onClose={onClose}

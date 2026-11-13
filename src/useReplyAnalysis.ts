@@ -76,7 +76,7 @@ export function useReplyAnalysis(
   );
   const reference = target[0];
   const invalid = !!pool?.excess.length;
-  const needsBag = !confirmed && bagSize === 0;
+  const bagAssumedEmpty = bagSize === 0 && !confirmed && (pool?.total ?? 0) > 0;
   const position: ReplyPosition | undefined = game && {
     board: game.board,
     rack: game.rack,
@@ -89,14 +89,7 @@ export function useReplyAnalysis(
   useEffect(() => {
     setSummary(undefined);
     setDetail(undefined);
-    if (
-      !moveList ||
-      !reference ||
-      !position ||
-      !dictionaryId ||
-      invalid ||
-      needsBag
-    )
+    if (!moveList || !reference || !position || !dictionaryId || invalid)
       return;
     const active = new Worker(new URL("./reply.worker.ts", import.meta.url), {
       type: "module",
@@ -165,7 +158,7 @@ export function useReplyAnalysis(
       active.terminate();
       activeDetail.current = undefined;
     };
-  }, [moveList, runKey, dictionaryId, invalid, needsBag]);
+  }, [moveList, runKey, dictionaryId, invalid]);
 
   function requestDetail(kind: "reply-refine" | "reply-line", candidate: Move) {
     if (!worker.current || !reference || !position || !dictionaryId) return;
@@ -190,14 +183,14 @@ export function useReplyAnalysis(
     minimumBag,
     unseen: pool?.total ?? 0,
     invalid,
-    needsBag,
+    bagAssumedEmpty,
     maxScorelessTurns: game ? replyScorelessLimit(game.template) - 1 : 5,
     scorelessTurns,
     setOptions: (bagSize: number, scorelessTurns: number) =>
       setSettings({ key: positionKey, bagSize, scorelessTurns }),
     target,
     results: current?.results,
-    pending: !!moveList && !invalid && !needsBag && !current?.done,
+    pending: !!moveList && !invalid && !current?.done,
     error: current?.error,
     reference,
     detail: detail?.runKey === runKey ? detail : undefined,
