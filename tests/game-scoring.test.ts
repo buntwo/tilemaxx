@@ -191,3 +191,65 @@ test("bingo markers persist for both players and can be recovered from legacy sc
     assert.equal(trackedMoveHistory(redo(undo(position))).at(-1)?.bingo, true);
   }
 });
+
+test("blank corrections after a bingo do not hide the next opponent move", () => {
+  const game = fixture();
+  game.board[9] = "S"; // J1 is already on the board.
+  game.board[game.template.start] = "o";
+  game.board[game.template.start + 1] = "O";
+  game.rack = "TOXI";
+  const history = new BoardEditHistory();
+  const corrected = [...game.board];
+  corrected[game.template.start] = "O";
+  corrected[game.template.start + 1] = "o";
+  const afterCorrection = history.apply(game, corrected, "blank");
+  const afterSad = [...corrected];
+  afterSad[24] = "A";
+  afterSad[39] = "D";
+  const entered = history.apply(afterCorrection, afterSad, "enter");
+  assert.equal(pendingOpponentPlay(entered)?.word, "SAD");
+
+  const next = solve(
+    new Lexicon(["TOXIC", "TAXI", "OX", "TO"]),
+    afterSad,
+    game.rack,
+    game.template,
+  );
+  const move = next.find((candidate) => candidate.word === "TO");
+  assert.ok(move);
+  const played = playTrackedMove(entered, move);
+  assert.deepEqual(
+    trackedMoveHistory(played).map(({ word, player }) => [word, player]),
+    [
+      ["SAD", "opponent"],
+      ["TO", "you"],
+    ],
+  );
+});
+
+test("playing a suggestion requires resolving ambiguous new tiles but permits consecutive plays", () => {
+  const game = fixture();
+  game.rack = "CAT";
+  const editedBoard = [...game.board];
+  editedBoard[0] = "X"; // Disconnected and the opening square is empty.
+  const edited = new BoardEditHistory().apply(game, editedBoard, "enter");
+  const move = solve(
+    new Lexicon(["CAT"]),
+    game.board,
+    game.rack,
+    game.template,
+  )[0];
+  assert.throws(() => playTrackedMove(edited, move), /Keep as correction/);
+  const played = playTrackedMove(treatBoardEditAsCorrection(edited), move);
+  const extension = solve(
+    new Lexicon(["CATS"]),
+    played.board,
+    "S",
+    played.template,
+  )[0];
+  const next = playTrackedMove({ ...played, rack: "S" }, extension);
+  assert.deepEqual(
+    trackedMoveHistory(next).map(({ player }) => player),
+    ["you", "you"],
+  );
+});

@@ -649,6 +649,22 @@ label + label {
   position: relative;
   display: block;
 }
+.game-title-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--soft);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.game-title-score [aria-hidden] {
+  color: var(--muted);
+}
 .game-picker-trigger {
   display: flex;
   align-items: center;

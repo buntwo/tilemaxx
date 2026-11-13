@@ -1172,6 +1172,9 @@ test("score tracking records typed opponent moves and solver plays across undo, 
       name: "Track scores",
     }) as HTMLInputElement;
   expect(tracking().checked).toBe(true);
+  const titleScore = () =>
+    screen.queryByRole("group", { name: "Tracked score" });
+  expect(titleScore()?.textContent).toBe("0–0");
 
   await user.click(cell("H8: DW, start"));
   await user.keyboard("CAQ{Backspace}T");
@@ -1192,6 +1195,7 @@ test("score tracking records typed opponent moves and solver plays across undo, 
     best: 6,
     bingos: 0,
   });
+  expect(titleScore()?.textContent).toBe("6–10");
   expect(scores().getByText(/Avg 10\.0/)).toBeTruthy();
   await user.click(scores().getByText("Tracked move history"));
   const moves = () =>
@@ -1212,6 +1216,7 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   await user.click(cell("Undo"));
   expect(current().scoring?.opponent.points).toBe(10);
   expect(current().scoring?.you.points).toBe(0);
+  expect(titleScore()?.textContent).toBe("0–10");
   expect(moves().getAllByRole("row").slice(1)).toHaveLength(1);
   await user.click(cell("Undo"));
   expect(scores().getByText("CAT · 10 pts")).toBeTruthy();
@@ -1219,6 +1224,7 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   await user.click(cell("Redo"));
   await user.click(tracking());
   expect(tracking().checked).toBe(false);
+  expect(titleScore()).toBeNull();
   expect(moves().getAllByRole("row").slice(1)).toHaveLength(2);
   await store.flush();
   expect(remote.games[0].trackScores).toBe(false);

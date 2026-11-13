@@ -71,7 +71,9 @@ function scorePlacement(
   const { size, premiums, rules } = template;
   const placed: number[] = [];
   for (const [index, tile] of board.entries()) {
-    if (base[index] && tile !== base[index]) return null;
+    // Blank corrections can coexist with a play. Use the corrected tile value.
+    if (base[index] && tile.toUpperCase() !== base[index].toUpperCase())
+      return null;
     if (tile && !base[index]) placed.push(index);
   }
   if (!placed.length || placed.length > template.rackSize) return null;
@@ -167,6 +169,15 @@ export function recordOpponentPlay(game: Game): Game {
 export function playTrackedMove(game: Game, move: Move): Game {
   if (!tracksScores(game)) return applyMove(game, move);
   const previous = recordOpponentPlay(game);
+  const pendingBase = previous.scoring?.pendingBase;
+  if (
+    pendingBase &&
+    game.board.some((tile, index) => tile && !pendingBase[index])
+  ) {
+    throw new Error(
+      "The new board tiles could not be scored as one opponent move. Fix the entry or choose Keep as correction under Game scores, then play your move.",
+    );
+  }
   const result = applyMove(previous, move, "you");
   return {
     ...result,

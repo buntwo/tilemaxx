@@ -57,6 +57,7 @@ import {
   emptyScoring,
   playTrackedMove,
   recordOpponentPlay,
+  tracksScores,
   setScoreTracking,
   treatBoardEditAsCorrection,
 } from "../shared/game-scoring";
@@ -561,6 +562,7 @@ export default function App() {
     if (!game) return;
     try {
       update(playTrackedMove(game, move));
+      setError("");
       notify(
         `${move.word} played for ${move.score} points. Add your new rack letters.`,
       );
@@ -793,6 +795,21 @@ export default function App() {
                     onChoose={chooseGame}
                     onReorder={(ids) => store.reorderGames(profileId, ids)}
                   />
+                )}
+                {game && tracksScores(game) && (
+                  <span
+                    className="game-title-score"
+                    role="group"
+                    aria-label="Tracked score"
+                  >
+                    <span aria-label="Your score">
+                      {game.scoring?.you.points ?? 0}
+                    </span>
+                    <span aria-hidden="true">–</span>
+                    <span aria-label="Opponent score">
+                      {game.scoring?.opponent.points ?? 0}
+                    </span>
+                  </span>
                 )}
               </div>
               {game && (
