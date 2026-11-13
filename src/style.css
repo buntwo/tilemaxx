@@ -336,6 +336,8 @@ label + label {
 }
 .brand-word {
   white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .brand-highlight {
   color: var(--primary);

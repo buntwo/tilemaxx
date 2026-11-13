@@ -98,22 +98,90 @@ function saved(key: string, fallback = "") {
 }
 
 const BRAND_LETTERS = "TILEMAX";
+const BRAND_WORD = "tilemaxx";
 const brandIndex = Math.floor(Math.random() * BRAND_LETTERS.length);
 const brandLetter = BRAND_LETTERS[brandIndex];
 const highlightedIndex =
   brandLetter === "X" && Math.random() < 0.5 ? brandIndex + 1 : brandIndex;
 const brandOnFire = Math.random() < 0.1;
 
-function BrandTile() {
+function BrandTile({ letter = brandLetter }: { letter?: string }) {
   return (
     <span
       className={`brand-mark${brandOnFire ? " on-fire" : ""}`}
       aria-hidden="true"
     >
       {brandOnFire && <Flame className="brand-flame" size={19} />}
-      {brandLetter}
-      <small>{tileScore(brandLetter, "scrabble")}</small>
+      {letter}
+      <small>{tileScore(letter, "scrabble")}</small>
     </span>
+  );
+}
+
+function Brand() {
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const selected = previewIndex ?? highlightedIndex;
+  const reset = () => setPreviewIndex(null);
+
+  return (
+    <a
+      className="brand"
+      href="/"
+      aria-label="Tilemaxx"
+      onClick={(e) => e.preventDefault()}
+    >
+      <BrandTile letter={BRAND_WORD[selected].toUpperCase()} />
+      <span>
+        <span
+          className="brand-word"
+          onPointerLeave={reset}
+          onPointerMove={(e) => {
+            if (
+              e.pointerType === "mouse" ||
+              !e.currentTarget.hasPointerCapture(e.pointerId)
+            )
+              return;
+            const letter = document
+              .elementFromPoint(e.clientX, e.clientY)
+              ?.closest<HTMLElement>("[data-brand-letter]");
+            setPreviewIndex(
+              letter && e.currentTarget.contains(letter)
+                ? Number(letter.dataset.brandLetter)
+                : null,
+            );
+          }}
+          onPointerUp={(e) => {
+            if (e.pointerType !== "mouse") reset();
+          }}
+          onPointerCancel={reset}
+          onLostPointerCapture={reset}
+        >
+          {[...BRAND_WORD].map((letter, index) => (
+            <span
+              key={index}
+              data-brand-letter={index}
+              className={
+                index === selected
+                  ? `brand-highlight${brandOnFire ? " on-fire" : ""}`
+                  : undefined
+              }
+              onPointerEnter={(e) => {
+                if (e.pointerType === "mouse" || e.pointerType === "pen")
+                  setPreviewIndex(index);
+              }}
+              onPointerDown={(e) => {
+                if (e.pointerType === "mouse" || !e.isPrimary) return;
+                e.currentTarget.parentElement?.setPointerCapture(e.pointerId);
+                setPreviewIndex(index);
+              }}
+            >
+              {letter}
+            </span>
+          ))}
+        </span>
+        <span className="brand-caption">A LITTLE WORD WISDOM</span>
+      </span>
+    </a>
   );
 }
 
@@ -484,21 +552,7 @@ export default function App() {
         <div className="sidebar-scrim" onClick={() => setSidebar(false)} />
       )}
       <aside className={`sidebar ${sidebar ? "open" : ""}`}>
-        <a className="brand" href="/" onClick={(e) => e.preventDefault()}>
-          <BrandTile />
-          <span>
-            <span className="brand-word">
-              {"tilemaxx".slice(0, highlightedIndex)}
-              <span
-                className={`brand-highlight${brandOnFire ? " on-fire" : ""}`}
-              >
-                {"tilemaxx"[highlightedIndex]}
-              </span>
-              {"tilemaxx".slice(highlightedIndex + 1)}
-            </span>
-            <span className="brand-caption">A LITTLE WORD WISDOM</span>
-          </span>
-        </a>
+        <Brand />
         <button className="button new-game" onClick={() => openDialog("new")}>
           <Plus size={18} />
           New game

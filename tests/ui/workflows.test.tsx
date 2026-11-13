@@ -646,6 +646,37 @@ function touch(
   fireEvent(target, event);
 }
 
+test("touching the wordmark previews its tile and restores the original on release or cancel", async () => {
+  await start();
+  const brand = screen.getByRole("link", { name: "Tilemaxx" });
+  const tile = brand.querySelector(".brand-mark")!;
+  const highlighted = () => brand.querySelector(".brand-highlight");
+  const original = highlighted();
+  const originalTile = tile.textContent;
+  const target = brand.querySelector(
+    original?.textContent === "x"
+      ? '[data-brand-letter="4"]'
+      : '[data-brand-letter="7"]',
+  )!;
+  const capture = vi.fn();
+  Object.defineProperty(target.parentElement, "setPointerCapture", {
+    value: capture,
+  });
+  touch(target, "pointerdown");
+  expect(highlighted()).toBe(target);
+  expect(tile.textContent).toBe(target.textContent === "x" ? "X8" : "M3");
+  expect(target.classList.contains("on-fire")).toBe(
+    tile.classList.contains("on-fire"),
+  );
+  expect(capture).toHaveBeenCalledWith(1);
+  touch(target.parentElement!, "pointerup");
+  expect(highlighted()).toBe(original);
+  expect(tile.textContent).toBe(originalTile);
+  touch(target, "pointerdown");
+  touch(target.parentElement!, "pointercancel");
+  expect(highlighted()).toBe(original);
+});
+
 test("touch waits for click to focus the keyboard and toggles using selection from before the blur", async () => {
   const user = await start();
   const square = cell("H8: DW, start");
