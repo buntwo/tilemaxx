@@ -1163,12 +1163,13 @@ label + label {
 }
 @media (prefers-reduced-motion: no-preference) {
   .square.ghost:not(.blank) {
-    animation: preview-tile-pulse 2.8s ease-in-out infinite;
+    animation: preview-tile-pulse 2s ease-in-out infinite;
   }
 }
 @keyframes preview-tile-pulse {
   50% {
-    background-color: #91c49b;
+    background-color: #72b77e;
+    transform: scale(0.88);
   }
 }
 .square.selected {
