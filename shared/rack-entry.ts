@@ -44,16 +44,30 @@ export function rackAfterMove(
 ) {
   const { excludedRackSlots } = position;
   if (!excludedRackSlots?.length) return leave;
+  const slots = rackSlotsForMove(position, tiles);
+  if (!slots) throw new Error("The rack changed. Find moves again.");
   const remaining = [...position.rack];
+  for (const slot of slots) remaining[slot] = ".";
+  return trimRack(remaining.join(""));
+}
+
+export function rackSlotsForMove(
+  { rack, excludedRackSlots = [] }: Position,
+  tiles: readonly Placement[],
+) {
+  const used = new Set(excludedRackSlots);
+  const slots: number[] = [];
+  const letters = [...rack];
   for (const { letter } of tiles) {
     const symbol = letter === letter.toUpperCase() ? letter : "?";
-    const slot = remaining.findIndex(
-      (tile, index) => tile === symbol && !excludedRackSlots.includes(index),
+    const slot = letters.findIndex(
+      (tile, index) => tile === symbol && !used.has(index),
     );
-    if (slot < 0) throw new Error("The rack changed. Find moves again.");
-    remaining[slot] = ".";
+    if (slot < 0) return null;
+    used.add(slot);
+    slots.push(slot);
   }
-  return trimRack(remaining.join(""));
+  return slots;
 }
 export function enterRack(
   rack: string,

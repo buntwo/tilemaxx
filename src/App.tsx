@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ImagePlus,
   ArrowLeft,
@@ -38,6 +38,11 @@ import Board from "./components/Board";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
 import BoardEntry from "./components/BoardEntry";
 import RackEntry from "./components/RackEntry";
+import {
+  flyTiles,
+  prepareTileFlight,
+  rackTileRects,
+} from "./components/tile-motion";
 import TilePool from "./components/TilePool";
 import { sortRack, splitRack } from "../shared/rack-entry";
 import BoardStudio from "./components/BoardStudio";
@@ -103,6 +108,11 @@ const workspaceHashes = {
   studio: "#board-studio",
 } as const;
 type Workspace = keyof typeof workspaceHashes;
+type TileFlight = NonNullable<ReturnType<typeof prepareTileFlight>> & {
+  before: Game;
+  destination: string;
+  move: Move;
+};
 
 function currentWorkspace(): Workspace {
   if (location.hash === workspaceHashes.archive) return "archive";
@@ -149,6 +159,10 @@ function positionSignature(game: Game) {
 }
 
 export default function App() {
+  const boardPanel = useRef<HTMLElement>(null);
+  const rackPanel = useRef<HTMLElement>(null);
+  const flightDock = useRef<HTMLDivElement>(null);
+  const [flight, setFlight] = useState<TileFlight>();
   const state = useStore(),
     data = state.data;
   const [profileId, setProfileId] = useState(saved("tilewise:profile")),
@@ -200,6 +214,34 @@ export default function App() {
       )
     : game;
   const signature = game ? positionSignature(game) : "";
+  const activeFlight =
+    workspace === "games" && flight?.destination === signature
+      ? flight
+      : undefined;
+  useLayoutEffect(() => {
+    if (!flight) return;
+    if (!activeFlight) {
+      setFlight(undefined);
+      return;
+    }
+    const board = flight.compact ? flightDock.current : boardPanel.current;
+    const sources =
+      flight.sources ?? (board ? rackTileRects(board, flight.slots) : []);
+    const finish = () =>
+      setFlight((current) => (current === flight ? undefined : current));
+    const stop =
+      board &&
+      flyTiles(
+        board,
+        flight.move.tiles,
+        sources,
+        flight.before.template.rules,
+        flight.compact,
+        finish,
+      );
+    if (!stop) finish();
+    return stop || undefined;
+  }, [activeFlight, flight]);
   const [exchange, setExchange] = useState<{ key: string; slots: number[] }>();
   const previewScore =
     game && preview
@@ -528,6 +570,12 @@ export default function App() {
     if (!game) return;
     try {
       const next = playTrackedMove(game, move);
+      const motion = prepareTileFlight(
+        game,
+        move,
+        rackPanel.current,
+        boardPanel.current,
+      );
       if (moves) {
         const cache = savedMoveResults.current;
         cache.delete(signature);
@@ -542,6 +590,15 @@ export default function App() {
         if (cache.size > savedMoveResultsLimit)
           cache.delete(cache.keys().next().value!);
       }
+      setFlight(
+        motion && {
+          ...motion,
+          before: game,
+          destination: positionSignature(next),
+          move,
+        },
+      );
+      setPreview(null);
       update(next);
       setError("");
       notify(
@@ -918,7 +975,7 @@ export default function App() {
         ) : game ? (
           <div className="workspace-grid">
             <div className="board-column">
-              <section className="board-panel panel">
+              <section ref={boardPanel} className="board-panel panel">
                 <div className="board-toolbar">
                   <div>
                     <span className="board-name">
@@ -1008,7 +1065,13 @@ export default function App() {
                   ))}
                 </div>
               </section>
-              <section className="rack-panel panel">
+              <section
+                ref={rackPanel}
+                className="rack-panel panel"
+                onFocusCapture={() => {
+                  if (activeFlight) setFlight(undefined);
+                }}
+              >
                 <div className="rack-heading">
                   <h2>Your rack</h2>
                   <button
@@ -1044,6 +1107,9 @@ export default function App() {
                   onChange={update}
                   onSolve={solve}
                   onExchange={(slots) => setExchange({ key: signature, slots })}
+                  flyingRack={
+                    activeFlight?.compact === false ? activeFlight : undefined
+                  }
                 />
                 <TilePool key={`tile-pool:${game.id}`} game={game} />
               </section>
@@ -1170,6 +1236,37 @@ export default function App() {
           <span>Tilemaxx · Local & personal</span>
         </footer>
       </main>
+      {activeFlight?.compact && game && (
+        <div
+          className="mobile-preview-dock tile-flight-dock"
+          ref={flightDock}
+          aria-hidden="true"
+          inert
+        >
+          <div className="dock-board">
+            <Board template={game.template} board={game.board} compact />
+          </div>
+          <div className="flight-rack">
+            {Array.from({ length: game.template.rackSize }, (_, slot) => {
+              const consumed = activeFlight.slots.includes(slot);
+              const letter = activeFlight.before.rack[slot];
+              const tile = letter && letter !== "." && !consumed;
+              return (
+                <span
+                  key={slot}
+                  data-rack-slot={slot}
+                  className={`rack-tile${tile ? "" : " empty"}${tile && letter === "?" ? " blank" : ""}`}
+                >
+                  {tile && letter !== "?" ? letter : ""}
+                  {tile && (
+                    <small>{tileScore(letter, game.template.rules)}</small>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {workspace === "games" && preview && game && (
         <div className="mobile-preview-dock" aria-label="Move preview">
           <div className="dock-board">

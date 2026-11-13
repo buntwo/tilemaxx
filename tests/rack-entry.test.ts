@@ -1,6 +1,27 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { enterRack, eraseRack } from "../shared/rack-entry";
+import {
+  enterRack,
+  eraseRack,
+  rackAfterMove,
+  rackSlotsForMove,
+} from "../shared/rack-entry";
+
+test("move tiles match distinct rack slots, including blanks and held duplicates", () => {
+  const position = { board: [], rack: "A.A?TTA", excludedRackSlots: [0, 4] };
+  const tiles = [
+    { index: 112, letter: "A" },
+    { index: 113, letter: "a" },
+    { index: 114, letter: "T" },
+    { index: 115, letter: "A" },
+  ];
+  assert.deepEqual(rackSlotsForMove(position, tiles), [2, 3, 5, 6]);
+  assert.equal(rackAfterMove(position, tiles, ""), "A...T");
+  assert.equal(
+    rackSlotsForMove(position, [...tiles, { index: 116, letter: "A" }]),
+    null,
+  );
+});
 
 test("rack entry converts spaces to unassigned blanks and replaces slots without shifting", () => {
   assert.deepEqual(enterRack("", 0, "c a?t", 7), { rack: "C?A?T", cursor: 5 });

@@ -3646,6 +3646,108 @@ kbd {
   padding: 0;
   cursor: text;
 }
+.rack-slot-window {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 4px;
+  pointer-events: none;
+}
+.rack-slide {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--tile);
+  color: #364238;
+  font-size: inherit;
+  box-shadow: inset 0 -2px var(--tile-edge);
+}
+.rack-slide.blank {
+  background: var(--blank-tile);
+  color: var(--blank-ink);
+  box-shadow: inset 0 -2px #9fbccc;
+}
+.rack-entry .rack-tile[data-rack-sliding] {
+  background: var(--bg);
+}
+.rack-entry .rack-tile.empty[data-rack-sliding] {
+  font-size: 23px;
+}
+.rack-tile[data-rack-sliding] > :not(.rack-slot-window) {
+  visibility: hidden;
+}
+.square[data-tile-landing] {
+  background: var(--cell) !important;
+  box-shadow: none !important;
+}
+.square[data-tile-landing] > * {
+  visibility: hidden;
+}
+.tile-flight-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  pointer-events: none;
+}
+.flying-tile {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  transform-origin: top left;
+  background: var(--tile);
+  color: #364238;
+  border-radius: 5px;
+  font-weight: 630;
+  line-height: 1;
+  box-shadow: inset 0 -2px var(--tile-edge), 0 4px 9px #172b2533;
+}
+.flying-tile.blank {
+  background: var(--blank-tile);
+  color: var(--blank-ink);
+  box-shadow: inset 0 -2px #9fbccc, 0 4px 9px #172b2533;
+}
+.flying-tile small {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  font-size: 0.4em;
+}
+.mobile-preview-dock.tile-flight-dock {
+  display: flex;
+  position: fixed;
+  inset: 8px 8px auto;
+  z-index: 22;
+  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  width: min(calc(100% - 16px), 270px);
+  margin: auto;
+  padding: 9px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 35px #0003;
+  pointer-events: none;
+  overflow: hidden;
+}
+.tile-flight-dock .dock-board {
+  width: min(100%, 240px, max(120px, 60dvh - 56px));
+}
+.tile-flight-dock .tile-points {
+  display: none;
+}
+.flight-rack {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  width: min(100%, 240px);
+}
+.flight-rack .rack-tile {
+  min-width: 0;
+  max-width: 30px;
+  font-size: 15px;
+}
 .rack-tile.selected {
   outline: 2px solid var(--primary);
   outline-offset: 2px;

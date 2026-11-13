@@ -1,7 +1,8 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { enterRack, eraseRack, rackLetters } from "../../shared/rack-entry";
 import { tileScore, type Game } from "../../shared/model";
 import { Ban, Repeat2 } from "lucide-react";
+import { canAnimateTiles } from "./tile-motion";
 
 const SENTINEL = "\u200b";
 
@@ -10,11 +11,13 @@ export default function RackEntry({
   onChange,
   onSolve,
   onExchange,
+  flyingRack,
 }: {
   game: Game;
   onChange: (game: Game) => void;
   onSolve: () => void;
   onExchange: (slots: number[]) => void;
+  flyingRack?: { before: Game; slots: number[] };
 }) {
   const [cursor, setCursor] = useState(game.rack.length);
   const [focused, setFocused] = useState(false);
@@ -25,6 +28,10 @@ export default function RackEntry({
     {},
   );
   const input = useRef<HTMLInputElement>(null);
+  const rack = useRef<HTMLDivElement>(null);
+  const slides = useRef(
+    new Map<number, { letter: string; stop: () => void }>(),
+  );
   // A directly selected tile is replaced/erased once; typing and deletion
   // return to insertion-cursor behavior for subsequent Backspaces.
   const eraseSelected = useRef(false);
@@ -44,11 +51,19 @@ export default function RackEntry({
     window.addEventListener("blur", blur);
     window.addEventListener("focus", focus);
     return () => {
+      for (const slide of slides.current.values()) slide.stop();
+      slides.current.clear();
       window.removeEventListener("blur", blur);
       window.removeEventListener("focus", focus);
     };
   }, []);
+  useLayoutEffect(() => {
+    for (const [index, slide] of slides.current)
+      if (flyingRack || (game.rack[index] || ".") !== slide.letter)
+        slide.stop();
+  }, [game.rack, flyingRack]);
   function save(result: { rack: string; cursor: number }, from: number) {
+    animateEdit(result.rack);
     const excludedRackSlots = selectAll
       ? []
       : excludedSlots.filter(
@@ -78,6 +93,62 @@ export default function RackEntry({
           .map((slot) => [slot, game.rack[slot]]),
       ),
     );
+  }
+  function animateEdit(next: string) {
+    if (!canAnimateTiles()) return;
+    for (let i = 0; i < capacity; i++) {
+      const before = game.rack[i] || ".";
+      const after = next[i] || ".";
+      if (before === after) continue;
+      const slot = rack.current?.querySelector<HTMLElement>(
+        `[data-rack-slot="${i}"]`,
+      );
+      if (!slot) continue;
+      const mask = slot.querySelector(".rack-slot-window");
+      if (!mask) continue;
+      const current = mask.querySelector(".rack-slide");
+      const transform = current ? getComputedStyle(current).transform : "none";
+      slides.current.get(i)?.stop();
+      const letter = after === "." ? before : after;
+      const face = document.createElement("span");
+      face.className = `rack-slide${letter === "?" ? " blank" : ""}`;
+      face.textContent = letter === "?" ? "" : letter;
+      const score = document.createElement("small");
+      score.textContent = String(
+        letter === "?" ? 0 : tileScore(letter, game.template.rules),
+      );
+      face.append(score);
+      mask.append(face);
+      slot.dataset.rackSliding = "";
+      const removing = after === ".";
+      const animation = face.animate(
+        removing
+          ? [
+              { transform: transform === "none" ? "translateY(0)" : transform },
+              { transform: "translateY(108%)" },
+            ]
+          : [
+              { transform: "translateY(-108%)" },
+              { transform: "translateY(0)" },
+            ],
+        {
+          duration: removing ? 240 : 320,
+          easing: removing
+            ? "cubic-bezier(.42,0,.68,1)"
+            : "cubic-bezier(.28,.3,.24,1)",
+          fill: "both",
+        },
+      );
+      const stop = () => {
+        if (slides.current.get(i)?.stop !== stop) return;
+        slides.current.delete(i);
+        animation.cancel();
+        face.remove();
+        delete slot.dataset.rackSliding;
+      };
+      slides.current.set(i, { letter: after, stop });
+      animation.finished.then(stop, stop);
+    }
   }
   function enter(text: string) {
     if (!/[a-z ?]/i.test(text)) return;
@@ -125,17 +196,30 @@ export default function RackEntry({
   }
   return (
     <div className="rack-entry">
-      <div className="rack-tiles" role="group" aria-label="Your rack tiles">
+      <div
+        ref={rack}
+        className="rack-tiles"
+        role="group"
+        aria-label="Your rack tiles"
+      >
         {Array.from({ length: capacity }, (_, i) => {
-          const tile = game.rack[i] === "." ? "" : game.rack[i];
-          const excluded = excludedSlots.includes(i);
-          const exchanging = exchangeSlots.includes(i);
+          const letter = flyingRack
+            ? flyingRack.slots.includes(i)
+              ? "."
+              : flyingRack.before.rack[i]
+            : game.rack[i];
+          const tile = letter === "." ? "" : letter;
+          const excluded = (
+            flyingRack?.before.excludedRackSlots ?? excludedSlots
+          ).includes(i);
+          const exchanging = !flyingRack && exchangeSlots.includes(i);
           const active =
             focused && (selectAll || i === Math.min(position, capacity - 1));
           return (
             <button
               type="button"
               key={i}
+              data-rack-slot={i}
               className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""}`}
               aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${exchanging ? ", marked for exchange" : ""}`}
               aria-pressed={
@@ -153,7 +237,10 @@ export default function RackEntry({
                     : focus(i)
               }
             >
-              {tile === "?" ? "" : tile || "·"}
+              <span className="rack-slot-window" aria-hidden="true" />
+              <span className="rack-slot-letter">
+                {tile === "?" ? "" : tile || "·"}
+              </span>
               {exchanging && (
                 <Repeat2
                   className="rack-exchange-icon"
