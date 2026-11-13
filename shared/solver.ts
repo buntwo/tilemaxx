@@ -573,9 +573,10 @@ export function solvePosition(
   lexicon: Lexicon,
   position: Position,
   template: BoardTemplate,
+  limits?: Limits,
 ) {
   const { available, held } = splitRack(position);
-  const moves = solve(lexicon, position.board, available, template);
+  const moves = solve(lexicon, position.board, available, template, limits);
   if (held) {
     for (const move of moves) {
       move.leave = (move.leave + held).split("").sort().join("");
