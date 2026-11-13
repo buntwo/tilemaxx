@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -6,6 +7,8 @@ import { join } from "node:path";
 import { createStore } from "../server/store";
 import { createApp } from "../server/app";
 import type { AppState, Game } from "../shared/model";
+import { type GameIndex, summarizeGame } from "../shared/game-index";
+import { PRESETS } from "../shared/presets";
 
 test("durable games, profiles, templates, dictionary import and stale-update rejection", async () => {
   const dir = mkdtempSync(join(tmpdir(), "tilewise-test-"));
@@ -327,6 +330,71 @@ test("game order is saved per profile and survives restarting the server", async
     );
   } finally {
     server.close();
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the game index backfills old SQLite saves and leaves full history on the detail API", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-index-test-"));
+  const database = new DatabaseSync(join(dir, "tilewise.sqlite"));
+  database.exec(`
+    CREATE TABLE profiles (id TEXT PRIMARY KEY,name TEXT NOT NULL);
+    CREATE TABLE games (id TEXT PRIMARY KEY,revision INTEGER NOT NULL,data TEXT NOT NULL);
+    INSERT INTO profiles VALUES ('p','Player');
+    PRAGMA user_version=1;
+  `);
+  const template = PRESETS[0];
+  const game: Game = {
+    id: "old",
+    profileId: "p",
+    name: "Old game",
+    template,
+    dictionaryId: "wordnik",
+    board: Array.from({ length: 225 }, (_, i) => (i === 112 ? "A" : "")),
+    rack: "DOG",
+    revision: 2,
+    updatedAt: "",
+    archived: false,
+    past: [{ board: Array(225).fill(""), rack: "", at: "", label: "Old edit" }],
+    future: [],
+  };
+  database
+    .prepare("INSERT INTO games VALUES (?,?,?)")
+    .run(game.id, game.revision, JSON.stringify(game));
+  database.close();
+
+  const store = createStore(dir, process.cwd());
+  const server = createApp(store).listen(0, "127.0.0.1");
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`;
+  const getIndex = async () =>
+    (await (await fetch(base + "/state/index")).json()) as GameIndex;
+  try {
+    const index = await getIndex();
+    assert.deepEqual(index.games, [summarizeGame(game)]);
+    assert.equal(index.games[0].thumbnail.squares[112], "7");
+    assert.equal(
+      (await (await fetch(base + "/games/old")).json()).past.length,
+      1,
+    );
+    assert.equal(
+      (await (await fetch(base + "/state")).json()).games[0].rack,
+      "DOG",
+    );
+
+    const next = { ...game, name: "Edited", revision: 3 };
+    store.db
+      .prepare("UPDATE games SET revision=?,data=? WHERE id=?")
+      .run(next.revision, JSON.stringify(next), next.id);
+    assert.deepEqual((await getIndex()).games, [summarizeGame(next)]);
+    assert.equal(store.saveGame({ ...next, name: "Saved" })?.revision, 4);
+    assert.equal((await getIndex()).games[0].name, "Saved");
+    store.deleteGame(next.id);
+    assert.deepEqual((await getIndex()).games, []);
+    assert.equal((await fetch(base + "/games/old")).status, 404);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     store.db.close();
     rmSync(dir, { recursive: true, force: true });
   }

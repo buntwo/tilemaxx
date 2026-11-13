@@ -1,7 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { GameStore } from "../src/store";
-import { type Game, emptyBoard, type AppState } from "../shared/model";
+import { type Game, emptyBoard } from "../shared/model";
+import {
+  cacheGameIndex,
+  cacheOpenGame,
+  RECENT_GAME_LIMIT,
+} from "../src/game-cache";
+import { BoardEditHistory } from "../shared/board-entry";
+import { summarizeGame } from "../shared/game-index";
 import { PRESETS } from "../shared/presets";
 
 function setup() {
@@ -37,14 +44,14 @@ function setup() {
     revision: 0,
     updatedAt: "",
   };
-  const client = new GameStore();
-  client.snapshot.data = {
+  const initial = {
     profiles: [{ id: "p", name: "Test" }],
     games: [game],
     templates: PRESETS,
     dictionaries: [],
   };
-  localStorage.setItem("tilewise:cache", JSON.stringify(client.snapshot.data));
+  localStorage.setItem("tilewise:cache", JSON.stringify(initial));
+  const client = new GameStore();
   return {
     client,
     game,
@@ -78,7 +85,7 @@ test("editing during an in-flight save preserves newer input and advances its re
       response({ ...JSON.parse(options!.body as string), revision: 2 });
     await client.flush();
     assert.equal(client.drafts.size, 0);
-    assert.equal(client.snapshot.data!.games[0].rack, "CATS");
+    assert.equal(client.snapshot.games.g.rack, "CATS");
     assert.equal(client.snapshot.data!.games[0].revision, 2);
   } finally {
     cleanup();
@@ -101,9 +108,9 @@ test("offline drafts survive reload and stale revisions become explicit conflict
       response({ error: "Changed elsewhere", game: remote }, 409);
     await reloaded.flush();
     assert.equal(reloaded.snapshot.conflicts.g.rack, "DOG");
-    assert.equal(reloaded.snapshot.data!.games[0].rack, "CAT");
+    assert.equal(reloaded.snapshot.games.g.rack, "CAT");
     reloaded.acceptRemote("g");
-    assert.equal(reloaded.snapshot.data!.games[0].rack, "DOG");
+    assert.equal(reloaded.snapshot.games.g.rack, "DOG");
     assert.equal(reloaded.drafts.size, 0);
   } finally {
     if (reloaded) clearTimeout(reloaded.timer);
@@ -116,7 +123,7 @@ test("a background poll cannot erase a game created while it was in flight", asy
     let finish!: (r: Response) => void;
     const oldState = structuredClone(client.snapshot.data!);
     globalThis.fetch = async (url) =>
-      String(url).endsWith("/state")
+      String(url).endsWith("/state/index")
         ? new Promise<Response>((r) => (finish = r))
         : response({ ...game, id: "new", name: "New game" });
     const refreshing = client.refresh();
@@ -142,7 +149,7 @@ test("background polls preserve profile renames and template edits made during t
     const oldState = structuredClone(client.snapshot.data!);
     let finish!: (r: Response) => void;
     globalThis.fetch = async (url, options) => {
-      if (String(url).endsWith("/state"))
+      if (String(url).endsWith("/state/index"))
         return new Promise<Response>((r) => (finish = r));
       if (String(url).includes("/profiles/"))
         return response({ id: "p", name: "Renamed" });
@@ -158,7 +165,7 @@ test("background polls preserve profile renames and template edits made during t
       client.snapshot.data!.templates.find((t) => t.id === "custom")!.bingo,
       25,
     );
-    assert.deepEqual(client.snapshot.data!.games[0], game);
+    assert.deepEqual(client.snapshot.games.g, game);
     // A subsequent poll must still accept changes made on another device.
     const remote = structuredClone(client.snapshot.data!);
     remote.profiles[0].name = "Another device";
@@ -178,7 +185,7 @@ test("a stale poll and in-flight save cannot resurrect a locally deleted game", 
     globalThis.fetch = async (url, options) =>
       options?.method === "DELETE"
         ? response({ deleted: true })
-        : String(url).endsWith("/state")
+        : String(url).endsWith("/state/index")
           ? new Promise((r) => (poll = r))
           : new Promise((r) => (save = r));
     const refreshing = client.refresh();
@@ -232,7 +239,7 @@ test("custom board deletion survives stale polling and leaves templates intact o
     await refreshing;
     assert.deepEqual(client.snapshot.data!.templates, PRESETS);
     assert.deepEqual(
-      JSON.parse(localStorage.getItem("tilewise:cache")!).templates,
+      JSON.parse(localStorage.getItem("tilewise:game-index")!).templates,
       PRESETS,
     );
   } finally {
@@ -243,9 +250,15 @@ test("custom board deletion survives stale polling and leaves templates intact o
 test("another tab polling cannot erase drafts for the same or a different game", async () => {
   const { client, game, cleanup } = setup();
   const otherGame = { ...game, id: "other" };
-  const remote = { ...client.snapshot.data!, games: [game, otherGame] };
-  localStorage.setItem("tilewise:cache", JSON.stringify(remote));
+  localStorage.setItem(
+    "tilewise:cache",
+    JSON.stringify({
+      ...client.snapshot.data!,
+      games: [game, otherGame],
+    }),
+  );
   const secondTab = new GameStore();
+  const remote = structuredClone(secondTab.snapshot.data!);
   client.snapshot.data = remote;
   try {
     client.update({ ...game, rack: "CAT" });
@@ -271,7 +284,6 @@ test("another tab polling cannot erase drafts for the same or a different game",
 
 test("reload lets the user resolve multiple drafts for the same game", async () => {
   const { client, game, cleanup } = setup();
-  localStorage.setItem("tilewise:cache", JSON.stringify(client.snapshot.data));
   const secondTab = new GameStore();
   let reloaded: GameStore | undefined;
   try {
@@ -299,10 +311,6 @@ test("legacy drafts are recovered and removed only after acknowledgment", async 
   const { game, client, cleanup } = setup();
   try {
     localStorage.setItem(
-      "tilewise:cache",
-      JSON.stringify(client.snapshot.data),
-    );
-    localStorage.setItem(
       "tilewise:drafts",
       JSON.stringify({ [game.id]: { ...game, rack: "CAT" } }),
     );
@@ -322,7 +330,7 @@ test("a permanently rejected draft leaves other games online and retries only af
   const { client, game, cleanup } = setup();
   try {
     const otherGame = { ...game, id: "other" };
-    client.snapshot.data!.games.push(otherGame);
+    client.snapshot.data!.games.push(summarizeGame(otherGame));
     const remote = structuredClone(client.snapshot.data!);
     const writes: string[] = [];
     globalThis.fetch = async (url, options) => {
@@ -347,6 +355,162 @@ test("a permanently rejected draft leaves other games online and retries only af
     assert.equal(writes.length, 3);
     assert.equal(client.snapshot.saveErrors[game.id], undefined);
     assert.equal(client.drafts.size, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test("polling only loads full histories for watched games with a new revision", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    const other = {
+      ...game,
+      id: "other",
+      rack: "DOG",
+      revision: 2,
+      archived: true,
+    };
+    const remote = { ...game, rack: "CAT", revision: 1 };
+    const index = {
+      ...client.snapshot.data!,
+      games: [remote, other].map(summarizeGame),
+    };
+    const calls: string[] = [];
+    globalThis.fetch = async (url) => {
+      calls.push(String(url));
+      if (String(url).endsWith("/state/index")) return response(index);
+      return response(String(url).endsWith("/other") ? other : remote);
+    };
+
+    await client.refresh();
+    assert.deepEqual(calls, ["/api/state/index"]);
+    assert.equal(client.snapshot.games.other, undefined);
+    client.watchGames(game.id);
+    await client.loadGame(game.id);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(client.snapshot.games.g.rack, "CAT");
+    await client.refresh();
+    assert.equal(calls.filter((url) => url === "/api/games/g").length, 1);
+
+    client.watchGames(undefined, other.id);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(client.getSnapshot().games.other?.rack, "DOG");
+    assert.equal(calls.filter((url) => url === "/api/games/other").length, 1);
+  } finally {
+    cleanup();
+  }
+});
+
+test("a watched game retries a stale response and does not resurrect after deletion", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    const remote = { ...game, rack: "CAT", revision: 1 };
+    const latest = { ...game, rack: "DOG", revision: 2 };
+    let index = { ...client.snapshot.data!, games: [summarizeGame(remote)] };
+    let finish!: (value: Response) => void;
+    let delayed = true;
+    globalThis.fetch = async (url, options) => {
+      if (String(url).endsWith("/state/index")) return response(index);
+      if (options?.method === "DELETE") return response({ deleted: true });
+      return delayed
+        ? new Promise((resolve) => (finish = resolve))
+        : response(latest);
+    };
+    await client.refresh();
+    client.watchGames(game.id);
+    index = { ...index, games: [summarizeGame(latest)] };
+    await client.refresh();
+    delayed = false;
+    finish(response(remote));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(client.snapshot.games.g.rack, "DOG");
+    assert.equal(client.snapshot.data!.games[0].revision, 2);
+
+    const deleted = { ...latest, revision: 3 };
+    delayed = true;
+    index = { ...index, games: [summarizeGame(deleted)] };
+    await client.refresh();
+    await client.deleteGame(game.id);
+    finish(response(deleted));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(client.snapshot.games.g, undefined);
+    assert.equal(client.snapshot.data!.games.length, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test("a detail response cannot overwrite a draft created while loading", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    const remote = { ...game, rack: "DOG", revision: 1 };
+    const index = { ...client.snapshot.data!, games: [summarizeGame(remote)] };
+    let finish!: (value: Response) => void;
+    globalThis.fetch = async (url) =>
+      String(url).endsWith("/state/index")
+        ? response(index)
+        : new Promise((resolve) => (finish = resolve));
+    await client.refresh();
+    const loading = client.loadGame(game.id);
+    const draft = { ...game, rack: "CAT" };
+    client.update(draft);
+    finish(response(remote));
+    await loading;
+    assert.equal(client.snapshot.games.g, draft);
+    assert.equal(client.drafts.get(game.id), draft);
+  } finally {
+    cleanup();
+  }
+});
+
+test("the recent cache preserves a bounded set of games and newer copies across tabs", () => {
+  const { client, game, cleanup } = setup();
+  try {
+    const games = Array.from({ length: RECENT_GAME_LIMIT + 1 }, (_, index) => ({
+      ...game,
+      id: `g${index}`,
+      revision: 1,
+      rack: "CAT",
+    }));
+    cacheGameIndex(
+      JSON.stringify({
+        ...client.snapshot.data!,
+        games: games.map(summarizeGame),
+      }),
+    );
+    for (const entry of games) cacheOpenGame(entry);
+    assert.equal(new GameStore().snapshot.games.g0, undefined);
+    assert.equal(
+      Object.keys(new GameStore().snapshot.games).length,
+      RECENT_GAME_LIMIT,
+    );
+    cacheOpenGame({ ...games[1], revision: 2, rack: "DOG" });
+    cacheOpenGame(games[1]);
+    assert.equal(new GameStore().snapshot.games.g1.rack, "DOG");
+    assert.equal(localStorage.getItem("tilewise:cache"), null);
+  } finally {
+    cleanup();
+  }
+});
+
+test("board typing stays grouped across a server JSON acknowledgement", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    const history = new BoardEditHistory();
+    const board = [...game.board];
+    board[112] = "A";
+    client.update(history.apply(game, board, "enter"));
+    globalThis.fetch = async (_url, options) =>
+      response({
+        ...JSON.parse(options!.body as string),
+        revision: 1,
+      });
+    await client.flush();
+    const saved = client.snapshot.games.g;
+    const next = [...saved.board];
+    next[113] = "T";
+    assert.equal(saved.revision, 1);
+    assert.equal(history.apply(saved, next, "enter").past.length, 1);
   } finally {
     cleanup();
   }

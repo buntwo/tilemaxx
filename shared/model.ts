@@ -161,9 +161,12 @@ export interface Profile {
   gameOrder?: string[];
 }
 
-export function orderGames(games: Game[], order: readonly string[] = []) {
+export function orderGames<T extends Pick<Game, "id">>(
+  games: T[],
+  order: readonly string[] = [],
+) {
   const byId = new Map(games.map((game) => [game.id, game]));
-  const ordered: Game[] = [];
+  const ordered: T[] = [];
   for (const id of order) {
     const game = byId.get(id);
     if (game) {
