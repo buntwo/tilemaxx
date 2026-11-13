@@ -51,6 +51,7 @@ test("paired histograms weight physical copies and use a fixed reference", () =>
   assert.equal(result.kind, "distribution");
   assert.equal(result.count, 4);
   assert.equal(result.exact, true);
+  assert.equal(result.heatmap, undefined);
   assert.deepEqual(result.reference.buckets, [4, 0, 0, 0, 0]);
   assert.deepEqual(result.buckets, [3, 0, 1, 0, 0]);
   assert.deepEqual(result.discordant, [1, 0, 1, 0, 0]);
@@ -115,6 +116,60 @@ test("reply hotspots count physical racks, only on squares occupied by their bes
     squares: [],
     reference: [{ square: 2, count: 2 }],
   });
+});
+
+test("tied best replies count a shared square only once per physical rack", () => {
+  const { template, board, lexicon } = fixture("ABQETZ", 2, [
+    "ATE",
+    "EAT",
+    "TEA",
+    "BA",
+  ]);
+  board[8] = "";
+  board[12] = "A";
+  template.premiums[2] = "";
+  template.bingo = 50;
+  const candidates = solve(lexicon, board, "BQ", template);
+  const across = candidates.find(({ id }) => id === "11:B")!;
+  const down = candidates.find(({ id }) => id === "7:B")!;
+  const check = prepareReplyAnalysis(
+    lexicon,
+    { template, board, rack: "BQ", bagSize: 1, scorelessTurns: 0 },
+    across,
+    500,
+    budget,
+    true,
+  );
+  const result = check(down);
+  assert.equal(result.kind, "distribution");
+  assert.deepEqual(result.buckets, [2, 0, 0, 0, 1]);
+  assert.deepEqual(result.reference.buckets, result.buckets);
+  assert.deepEqual(result.heatmap?.reference, [
+    { square: 2, count: 1 },
+    { square: 7, count: 1 },
+    { square: 17, count: 1 },
+    { square: 22, count: 1 },
+  ]);
+  const squares = result.heatmap?.squares;
+  assert.deepEqual(
+    squares?.map(({ square, count }) => [square, count]),
+    [
+      [10, 1],
+      [11, 1],
+      [13, 1],
+      [14, 1],
+    ],
+  );
+  assert.deepEqual(
+    squares
+      ?.find(({ square }) => square === 11)
+      ?.examples.map(({ play, count }) => [play.word, play.score, count])
+      .sort(),
+    [
+      ["EAT", 53, 1],
+      ["TEA", 53, 1],
+    ],
+  );
 });
 
 test("known racks separate the raw reply from going-out adjustments", () => {

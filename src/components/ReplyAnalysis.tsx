@@ -7,6 +7,7 @@ import type { MoveDefense } from "../../shared/premium-defense";
 import {
   REPLY_BUCKETS,
   REPLY_REFINED_SAMPLES,
+  REPLY_SAMPLES,
   replyColor,
   type ExactReply,
   type ReplyDistribution,
@@ -411,7 +412,9 @@ function ExactReplyDetails({
               className="button secondary"
               type="button"
               disabled={line?.pending}
-              onClick={() => analysis.requestDetail("reply-line", move)}
+              onClick={() =>
+                analysis.requestDetail(move, { kind: "reply-line" })
+              }
             >
               {line?.pending ? (
                 <>
@@ -464,7 +467,7 @@ export default function ReplyAnalysis({
 }) {
   const [view, setView] = useState<"scores" | "heatmap">("scores");
   const detail =
-    analysis.detail?.key === `reply-refine:${move.id}`
+    analysis.detail?.key === `reply-detail:${move.id}`
       ? analysis.detail
       : undefined;
   const distribution =
@@ -496,42 +499,57 @@ export default function ReplyAnalysis({
         distribution &&
         analysis.reference && (
           <>
-            {distribution.heatmap && (
-              <div
-                className="reply-view-switch"
-                role="group"
-                aria-label="Reply detail view"
+            <div
+              className="reply-view-switch"
+              role="group"
+              aria-label="Reply detail view"
+            >
+              <button
+                type="button"
+                aria-pressed={view === "scores"}
+                onClick={() => setView("scores")}
               >
-                <button
-                  type="button"
-                  aria-pressed={view === "scores"}
-                  onClick={() => setView("scores")}
-                >
-                  Scores
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={view === "heatmap"}
-                  onClick={() => setView("heatmap")}
-                >
-                  Heatmap
-                </button>
-              </div>
-            )}
-            {view === "heatmap" && distribution.heatmap ? (
+                Scores
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "heatmap"}
+                disabled={
+                  view === "scores" && detail?.pending && !distribution.heatmap
+                }
+                onClick={() => {
+                  setView("heatmap");
+                  if (!distribution.heatmap && !detail?.pending) {
+                    analysis.requestDetail(move, {
+                      kind: "reply-detail",
+                      samples:
+                        distribution.count >= REPLY_REFINED_SAMPLES
+                          ? REPLY_REFINED_SAMPLES
+                          : REPLY_SAMPLES,
+                      captureHeatmap: true,
+                    });
+                  }
+                }}
+              >
+                Heatmap
+              </button>
+            </div>
+            {view === "scores" ? (
+              <DistributionChart
+                result={distribution}
+                move={move}
+                reference={analysis.reference}
+              />
+            ) : distribution.heatmap ? (
               <ReplyHeatmap
                 game={game}
                 move={move}
                 result={distribution}
                 reference={analysis.reference}
               />
-            ) : (
-              <DistributionChart
-                result={distribution}
-                move={move}
-                reference={analysis.reference}
-              />
-            )}
+            ) : detail?.pending ? (
+              <p role="status">Checking heatmap squares…</p>
+            ) : null}
             {view === "scores" && defense && (
               <PremiumReplyNote
                 game={game}
@@ -545,12 +563,19 @@ export default function ReplyAnalysis({
               </p>
             )}
             {!distribution.exact &&
-              distribution.count < REPLY_REFINED_SAMPLES && (
+              distribution.count < REPLY_REFINED_SAMPLES &&
+              (view === "scores" || !!distribution.heatmap) && (
                 <button
                   type="button"
                   className="button secondary reply-refine"
                   disabled={detail?.pending}
-                  onClick={() => analysis.requestDetail("reply-refine", move)}
+                  onClick={() =>
+                    analysis.requestDetail(move, {
+                      kind: "reply-detail",
+                      samples: REPLY_REFINED_SAMPLES,
+                      captureHeatmap: !!distribution.heatmap,
+                    })
+                  }
                 >
                   {detail?.pending ? (
                     <>

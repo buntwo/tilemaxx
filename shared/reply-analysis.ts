@@ -69,13 +69,21 @@ export interface ReplyPosition extends Position {
 export const replyScorelessLimit = (template: BoardTemplate) =>
   template.rules === "wwf" ? 3 : 6;
 
+export type ReplyDetailOptions =
+  | {
+      kind: "reply-detail";
+      samples: typeof REPLY_SAMPLES | typeof REPLY_REFINED_SAMPLES;
+      captureHeatmap: boolean;
+    }
+  | { kind: "reply-line" };
+
 export type ReplyRequest = ReplyPosition & {
   id: number;
   dictionaryId: string;
   reference: Move;
 } & (
     | { kind: "reply-summary"; candidates: Move[] }
-    | { kind: "reply-refine" | "reply-line"; candidate: Move }
+    | (ReplyDetailOptions & { candidate: Move })
   );
 
 export function replyColor(result: ReplyDistribution, index: number) {
@@ -138,9 +146,14 @@ function racksFor(pool: string[], rackSize: number, samples: number) {
   }
   // Keep the same rack sequence for every move, including refined comparisons.
   const random = randomGenerator(0xbad98a6);
-  const racks: RackSample[] = Array.from({ length: samples }, () => ({
-    rack: [...sampleTiles(pool, rackSize, random)].sort().join(""),
-    weight: 1,
+  const weights = new Map<string, number>();
+  for (let i = 0; i < samples; i++) {
+    const rack = [...sampleTiles(pool, rackSize, random)].sort().join("");
+    weights.set(rack, (weights.get(rack) ?? 0) + 1);
+  }
+  const racks: RackSample[] = Array.from(weights, ([rack, weight]) => ({
+    rack,
+    weight,
   }));
   return { racks, exact: false };
 }
@@ -258,38 +271,43 @@ export function prepareReplyAnalysis(
     const buckets = Array<number>(REPLY_BUCKETS.length).fill(0);
     const discordant = [...buckets];
     const bucketByRack = new Uint8Array(racks.length);
-    const scores = new Map<
-      string,
-      { score: number; bigReply?: PremiumReply }
-    >();
     const hotspots = new Map<
       number,
-      Map<string, { play: PremiumReply; count: number }>
+      {
+        count: number;
+        examples: Map<string, { play: PremiumReply; count: number }>;
+      }
     >();
+    const seen = new Uint32Array(board.length);
     let sum = 0;
     for (const [i, { rack, weight }] of racks.entries()) {
-      let summary = scores.get(rack);
-      if (!summary) {
-        summary = captureHeatmap
-          ? solver.summarizeReply(rack, limit(deadline()))
-          : solver.summarize(rack, limit(deadline()));
-        scores.set(rack, summary);
-      }
-      const { score, bigReply } = summary;
-      if (bigReply) {
-        const key = bigReply.tiles
-          .map(({ index, letter }) => `${index}:${letter}`)
-          .join(",");
-        for (const { index } of bigReply.tiles) {
-          let examples = hotspots.get(index);
-          if (!examples) {
-            examples = new Map();
-            hotspots.set(index, examples);
+      let score: number;
+      if (captureHeatmap) {
+        const summary = solver.summarizeReply(rack, limit(deadline()));
+        score = summary.score;
+        for (const play of summary.bigReplies) {
+          const key = play.tiles
+            .map(({ index, letter }) => `${index}:${letter}`)
+            .join(",");
+          for (const { index } of play.tiles) {
+            let hotspot = hotspots.get(index);
+            if (!hotspot) {
+              hotspot = { count: 0, examples: new Map() };
+              hotspots.set(index, hotspot);
+            }
+            // Every physical rack contributes once to each square, even when
+            // several equally strong replies use it.
+            if (seen[index] !== i + 1) {
+              hotspot.count += weight;
+              seen[index] = i + 1;
+            }
+            const existing = hotspot.examples.get(key);
+            if (existing) existing.count += weight;
+            else hotspot.examples.set(key, { play, count: weight });
           }
-          const existing = examples.get(key);
-          if (existing) existing.count += weight;
-          else examples.set(key, { play: bigReply, count: weight });
         }
+      } else {
+        score = solver.summarize(rack, limit(deadline())).score;
       }
       const index = bucket(score);
       buckets[index] += weight;
@@ -300,13 +318,13 @@ export function prepareReplyAnalysis(
         discordant[index] += weight;
       }
     }
-    const squares = Array.from(hotspots, ([square, examples]) => {
+    const squares = Array.from(hotspots, ([square, { count, examples }]) => {
       const ranked = [...examples.values()].sort(
         (a, b) => b.count - a.count || b.play.score - a.play.score,
       );
       return {
         square,
-        count: ranked.reduce((total, example) => total + example.count, 0),
+        count,
         examples: ranked.slice(0, 3),
       };
     }).sort((a, b) => b.count - a.count || a.square - b.square);

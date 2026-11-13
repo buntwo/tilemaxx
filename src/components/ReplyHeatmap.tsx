@@ -93,7 +93,8 @@ export default function ReplyHeatmap({
         </div>
       )}
       <p className="defense-help">
-        Where the highest-scoring {BIG_REPLY_SCORE}+ point replies place tiles.
+        Where the highest-scoring {BIG_REPLY_SCORE}+ point replies place tiles,
+        including ties.
         {difference
           ? " Red marks more frequent squares and green marks less frequent squares."
           : " Stronger color means a square is used more often."}
@@ -199,7 +200,7 @@ export default function ReplyHeatmap({
                 </ul>
               ) : (
                 <p className="defense-help">
-                  No checked big reply uses this square after{" "}
+                  No best {BIG_REPLY_SCORE}+ point reply uses this square after{" "}
                   {move.word.toUpperCase()}.
                 </p>
               )}
