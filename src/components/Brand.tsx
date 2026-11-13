@@ -7,6 +7,7 @@ import {
   BRAND_RETURN_PAUSE,
   BRAND_WORD,
 } from "./brand-animation";
+import { attachBrandSparkle } from "./brand-sparkle";
 
 const uniqueLetters = "TILEMAX";
 const brandIndex = Math.floor(Math.random() * uniqueLetters.length);
@@ -75,6 +76,9 @@ export default function Brand() {
   }
 
   useEffect(() => cancelReturn, []);
+  useEffect(() => {
+    if (tile.current) return attachBrandSparkle(tile.current, brandOnFire);
+  }, []);
 
   function preview(index: number) {
     cancelReturn();

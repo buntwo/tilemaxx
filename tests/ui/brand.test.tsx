@@ -1,12 +1,20 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import Brand from "../../src/components/Brand";
+import { attachBrandSparkle } from "../../src/components/brand-sparkle";
 
 function setup(reducedMotion = false) {
   vi.useFakeTimers();
   vi.mocked(window.matchMedia).mockReturnValue({
     matches: reducedMotion,
-  } as MediaQueryList);
+    media: "(prefers-reduced-motion: reduce)",
+    onchange: null,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+    dispatchEvent: () => true,
+  });
   const cancel = vi.fn();
   let finish!: () => void;
   const finished = new Promise<void>((resolve) => (finish = resolve));
@@ -125,3 +133,31 @@ test("touch release and lost capture share the same pause", () => {
   brand.wait(1);
   expect(brand.effect()).toBe("wipe");
 });
+
+test.each([
+  { onFire: false, perSecond: 10, burst: 28 },
+  { onFire: true, perSecond: 25, burst: 42 },
+])(
+  "tile sparkle emits $perSecond flecks per second and $burst per tap",
+  async ({ onFire, perSecond, burst }) => {
+    const { animate, finish, cancel, wait } = setup();
+    const tile = document.createElement("span");
+    const detach = attachBrandSparkle(tile, onFire)!;
+    try {
+      pointer(tile, "pointerenter", "mouse");
+      const initial = animate.mock.calls.length;
+      wait(1000);
+      expect(animate).toHaveBeenCalledTimes(initial + perSecond);
+      pointer(tile, "pointerleave", "mouse");
+      wait(1000);
+      expect(animate).toHaveBeenCalledTimes(initial + perSecond);
+      await act(async () => finish());
+      fireEvent.click(tile);
+      expect(animate).toHaveBeenCalledTimes(initial + perSecond + burst);
+    } finally {
+      detach();
+    }
+    expect(tile.children).toHaveLength(0);
+    expect(cancel).toHaveBeenCalled();
+  },
+);

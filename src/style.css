@@ -394,6 +394,30 @@ label + label {
   color: #a22d22;
   fill: #ffb23e;
 }
+.brand-sparkle {
+  --brand-sparkle-color: #fbf7d7;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.brand-mark.on-fire .brand-sparkle {
+  --brand-sparkle-color: #ffdb93;
+}
+.brand-sparkle > span {
+  position: absolute;
+  aspect-ratio: 1;
+  background: var(--brand-sparkle-color);
+  opacity: 0;
+}
+.brand-fleck {
+  border-radius: 50%;
+}
+.brand-glint {
+  clip-path: polygon(
+    50% 0, 59% 39%, 100% 50%, 59% 61%, 50% 100%, 41% 61%, 0 50%, 41% 39%
+  );
+}
 .brand-mark small {
   font-size: 9px;
   position: absolute;
