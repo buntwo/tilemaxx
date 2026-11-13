@@ -39,12 +39,32 @@ export default function TilePool({ game }: { game: Game }) {
           size={15}
           aria-hidden="true"
         />
-        {!excess.length && (
-          <span className="tile-pool-breakdown">
-            Vowels {totals.vowel} · Consonants {totals.consonant} · Blanks{" "}
-            {totals.blank}
-          </span>
-        )}
+        <span className="tile-pool-breakdown">
+          {(
+            [
+              ["vowel", "Vowels"],
+              ["consonant", "Consonants"],
+              ["blank", "Blanks"],
+            ] as const
+          ).map(([kind, label], i) => {
+            const overdrawn = excess.some((tile) => tile.kind === kind);
+            return (
+              <span key={kind}>
+                {i > 0 && " · "}
+                <span
+                  className={overdrawn ? "tile-pool-category-alert" : undefined}
+                  aria-label={
+                    overdrawn
+                      ? `${label} ${totals[kind]}, count exceeded`
+                      : undefined
+                  }
+                >
+                  {label} {totals[kind]}
+                </span>
+              </span>
+            );
+          })}
+        </span>
       </summary>
       <div className="tile-pool-content">
         <div className="tile-pool-controls">
@@ -70,7 +90,8 @@ export default function TilePool({ game }: { game: Game }) {
                   `${symbol === "?" ? "blank" : symbol} × ${amount} extra`,
               )
               .join(", ")}
-            . Check your board, rack, or starting counts.
+            . Counts show zero remaining for those tiles. Check your board,
+            rack, or starting counts.
           </p>
         )}
         {visible.length ? (

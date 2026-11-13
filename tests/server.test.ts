@@ -286,3 +286,48 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("game order is saved per profile and survives restarting the server", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-game-order-"));
+  let store = createStore(dir, process.cwd());
+  const server = createApp(store).listen(0, "127.0.0.1");
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`;
+  const {
+    profiles: [profile],
+    games: [first],
+  } = store.state();
+  const second = store.createGame({ ...first, name: "Second" });
+  const archived = store.createGame({ ...first, archived: true });
+  const other = store.createProfile("Other");
+  const foreign = store.createGame({ ...first, profileId: other.id });
+  const save = (gameIds: string[]) =>
+    fetch(`${base}/profiles/${profile.id}/game-order`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gameIds }),
+    });
+  try {
+    const order = [second.id, first.id];
+    assert.equal((await save(order)).status, 200);
+    assert.equal((await save([first.id, archived.id])).status, 409);
+    assert.equal((await save([first.id, foreign.id])).status, 409);
+    assert.equal((await save([first.id, first.id])).status, 409);
+    assert.equal(store.getGame(first.id)?.revision, first.revision);
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    store.db.close();
+    store = createStore(dir, process.cwd());
+    assert.deepEqual(
+      store.state().profiles.find((p) => p.id === profile.id)?.gameOrder,
+      order,
+    );
+    assert.equal(
+      store.state().profiles.find((p) => p.id === other.id)?.gameOrder,
+      undefined,
+    );
+  } finally {
+    server.close();
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

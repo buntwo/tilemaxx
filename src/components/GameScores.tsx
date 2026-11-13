@@ -99,18 +99,32 @@ export default function GameScores({
           <ChevronDown size={16} aria-hidden="true" />
         </summary>
         {moves.length ? (
-          <ol aria-label="Tracked moves">
-            {moves.map((move, index) => (
-              <li key={index}>
-                <span className="score-move-number">{index + 1}</span>
-                <span>
-                  <strong>{move.word}</strong>
-                  <small>{move.player === "you" ? "You" : "Opponent"}</small>
-                </span>
-                <span className="score-move-points">{move.score} pts</span>
-              </li>
-            ))}
-          </ol>
+          <div className="score-history-scroll">
+            <table aria-label="Tracked moves">
+              <thead>
+                <tr>
+                  <th scope="col">You</th>
+                  <th scope="col">Pts</th>
+                  <th scope="col">Opponent</th>
+                </tr>
+              </thead>
+              <tbody>
+                {moves.map((move, index) => (
+                  <tr key={index}>
+                    <td>
+                      {move.player === "you" && <strong>{move.word}</strong>}
+                    </td>
+                    <td className="score-move-points">{move.score}</td>
+                    <td>
+                      {move.player === "opponent" && (
+                        <strong>{move.word}</strong>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <p>No tracked moves yet.</p>
         )}

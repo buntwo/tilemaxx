@@ -106,7 +106,7 @@ export default function RackEntry({
             <button
               type="button"
               key={i}
-              className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${active ? "selected" : ""} ${active && position === capacity && !selectAll ? "rack-end" : ""}`}
+              className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${active ? "selected" : ""}`}
               aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}`}
               aria-pressed={excludeMode ? excluded : active}
               aria-disabled={excludeMode && !tile ? true : undefined}
@@ -193,7 +193,12 @@ export default function RackEntry({
               break;
             case "ArrowLeft":
               eraseSelected.current = true;
-              setCursor(Math.max(0, selectAll ? 0 : position - 1));
+              setCursor(
+                Math.max(
+                  0,
+                  selectAll ? 0 : Math.min(position, capacity - 1) - 1,
+                ),
+              );
               setSelectAll(false);
               break;
             case "ArrowRight":
@@ -232,9 +237,7 @@ export default function RackEntry({
             ? "Tap tiles to hold or release them"
             : focused && selectAll
               ? "All tiles selected · type to replace"
-              : focused && position === capacity
-                ? "End of rack · tap a tile to edit"
-                : "Space = blank · ↓ = hold tile"}
+              : "Space = blank · ↓ = hold tile"}
         </p>
         <button
           type="button"

@@ -39,7 +39,7 @@ import Board from "./components/Board";
 import BoardEntry from "./components/BoardEntry";
 import RackEntry from "./components/RackEntry";
 import TilePool from "./components/TilePool";
-import { rackLetters, sortRack, splitRack } from "../shared/rack-entry";
+import { sortRack, splitRack } from "../shared/rack-entry";
 import BoardStudio from "./components/BoardStudio";
 import ScreenshotImport from "./components/ScreenshotImport";
 import { importBoard } from "../shared/screenshot";
@@ -70,6 +70,7 @@ import {
   archiveGame,
   coordinate,
   emptyBoard,
+  orderGames,
   redo,
   remember,
   restoreArchivedGame,
@@ -301,13 +302,11 @@ export default function App() {
     );
     if (!current) {
       const last = saved(`tilewise:last:${pid}`);
-      setGameId(
-        data.games.find(
-          (g) => g.profileId === pid && g.id === last && !g.archived,
-        )?.id ||
-          data.games.find((g) => g.profileId === pid && !g.archived)?.id ||
-          "",
+      const active = orderGames(
+        data.games.filter((g) => g.profileId === pid && !g.archived),
+        data.profiles.find((p) => p.id === pid)?.gameOrder,
       );
+      setGameId(active.find((g) => g.id === last)?.id ?? active[0]?.id ?? "");
     }
   }, [data, profileId, gameId]);
   useEffect(() => {
@@ -571,7 +570,10 @@ export default function App() {
   }
   const profileGames =
     data?.games.filter((g) => g.profileId === profileId) ?? [];
-  const activeGames = profileGames.filter((g) => !g.archived);
+  const activeGames = orderGames(
+    profileGames.filter((g) => !g.archived),
+    profile?.gameOrder,
+  );
   const archivedGames = profileGames.filter((g) => g.archived);
   const viewingArchivedGame = workspace === "games" && game?.archived;
   const pending = game && state.pending.includes(game.id),
@@ -785,9 +787,11 @@ export default function App() {
                   <h1>{game.name}</h1>
                 ) : (
                   <GamePicker
+                    key={profileId}
                     game={game}
                     games={activeGames}
                     onChoose={chooseGame}
+                    onReorder={(ids) => store.reorderGames(profileId, ids)}
                   />
                 )}
               </div>
@@ -1009,10 +1013,6 @@ export default function App() {
               <section className="rack-panel panel">
                 <div className="rack-heading">
                   <h2>Your rack</h2>
-                  <span>
-                    {rackLetters(game.rack).length} / {game.template.rackSize}{" "}
-                    tiles
-                  </span>
                   <button
                     className="icon-button"
                     aria-label="Sort rack"

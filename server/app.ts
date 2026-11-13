@@ -71,14 +71,25 @@ export function createApp(store: ReturnType<typeof createStore>) {
     if (result.status === "missing") {
       res.status(404).json({ error: "Profile not found." });
     } else if (result.status === "mismatch") {
-      res
-        .status(409)
-        .json({
-          error:
-            "The profile name no longer matches. Check the current name and try again.",
-        });
+      res.status(409).json({
+        error:
+          "The profile name no longer matches. Check the current name and try again.",
+      });
     } else {
       res.json({ gameIds: result.gameIds });
+    }
+  });
+  app.put("/api/profiles/:id/game-order", (req, res) => {
+    const gameIds = z.array(z.uuid()).parse(req.body.gameIds);
+    const status = store.reorderGames(req.params.id, gameIds);
+    if (status === "missing") {
+      res.status(404).json({ error: "Profile not found." });
+    } else if (status === "changed") {
+      res
+        .status(409)
+        .json({ error: "The active games changed. Try reordering again." });
+    } else {
+      res.json({ gameOrder: gameIds });
     }
   });
   app.post("/api/games", (req, res) => {

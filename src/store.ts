@@ -288,12 +288,28 @@ export class GameStore {
     this.snapshot.data = {
       ...this.snapshot.data!,
       profiles: this.snapshot.data!.profiles.map((item) =>
-        item.id === id ? profile : item,
+        item.id === id ? { ...item, name: profile.name } : item,
       ),
     };
     this.persist();
     this.emit();
     return profile;
+  }
+  async reorderGames(profileId: string, gameIds: string[]) {
+    const { gameOrder } = await api<{ gameOrder: string[] }>(
+      `/profiles/${encodeURIComponent(profileId)}/game-order`,
+      "PUT",
+      { gameIds },
+    );
+    if (!this.snapshot.data) return;
+    this.snapshot.data = {
+      ...this.snapshot.data,
+      profiles: this.snapshot.data.profiles.map((profile) =>
+        profile.id === profileId ? { ...profile, gameOrder } : profile,
+      ),
+    };
+    this.persist();
+    this.emit();
   }
   async deleteProfile(id: string, name: string) {
     const { gameIds } = await api<{ gameIds: string[] }>(

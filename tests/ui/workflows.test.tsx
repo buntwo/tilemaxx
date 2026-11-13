@@ -302,6 +302,9 @@ beforeEach(() => {
         };
         remote.games = remote.games.filter((g) => g.profileId !== id);
         remote.profiles = remote.profiles.filter((p) => p.id !== id);
+      } else if (url.endsWith("/game-order") && options?.method === "PUT") {
+        remote.profiles[0].gameOrder = body.gameIds;
+        value = { gameOrder: body.gameIds };
       } else if (
         url.startsWith("/api/profiles/") &&
         options?.method === "PUT"
@@ -603,6 +606,10 @@ test("direct rack entry supports Space blanks, replacement, paste, full-rack bou
   expect(current().rack).toBe("COAT??X");
   await user.keyboard("Y Z");
   expect(current().rack).toBe("COAT??X");
+  expect(rackTile(7).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.queryByText(/End of rack/)).toBeNull();
+  await user.keyboard("{ArrowLeft}");
+  expect(rackTile(6).getAttribute("aria-pressed")).toBe("true");
   await user.keyboard("{Control>}a{/Control}DOG");
   expect(current().rack).toBe("DOG");
   expect(current().board.some(Boolean)).toBe(false);
@@ -768,7 +775,7 @@ test("rack typo correction and persisted gaps keep subsequent tiles fixed and st
   await user.keyboard("A{Enter}");
   expect(current().rack).toBe("C.T.A");
   await screen.findAllByRole("button", { name: /^CAT, / });
-  expect(screen.getByText("3 / 7 tiles")).toBeTruthy();
+  expect(screen.queryByText("3 / 7 tiles")).toBeNull();
 });
 
 test("rack Backspace clears a clicked tile once, then moves backward, including at rack edges", async () => {
@@ -1185,23 +1192,31 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   expect(scores().getByText(/Avg 10\.0/)).toBeTruthy();
   await user.click(scores().getByText("Tracked move history"));
   const moves = () =>
-    within(scores().getByRole("list", { name: "Tracked moves" }));
+    within(scores().getByRole("table", { name: "Tracked moves" }));
   expect(
     moves()
-      .getAllByRole("listitem")
-      .map((row) => row.textContent),
-  ).toEqual(["1CATOpponent10 pts", "2CATSYou6 pts"]);
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) =>
+        within(row)
+          .getAllByRole("cell")
+          .map((cell) => cell.textContent),
+      ),
+  ).toEqual([
+    ["", "10", "CAT"],
+    ["CATS", "6", ""],
+  ]);
   await user.click(cell("Undo"));
   expect(current().scoring?.opponent.points).toBe(10);
   expect(current().scoring?.you.points).toBe(0);
-  expect(moves().getAllByRole("listitem")).toHaveLength(1);
+  expect(moves().getAllByRole("row").slice(1)).toHaveLength(1);
   await user.click(cell("Undo"));
   expect(scores().getByText("CAT · 10 pts")).toBeTruthy();
   await user.click(cell("Redo"));
   await user.click(cell("Redo"));
   await user.click(tracking());
   expect(tracking().checked).toBe(false);
-  expect(moves().getAllByRole("listitem")).toHaveLength(2);
+  expect(moves().getAllByRole("row").slice(1)).toHaveLength(2);
   await store.flush();
   expect(remote.games[0].trackScores).toBe(false);
   expect(remote.games[0].scoring?.you.points).toBe(6);
@@ -1271,4 +1286,37 @@ test("exclude rack tiles with Down or taps, keep the unseen count, and retain he
   await user.click(rackTile(4));
   await user.keyboard("S");
   expect(current().excludedRackSlots).toBeUndefined();
+});
+
+test("reordering My games saves the profile order without switching games", async () => {
+  remote.games.push({ ...game(), id: "second", name: "Second game" });
+  store.snapshot.data = structuredClone(remote);
+  const user = await start();
+  await user.click(cell("Switch game"));
+  const handle = screen.getByRole("menuitem", { name: "Reorder First game" });
+  handle.focus();
+  await user.keyboard("{ArrowDown}");
+  const options = () =>
+    screen
+      .getAllByRole("menuitemradio")
+      .map((item) => item.querySelector("strong")?.textContent);
+  await waitFor(() => expect(options()).toEqual(["Second game", "First game"]));
+  expect(remote.profiles[0].gameOrder).toEqual(["second", "g"]);
+  expect(cell("Switch game").textContent).toContain("First game");
+  await act(() => store.refresh());
+  expect(options()).toEqual(["Second game", "First game"]);
+});
+
+test("an overdrawn vowel keeps the other unseen tile counts visible", async () => {
+  const board = remote.games[0].board;
+  board.fill("U", 0, 4);
+  const user = await start();
+  await typeRack(user, "UA");
+  expect(
+    screen
+      .getByLabelText("Vowels 37, count exceeded")
+      .classList.contains("tile-pool-category-alert"),
+  ).toBe(true);
+  expect(screen.getByText("Consonants 56")).toBeTruthy();
+  expect(screen.getByText("Blanks 2")).toBeTruthy();
 });

@@ -12,6 +12,7 @@ import {
   type AppState,
   type Dictionary,
   type Game,
+  type Profile,
   type BoardTemplate,
   emptyBoard,
   localDate,
@@ -28,6 +29,7 @@ export function createStore(directory: string, root: string) {
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
     CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY,name TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY,revision INTEGER NOT NULL,data TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS profile_game_order (profile_id TEXT PRIMARY KEY,game_ids TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS templates (id TEXT PRIMARY KEY,data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS dictionaries (id TEXT PRIMARY KEY,data TEXT NOT NULL,file TEXT NOT NULL);`);
   function registerDictionary(
@@ -98,11 +100,20 @@ export function createStore(directory: string, root: string) {
     const row = db.prepare("SELECT data FROM games WHERE id=?").get(id);
     return row ? (JSON.parse(row.data as string) as Game) : undefined;
   };
-  const profiles = () =>
-    db.prepare("SELECT id,name FROM profiles").all() as {
-      id: string;
-      name: string;
-    }[];
+  const profiles = (): Profile[] =>
+    db
+      .prepare(
+        `SELECT id,name,game_ids FROM profiles
+      LEFT JOIN profile_game_order ON profile_id=id`,
+      )
+      .all()
+      .map((row) => ({
+        id: row.id as string,
+        name: row.name as string,
+        ...(typeof row.game_ids === "string" && {
+          gameOrder: JSON.parse(row.game_ids) as string[],
+        }),
+      }));
   function createGame(
     input: Omit<Game, "id" | "revision" | "updatedAt">,
   ): Game {
@@ -186,7 +197,28 @@ export function createStore(directory: string, root: string) {
       const result = db
         .prepare("UPDATE profiles SET name=? WHERE id=?")
         .run(name, id);
-      return result.changes ? { id, name } : undefined;
+      return result.changes
+        ? profiles().find((profile) => profile.id === id)
+        : undefined;
+    },
+    reorderGames(profileId: string, gameIds: string[]) {
+      const profile = profiles().find((item) => item.id === profileId);
+      if (!profile) return "missing";
+      const active = new Set(
+        games()
+          .filter((g) => g.profileId === profileId && !g.archived)
+          .map((g) => g.id),
+      );
+      if (
+        gameIds.length !== active.size ||
+        !gameIds.every((id) => active.delete(id))
+      )
+        return "changed";
+      db.prepare(
+        `INSERT INTO profile_game_order VALUES (?,?)
+        ON CONFLICT(profile_id) DO UPDATE SET game_ids=excluded.game_ids`,
+      ).run(profileId, JSON.stringify(gameIds));
+      return "saved";
     },
     deleteProfile(id: string, name: string) {
       const profile = db
@@ -202,6 +234,7 @@ export function createStore(directory: string, root: string) {
           )
           .all(id);
         db.prepare("DELETE FROM profiles WHERE id=?").run(id);
+        db.prepare("DELETE FROM profile_game_order WHERE profile_id=?").run(id);
         db.exec("COMMIT");
         return {
           status: "deleted",

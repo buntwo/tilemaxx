@@ -144,6 +144,20 @@ export const MAX_GAME_NOTES = 2000;
 export interface Profile {
   id: string;
   name: string;
+  gameOrder?: string[];
+}
+
+export function orderGames(games: Game[], order: readonly string[] = []) {
+  const byId = new Map(games.map((game) => [game.id, game]));
+  const ordered: Game[] = [];
+  for (const id of order) {
+    const game = byId.get(id);
+    if (game) {
+      ordered.push(game);
+      byId.delete(id);
+    }
+  }
+  return ordered.concat([...byId.values()]);
 }
 export interface Dictionary {
   id: string;
