@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ImagePlus,
+  ArrowLeft,
   ArrowRight,
   ArrowUpRight,
   BookOpen,
@@ -725,6 +726,15 @@ export default function App() {
             </div>
           </div>
         </header>
+        {viewingArchivedGame && (
+          <button
+            className="button secondary archive-back archived-game-back"
+            onClick={() => showWorkspace("archive")}
+          >
+            <ArrowLeft size={16} aria-hidden="true" />
+            Back to archived games
+          </button>
+        )}
         {workspace === "games" && (
           <div className="workspace-heading">
             <div>

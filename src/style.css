@@ -2001,6 +2001,13 @@ kbd {
   flex-shrink: 0;
   font-size: 11px;
 }
+.archived-game-back {
+  margin-top: 14px;
+  min-height: 44px;
+}
+.archived-game-back + .workspace-heading {
+  padding-top: 12px;
+}
 .archive-games {
   list-style: none;
   margin: 0;

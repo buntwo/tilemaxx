@@ -1095,8 +1095,15 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
     archived: true,
     board: archivedBoard,
   });
+  await user.click(cell("Back to archived games"));
+  expect(location.hash).toBe("#archived-games");
+  expect(names()[0]).toBe("SamClub night · Jun 1, 2026");
+  expect(screen.queryByRole("heading", { name: "Sam" })).toBeNull();
   await user.click(cell("My games"));
   expect(screen.getByRole("heading", { name: "First game" })).toBeTruthy();
+  expect(
+    screen.queryByRole("button", { name: "Back to archived games" }),
+  ).toBeNull();
   expect(cell("Switch game")).toBeTruthy();
   expect(cell("My games").getAttribute("aria-current")).toBe("page");
 });
