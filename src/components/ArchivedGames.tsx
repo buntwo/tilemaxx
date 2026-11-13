@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, Pencil } from "lucide-react";
 import type { Game } from "../../shared/model";
 import { GameMetadata } from "./GameDetails";
-import BoardThumbnail from "./BoardThumbnail";
+import LayoutThumbnail from "./LayoutThumbnail";
 
 export type ArchiveSort = "date" | "opponent";
 const opponentOrder = new Intl.Collator(undefined, {
@@ -61,9 +61,9 @@ export default function ArchivedGames({
                     className="archive-open"
                     onClick={() => onOpen(game.id)}
                   >
-                    <BoardThumbnail
+                    <LayoutThumbnail
                       board={game.board}
-                      size={game.template.size}
+                      template={game.template}
                     />
                     <span className="game-picker-label">
                       <strong>{game.name}</strong>

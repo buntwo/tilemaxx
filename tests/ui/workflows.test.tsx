@@ -985,7 +985,9 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
     name: /First game.*2026/,
   });
   expect(document.activeElement).toBe(option);
-  expect(option.querySelector(".board-thumbnail")).toBeTruthy();
+  const pickerPreview = option.querySelector(".board-thumbnail")!;
+  expect(pickerPreview.querySelector('[fill="var(--tw)"]')).toBeTruthy();
+  expect(pickerPreview.querySelector(".thumbnail-played")).toBeNull();
   expect(within(menu).queryByText("Saved match")).toBeNull();
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("menu", { name: "Active games" })).toBeNull();
@@ -1014,9 +1016,9 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   const originalPreview = archived().getByRole("button", {
     name: /Saved match.*2025/,
   });
-  expect(
-    originalPreview.querySelector(".board-thumbnail path")?.getAttribute("d"),
-  ).toMatch(/\S/);
+  const thumbnail = originalPreview.querySelector(".board-thumbnail")!;
+  expect(thumbnail.querySelector('[fill="var(--tw)"]')).toBeTruthy();
+  expect(thumbnail.querySelector(".thumbnail-played")).toBeTruthy();
   await user.click(archived().getByRole("button", { name: "Back to games" }));
   expect(screen.getByRole("heading", { name: "First game" })).toBeTruthy();
   await user.click(cell("Archived games"));

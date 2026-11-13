@@ -3,7 +3,7 @@ import { Check, ChevronDown } from "lucide-react";
 import type { Game } from "../../shared/model";
 
 import { GameMetadata } from "./GameDetails";
-import BoardThumbnail from "./BoardThumbnail";
+import LayoutThumbnail from "./LayoutThumbnail";
 
 export default function GamePicker({
   game,
@@ -120,9 +120,9 @@ export default function GamePicker({
               aria-checked={option.id === game?.id}
               onClick={() => choose(option.id)}
             >
-              <BoardThumbnail
+              <LayoutThumbnail
                 board={option.board}
-                size={option.template.size}
+                template={option.template}
               />
               <span className="game-picker-label">
                 <strong>{option.name}</strong>
