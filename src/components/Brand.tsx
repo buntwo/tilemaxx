@@ -8,6 +8,7 @@ import {
   BRAND_WORD,
 } from "./brand-animation";
 import { attachBrandSparkle } from "./brand-sparkle";
+import { attachBrandIdle } from "./brand-idle";
 
 const uniqueLetters = "TILEMAX";
 const brandIndex = Math.floor(Math.random() * uniqueLetters.length);
@@ -122,7 +123,14 @@ export default function Brand() {
       brandOnFire,
     );
     sparkle.current = effect;
+    const detachIdle = attachBrandIdle(
+      tileButton.current,
+      tile.current,
+      brandOnFire,
+      () => selectedRef.current !== highlightedIndex || !!stopMotion.current,
+    );
     return () => {
+      detachIdle?.();
       effect?.detach();
       sparkle.current = undefined;
     };

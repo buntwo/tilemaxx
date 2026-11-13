@@ -165,6 +165,47 @@ test("touch release and lost capture share the same pause", () => {
   expect(brand.effect()).toBe("wipe");
 });
 
+test("idle effects run on the minute and yield to title interactions", () => {
+  const { brand, hover, preview, wait, animate, cancel } = setup();
+  const button = screen.getByRole("button", {
+    name: "Sparkle the Tilemaxx tile",
+  });
+  vi.spyOn(button, "getClientRects").mockReturnValue({
+    length: 1,
+  } as DOMRectList);
+  button.getAnimations = () => [];
+  const tile = brand.querySelector<HTMLElement>(".brand-mark")!;
+  wait(59_999);
+  expect(animate).not.toHaveBeenCalled();
+  wait(1);
+  expect(tile.dataset.idleEffect).toBe("hop");
+  pointer(brand, "pointerenter", "mouse");
+  expect(tile.dataset.idleEffect).toBeUndefined();
+  expect(cancel).toHaveBeenCalledOnce();
+
+  hover(preview);
+  wait(60_000);
+  expect(animate).toHaveBeenCalledTimes(1);
+});
+
+test("idle effects skip hidden tiles", () => {
+  const { wait, animate } = setup();
+  wait(60_000);
+  expect(animate).not.toHaveBeenCalled();
+});
+
+test("idle effects respect reduced motion", () => {
+  const { wait, animate } = setup(true);
+  const button = screen.getByRole("button", {
+    name: "Sparkle the Tilemaxx tile",
+  });
+  vi.spyOn(button, "getClientRects").mockReturnValue({
+    length: 1,
+  } as DOMRectList);
+  wait(60_000);
+  expect(animate).not.toHaveBeenCalled();
+});
+
 test.each([
   { onFire: false, perSecond: 10, burst: 48 },
   { onFire: true, perSecond: 25, burst: 84 },
