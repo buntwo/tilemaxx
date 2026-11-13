@@ -21,7 +21,14 @@ export default function GameScores({
   const tracking = tracksScores(game);
   const play = pendingOpponentPlay(game);
   const scoring = game.scoring ?? emptyScoring();
-  const moves = trackedMoveHistory(game);
+  const totals = { you: 0, opponent: 0 };
+  const moves = trackedMoveHistory(game)
+    .map((move, index) => ({
+      ...move,
+      number: index + 1,
+      total: (totals[move.player] += move.score),
+    }))
+    .reverse();
   return (
     <section className="panel score-panel" aria-label="Game scores">
       <div className="score-header">
@@ -112,16 +119,28 @@ export default function GameScores({
                 </tr>
               </thead>
               <tbody>
-                {moves.map((move, index) => (
-                  <tr key={index}>
-                    <td className="score-move-number">{index + 1}</td>
+                {moves.map((move) => (
+                  <tr key={move.number}>
+                    <td className="score-move-number">{move.number}</td>
                     <td>
-                      {move.player === "you" && <strong>{move.word}</strong>}
+                      {move.player === "you" && (
+                        <div className="score-move-play">
+                          <strong>{move.word}</strong>{" "}
+                          <small className="score-move-total">
+                            ({move.total})
+                          </small>
+                        </div>
+                      )}
                     </td>
                     <td className="score-move-points">{move.score}</td>
                     <td>
                       {move.player === "opponent" && (
-                        <strong>{move.word}</strong>
+                        <div className="score-move-play">
+                          <small className="score-move-total">
+                            ({move.total})
+                          </small>{" "}
+                          <strong>{move.word}</strong>
+                        </div>
                       )}
                     </td>
                   </tr>

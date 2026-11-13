@@ -996,6 +996,19 @@ label + label {
 .score-history td {
   overflow-wrap: anywhere;
 }
+.score-move-play {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+}
+.score-move-play strong {
+  min-width: 0;
+}
+.score-move-total {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
 .score-history small,
 .score-history p {
   color: var(--muted);
@@ -1153,24 +1166,6 @@ label + label {
 }
 .square.blank .tile-letter {
   color: #758778;
-}
-.square.ghost {
-  background: #b2d5b7;
-  box-shadow:
-    inset 0 -2px #86b390,
-    inset 0 0 0 1px #719f7b;
-  color: #234c30;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .square.ghost:not(.blank) {
-    animation: preview-tile-pulse 2s ease-in-out infinite;
-  }
-}
-@keyframes preview-tile-pulse {
-  50% {
-    background-color: #72b77e;
-    transform: scale(0.88);
-  }
 }
 .square.selected {
   outline: 2px solid var(--primary);
@@ -3147,6 +3142,32 @@ kbd {
 }
 .square.blank .tile-letter {
   color: var(--blank-ink);
+}
+@property --preview-tile-light {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 28%;
+}
+/* One animation per board keeps new preview squares on the same beat. */
+@media (prefers-reduced-motion: no-preference) {
+  .board-grid.has-move-preview {
+    animation: preview-tile-pulse 2s ease-in-out infinite;
+  }
+}
+@keyframes preview-tile-pulse {
+  0%, 100% { --preview-tile-light: 65%; }
+  50% { --preview-tile-light: 0%; }
+}
+.square.occupied.ghost {
+  background: #b2d5b7;
+  background: color-mix(in srgb, #72b77e, #f5fff6 var(--preview-tile-light, 28%));
+  box-shadow: inset 0 -2px #86b390, inset 0 0 0 1px #719f7b;
+  color: #234c30;
+}
+.square.occupied.ghost.blank {
+  background: var(--blank-tile);
+  background: color-mix(in srgb, #86bce0, #f4fbff var(--preview-tile-light, 28%));
+  box-shadow: inset 0 -2px #9fbccc, inset 0 0 0 1px #7aabc8;
 }
 .square.occupied.archive-edit,
 .board-legend .archive-edit {

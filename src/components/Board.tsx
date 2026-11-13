@@ -46,7 +46,7 @@ export default function Board({
   return (
     <div className={`board-wrap ${compact ? "compact" : ""}`}>
       <div
-        className={`board-grid ${paint ? "paint-board" : ""}`}
+        className={`board-grid ${paint ? "paint-board" : ""} ${placed.size ? "has-move-preview" : ""}`}
         style={{ "--size": n } as CSSProperties}
         aria-label={`${template.name} board`}
       >
@@ -62,7 +62,7 @@ export default function Board({
             {Array.from({ length: n }, (_, c) => {
               const i = r * n + c,
                 tile = board[i] || placed.get(i) || "",
-                ghost = placed.has(i),
+                ghost = !board[i] && placed.has(i),
                 archiveEdit = Boolean(
                   archivedBoard && board[i] && board[i] !== archivedBoard[i],
                 ),

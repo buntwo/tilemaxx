@@ -1206,8 +1206,8 @@ test("score tracking records typed opponent moves and solver plays across undo, 
           .map((cell) => cell.textContent),
       ),
   ).toEqual([
-    ["1", "", "10", "CAT"],
-    ["2", "CATS", "6", ""],
+    ["2", "CATS (6)", "6", ""],
+    ["1", "", "10", "(10) CAT"],
   ]);
   await user.click(cell("Undo"));
   expect(current().scoring?.opponent.points).toBe(10);
