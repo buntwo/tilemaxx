@@ -64,6 +64,44 @@ function normalizeCharacter(text: string, glyph: Glyph): string {
   return "";
 }
 
+// On Scrabble GO tiles, a Z has broad top and bottom bars and a single
+// right-to-left stroke between them. Tesseract can misread the isolated glyph
+// at some raster sizes, so check that structure when OCR is unsure.
+function looksLikeZ({ width, height, data }: Glyph): boolean {
+  if (width < 8 || width / height < 0.62 || width / height > 1.15) return false;
+  let topBar = false;
+  let bottomBar = false;
+  let firstCenter: number | undefined;
+  let lastCenter = 0;
+  for (let y = 0; y < height; y++) {
+    let left = width;
+    let right = -1;
+    let ink = 0;
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4] >= 128) continue;
+      left = Math.min(left, x);
+      right = x;
+      ink++;
+    }
+    const row = (y + 0.5) / height;
+    if (row < 0.2) topBar ||= ink >= width * 0.78;
+    if (row > 0.8) bottomBar ||= ink >= width * 0.78;
+    if (row < 0.25 || row > 0.75) continue;
+    if (ink !== right - left + 1 || ink < width * 0.12 || ink > width * 0.55)
+      return false;
+    const center = (left + right + 1) / (2 * width);
+    if (firstCenter === undefined) firstCenter = center;
+    else if (center > lastCenter + 0.08) return false;
+    lastCenter = center;
+  }
+  return (
+    topBar &&
+    bottomBar &&
+    firstCenter !== undefined &&
+    firstCenter - lastCenter >= 0.26
+  );
+}
+
 export async function readGlyphs(
   glyphs: readonly Glyph[],
   size: number,
@@ -106,6 +144,11 @@ export async function readGlyphs(
         // A reading only visible at this scale still needs a review mark.
         confidence = Math.min(smaller.confidence, 74);
       }
+    }
+    if (glyph.warmTile && (!letter || confidence < 75) && looksLikeZ(glyph)) {
+      letter = "Z";
+      // Keep the review mark for shape-based readings.
+      confidence = Math.min(confidence, 74);
     }
     if (letter)
       board[glyph.index] = glyph.assignedBlank ? letter.toLowerCase() : letter;

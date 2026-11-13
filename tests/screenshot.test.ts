@@ -113,6 +113,42 @@ test("Scrabble GO ink detection keeps blue assigned blanks and rejects bonus tex
   });
 });
 
+test("a low-confidence A reading can recover a Z without changing other letters", async () => {
+  const svg =
+    Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120">
+    <rect width="120" height="120" fill="#f6e7c3"/>
+    <path d="M11 8H28V12L17 24H28V28H11V24L22 12H11Z" fill="#22170f"/>
+    <path d="M54 26L61 9H63L70 26M56 21H68" fill="none" stroke="#22170f" stroke-width="4"/>
+    <path d="M91 8H108V12L97 24H108V28H91V24L102 12H91Z" fill="#68a8ee"/>
+    <path d="M11 49L29 66M29 49L11 66" fill="none" stroke="#22170f" stroke-width="4"/>
+  </svg>`);
+  const { data, info } = await sharp(svg)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const glyphs = extractGlyphs(
+    { data, width: info.width, height: info.height },
+    { left: 0, top: 0, width: 120, height: 120 },
+    3,
+  );
+  const result = await readGlyphs(
+    glyphs,
+    3,
+    async (glyph, pass) => {
+      if (glyph.index === 3 && pass === "character")
+        return { text: "X", confidence: 83 };
+      return { text: "A", confidence: glyph.index === 1 ? 70 : 0 };
+    },
+    () => {},
+    () => {},
+  );
+  assert.deepEqual(result, {
+    board: ["Z", "A", "z", "X", "", "", "", "", ""],
+    uncertain: [0, 1, 2],
+    candidates: 4,
+  });
+});
+
 test(
   "local OCR recognizes a fixture and rejects premium labels and point values",
   { timeout: 60000 },
