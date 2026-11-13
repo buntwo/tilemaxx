@@ -332,20 +332,12 @@ label + label {
 .brand-tile-button:active {
   --brand-tile-light: 14%;
 }
-@media (hover: hover) {
-  .brand-tile-button:hover:not(:active) {
-    --brand-tile-light: 7%;
-  }
-  .brand:not(.on-fire) .brand-tile-button:hover:not(:active) {
-    --brand-tile-tint: black;
-  }
-}
 .brand-mark {
   --brand-tile-base: var(--primary);
   --brand-tile-fill: color-mix(
     in srgb,
     var(--brand-tile-base),
-    var(--brand-tile-tint, white) var(--brand-tile-light, 0%)
+    white var(--brand-tile-light, 0%)
   );
   --brand-tile-ink: var(--surface);
   --brand-tile-shadow: inset 0 -3px #0002;
