@@ -1061,6 +1061,9 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
     archived().getByRole("button", { name: /Sam.*Club night.*2026/ }),
   );
   expect(screen.getByRole("heading", { name: "Sam" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Switch game" })).toBeNull();
+  expect(cell("Archived games").getAttribute("aria-current")).toBe("page");
+  expect(cell("My games").getAttribute("aria-current")).toBeNull();
   expect(rackTile(1).getAttribute("aria-label")).toBe("Rack tile 1: D");
   await user.click(screen.getByText("Notes", { selector: "summary" }));
   expect(screen.getByText("Review the endgame.")).toBeTruthy();
@@ -1092,6 +1095,10 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
     archived: true,
     board: archivedBoard,
   });
+  await user.click(cell("My games"));
+  expect(screen.getByRole("heading", { name: "First game" })).toBeTruthy();
+  expect(cell("Switch game")).toBeTruthy();
+  expect(cell("My games").getAttribute("aria-current")).toBe("page");
 });
 
 test("score tracking records typed opponent moves and solver plays across undo, redo and saving", async () => {

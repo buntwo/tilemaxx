@@ -284,9 +284,10 @@ export default function App() {
     try {
       localStorage.setItem("tilewise:profile", profileId);
       localStorage.setItem("tilewise:game", gameId);
-      if (gameId) localStorage.setItem(`tilewise:last:${profileId}`, gameId);
+      if (game && game.profileId === profileId && !game.archived)
+        localStorage.setItem(`tilewise:last:${profileId}`, game.id);
     } catch {}
-  }, [profileId, gameId]);
+  }, [profileId, gameId, game?.archived, game?.profileId]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     try {
@@ -358,6 +359,14 @@ export default function App() {
     if (workspace !== "games") showWorkspace("games");
     setGameId(id);
     setSidebar(false);
+  }
+  function openMyGames() {
+    showWorkspace("games");
+    if (!game?.archived) return;
+    const last = saved(`tilewise:last:${profileId}`);
+    setGameId(
+      activeGames.find((g) => g.id === last)?.id ?? activeGames[0]?.id ?? "",
+    );
   }
   function openDialog(next: Dialog) {
     setError("");
@@ -529,6 +538,7 @@ export default function App() {
     data?.games.filter((g) => g.profileId === profileId) ?? [];
   const activeGames = profileGames.filter((g) => !g.archived);
   const archivedGames = profileGames.filter((g) => g.archived);
+  const viewingArchivedGame = workspace === "games" && game?.archived;
   const pending = game && state.pending.includes(game.id),
     conflict = game && state.conflicts[game.id];
   const profileLetter =
@@ -570,15 +580,19 @@ export default function App() {
         <div className="sidebar-divider" />
         <button
           className="nav-link"
-          aria-current={workspace === "games" ? "page" : undefined}
-          onClick={() => showWorkspace("games")}
+          aria-current={
+            workspace === "games" && !viewingArchivedGame ? "page" : undefined
+          }
+          onClick={openMyGames}
         >
           <Home size={18} />
           My games
         </button>
         <button
           className="nav-link"
-          aria-current={workspace === "archive" ? "page" : undefined}
+          aria-current={
+            workspace === "archive" || viewingArchivedGame ? "page" : undefined
+          }
           onClick={() => showWorkspace("archive")}
         >
           <Archive size={18} />
@@ -715,11 +729,15 @@ export default function App() {
           <div className="workspace-heading">
             <div>
               <div className="game-title-row">
-                <GamePicker
-                  game={game}
-                  games={activeGames}
-                  onChoose={chooseGame}
-                />
+                {game?.archived ? (
+                  <h1>{game.name}</h1>
+                ) : (
+                  <GamePicker
+                    game={game}
+                    games={activeGames}
+                    onChoose={chooseGame}
+                  />
+                )}
               </div>
               {game && (
                 <div className="game-title-meta">
@@ -820,7 +838,7 @@ export default function App() {
               );
             }}
             templates={data.templates}
-            onBack={() => showWorkspace("games")}
+            onBack={openMyGames}
             onSave={async (template, editing) => {
               if (editing) await store.updateTemplate(template);
               else await store.saveTemplate(template);
@@ -841,7 +859,7 @@ export default function App() {
               setArchiveEditId(id);
               setDialog("rename");
             }}
-            onBack={() => showWorkspace("games")}
+            onBack={openMyGames}
           />
         ) : game ? (
           <div className="workspace-grid">
