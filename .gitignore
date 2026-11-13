@@ -3,6 +3,8 @@ dist/
 dist-server/
 data/
 .env
+/compose.yaml
+/compose.yaml.backup.*
 .DS_Store
 *.log
 coverage/

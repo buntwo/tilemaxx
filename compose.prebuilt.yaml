@@ -1,6 +1,8 @@
 services:
   tilemaxx:
     image: tilemaxx:local
+    # Uncomment to build from this checkout instead of using a prebuilt image.
+    # build: .
     container_name: ${TILEMAXX_CONTAINER_NAME:-tilemaxx-1}
     ports:
       - "${TILEMAXX_PORT:-4173}:4173"

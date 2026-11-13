@@ -61,8 +61,14 @@ With Git and Docker Compose available on the NAS, run these commands from the fo
 ```sh
 git clone https://github.com/buntwo/tilemaxx.git
 cd tilemaxx
+cp compose.prebuilt.yaml compose.yaml
 mkdir -p data
 sudo chown 1000:1000 data
+```
+
+Uncomment `build: .` in your local `compose.yaml` to build from the Git checkout. Adjust any settings for your NAS, then start Tilemaxx:
+
+```sh
 docker compose up -d --build
 ```
 
@@ -74,7 +80,7 @@ The container is named `tilemaxx-1` and uses the `tilemaxx:local` image. Set `TI
 
 Compose mounts `./data` at `/app/data`. SQLite (`data/tilewise.sqlite`) stores profiles, games, and custom boards. Imported dictionaries and saved screenshot examples also live under `data/`. Git and the Docker build context both exclude `data/`. The container runs as UID/GID `1000:1000`, which needs write access to this directory and its contents.
 
-For a fresh setup, use **Word lists → Import word list** to install WOW24 or another dictionary. To use an image you already loaded into Docker, point `compose.prebuilt.yaml` at its tag and use `docker compose -f compose.prebuilt.yaml up -d`.
+For a fresh setup, use **Word lists → Import word list** to install WOW24 or another dictionary. If you deploy from a prebuilt image, leave `build: .` commented out in your local `compose.yaml`, set `image:` to the tag you loaded, and run `docker compose up -d`.
 
 ### Update from GitHub
 
@@ -85,9 +91,21 @@ Run the update script in the Tilemaxx checkout on the NAS:
 docker compose ps
 ```
 
-The script pulls changes, then runs `docker compose up -d --build --remove-orphans`. If your NAS uses standalone `docker-compose`, run `git pull --ff-only && docker-compose up -d --build --remove-orphans` instead. Compose reuses the same `./data` directory and can reuse the dependency layer when the package files are unchanged. Refresh the app once the container is healthy.
+For installs with `build: .` enabled, the script pulls changes and rebuilds with your local `compose.yaml`. Git ignores that file, so your settings stay in place. If your NAS uses standalone `docker-compose`, run `git pull --ff-only && docker-compose -f compose.yaml up -d --build --remove-orphans` instead. Compose reuses the same `./data` directory and can reuse the dependency layer when the package files are unchanged.
 
-If your container is still named `tilemaxx-tilewise-1` and already uses the `./data` bind mount, run `git pull --ff-only && ./update.sh` once to fetch the new script before running it. Compose removes the old service container and starts `tilemaxx-1` using the same data directory.
+#### Keep an existing Compose file
+
+If `git ls-files compose.yaml` still lists the file, save a copy before your first pull across this change. This keeps your settings whether or not you edited the tracked file:
+
+```sh
+compose_backup=$(mktemp ./compose.yaml.backup.XXXXXX) &&
+  cp compose.yaml "$compose_backup" &&
+  git restore --source=HEAD --staged --worktree -- compose.yaml &&
+  git pull --ff-only &&
+  mv "$compose_backup" compose.yaml
+```
+
+Then run `./update.sh`. If the pull fails, your settings are in `compose.yaml.backup.*`. If you already pulled and Git removed the file, copy `compose.prebuilt.yaml` to `compose.yaml` and enable `build: .` as above.
 
 ### Move saved games to another server
 
