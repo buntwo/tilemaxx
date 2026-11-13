@@ -101,6 +101,33 @@ test("cancel aborts recognition and never applies a partial board", async () => 
   expect(onApply).not.toHaveBeenCalled();
   expect(onClose).toHaveBeenCalledOnce();
 });
+test("confirming a marked square advances, wraps, and preserves the recognized letters", async () => {
+  const board = emptyBoard(15);
+  board[112] = "C";
+  board[113] = "A";
+  board[114] = "T";
+  vi.mocked(recognizeBoard).mockResolvedValue({
+    board,
+    uncertain: [112, 113, 114],
+    candidates: 3,
+  });
+  const { user, onApply } = await setup();
+  await user.click(screen.getByRole("button", { name: "Read board" }));
+  await screen.findByLabelText("Screenshot tile H8");
+  await user.click(screen.getByRole("button", { name: "J8: T" }));
+  const confirm = () =>
+    user.click(screen.getByRole("button", { name: "Confirm square" }));
+  await confirm();
+  expect(screen.getByLabelText("Screenshot tile H8")).toBeTruthy();
+  expect(screen.getByText("2 marked")).toBeTruthy();
+  await confirm();
+  expect(screen.getByLabelText("Screenshot tile I8")).toBeTruthy();
+  await confirm();
+  expect(screen.queryByRole("button", { name: "Confirm square" })).toBeNull();
+  expect(screen.getByLabelText("Screenshot tile I8")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Use this board" }));
+  expect(onApply).toHaveBeenCalledWith(board);
+});
 test("recognition errors leave import unapplied and allow retry", async () => {
   vi.mocked(recognizeBoard).mockRejectedValue(
     new Error("Recognition unavailable"),

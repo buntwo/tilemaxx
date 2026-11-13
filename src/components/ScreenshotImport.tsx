@@ -167,6 +167,10 @@ export default function ScreenshotImport({
     setSelection({ index: recognized.uncertain[0] ?? template.start });
     setExampleStatus("");
   }
+  function selectNextMarked(marked: number[]) {
+    const next = marked.find((i) => i > (selected ?? -1)) ?? marked[0];
+    if (next !== undefined) setSelection({ index: next });
+  }
   function enterManually() {
     if (!image) return;
     try {
@@ -444,12 +448,7 @@ export default function ScreenshotImport({
                   <>
                     <button
                       className="button secondary"
-                      onClick={() => {
-                        const next =
-                          result.uncertain.find((i) => i > (selected ?? -1)) ??
-                          result.uncertain[0];
-                        setSelection({ index: next });
-                      }}
+                      onClick={() => selectNextMarked(result.uncertain)}
                     >
                       Next marked square
                     </button>
@@ -459,14 +458,13 @@ export default function ScreenshotImport({
                         selected === null ||
                         !result.uncertain.includes(selected)
                       }
-                      onClick={() =>
-                        setResult({
-                          ...result,
-                          uncertain: result.uncertain.filter(
-                            (i) => i !== selected,
-                          ),
-                        })
-                      }
+                      onClick={() => {
+                        const uncertain = result.uncertain.filter(
+                          (i) => i !== selected,
+                        );
+                        setResult({ ...result, uncertain });
+                        selectNextMarked(uncertain);
+                      }}
                     >
                       Confirm square
                     </button>

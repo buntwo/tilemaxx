@@ -1431,13 +1431,13 @@ test("reordering My games saves the profile order without switching games", asyn
   expect(screen.queryByTitle("2 active games")).toBeNull();
 });
 
-test("an overdrawn vowel keeps the other unseen tile counts visible", async () => {
+test("overdrawn tiles show negative counts while other counts stay visible", async () => {
   const board = remote.games[0].board;
   board.fill("U", 0, 4);
   remote.games[0].revision++;
   const user = await start();
   await waitFor(() => expect(current().revision).toBe(1));
-  await typeRack(user, "UA");
+  await typeRack(user, "UUA");
   expect(
     screen
       .getByLabelText("Vowels 37, count exceeded")
@@ -1445,6 +1445,17 @@ test("an overdrawn vowel keeps the other unseen tile counts visible", async () =
   ).toBe(true);
   expect(screen.getByText("Consonants 56")).toBeTruthy();
   expect(screen.getByText("Blanks 2")).toBeTruthy();
+  await user.click(screen.getByText("Unseen tiles"));
+  const pool = within(screen.getByRole("list", { name: "Unseen tile counts" }));
+  expect(pool.getByRole("listitem", { name: "U: 2 extra" }).textContent).toBe(
+    "U-2",
+  );
+  expect(pool.getByRole("listitem", { name: "A: 8 unseen" }).textContent).toBe(
+    "A8",
+  );
+  expect(
+    screen.queryByText(/More tiles entered than this set contains/),
+  ).toBeNull();
 });
 
 test("a move's score button opens its own breakdown without playing it", async () => {

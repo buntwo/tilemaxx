@@ -81,19 +81,6 @@ export default function TilePool({ game }: { game: Game }) {
             <option value="high">High value (5+)</option>
           </select>
         </div>
-        {excess.length > 0 && (
-          <p className="error" role="status">
-            More tiles entered than this set contains:{" "}
-            {excess
-              .map(
-                ({ symbol, excess: amount }) =>
-                  `${symbol === "?" ? "blank" : symbol} × ${amount} extra`,
-              )
-              .join(", ")}
-            . Counts show zero remaining for those tiles. Check your board,
-            rack, or starting counts.
-          </p>
-        )}
         {visible.length ? (
           <>
             <div className="tile-pool-key" aria-label="Unseen count colors">
@@ -112,7 +99,7 @@ export default function TilePool({ game }: { game: Game }) {
                   aria-label={`${kind === "blank" ? "Blank" : symbol}: ${extra ? `${extra} extra` : `${count} unseen`}`}
                 >
                   <strong>{symbol}</strong>
-                  <span>{extra ? "!" : count}</span>
+                  <span>{extra ? -extra : count}</span>
                 </li>
               ))}
             </ul>
