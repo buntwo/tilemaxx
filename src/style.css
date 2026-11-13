@@ -279,6 +279,7 @@ label + label {
   z-index: 30;
 }
 .brand {
+  --brand-highlight: var(--primary);
   display: flex;
   gap: 11px;
   text-decoration: none;
@@ -289,32 +290,105 @@ label + label {
   letter-spacing: -1.2px;
   font-weight: 720;
 }
+.brand.on-fire {
+  --brand-highlight: var(--tile-warning);
+}
 .brand-mark {
+  --brand-tile-fill: var(--primary);
+  --brand-tile-ink: var(--surface);
+  --brand-tile-shadow: inset 0 -3px #0002;
   display: block;
   flex-shrink: 0;
   width: 37px;
   height: 39px;
-  background: var(--primary);
-  color: var(--surface);
-  border-radius: 7px;
-  box-shadow: inset 0 -3px #0002;
+  color: var(--brand-tile-ink);
   position: relative;
   text-align: center;
   line-height: 37px;
   font-size: 25px;
   font-weight: 650;
   transform: rotate(-7deg);
+  perspective: 140px;
   letter-spacing: 0;
 }
 .brand-mark.on-fire {
-  background: #af3228;
-  color: #fff5dd;
-  box-shadow:
-    inset 0 -3px #6a1d1a,
-    0 0 10px #f06b484d;
+  --brand-tile-fill: #af3228;
+  --brand-tile-ink: #fff5dd;
+  --brand-tile-shadow: inset 0 -3px #6a1d1a, 0 0 10px #f06b484d;
+}
+.brand-face,
+.brand-motion,
+.brand-reel-strip,
+.brand-effect-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.brand-face,
+.brand-motion[data-effect="reel"] {
+  border-radius: 7px;
+  background: var(--brand-tile-fill);
+  box-shadow: var(--brand-tile-shadow);
+}
+.brand-mark[data-returning] > .brand-face {
+  visibility: hidden;
+}
+.brand-motion {
+  transform-style: preserve-3d;
+}
+.brand-face {
+  backface-visibility: hidden;
+}
+.brand-motion[data-effect="reel"],
+.brand-effect-overlay {
+  border-radius: 7px;
+  overflow: hidden;
+}
+.brand-reel-strip .brand-face {
+  background: transparent;
+  box-shadow: none;
+}
+.brand-pixel-grid {
+  display: grid;
+  grid-template: repeat(5, 1fr) / repeat(5, 1fr);
+}
+.brand-pixel {
+  background: color-mix(
+    in srgb,
+    var(--brand-tile-fill),
+    var(--brand-tile-ink) var(--pixel-tint)
+  );
+}
+.brand-scanline {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: color-mix(
+    in srgb,
+    var(--brand-tile-fill),
+    var(--brand-tile-ink) 63%
+  );
+  box-shadow: 0 0 5px
+    color-mix(in srgb, var(--brand-tile-fill), var(--brand-tile-ink) 40%);
+}
+.brand-motion[data-effect="wipe"] .brand-scanline {
+  inset: 0 auto 0 0;
+  width: 2px;
+  height: auto;
+}
+.brand-bloom-edge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150%;
+  aspect-ratio: 1;
+  border: 1.5px solid
+    color-mix(in srgb, var(--brand-tile-fill), var(--brand-tile-ink) 39%);
+  border-radius: 50%;
 }
 .brand-flame {
   position: absolute;
+  z-index: 1;
   top: -12px;
   right: -5px;
   color: #a22d22;
@@ -340,10 +414,7 @@ label + label {
   -webkit-user-select: none;
 }
 .brand-highlight {
-  color: var(--primary);
-}
-.brand-highlight.on-fire {
-  color: var(--tile-warning);
+  color: var(--brand-highlight);
 }
 .new-game {
   background: var(--surface);

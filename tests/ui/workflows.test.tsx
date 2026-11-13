@@ -669,7 +669,7 @@ function touch(
   fireEvent(target, event);
 }
 
-test("touching the wordmark previews its tile and restores the original on release or cancel", async () => {
+test("touching the wordmark previews its tile and returns after a pause on release or cancel", async () => {
   await start();
   const brand = screen.getByRole("link", { name: "Tilemaxx" });
   const tile = brand.querySelector(".brand-mark")!;
@@ -693,11 +693,13 @@ test("touching the wordmark previews its tile and restores the original on relea
   );
   expect(capture).toHaveBeenCalledWith(1);
   touch(target.parentElement!, "pointerup");
-  expect(highlighted()).toBe(original);
+  expect(highlighted()).toBe(target);
+  await waitFor(() => expect(highlighted()).toBe(original));
   expect(tile.textContent).toBe(originalTile);
   touch(target, "pointerdown");
   touch(target.parentElement!, "pointercancel");
-  expect(highlighted()).toBe(original);
+  expect(highlighted()).toBe(target);
+  await waitFor(() => expect(highlighted()).toBe(original));
 });
 
 test("touch waits for click to focus the keyboard and toggles using selection from before the blur", async () => {

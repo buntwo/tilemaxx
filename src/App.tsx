@@ -10,7 +10,6 @@ import {
   CloudOff,
   Copy,
   Grid2X2,
-  Flame,
   History,
   Home,
   Info,
@@ -36,6 +35,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Board from "./components/Board";
+import Brand, { BrandTile, updateFavicon } from "./components/Brand";
 import BoardEntry from "./components/BoardEntry";
 import RackEntry from "./components/RackEntry";
 import TilePool from "./components/TilePool";
@@ -115,116 +115,6 @@ function saved(key: string, fallback = "") {
   } catch {
     return fallback;
   }
-}
-
-const BRAND_LETTERS = "TILEMAX";
-const BRAND_WORD = "tilemaxx";
-const brandIndex = Math.floor(Math.random() * BRAND_LETTERS.length);
-const brandLetter = BRAND_LETTERS[brandIndex];
-const highlightedIndex =
-  brandLetter === "X" && Math.random() < 0.5 ? brandIndex + 1 : brandIndex;
-const brandOnFire = Math.random() < 0.1;
-
-function updateFavicon() {
-  const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-  if (!icon) return;
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 64;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  ctx.fillStyle = brandOnFire ? "#af3228" : "#184f41";
-  ctx.beginPath();
-  ctx.roundRect(2, 2, 60, 60, 12);
-  ctx.fill();
-  ctx.fillStyle = brandOnFire ? "#fff5dd" : "#f3e6c9";
-  ctx.font = "bold 43px system-ui";
-  ctx.textAlign = "center";
-  ctx.fillText(brandLetter, 31, 46);
-  ctx.font = "bold 14px system-ui";
-  ctx.textAlign = "right";
-  ctx.fillText(String(tileScore(brandLetter, "scrabble")), 56, 54);
-  icon.type = "image/png";
-  icon.href = canvas.toDataURL();
-}
-
-function BrandTile({ letter = brandLetter }: { letter?: string }) {
-  return (
-    <span
-      className={`brand-mark${brandOnFire ? " on-fire" : ""}`}
-      aria-hidden="true"
-    >
-      {brandOnFire && <Flame className="brand-flame" size={19} />}
-      {letter}
-      <small>{tileScore(letter, "scrabble")}</small>
-    </span>
-  );
-}
-
-function Brand() {
-  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
-  const selected = previewIndex ?? highlightedIndex;
-  const reset = () => setPreviewIndex(null);
-
-  return (
-    <a
-      className="brand"
-      href="/"
-      aria-label="Tilemaxx"
-      onClick={(e) => e.preventDefault()}
-    >
-      <BrandTile letter={BRAND_WORD[selected].toUpperCase()} />
-      <span>
-        <span
-          className="brand-word"
-          onPointerLeave={reset}
-          onPointerMove={(e) => {
-            if (
-              e.pointerType === "mouse" ||
-              !e.currentTarget.hasPointerCapture(e.pointerId)
-            )
-              return;
-            const letter = document
-              .elementFromPoint(e.clientX, e.clientY)
-              ?.closest<HTMLElement>("[data-brand-letter]");
-            setPreviewIndex(
-              letter && e.currentTarget.contains(letter)
-                ? Number(letter.dataset.brandLetter)
-                : null,
-            );
-          }}
-          onPointerUp={(e) => {
-            if (e.pointerType !== "mouse") reset();
-          }}
-          onPointerCancel={reset}
-          onLostPointerCapture={reset}
-        >
-          {[...BRAND_WORD].map((letter, index) => (
-            <span
-              key={index}
-              data-brand-letter={index}
-              className={
-                index === selected
-                  ? `brand-highlight${brandOnFire ? " on-fire" : ""}`
-                  : undefined
-              }
-              onPointerEnter={(e) => {
-                if (e.pointerType === "mouse" || e.pointerType === "pen")
-                  setPreviewIndex(index);
-              }}
-              onPointerDown={(e) => {
-                if (e.pointerType === "mouse" || !e.isPrimary) return;
-                e.currentTarget.parentElement?.setPointerCapture(e.pointerId);
-                setPreviewIndex(index);
-              }}
-            >
-              {letter}
-            </span>
-          ))}
-        </span>
-        <span className="brand-caption">A LITTLE WORD WISDOM</span>
-      </span>
-    </a>
-  );
 }
 
 export default function App() {
