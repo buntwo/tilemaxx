@@ -24,7 +24,10 @@ import MoveAnalysis from "./MoveAnalysis";
 import BingoOddsControls from "./BingoOddsControls";
 import Modal from "./Modal";
 import { ScoreBreakdownContent } from "./ScoreBreakdown";
-import PremiumDefense, { defenseLabel } from "./PremiumDefense";
+import PremiumDefense, {
+  blockedReplyPoints,
+  defenseLabel,
+} from "./PremiumDefense";
 import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
 
 function formatOdds(chance: number, exact: boolean) {
@@ -330,7 +333,7 @@ export default function Results({
             className={`result-columns${analysisGame ? " with-score-action" : ""}`}
           >
             <span>WORD</span>
-            <span>POSITION</span>
+            <span title="Position">POS</span>
             <span className="result-leave">
               LEAVE
               {(analysisGame || rackOdds) && (
@@ -362,12 +365,16 @@ export default function Results({
                 const placed = new Map(m.tiles.map((t) => [t.index, t.letter]));
                 const risk = analysisGame && defense?.[m.id];
                 const RiskIcon = risk?.opened ? ShieldAlert : ShieldCheck;
+                const riskScore = risk?.opened?.after?.score;
+                const blockedPoints = risk?.closed
+                  ? blockedReplyPoints(risk.closed)
+                  : undefined;
                 const selected =
                   analyzing &&
                   candidates.some((candidate) => candidate.id === m.id);
                 return (
                   <div
-                    className={`result-slot${analysisGame ? " with-score-action" : ""}${risk ? " with-defense-action" : ""}`}
+                    className={`result-slot${analysisGame ? " with-score-action" : ""}`}
                     key={m.id}
                     style={{ top: (start + offset) * 58 }}
                   >
@@ -529,7 +536,13 @@ export default function Results({
                           })
                         }
                       >
-                        <RiskIcon size={16} aria-hidden="true" />
+                        <span
+                          className="result-defense-badge"
+                          aria-hidden="true"
+                        >
+                          <RiskIcon size={13} />
+                          {riskScore ?? `−${blockedPoints}`}
+                        </span>
                       </button>
                     )}
                   </div>

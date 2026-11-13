@@ -2,6 +2,12 @@ import { tileScore, type BoardTemplate, type Position } from "./model";
 
 export const TILE_SYMBOLS = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ?"];
 export const MAX_TILE_COUNT = 999;
+export function choose(n: number, k: number): number {
+  if (k < 0 || k > n) return 0;
+  let result = 1;
+  for (let i = 1; i <= k; i++) result = (result * (n - i + 1)) / i;
+  return result;
+}
 const vowels = "AEIOU";
 const distributions = {
   scrabble: [
@@ -64,4 +70,30 @@ export function unseenTiles(
     total: totals.vowel + totals.consonant + totals.blank,
     excess: tiles.filter((tile) => tile.excess > 0),
   };
+}
+
+/** Chance a random rack drawn without replacement contains a specified multiset. */
+export function rackContainsChance(
+  unseen: ReturnType<typeof unseenTiles>,
+  rackSize: number,
+  required: readonly string[],
+): number {
+  const size = Math.min(rackSize, unseen.total);
+  if (required.length > size) return 0;
+  const needed = new Map<string, number>();
+  for (const symbol of required)
+    needed.set(symbol, (needed.get(symbol) ?? 0) + 1);
+  const groups = unseen.tiles.filter(({ symbol }) => needed.has(symbol));
+  if (groups.length !== needed.size) return 0;
+  const others =
+    unseen.total - groups.reduce((sum, tile) => sum + tile.count, 0);
+  function hands(group: number, remaining: number): number {
+    if (group === groups.length) return choose(others, remaining);
+    const { symbol, count } = groups[group];
+    let total = 0;
+    for (let n = needed.get(symbol)!; n <= Math.min(count, remaining); n++)
+      total += choose(count, n) * hands(group + 1, remaining - n);
+    return total;
+  }
+  return Math.min(1, hands(0, size) / choose(unseen.total, size));
 }

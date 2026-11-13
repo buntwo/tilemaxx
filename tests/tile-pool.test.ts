@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PRESETS } from "../shared/presets";
-import { getTileCounts, unseenTiles } from "../shared/tile-pool";
+import {
+  getTileCounts,
+  rackContainsChance,
+  TILE_SYMBOLS,
+  unseenTiles,
+} from "../shared/tile-pool";
 
 test("starting counts cover all three presets and legacy snapshots", () => {
   for (const [index, total, blanks, eCount] of [
@@ -43,4 +48,20 @@ test("custom counts detect overdrawn letters and blanks independently", () => {
     ],
   );
   assert.ok(pool.tiles.every(({ count }) => count >= 0));
+});
+
+test("rack odds count physical copies without replacement", () => {
+  const copies: Record<string, number> = { A: 2, B: 1, "?": 1 };
+  const template = {
+    ...PRESETS[0],
+    tileCounts: Object.fromEntries(
+      TILE_SYMBOLS.map((letter) => [letter, copies[letter] ?? 0]),
+    ),
+  };
+  const pool = unseenTiles({ board: [], rack: "" }, template);
+  assert.equal(rackContainsChance(pool, 2, ["A"]), 5 / 6);
+  assert.equal(rackContainsChance(pool, 2, ["A", "A"]), 1 / 6);
+  assert.equal(rackContainsChance(pool, 2, ["A", "?"]), 2 / 6);
+  assert.equal(rackContainsChance(pool, 2, ["Q"]), 0);
+  assert.equal(rackContainsChance(pool, 7, ["A", "A", "B", "?"]), 1);
 });

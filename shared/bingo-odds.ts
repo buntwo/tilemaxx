@@ -2,7 +2,7 @@ import { popcount, type Lexicon } from "./lexicon";
 import { type BoardTemplate, type Move, type Position } from "./model";
 import { placeTiles, sampleTiles, weightedDraws } from "./move-analysis";
 import { prepareSolver, SEARCH_LIMITS, SearchLimitError } from "./solver";
-import { unseenTiles } from "./tile-pool";
+import { choose, unseenTiles } from "./tile-pool";
 
 export const BOARD_ODDS_LIMIT = 20;
 const SAMPLES = 200;
@@ -28,13 +28,6 @@ export interface BoardOddsResult {
   checked: number;
   total: number;
   bagSize: number;
-}
-
-function choose(n: number, k: number): number {
-  if (k > n) return 0;
-  let result = 1;
-  for (let i = 1; i <= k; i++) result = (result * (n - i + 1)) / i;
-  return result;
 }
 
 interface LeaveNode {

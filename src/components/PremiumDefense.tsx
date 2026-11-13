@@ -2,17 +2,23 @@ import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { coordinate, type Game, type Move } from "../../shared/model";
 import { placeTiles } from "../../shared/move-analysis";
 import type { MoveDefense, PremiumChange } from "../../shared/premium-defense";
+import { rackContainsChance, unseenTiles } from "../../shared/tile-pool";
 import Board from "./Board";
 import Modal from "./Modal";
 
 const squareLabel = (change: PremiumChange, size: number) =>
   `${change.premium} at ${coordinate(change.square, size)}`;
 
+export function blockedReplyPoints(change: PremiumChange) {
+  return (change.before?.score ?? 0) - (change.after?.score ?? 0);
+}
+
 export function defenseLabel(defense: MoveDefense, size: number) {
   return [
     defense.opened &&
-      `Opens or strengthens ${squareLabel(defense.opened, size)}`,
-    defense.closed && `Weakens ${squareLabel(defense.closed, size)}`,
+      `Up to ${defense.opened.after?.score} points through ${squareLabel(defense.opened, size)}`,
+    defense.closed &&
+      `Reduces the best checked reply through ${squareLabel(defense.closed, size)} by ${blockedReplyPoints(defense.closed)} points`,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -32,6 +38,17 @@ export default function PremiumDefense({
   const { template } = game;
   const main = (defense.opened ?? defense.closed)!;
   const reply = defense.opened ? main.after : main.before;
+  const unseen = unseenTiles(game, template);
+  const rackSize = Math.min(unseen.total, template.rackSize);
+  const chance = reply
+    ? rackContainsChance(
+        unseen,
+        rackSize,
+        reply.tiles.map(({ letter }) =>
+          letter === letter.toUpperCase() ? letter : "?",
+        ),
+      )
+    : 0;
   return (
     <Modal
       title={`Reply risk · ${move.word.toUpperCase()}`}
@@ -85,6 +102,18 @@ export default function PremiumDefense({
                     : `blank as ${letter.toUpperCase()}`,
                 )
                 .join(", ")}
+            </p>
+            <p className="defense-help">
+              <strong>
+                {chance > 0 && chance < 0.0005
+                  ? "<0.05%"
+                  : `${new Intl.NumberFormat(undefined, {
+                      style: "percent",
+                      maximumFractionDigits: chance < 0.01 ? 2 : 1,
+                    }).format(chance)}`}
+              </strong>{" "}
+              of random {rackSize}-tile racks from {unseen.total} unseen tiles
+              contain this combination.
             </p>
             <Board
               template={template}
