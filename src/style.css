@@ -3204,12 +3204,12 @@ kbd {
   }
 }
 @keyframes preview-tile-pulse {
-  0%, 100% { --preview-tile-light: 45%; --preview-tile-scale: 1; }
+  0%, 100% { --preview-tile-light: 100%; --preview-tile-scale: 1; }
   50% { --preview-tile-light: 0%; --preview-tile-scale: 0.93; }
 }
 .square.occupied.ghost {
-  --preview-dark: #46865a;
-  --preview-tint: #e0f3e4;
+  --preview-dark: #598c65;
+  --preview-tint: #a8d5b1;
   --preview-edge: #2b6040;
   isolation: isolate;
   background: var(--cell);
@@ -3217,8 +3217,8 @@ kbd {
   color: #06150e;
 }
 .square.occupied.ghost.blank {
-  --preview-dark: #527da7;
-  --preview-tint: #e2f1ff;
+  --preview-dark: #648fb8;
+  --preview-tint: #b3d2ed;
   --preview-edge: #355e83;
   color: #06131f;
 }
