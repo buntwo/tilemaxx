@@ -4,7 +4,7 @@ import { RackBingoIndex, checkBoardBingo } from "../shared/bingo-odds";
 import { Lexicon } from "../shared/lexicon";
 import { emptyBoard, type BoardTemplate } from "../shared/model";
 import { PRESETS } from "../shared/presets";
-import { solve } from "../shared/solver";
+import { solve, solvePosition } from "../shared/solver";
 import { TILE_SYMBOLS } from "../shared/tile-pool";
 
 function layout(counts: Record<string, number>, rackSize = 2): BoardTemplate {
@@ -122,9 +122,42 @@ test("board odds find bingos that use existing board letters and weight exact re
     "only one tile is in the bag",
   );
   assert.deepEqual(progress, [1, 2]);
+  const heldPosition = { ...position, excludedRackSlots: [1] };
+  const heldAt = solvePosition(lexicon, heldPosition, template).find(
+    (move) => move.id === at.id,
+  )!;
+  assert.equal(heldAt.leave, "X");
+  assert.deepEqual(
+    checkBoardBingo(lexicon, heldPosition, template, [heldAt], 1).byMove[at.id],
+    result.byMove[at.id],
+  );
   assert.deepEqual(position.board.filter(Boolean), ["A"]);
   assert.throws(
     () => checkBoardBingo(lexicon, position, template, [at], 0),
     /number of tiles/,
   );
+});
+
+test("held tiles stay on the rack for the next bingo without returning to the draw pool", () => {
+  const words = ["AT", "CAT", "ATX", "TXX"];
+  const lexicon = new Lexicon(words);
+  const template = layout({ A: 1, T: 2, C: 1, X: 2, E: 1, O: 2, U: 1 }, 3);
+  const position = {
+    board: emptyBoard(5),
+    rack: "ATX",
+    excludedRackSlots: [2],
+  };
+  const moves = solvePosition(lexicon, position, template);
+  assert.ok(moves.length);
+  assert.ok(moves.every((move) => move.word === "AT" && move.leave === "X"));
+  const odds = new RackBingoIndex(words).calculate(
+    lexicon,
+    position,
+    template,
+    moves,
+  );
+  const unseen = [..."TCXEOOU"];
+  assert.equal(odds.bagSize, unseen.length - template.rackSize);
+  assert.equal(odds.byLeave.X, oracle(words, 3, "X", unseen));
+  assert.ok(odds.byLeave.X > 0);
 });

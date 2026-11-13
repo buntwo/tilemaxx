@@ -39,7 +39,7 @@ import Board from "./components/Board";
 import BoardEntry from "./components/BoardEntry";
 import RackEntry from "./components/RackEntry";
 import TilePool from "./components/TilePool";
-import { rackLetters } from "../shared/rack-entry";
+import { rackLetters, sortRack, splitRack } from "../shared/rack-entry";
 import BoardStudio from "./components/BoardStudio";
 import ScreenshotImport from "./components/ScreenshotImport";
 import { importBoard } from "../shared/screenshot";
@@ -269,8 +269,9 @@ export default function App() {
       )
     : game;
   const signature = game
-    ? `${game.id}|${game.dictionaryId}|${game.rack}|${game.board.join(".")}`
+    ? `${game.id}|${game.dictionaryId}|${game.rack}|${game.excludedRackSlots?.join(",") ?? ""}|${game.board.join(".")}`
     : "";
+  const hasPlayableRack = !!game && !!splitRack(game).available;
   useEffect(() => {
     updateFavicon();
     void store.refresh();
@@ -515,7 +516,7 @@ export default function App() {
       setBusy("");
       return;
     }
-    if (!game || !rackLetters(game.rack)) return;
+    if (!game || !hasPlayableRack) return;
     if (solverTask.current) stopSolver();
     setPreview(null);
     setSolveError("");
@@ -531,6 +532,7 @@ export default function App() {
       dictionaryId: game.dictionaryId,
       board: game.board,
       rack: game.rack,
+      excludedRackSlots: game.excludedRackSlots,
       template: game.template,
     });
   }
@@ -1018,7 +1020,7 @@ export default function App() {
                     onClick={() =>
                       update({
                         ...game,
-                        rack: rackLetters(game.rack).split("").sort().join(""),
+                        ...sortRack(game),
                       })
                     }
                   >
@@ -1026,7 +1028,7 @@ export default function App() {
                   </button>
                   <button
                     className="button primary solve-button"
-                    disabled={!rackLetters(game.rack) && !busy}
+                    disabled={!hasPlayableRack && !busy}
                     onClick={solve}
                   >
                     {busy ? (
@@ -1093,7 +1095,7 @@ export default function App() {
                 onPreview={setPreview}
                 onPlay={play}
                 onSolve={solve}
-                hasRack={!!rackLetters(game.rack)}
+                hasRack={hasPlayableRack}
                 analysisGame={game}
                 analysisKey={signature}
                 rackOdds={rackOdds}
@@ -1244,6 +1246,7 @@ export default function App() {
                   dictionaryId: formDictionary,
                   board: emptyBoard(template.size),
                   rack: "",
+                  excludedRackSlots: undefined,
                   past: [],
                   future: [],
                   archived: false,
@@ -1417,7 +1420,7 @@ export default function App() {
             <label>
               Type <strong>{editProfile.name}</strong> to confirm
               <input
-                  data-initial-focus
+                data-initial-focus
                 autoComplete="off"
                 autoCapitalize="off"
                 spellCheck={false}
@@ -1772,6 +1775,7 @@ export default function App() {
                   scoring: emptyScoring(),
                   board: emptyBoard(game.template.size),
                   rack: "",
+                  excludedRackSlots: undefined,
                 });
                 setDialog(null);
                 notify("Board cleared. Use Undo to restore it.");

@@ -1,3 +1,5 @@
+import { rackAfterMove } from "./rack-entry";
+
 export type Premium = "" | "DL" | "TL" | "QL" | "DW" | "TW" | "QW";
 export type Rules = "scrabble" | "wwf";
 export interface BoardTemplate {
@@ -18,6 +20,7 @@ export interface Position {
   board: Board;
   // A–Z are letters, ? is a blank, and . preserves an empty slot.
   rack: string;
+  excludedRackSlots?: number[];
 }
 export type Player = "you" | "opponent";
 export interface TrackedMove {
@@ -67,16 +70,38 @@ export interface Game extends Position {
 }
 export type ArchiveState = Pick<
   Game,
-  "rack" | "scoring" | "trackScores" | "trackedMoves" | "past" | "future"
+  | "rack"
+  | "excludedRackSlots"
+  | "scoring"
+  | "trackScores"
+  | "trackedMoves"
+  | "past"
+  | "future"
 >;
 
 export function archiveGame(game: Game): Game {
-  const { rack, scoring, trackScores, trackedMoves, past, future } = game;
+  const {
+    rack,
+    excludedRackSlots,
+    scoring,
+    trackScores,
+    trackedMoves,
+    past,
+    future,
+  } = game;
   return {
     ...game,
     archived: true,
     archivedBoard: game.board,
-    archivedState: { rack, scoring, trackScores, trackedMoves, past, future },
+    archivedState: {
+      rack,
+      excludedRackSlots,
+      scoring,
+      trackScores,
+      trackedMoves,
+      past,
+      future,
+    },
   };
 }
 
@@ -94,12 +119,20 @@ export function restoreArchivedGame(game: Game): Game {
         : undefined,
     };
   }
-  const { rack, scoring, trackScores, trackedMoves, past, future } =
-    game.archivedState;
+  const {
+    rack,
+    excludedRackSlots,
+    scoring,
+    trackScores,
+    trackedMoves,
+    past,
+    future,
+  } = game.archivedState;
   return {
     ...game,
     board: game.archivedBoard,
     rack,
+    excludedRackSlots,
     scoring,
     trackScores,
     trackedMoves,
@@ -217,6 +250,7 @@ export function remember(
   const entry: HistoryEntry = {
     board: [...game.board],
     rack: game.rack,
+    excludedRackSlots: game.excludedRackSlots,
     label,
     score,
     player,
@@ -242,7 +276,7 @@ export function applyMove(game: Game, move: Move, player?: Player): Game {
     ...game,
     ...remember(game, move.word, move.score, player),
     board,
-    rack: move.leave,
+    rack: rackAfterMove(game, move.tiles, move.leave),
   };
 }
 export function undo(game: Game): Game {
@@ -252,6 +286,7 @@ export function undo(game: Game): Game {
     ...game,
     board: step.board,
     rack: step.rack,
+    excludedRackSlots: step.excludedRackSlots,
     scoring: step.scoring,
     trackedMoves: trackedMove(step)
       ? trackedMoveHistory(game).slice(0, -1)
@@ -262,6 +297,7 @@ export function undo(game: Game): Game {
       {
         board: game.board,
         rack: game.rack,
+        excludedRackSlots: game.excludedRackSlots,
         label: step.label,
         score: step.score,
         player: step.player,
@@ -279,6 +315,7 @@ export function redo(game: Game): Game {
     ...game,
     board: step.board,
     rack: step.rack,
+    excludedRackSlots: step.excludedRackSlots,
     scoring: step.scoring,
     trackedMoves: move
       ? [...trackedMoveHistory(game), move]
@@ -288,6 +325,7 @@ export function redo(game: Game): Game {
       {
         board: game.board,
         rack: game.rack,
+        excludedRackSlots: game.excludedRackSlots,
         label: step.label,
         score: step.score,
         player: step.player,

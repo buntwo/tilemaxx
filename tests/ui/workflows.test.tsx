@@ -13,7 +13,7 @@ import { store } from "../../src/store";
 import { PRESETS } from "../../shared/presets";
 import { emptyBoard, type AppState, type Game } from "../../shared/model";
 import { Lexicon } from "../../shared/lexicon";
-import { solve } from "../../shared/solver";
+import { solve, solvePosition } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
 
 let remote: AppState;
@@ -40,12 +40,12 @@ class SolverWorker {
     id: number;
     board: string[];
     rack: string;
+    excludedRackSlots?: number[];
     template: (typeof PRESETS)[0];
   }) {
-    const moves = solve(
+    const moves = solvePosition(
       new Lexicon(["AT", "CAT", "CATS", "ACT", "DOG", "RAT", "ART", "TAR"]),
-      request.board,
-      request.rack,
+      request,
       request.template,
     );
     queueMicrotask(() =>
@@ -1242,4 +1242,33 @@ test("delete game requires confirmation, cancel retains it, deleting last game s
   await waitFor(() => expect(remote.games).toHaveLength(0));
   expect(store.snapshot.data!.games).toHaveLength(0);
   expect(screen.getByRole("button", { name: "Create a game" })).toBeTruthy();
+});
+
+test("exclude rack tiles with Down or taps, keep the unseen count, and retain held tiles when playing", async () => {
+  const user = await start();
+  await typeRack(user, "CATS");
+  await user.click(rackTile(4));
+  await user.keyboard("{ArrowDown}");
+  expect(current().rack).toBe("CATS");
+  expect(current().excludedRackSlots).toEqual([3]);
+  expect(rackTile(4).getAttribute("aria-label")).toContain("held out");
+  await user.click(screen.getByRole("button", { name: "Exclude tiles" }));
+  await user.click(rackTile(4));
+  expect(current().excludedRackSlots).toBeUndefined();
+  await user.click(rackTile(4));
+  await user.click(screen.getByRole("button", { name: "Done" }));
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  const move = (await screen.findAllByRole("button", { name: /^CAT, / }))[0];
+  expect(screen.queryAllByRole("button", { name: /^CATS, / })).toHaveLength(0);
+  await user.click(screen.getByText("About bingo odds"));
+  expect(screen.getByText(/89 right now/)).toBeTruthy();
+  await user.click(move);
+  await waitFor(() => expect(current().rack).toBe("...S"));
+  expect(current().excludedRackSlots).toEqual([3]);
+  await user.click(screen.getByRole("button", { name: "Undo" }));
+  expect(current().rack).toBe("CATS");
+  expect(current().excludedRackSlots).toEqual([3]);
+  await user.click(rackTile(4));
+  await user.keyboard("S");
+  expect(current().excludedRackSlots).toBeUndefined();
 });

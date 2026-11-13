@@ -51,6 +51,10 @@ const rack = z
   .string()
   .regex(/^[A-Z?.]*$/)
   .max(10);
+const excludedRackSlots = z
+  .array(z.number().int().min(0).max(9))
+  .max(10)
+  .optional();
 export const templateSchema = z
   .object({
     id: z.string().max(100),
@@ -87,6 +91,7 @@ const scoringSchema = z.object({
 const historySchema = z.object({
   board: z.array(cell).max(625),
   rack,
+  excludedRackSlots,
   label: z.string().max(100),
   score: z.number().optional(),
   player: z.enum(["you", "opponent"]).optional(),
@@ -107,6 +112,7 @@ const gameProgress = z.object({
     )
     .optional(),
   rack,
+  excludedRackSlots,
   past: z.array(historySchema).max(100),
   future: z.array(historySchema).max(100),
 });
@@ -133,6 +139,12 @@ export const gameSchema = gameProgress
       [progress, ...progress.past, ...progress.future].every(
         (entry) =>
           entry.rack.length <= g.template.rackSize &&
+          (!entry.excludedRackSlots ||
+            (new Set(entry.excludedRackSlots).size ===
+              entry.excludedRackSlots.length &&
+              entry.excludedRackSlots.every(
+                (slot) => slot < entry.rack.length && entry.rack[slot] !== ".",
+              ))) &&
           (!entry.scoring?.pendingBase ||
             entry.scoring.pendingBase.length === size),
       ) &&

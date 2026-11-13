@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { enterRack, eraseRack, rackLetters } from "../../shared/rack-entry";
 import { tileScore, type Game } from "../../shared/model";
+import { Ban } from "lucide-react";
 
 const SENTINEL = "\u200b";
 
@@ -16,6 +17,7 @@ export default function RackEntry({
   const [cursor, setCursor] = useState(game.rack.length);
   const [focused, setFocused] = useState(false);
   const [selectAll, setSelectAll] = useState(false);
+  const [excludeMode, setExcludeMode] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   // A directly selected tile is replaced/erased once; typing and deletion
   // return to insertion-cursor behavior for subsequent Backspaces.
@@ -23,6 +25,7 @@ export default function RackEntry({
   const helpId = useId();
   const capacity = game.template.rackSize;
   const position = Math.min(cursor, capacity);
+  const excludedSlots = game.excludedRackSlots ?? [];
   useEffect(() => {
     const blur = () => {
       setFocused(false);
@@ -36,35 +39,45 @@ export default function RackEntry({
       window.removeEventListener("focus", focus);
     };
   }, []);
-  function save(result: { rack: string; cursor: number }) {
-    if (result.rack !== game.rack) onChange({ ...game, rack: result.rack });
+  function save(result: { rack: string; cursor: number }, from: number) {
+    const excludedRackSlots = selectAll
+      ? []
+      : excludedSlots.filter(
+          (slot) => slot < from || slot >= Math.max(from + 1, result.cursor),
+        );
+    if (
+      result.rack !== game.rack ||
+      excludedRackSlots.length !== excludedSlots.length
+    )
+      onChange({
+        ...game,
+        rack: result.rack,
+        excludedRackSlots: excludedRackSlots.length
+          ? excludedRackSlots
+          : undefined,
+      });
     setCursor(result.cursor);
     setSelectAll(false);
   }
   function enter(text: string) {
     if (!/[a-z ?]/i.test(text)) return;
     eraseSelected.current = false;
-    save(
-      enterRack(
-        selectAll ? "" : game.rack,
-        selectAll ? 0 : position,
-        text,
-        capacity,
-      ),
-    );
+    const start = selectAll ? 0 : position;
+    const result = enterRack(selectAll ? "" : game.rack, start, text, capacity);
+    if (result.cursor !== start) save(result, start);
   }
   function erase(forward = false) {
     const selected = forward || eraseSelected.current;
     eraseSelected.current = false;
-    save(
-      selectAll
-        ? { rack: "", cursor: 0 }
-        : eraseRack(
-            game.rack,
-            selected ? Math.min(position, capacity - 1) : position,
-            selected ? "selected" : "backward",
-          ),
-    );
+    const result = selectAll
+      ? { rack: "", cursor: 0 }
+      : eraseRack(
+          game.rack,
+          selected ? Math.min(position, capacity - 1) : position,
+          selected ? "selected" : "backward",
+        );
+    if (selectAll || result.rack !== game.rack) save(result, result.cursor);
+    else setCursor(result.cursor);
   }
   function focus(i: number) {
     eraseSelected.current = true;
@@ -74,24 +87,40 @@ export default function RackEntry({
     input.current?.focus({ preventScroll: true });
     input.current?.setSelectionRange(1, 1);
   }
+  function toggleExcluded(slot: number) {
+    if (!game.rack[slot] || game.rack[slot] === ".") return;
+    const next = excludedSlots.includes(slot)
+      ? excludedSlots.filter((i) => i !== slot)
+      : [...excludedSlots, slot].sort((a, b) => a - b);
+    onChange({ ...game, excludedRackSlots: next.length ? next : undefined });
+  }
   return (
     <div className="rack-entry">
       <div className="rack-tiles" role="group" aria-label="Your rack tiles">
         {Array.from({ length: capacity }, (_, i) => {
           const tile = game.rack[i] === "." ? "" : game.rack[i];
+          const excluded = excludedSlots.includes(i);
           const active =
             focused && (selectAll || i === Math.min(position, capacity - 1));
           return (
             <button
               type="button"
               key={i}
-              className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${active ? "selected" : ""} ${active && position === capacity && !selectAll ? "rack-end" : ""}`}
-              aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}`}
-              aria-pressed={active}
+              className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${active ? "selected" : ""} ${active && position === capacity && !selectAll ? "rack-end" : ""}`}
+              aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}`}
+              aria-pressed={excludeMode ? excluded : active}
+              aria-disabled={excludeMode && !tile ? true : undefined}
               onPointerDown={(e) => e.preventDefault()}
-              onClick={() => focus(i)}
+              onClick={() => (excludeMode ? toggleExcluded(i) : focus(i))}
             >
               {tile === "?" ? "" : tile || "·"}
+              {excluded && (
+                <Ban
+                  className="rack-excluded-icon"
+                  size={12}
+                  aria-hidden="true"
+                />
+              )}
               {tile && (
                 <small>
                   {tile === "?" ? 0 : tileScore(tile, game.template.rules)}
@@ -146,6 +175,7 @@ export default function RackEntry({
               "Delete",
               "ArrowLeft",
               "ArrowRight",
+              "ArrowDown",
               "Home",
               "End",
               "Escape",
@@ -173,6 +203,9 @@ export default function RackEntry({
               );
               setSelectAll(false);
               break;
+            case "ArrowDown":
+              if (!selectAll) toggleExcluded(Math.min(position, capacity - 1));
+              break;
             case "Home":
               eraseSelected.current = true;
               setCursor(0);
@@ -193,13 +226,28 @@ export default function RackEntry({
           }
         }}
       />
-      <p id={helpId} className="rack-entry-help">
-        {focused && selectAll
-          ? "All tiles selected · type to replace"
-          : focused && position === capacity
-            ? "End of rack · tap a tile to edit"
-            : "Tap a tile and type · Space = blank"}
-      </p>
+      <div className="rack-entry-actions">
+        <p id={helpId} className="rack-entry-help">
+          {excludeMode
+            ? "Tap tiles to hold or release them"
+            : focused && selectAll
+              ? "All tiles selected · type to replace"
+              : focused && position === capacity
+                ? "End of rack · tap a tile to edit"
+                : "Space = blank · ↓ = hold tile"}
+        </p>
+        <button
+          type="button"
+          className="button secondary rack-exclude-button"
+          aria-pressed={excludeMode}
+          onClick={() => {
+            input.current?.blur();
+            setExcludeMode(!excludeMode);
+          }}
+        >
+          {excludeMode ? "Done" : "Exclude tiles"}
+        </button>
+      </div>
     </div>
   );
 }

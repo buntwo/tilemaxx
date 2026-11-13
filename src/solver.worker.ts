@@ -1,5 +1,5 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
-import { solve, inspectBoard } from "../shared/solver";
+import { solvePosition, inspectBoard } from "../shared/solver";
 import { RackBingoIndex, checkBoardBingo } from "../shared/bingo-odds";
 import type { BoardTemplate, Move, Position } from "../shared/model";
 
@@ -17,7 +17,7 @@ let dictionary:
   | undefined;
 self.onmessage = async (event: MessageEvent<SolverRequest>) => {
   const request = event.data;
-  const { id, dictionaryId, board, rack, template } = request;
+  const { id, dictionaryId, board, template } = request;
   try {
     if (dictionary?.id !== dictionaryId) {
       if (request.kind !== "board-odds")
@@ -55,7 +55,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     self.postMessage({ id, status: "Finding every move…" });
     const start = performance.now();
     const warnings = inspectBoard(lexicon, board, template);
-    const moves = solve(lexicon, board, rack, template);
+    const moves = solvePosition(lexicon, request, template);
     self.postMessage({
       id,
       moves,

@@ -4,11 +4,13 @@ import {
   type BoardTemplate,
   type Move,
   type Placement,
+  type Position,
   tileScore,
   SCORES,
   letterBonuses,
   wordBonuses,
 } from "./model";
+import { splitRack } from "./rack-entry";
 
 const ALL = (1 << 26) - 1;
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -454,6 +456,22 @@ export function solve(
   options: Options = {},
 ): Move[] {
   return prepareSolver(lexicon, board, template).solve(rack, limits, options);
+}
+
+/** Search with the available tiles, but keep held tiles in each physical leave. */
+export function solvePosition(
+  lexicon: Lexicon,
+  position: Position,
+  template: BoardTemplate,
+) {
+  const { available, held } = splitRack(position);
+  const moves = solve(lexicon, position.board, available, template);
+  if (held) {
+    for (const move of moves) {
+      move.leave = (move.leave + held).split("").sort().join("");
+    }
+  }
+  return moves;
 }
 
 /** Diagnose entered positions without preventing transcription of an in-progress board. */

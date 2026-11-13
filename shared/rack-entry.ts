@@ -1,7 +1,60 @@
+import type { Placement, Position } from "./model";
+
 // A dot is an empty rack slot; ? is an unassigned blank tile.
 // Keep internal gaps in persisted positions, trimming only unused trailing slots.
 export const rackLetters = (rack: string) => rack.replaceAll(".", "");
 export const trimRack = (rack: string) => rack.replace(/\.+$/, "");
+
+export function splitRack({
+  rack,
+  excludedRackSlots = [],
+}: Pick<Position, "rack" | "excludedRackSlots">) {
+  let available = "",
+    held = "";
+  for (let i = 0; i < rack.length; i++) {
+    if (rack[i] === ".") continue;
+    if (excludedRackSlots.includes(i)) held += rack[i];
+    else available += rack[i];
+  }
+  return { available, held };
+}
+
+export function sortRack({
+  rack,
+  excludedRackSlots = [],
+}: Pick<Position, "rack" | "excludedRackSlots">) {
+  const tiles = [...rack].flatMap((letter, slot) =>
+    letter === "."
+      ? []
+      : [{ letter, excluded: excludedRackSlots.includes(slot) }],
+  );
+  tiles.sort((a, b) => a.letter.charCodeAt(0) - b.letter.charCodeAt(0));
+  return {
+    rack: tiles.map(({ letter }) => letter).join(""),
+    excludedRackSlots: tiles.flatMap(({ excluded }, slot) =>
+      excluded ? [slot] : [],
+    ),
+  };
+}
+
+export function rackAfterMove(
+  position: Position,
+  tiles: readonly Placement[],
+  leave: string,
+) {
+  const { excludedRackSlots } = position;
+  if (!excludedRackSlots?.length) return leave;
+  const remaining = [...position.rack];
+  for (const { letter } of tiles) {
+    const symbol = letter === letter.toUpperCase() ? letter : "?";
+    const slot = remaining.findIndex(
+      (tile, index) => tile === symbol && !excludedRackSlots.includes(index),
+    );
+    if (slot < 0) throw new Error("The rack changed. Find moves again.");
+    remaining[slot] = ".";
+  }
+  return trimRack(remaining.join(""));
+}
 export function enterRack(
   rack: string,
   cursor: number,

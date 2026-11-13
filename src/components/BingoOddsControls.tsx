@@ -89,8 +89,10 @@ export default function BingoOddsControls({
         <summary>About bingo odds</summary>
         <p>
           <strong>Bingo draw %</strong> is the chance your refilled rack spells
-          a {game.template.rackSize}-letter dictionary word. It uses the unseen
-          tiles and assumes {assumedBag} in the bag with one opponent.
+          a {game.template.rackSize}-letter dictionary word. The bag estimate
+          updates with the board and rack. It sets aside up to{" "}
+          {game.template.rackSize} unseen tiles for one opponent and leaves the
+          rest in the bag ({assumedBag} right now).
         </p>
         <p>
           <strong>Bingo after your play</strong> checks up to {BOARD_ODDS_LIMIT}{" "}
