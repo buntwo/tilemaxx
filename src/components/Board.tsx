@@ -21,6 +21,7 @@ export default function Board({
   keepInputFocus = false,
   uncertain,
   highlight,
+  cellOverlay,
 }: {
   template: BoardTemplate;
   board: BoardState;
@@ -35,6 +36,9 @@ export default function Board({
   keepInputFocus?: boolean;
   uncertain?: ReadonlySet<number>;
   highlight?: number;
+  cellOverlay?: (
+    index: number,
+  ) => { style: CSSProperties; label: string } | undefined;
 }) {
   const touch = useRef<{
     index: number;
@@ -68,16 +72,23 @@ export default function Board({
                 archiveEdit = Boolean(
                   archivedBoard && board[i] && board[i] !== archivedBoard[i],
                 ),
-                bonus = template.premiums[i];
+                bonus = template.premiums[i],
+                overlay = cellOverlay?.(i);
               return (
                 <button
                   type="button"
                   key={i}
                   data-cell={i}
-                  tabIndex={compact ? -1 : undefined}
+                  tabIndex={compact && !overlay ? -1 : undefined}
                   className={`square ${bonus.toLowerCase()} ${tile ? "occupied" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}`}
-                  aria-label={`${coordinate(i, n)}${tile ? `: ${tile.toUpperCase()}${tile === tile.toLowerCase() ? " blank" : ""}` : bonus ? `: ${bonus}` : ": empty"}${i === template.start ? ", start" : ""}${archiveEdit ? ", edited after archiving" : ""}`}
-                  aria-pressed={selected === i}
+                  aria-label={`${coordinate(i, n)}${tile ? `: ${tile.toUpperCase()}${tile === tile.toLowerCase() ? " blank" : ""}` : bonus ? `: ${bonus}` : ": empty"}${i === template.start ? ", start" : ""}${archiveEdit ? ", edited after archiving" : ""}${overlay ? `, ${overlay.label}` : ""}`}
+                  aria-pressed={
+                    cellOverlay
+                      ? overlay
+                        ? highlight === i
+                        : undefined
+                      : selected === i
+                  }
                   onPointerDown={(e) => {
                     canceledTap.current = false;
                     touch.current = null;
@@ -140,6 +151,13 @@ export default function Board({
                     if (paint && e.buttons === 1) onSelect?.(i);
                   }}
                 >
+                  {overlay && (
+                    <span
+                      className="board-cell-overlay"
+                      style={overlay.style}
+                      aria-hidden="true"
+                    />
+                  )}
                   {uncertain?.has(i) && (
                     <span
                       className="uncertain-tile"

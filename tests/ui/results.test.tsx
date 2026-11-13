@@ -154,6 +154,25 @@ test("reply rows resolve individually and compare against the highest score afte
     exact: false,
     discordant: [0, 130, 115, 45, 60],
     reference: { mean: 35, buckets: [5, 120, 240, 65, 70] },
+    heatmap: {
+      squares: [
+        {
+          square: 0,
+          count: 30,
+          examples: [
+            {
+              count: 30,
+              play: {
+                word: "ZA",
+                score: 45,
+                tiles: [{ index: 0, letter: "Z" }],
+              },
+            },
+          ],
+        },
+      ],
+      reference: [{ square: 1, count: 80 }],
+    },
   };
   act(() =>
     worker!.onmessage?.({
@@ -182,6 +201,16 @@ test("reply rows resolve individually and compare against the highest score afte
   const dialog = screen.getByRole("dialog");
   expect(within(dialog).getByText("35.0 → 31.0 pts")).toBeTruthy();
   expect(within(dialog).getByText("Reference · After CATS")).toBeTruthy();
+  await user.click(within(dialog).getByRole("button", { name: "Heatmap" }));
+  await user.click(within(dialog).getByRole("button", { name: /ZA.*45 pts/ }));
+  expect(
+    dialog.querySelector('[data-cell="0"]')?.classList.contains("ghost"),
+  ).toBe(true);
+  await user.click(
+    within(dialog).getByRole("button", { name: "Change vs. CATS" }),
+  );
+  await user.click(within(dialog).getByRole("button", { name: /^B1$/ }));
+  expect(within(dialog).getByText("16% → 0% of checked racks")).toBeTruthy();
   await user.click(
     within(dialog).getByRole("button", { name: "Refine to 5,000 racks" }),
   );

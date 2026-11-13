@@ -56,6 +56,7 @@ async function run() {
             reference,
             REPLY_SAMPLES,
             () => deadline,
+            true,
           );
           for (const move of request.candidates) {
             deadline = performance.now() + 5_000;
@@ -108,6 +109,7 @@ async function runDetail(
         reference,
         REPLY_REFINED_SAMPLES,
         () => deadline,
+        true,
       );
       self.postMessage({ id, kind, result: analyze(candidate) });
     }

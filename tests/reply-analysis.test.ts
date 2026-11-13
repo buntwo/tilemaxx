@@ -80,6 +80,43 @@ test("sampled comparisons widen the gray band for noisy paired buckets", () => {
   );
 });
 
+test("reply hotspots count physical racks, only on squares occupied by their best 40+ reply", () => {
+  const { template, board, lexicon } = fixture("TIZQAB", 2, ["IT", "QI", "TI"]);
+  template.premiums[2] = "QW";
+  const moves = solve(lexicon, board, "IZ", template);
+  const opens = moves.find((move) => move.tiles[0].index === 7)!;
+  const covers = moves.find((move) => move.tiles[0].index === 9)!;
+  const compare = prepareReplyAnalysis(
+    lexicon,
+    { template, board, rack: "IZ", bagSize: 1, scorelessTurns: 0 },
+    opens,
+    500,
+    budget,
+    true,
+  );
+  const opened = compare(opens);
+  const closed = compare(covers);
+  assert.equal(opened.kind, "distribution");
+  assert.equal(closed.kind, "distribution");
+  assert.equal(opened.count, 3);
+  assert.deepEqual(opened.heatmap?.squares, [
+    {
+      square: 2,
+      count: 2,
+      examples: [
+        {
+          count: 2,
+          play: { word: "QI", score: 44, tiles: [{ index: 2, letter: "Q" }] },
+        },
+      ],
+    },
+  ]);
+  assert.deepEqual(closed.heatmap, {
+    squares: [],
+    reference: [{ square: 2, count: 2 }],
+  });
+});
+
 test("known racks separate the raw reply from going-out adjustments", () => {
   const { template, board, lexicon } = fixture("TIQZ", 2);
   const moves = solve(lexicon, board, "IZ", template);

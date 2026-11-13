@@ -16,6 +16,7 @@ import type { useReplyAnalysis } from "../useReplyAnalysis";
 import Board from "./Board";
 import Modal from "./Modal";
 import { PremiumReplyNote } from "./PremiumDefense";
+import ReplyHeatmap from "./ReplyHeatmap";
 
 type Analysis = ReturnType<typeof useReplyAnalysis>;
 
@@ -461,6 +462,7 @@ export default function ReplyAnalysis({
   analysis: Analysis;
   onClose: () => void;
 }) {
+  const [view, setView] = useState<"scores" | "heatmap">("scores");
   const detail =
     analysis.detail?.key === `reply-refine:${move.id}`
       ? analysis.detail
@@ -494,21 +496,54 @@ export default function ReplyAnalysis({
         distribution &&
         analysis.reference && (
           <>
-            <DistributionChart
-              result={distribution}
-              move={move}
-              reference={analysis.reference}
-            />
-            {defense && (
+            {distribution.heatmap && (
+              <div
+                className="reply-view-switch"
+                role="group"
+                aria-label="Reply detail view"
+              >
+                <button
+                  type="button"
+                  aria-pressed={view === "scores"}
+                  onClick={() => setView("scores")}
+                >
+                  Scores
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={view === "heatmap"}
+                  onClick={() => setView("heatmap")}
+                >
+                  Heatmap
+                </button>
+              </div>
+            )}
+            {view === "heatmap" && distribution.heatmap ? (
+              <ReplyHeatmap
+                game={game}
+                move={move}
+                result={distribution}
+                reference={analysis.reference}
+              />
+            ) : (
+              <DistributionChart
+                result={distribution}
+                move={move}
+                reference={analysis.reference}
+              />
+            )}
+            {view === "scores" && defense && (
               <PremiumReplyNote
                 game={game}
                 defense={defense}
                 opponentRackSize={analysis.unseen - analysis.bagSize}
               />
             )}
-            <p className="defense-help">
-              Each rack uses its highest-scoring legal reply.
-            </p>
+            {view === "scores" && (
+              <p className="defense-help">
+                Each rack uses its highest-scoring legal reply.
+              </p>
+            )}
             {!distribution.exact &&
               distribution.count < REPLY_REFINED_SAMPLES && (
                 <button

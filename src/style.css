@@ -1697,6 +1697,89 @@ label + label {
   gap: 10px;
   padding: 0 17px 16px;
 }
+.result-view-picker,
+.reply-view-switch,
+.reply-hotspots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.result-view-picker {
+  padding: 0 12px 8px;
+}
+.reply-view-switch {
+  margin-bottom: 8px;
+}
+:is(.result-view-picker, .reply-view-switch, .reply-hotspots) button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 4px 9px;
+  min-height: 32px;
+  min-width: 44px;
+}
+:is(.result-view-picker, .reply-view-switch, .reply-hotspots) button[aria-pressed="true"] {
+  background: var(--soft);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.result-view-picker span { margin-left: 3px; font-variant-numeric: tabular-nums; }
+.reply-heatmap .defense-help { margin: 5px 0; }
+.reply-heat-board .board-wrap { max-width: 390px; margin: auto; }
+.reply-heat-board .board-grid { gap: 2px; }
+.board-cell-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--heat-color);
+  opacity: var(--heat-opacity);
+  pointer-events: none;
+}
+.reply-heat-board .square > :not(.board-cell-overlay) { z-index: 1; }
+.reply-heat-board .square.defense-square {
+  outline: 2px solid var(--text);
+  z-index: 2;
+}
+.reply-heat-board .square.ghost::before { animation: none; }
+.reply-hotspots { margin: 4px 0 8px; }
+.reply-hotspot-detail {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 12px;
+}
+.reply-hotspot-detail > span,
+.reply-hotspot-detail li > small { color: var(--muted); }
+.reply-hotspot-detail ul {
+  flex-basis: 100%;
+  list-style: none;
+  margin: 2px 0 4px;
+  padding: 0;
+}
+.reply-hotspot-detail li { border-top: 1px solid var(--line); }
+.reply-hotspot-detail li button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  min-height: 37px;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  padding: 3px 5px;
+  text-align: left;
+}
+.reply-hotspot-detail li button:hover,
+.reply-hotspot-detail li button[aria-pressed="true"] { background: var(--soft); }
+.reply-hotspot-detail li > small { display: block; margin: 0 5px 5px; }
+@media (pointer: coarse) {
+  :is(.result-view-picker, .reply-view-switch, .reply-hotspots) button,
+  .reply-hotspot-detail li button { min-height: 44px; }
+}
 .search-input {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -1833,6 +1916,7 @@ label + label {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
 }
+.result-scroll.is-shortlist { height: auto; max-height: 350px; }
 .result-row {
   width: 100%;
   height: 58px;

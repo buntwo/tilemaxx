@@ -2,7 +2,13 @@ import { rackPoints, solveEmptyBag } from "./endgame";
 import type { Lexicon } from "./lexicon";
 import type { Board, BoardTemplate, Move, Position } from "./model";
 import { placeTiles, randomGenerator, sampleTiles } from "./move-analysis";
-import { prepareSolver, SEARCH_LIMITS, SearchLimitError } from "./solver";
+import {
+  BIG_REPLY_SCORE,
+  prepareSolver,
+  SEARCH_LIMITS,
+  SearchLimitError,
+  type PremiumReply,
+} from "./solver";
 import { choose, unseenTiles } from "./tile-pool";
 
 export const REPLY_LIMIT = 20;
@@ -17,6 +23,17 @@ export const REPLY_BUCKETS = [
 ] as const;
 const EXACT_RACK_LIMIT = 1_000;
 
+export interface ReplyHotspot {
+  square: number;
+  count: number;
+  examples: { play: PremiumReply; count: number }[];
+}
+
+export interface ReplyHeatmap {
+  squares: ReplyHotspot[];
+  reference: { square: number; count: number }[];
+}
+
 export interface ReplyDistribution {
   kind: "distribution";
   mean: number;
@@ -26,6 +43,7 @@ export interface ReplyDistribution {
   count: number;
   exact: boolean;
   reference: { mean: number; buckets: number[] };
+  heatmap?: ReplyHeatmap;
 }
 
 export interface ExactReply {
@@ -143,6 +161,7 @@ export function prepareReplyAnalysis(
   reference: Move,
   samples: number,
   deadline: () => number,
+  captureHeatmap = false,
 ) {
   const { board, template, scorelessTurns } = position;
   const { pool, rackSize, bagSize } = replyPosition(position);
@@ -239,13 +258,38 @@ export function prepareReplyAnalysis(
     const buckets = Array<number>(REPLY_BUCKETS.length).fill(0);
     const discordant = [...buckets];
     const bucketByRack = new Uint8Array(racks.length);
-    const scores = new Map<string, number>();
+    const scores = new Map<
+      string,
+      { score: number; bigReply?: PremiumReply }
+    >();
+    const hotspots = new Map<
+      number,
+      Map<string, { play: PremiumReply; count: number }>
+    >();
     let sum = 0;
     for (const [i, { rack, weight }] of racks.entries()) {
-      let score = scores.get(rack);
-      if (score === undefined) {
-        score = solver.summarize(rack, limit(deadline())).score;
-        scores.set(rack, score);
+      let summary = scores.get(rack);
+      if (!summary) {
+        summary = captureHeatmap
+          ? solver.summarizeReply(rack, limit(deadline()))
+          : solver.summarize(rack, limit(deadline()));
+        scores.set(rack, summary);
+      }
+      const { score, bigReply } = summary;
+      if (bigReply) {
+        const key = bigReply.tiles
+          .map(({ index, letter }) => `${index}:${letter}`)
+          .join(",");
+        for (const { index } of bigReply.tiles) {
+          let examples = hotspots.get(index);
+          if (!examples) {
+            examples = new Map();
+            hotspots.set(index, examples);
+          }
+          const existing = examples.get(key);
+          if (existing) existing.count += weight;
+          else examples.set(key, { play: bigReply, count: weight });
+        }
       }
       const index = bucket(score);
       buckets[index] += weight;
@@ -256,11 +300,21 @@ export function prepareReplyAnalysis(
         discordant[index] += weight;
       }
     }
-    return { mean: sum / count, buckets, discordant, bucketByRack };
+    const squares = Array.from(hotspots, ([square, examples]) => {
+      const ranked = [...examples.values()].sort(
+        (a, b) => b.count - a.count || b.play.score - a.play.score,
+      );
+      return {
+        square,
+        count: ranked.reduce((total, example) => total + example.count, 0),
+        examples: ranked.slice(0, 3),
+      };
+    }).sort((a, b) => b.count - a.count || a.square - b.square);
+    return { mean: sum / count, buckets, discordant, bucketByRack, squares };
   }
   const baseline = summarize(reference);
   return (candidate: Move): ReplyDistribution => {
-    const { mean, buckets, discordant } =
+    const { mean, buckets, discordant, squares } =
       candidate.id === reference.id
         ? baseline
         : summarize(candidate, baseline.bucketByRack);
@@ -273,9 +327,20 @@ export function prepareReplyAnalysis(
       count,
       exact,
       reference: { mean: baseline.mean, buckets: baseline.buckets },
+      ...(captureHeatmap && {
+        heatmap: {
+          squares,
+          reference: baseline.squares.map(({ square, count }) => ({
+            square,
+            count,
+          })),
+        },
+      }),
     };
   };
 }
+
+export { BIG_REPLY_SCORE };
 
 export function replyEndgameLine(
   lexicon: Lexicon,

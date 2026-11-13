@@ -28,6 +28,7 @@ import PremiumDefense, {
 } from "./PremiumDefense";
 import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
 import { useReplyAnalysis } from "../useReplyAnalysis";
+import { shortlistMoves } from "../../shared/move-shortlist";
 import ReplyAnalysis, {
   ReplyCell,
   replyScoreTotals,
@@ -104,6 +105,8 @@ export default function Results({
     pointer = useRef("mouse");
   const [analyzing, setAnalyzing] = useState(false);
   const [candidates, setCandidates] = useState<Move[]>([]);
+  const [shortlistOnly, setShortlistOnly] = useState(false);
+  const shortlistActive = shortlistOnly && !!analysisGame;
   const replyAnalysis = useReplyAnalysis(
     analysisGame,
     analysisKey,
@@ -123,6 +126,31 @@ export default function Results({
       ? replyAnalysis.target.find(({ id }) => id === inspectedReply?.id)
       : undefined;
   const replyDetail = replyMove && replyAnalysis.results?.[replyMove.id];
+  const shortlistReplies = replyAnalysis.pending
+    ? undefined
+    : replyAnalysis.results;
+  const shortlist = useMemo(
+    () =>
+      shortlistMoves(moves ?? [], {
+        rackOdds,
+        boardOdds,
+        defense,
+        replies: shortlistReplies,
+        endgame: replyAnalysis.bagSize === 0,
+      }),
+    [
+      moves,
+      rackOdds,
+      boardOdds,
+      defense,
+      shortlistReplies,
+      replyAnalysis.bagSize,
+    ],
+  );
+  const shortlistById = useMemo(
+    () => new Map(shortlist.map((entry) => [entry.move.id, entry])),
+    [shortlist],
+  );
   const replyScores =
     analysisGame && replyAnalysis.bagSize === 0
       ? replyScoreTotals(analysisGame)
@@ -150,8 +178,8 @@ export default function Results({
       analysisGame.template,
       inspectedMove.direction,
     );
-  const results = useMemo(() => {
-    const list = (moves || []).filter((m) =>
+  const allResults = useMemo(() => {
+    const list = (moves ?? []).filter((m) =>
       m.word.includes(filter.trim().toUpperCase()),
     );
     if (sort === "word")
@@ -188,6 +216,11 @@ export default function Results({
     }
     return list;
   }, [moves, filter, sort, rackOdds, boardOdds]);
+  const results = shortlistActive
+    ? shortlist
+        .map(({ move }) => move)
+        .filter((move) => move.word.includes(filter.trim().toUpperCase()))
+    : allResults;
   useEffect(() => {
     setAnalyzing(false);
     setCandidates([]);
@@ -206,8 +239,8 @@ export default function Results({
     setScroll(0);
     if (scroller.current) scroller.current.scrollTop = 0;
     setLocked(null);
-  }, [moves, filter, sort]);
-  const start = Math.max(0, Math.floor(scroll / 58) - 5),
+  }, [moves, filter, sort, shortlistOnly]);
+  const start = shortlistActive ? 0 : Math.max(0, Math.floor(scroll / 58) - 5),
     visible = results.slice(start, start + 30);
   return (
     <section
@@ -228,7 +261,11 @@ export default function Results({
             aria-expanded={analyzing}
             onClick={() => {
               if (!analyzing)
-                setCandidates([preview ?? results[0] ?? moves[0]]);
+                setCandidates(
+                  shortlistActive
+                    ? results.slice(0, ANALYSIS_LIMIT)
+                    : [preview ?? results[0] ?? moves[0]],
+                );
               setLocked(null);
               onPreview(null);
               setAnalyzing(!analyzing);
@@ -239,6 +276,28 @@ export default function Results({
           </button>
         )}
       </header>
+      {analysisGame && !!moves?.length && !busy && !error && (
+        <div
+          className="result-view-picker"
+          role="group"
+          aria-label="Move list view"
+        >
+          <button
+            type="button"
+            aria-pressed={!shortlistOnly}
+            onClick={() => setShortlistOnly(false)}
+          >
+            All moves
+          </button>
+          <button
+            type="button"
+            aria-pressed={shortlistOnly}
+            onClick={() => setShortlistOnly(true)}
+          >
+            Shortlist <span>{shortlist.length}</span>
+          </button>
+        </div>
+      )}
       <div className="result-filters">
         <div className="search-input">
           <Search size={16} />
@@ -249,28 +308,33 @@ export default function Results({
             placeholder="Find a word…"
           />
         </div>
-        <label className="sort-select">
-          <ArrowDownWideNarrow size={16} />
-          <select
-            aria-label="Sort moves"
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-          >
-            <option value="score">Score</option>
-            <option value="equity">Score + leave</option>
-            <option value="word">A–Z</option>
-            <option value="length">Word length</option>
-            <option value="tiles">Tiles used</option>
-            <option value="leave">Rack leave A–Z</option>
-            <option value="bingo-draw" disabled={!rackOdds || !!rackOdds.error}>
-              Bingo draw %
-            </option>
-            {(!!boardOdds?.checked || sort === "board-bingo") && (
-              <option value="board-bingo">Bingo after play %</option>
-            )}
-            <option value="blanks">Fewest blanks</option>
-          </select>
-        </label>
+        {!shortlistOnly && (
+          <label className="sort-select">
+            <ArrowDownWideNarrow size={16} />
+            <select
+              aria-label="Sort moves"
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+            >
+              <option value="score">Score</option>
+              <option value="equity">Score + leave</option>
+              <option value="word">A–Z</option>
+              <option value="length">Word length</option>
+              <option value="tiles">Tiles used</option>
+              <option value="leave">Rack leave A–Z</option>
+              <option
+                value="bingo-draw"
+                disabled={!rackOdds || !!rackOdds.error}
+              >
+                Bingo draw %
+              </option>
+              {(!!boardOdds?.checked || sort === "board-bingo") && (
+                <option value="board-bingo">Bingo after play %</option>
+              )}
+              <option value="blanks">Fewest blanks</option>
+            </select>
+          </label>
+        )}
       </div>
       {!busy &&
         !error &&
@@ -281,7 +345,7 @@ export default function Results({
           <BingoOddsControls
             key={analysisKey}
             game={analysisGame}
-            moves={results}
+            moves={allResults}
             rackOdds={rackOdds}
             rackOddsPending={rackOddsPending}
             boardOdds={boardOdds}
@@ -410,7 +474,7 @@ export default function Results({
             )}
           </div>
           <div
-            className="result-scroll"
+            className={`result-scroll${shortlistActive ? " is-shortlist" : ""}`}
             ref={scroller}
             onScroll={(e) => setScroll(e.currentTarget.scrollTop)}
             aria-label="Suggested moves"
@@ -439,6 +503,9 @@ export default function Results({
                   replyAnalysis.pending &&
                   !(m.id in (replyAnalysis.results ?? {}));
                 const sacrifice = topScore - m.score;
+                const short = shortlistOnly
+                  ? shortlistById.get(m.id)
+                  : undefined;
                 const selected =
                   analyzing &&
                   candidates.some((candidate) => candidate.id === m.id);
@@ -456,7 +523,7 @@ export default function Results({
                         !selected &&
                         candidates.length >= ANALYSIS_LIMIT
                       }
-                      aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrifice ? `, ${sacrifice} below top score` : ""}`}
+                      aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrifice ? `, ${sacrifice} below top score` : ""}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : ""}`}
                       onPointerDown={(e) => {
                         pointer.current = e.pointerType;
                       }}
@@ -535,7 +602,7 @@ export default function Results({
                             );
                           })}
                         </span>
-                        <small>
+                        <small title={short?.detail}>
                           {bingo && (
                             <span
                               className="bingo-badge"
@@ -545,11 +612,13 @@ export default function Results({
                               BINGO
                             </span>
                           )}
-                          {m.tiles.length} tile{m.tiles.length !== 1 ? "s" : ""}
-                          {m.blanks
+                          {short
+                            ? `${short.reason}${short.detail ? ` · ${short.detail}` : ""}`
+                            : `${m.tiles.length} tile${m.tiles.length !== 1 ? "s" : ""}`}
+                          {!short && m.blanks
                             ? ` · ${m.blanks} blank${m.blanks > 1 ? "s" : ""}`
                             : ""}
-                          {m.crosses.length
+                          {!short && m.crosses.length
                             ? ` · +${m.crosses.length} cross`
                             : ""}
                         </small>
@@ -713,6 +782,9 @@ export default function Results({
                 ? ` · also ${preview.crosses.join(", ")}`
                 : ""}
             </span>
+            {shortlistOnly && shortlistById.get(preview.id)?.detail && (
+              <span>{shortlistById.get(preview.id)?.detail}</span>
+            )}
           </div>
           <button
             className="button primary"
