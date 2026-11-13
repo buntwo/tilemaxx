@@ -92,6 +92,7 @@ const review = z
   .object({
     board: z.array(cell).max(625),
     rack: rack.optional(),
+    excludedRackSlots,
     dictionaryId: z.string().max(100),
     tiles: z
       .array(
@@ -158,10 +159,14 @@ export const gameSchema = gameProgress
   })
   .refine((g) => {
     const size = g.template.size ** 2;
+    const validRack = (rack: string, slots: number[] = []) =>
+      rack.length <= g.template.rackSize &&
+      new Set(slots).size === slots.length &&
+      slots.every((slot) => slot < rack.length && rack[slot] !== ".");
     const validReview = (position: z.infer<typeof review>) =>
       !position ||
       (position.board.length === size &&
-        (position.rack?.length ?? 0) <= g.template.rackSize &&
+        validRack(position.rack ?? "", position.excludedRackSlots) &&
         position.tiles.every(
           (tile) => tile.index < size && !position.board[tile.index],
         ) &&
@@ -172,13 +177,7 @@ export const gameSchema = gameProgress
         true) &&
       [progress, ...progress.past, ...progress.future].every(
         (entry) =>
-          entry.rack.length <= g.template.rackSize &&
-          (!entry.excludedRackSlots ||
-            (new Set(entry.excludedRackSlots).size ===
-              entry.excludedRackSlots.length &&
-              entry.excludedRackSlots.every(
-                (slot) => slot < entry.rack.length && entry.rack[slot] !== ".",
-              ))) &&
+          validRack(entry.rack, entry.excludedRackSlots) &&
           (!entry.scoring?.pendingBase ||
             entry.scoring.pendingBase.length === size),
       ) &&

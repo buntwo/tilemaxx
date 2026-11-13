@@ -6,27 +6,38 @@ import {
   type TrackedMove,
   type TurnPosition,
 } from "./model";
-import { Lexicon } from "./lexicon";
-import { prepareSolver, SEARCH_LIMITS } from "./solver";
-import { rackLetters } from "./rack-entry";
+import type { Lexicon } from "./lexicon";
+import { solvePosition, SEARCH_LIMITS } from "./solver";
 import { analyzeMoves } from "./move-analysis";
 import { unseenTiles } from "./tile-pool";
 
 export function reviewTurns(game: Game) {
   const used = new Set<number>();
   return trackedMoveHistory(game).map((move, index) => {
-    if (move.review) return { move, index, position: move.review };
+    const snapshot = move.review;
+    if (snapshot && (move.player === "opponent" || snapshot.excludedRackSlots))
+      return { move, index, position: snapshot };
     const pastIndex = game.past.findIndex(
       (entry, i) =>
         !used.has(i) &&
         entry.at === move.at &&
         entry.player === move.player &&
         entry.label === move.word &&
-        entry.score === move.score,
+        entry.score === move.score &&
+        (!snapshot ||
+          (entry.rack === snapshot.rack &&
+            entry.board.every((tile, cell) => tile === snapshot.board[cell]))),
     );
-    if (pastIndex < 0) return { move, index };
+    if (pastIndex < 0) return { move, index, position: snapshot };
     used.add(pastIndex);
     const entry = game.past[pastIndex];
+    if (snapshot) {
+      // Older snapshots can recover held slots from their original undo entry.
+      const position = entry.excludedRackSlots
+        ? { ...snapshot, excludedRackSlots: entry.excludedRackSlots }
+        : snapshot;
+      return { move, index, position };
+    }
     const before =
       move.player === "you" ? entry.board : entry.scoring?.pendingBase;
     if (!before) return { move, index };
@@ -44,6 +55,8 @@ export function reviewTurns(game: Game) {
     const position: TurnPosition = {
       board: before.map((tile, i) => (tile ? after[i] : "")),
       rack: move.player === "you" ? entry.rack : undefined,
+      excludedRackSlots:
+        move.player === "you" ? entry.excludedRackSlots : undefined,
       dictionaryId: game.dictionaryId,
       tiles: after.flatMap((letter, i) =>
         letter && !before[i] ? [{ index: i, letter }] : [],
@@ -59,11 +72,13 @@ export function reviewTurn(
   template: Game["template"],
   maxMs = SEARCH_LIMITS.maxMs,
 ) {
-  const rack = rackLetters(position.rack ?? "");
-  if (!rack) return [];
-  return prepareSolver(lexicon, position.board, template).solve(rack, {
-    maxMs,
-  });
+  if (!position.rack) return [];
+  return solvePosition(
+    lexicon,
+    { ...position, rack: position.rack },
+    template,
+    { maxMs },
+  );
 }
 
 export function reviewOpportunity(

@@ -34,6 +34,7 @@ export interface TrackedMove {
 export interface TurnPosition {
   board: Board;
   rack?: string;
+  excludedRackSlots?: number[];
   dictionaryId: string;
   tiles: Placement[];
   direction?: Move["direction"];
@@ -349,6 +350,7 @@ export function applyMove(game: Game, move: Move, player?: Player): Game {
         ? {
             board: game.board,
             rack: game.rack,
+            excludedRackSlots: game.excludedRackSlots ?? [],
             dictionaryId: game.dictionaryId,
             tiles: move.tiles,
             direction: move.direction,

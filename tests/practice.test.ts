@@ -3,9 +3,9 @@ import { test } from "node:test";
 import { simulateExchange } from "../shared/exchange";
 import { playTrackedMove, scorePlacement } from "../shared/game-scoring";
 import { Lexicon } from "../shared/lexicon";
-import { emptyBoard, type Game } from "../shared/model";
+import { emptyBoard, redo, undo, type Game } from "../shared/model";
 import { PRESETS } from "../shared/presets";
-import { solve } from "../shared/solver";
+import { solve, solvePosition } from "../shared/solver";
 import { TILE_SYMBOLS } from "../shared/tile-pool";
 import {
   reviewOpportunity,
@@ -87,4 +87,76 @@ test("review snapshots survive storage and distinguish a missed bingo from the c
   assert.equal(breakdown.bonus, 50);
   assert.equal(breakdown.words[0].tiles.filter((tile) => tile.blank).length, 1);
   assert.ok(breakdown.words[0].tiles.some((tile) => tile.premium));
+});
+
+test("turn review respects recorded rack exclusions and retains held letters in the leave", () => {
+  const game: Game = {
+    id: "g",
+    profileId: "p",
+    name: "Test",
+    dictionaryId: "test",
+    board: emptyBoard(15),
+    rack: "A.ZT",
+    excludedRackSlots: [2],
+    template: PRESETS[0],
+    past: [],
+    future: [],
+    archived: false,
+    revision: 0,
+    updatedAt: "",
+  };
+  const lexicon = new Lexicon(["AT", "ZA"]);
+  const expected = solvePosition(lexicon, game, game.template);
+  assert.ok(expected.length > 0);
+  assert.ok(
+    expected.every(({ word, leave }) => word === "AT" && leave === "Z"),
+  );
+  assert.equal(
+    solve(lexicon, game.board, game.rack, game.template)[0].word,
+    "ZA",
+  );
+
+  const saved = gameSchema.parse(
+    JSON.parse(JSON.stringify(playTrackedMove(game, expected[0]))),
+  );
+  for (const version of [saved, redo(undo(saved))]) {
+    const [{ position, move }] = reviewTurns(version);
+    assert.deepEqual(position?.excludedRackSlots, [2]);
+    const alternatives = reviewTurn(lexicon, position!, game.template);
+    assert.deepEqual(alternatives, expected);
+    assert.equal(
+      reviewOpportunity(alternatives, move, game.template, 2).gap,
+      0,
+    );
+  }
+
+  const move = saved.trackedMoves![0];
+  const oldSnapshot = { ...move.review!, excludedRackSlots: undefined };
+  for (const review of [oldSnapshot, undefined]) {
+    const legacy = {
+      ...saved,
+      past: saved.past.map((entry) => ({ ...entry, review })),
+      trackedMoves: [{ ...move, review }],
+    };
+    const [{ position }] = reviewTurns(legacy);
+    assert.deepEqual(position?.excludedRackSlots, [2]);
+    assert.deepEqual(reviewTurn(lexicon, position!, game.template), expected);
+  }
+  const [{ position: onlySnapshot }] = reviewTurns({
+    ...saved,
+    past: [],
+    trackedMoves: [{ ...move, review: oldSnapshot }],
+  });
+  assert.equal(onlySnapshot?.excludedRackSlots, undefined);
+  assert.equal(reviewTurn(lexicon, onlySnapshot!, game.template)[0].word, "ZA");
+
+  for (const slots of [[1], [2, 2], [4]]) {
+    const invalid = {
+      ...saved,
+      trackedMoves: [
+        { ...move, review: { ...move.review!, excludedRackSlots: slots } },
+      ],
+    };
+    assert.equal(gameSchema.safeParse(invalid).success, false);
+  }
 });
