@@ -76,14 +76,14 @@ For a fresh setup, use **Word lists → Import word list** to install WOW24 or a
 
 ### Update from GitHub
 
-Run these commands in the same checkout on the NAS:
+Run the update script in the Tilemaxx checkout on the NAS:
 
 ```sh
-git pull --ff-only && docker compose up -d --build
+./update.sh
 docker compose ps
 ```
 
-Compose rebuilds from the updated checkout and reuses the same `./data` directory. Refresh the app once the container is healthy. Docker can reuse the dependency layer when the package files are unchanged.
+The script runs `git pull --ff-only && docker compose up -d --build`. If your NAS uses standalone `docker-compose`, run `git pull --ff-only && docker-compose up -d --build` instead. Compose reuses the same `./data` directory and can reuse the dependency layer when the package files are unchanged. Refresh the app once the container is healthy.
 
 ### Move saved games to another server
 
