@@ -159,7 +159,7 @@ export function recordOpponentPlay(game: Game): Game {
   if (!play) return game;
   return {
     ...game,
-    ...remember(game, play.word, play.score, "opponent"),
+    ...remember(game, play.word, play.score, "opponent", play.bingo),
     scoring: addScore(game.scoring!, "opponent", play),
   };
 }

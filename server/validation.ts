@@ -94,6 +94,7 @@ const historySchema = z.object({
   excludedRackSlots,
   label: z.string().max(100),
   score: z.number().optional(),
+  bingo: z.boolean().optional(),
   player: z.enum(["you", "opponent"]).optional(),
   scoring: scoringSchema.optional(),
   at: z.string().max(50),
@@ -107,6 +108,7 @@ const gameProgress = z.object({
         player: z.enum(["you", "opponent"]),
         word: z.string().regex(/^[A-Z]{2,25}$/),
         score: z.number().int().nonnegative(),
+        bingo: z.boolean().optional(),
         at: z.string().max(50),
       }),
     )

@@ -1020,6 +1020,11 @@ label + label {
 .score-move-points {
   font-variant-numeric: tabular-nums;
 }
+.score-move-points .score-history-bingo {
+  display: flex;
+  width: fit-content;
+  margin: 3px auto 0;
+}
 .manage-button {
   font-size: 11px;
   padding: 8px 12px;
@@ -3148,6 +3153,11 @@ kbd {
   inherits: true;
   initial-value: 28%;
 }
+@property --preview-tile-scale {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
 /* One animation per board keeps new preview squares on the same beat. */
 @media (prefers-reduced-motion: no-preference) {
   .board-grid.has-move-preview {
@@ -3155,19 +3165,42 @@ kbd {
   }
 }
 @keyframes preview-tile-pulse {
-  0%, 100% { --preview-tile-light: 65%; }
-  50% { --preview-tile-light: 0%; }
+  0%, 100% { --preview-tile-light: 45%; --preview-tile-scale: 1; }
+  50% { --preview-tile-light: 0%; --preview-tile-scale: 0.93; }
 }
 .square.occupied.ghost {
-  background: #b2d5b7;
-  background: color-mix(in srgb, #72b77e, #f5fff6 var(--preview-tile-light, 28%));
-  box-shadow: inset 0 -2px #86b390, inset 0 0 0 1px #719f7b;
-  color: #234c30;
+  --preview-dark: #46865a;
+  --preview-tint: #e0f3e4;
+  --preview-edge: #2b6040;
+  isolation: isolate;
+  background: var(--cell);
+  box-shadow: none;
+  color: #06150e;
 }
 .square.occupied.ghost.blank {
-  background: var(--blank-tile);
-  background: color-mix(in srgb, #86bce0, #f4fbff var(--preview-tile-light, 28%));
-  box-shadow: inset 0 -2px #9fbccc, inset 0 0 0 1px #7aabc8;
+  --preview-dark: #527da7;
+  --preview-tint: #e2f1ff;
+  --preview-edge: #355e83;
+  color: #06131f;
+}
+.square.occupied.ghost.blank .tile-letter {
+  color: inherit;
+}
+.square.occupied.ghost::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--preview-dark);
+  background: color-mix(in srgb, var(--preview-dark), var(--preview-tint) var(--preview-tile-light, 28%));
+  box-shadow: inset 0 -2px var(--preview-edge);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .square.occupied.ghost::before {
+    transform: scale(var(--preview-tile-scale, 1));
+  }
 }
 .square.occupied.archive-edit,
 .board-legend .archive-edit {

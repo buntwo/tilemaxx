@@ -169,3 +169,25 @@ test("tracked moves from legacy saves survive the undo limit and new moves follo
     trackedMoveHistory(played),
   );
 });
+
+test("bingo markers persist for both players and can be recovered from legacy scoring snapshots", () => {
+  const game = { ...fixture(), rack: "ABCDEFG" };
+  const lexicon = new Lexicon(["ABCDEFG"]);
+  const move = solve(lexicon, game.board, game.rack, game.template)[0];
+  const yours = playTrackedMove(game, move);
+  const edited = new BoardEditHistory().apply(game, yours.board, "enter");
+  const theirs = recordOpponentPlay(edited);
+  for (const [position, player] of [
+    [yours, "you"],
+    [theirs, "opponent"],
+  ] as const) {
+    assert.equal(trackedMoveHistory(position).at(-1)?.player, player);
+    assert.equal(trackedMoveHistory(position).at(-1)?.bingo, true);
+    const old = JSON.parse(JSON.stringify(position)) as Game;
+    for (const entry of [...old.past, ...(old.trackedMoves ?? [])])
+      delete entry.bingo;
+    assert.equal(trackedMoveHistory(old).at(-1)?.bingo, true);
+    assert.equal(trackedMoveHistory(redo(undo(old))).at(-1)?.bingo, true);
+    assert.equal(trackedMoveHistory(redo(undo(position))).at(-1)?.bingo, true);
+  }
+});

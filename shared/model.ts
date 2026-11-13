@@ -27,6 +27,7 @@ export interface TrackedMove {
   player: Player;
   word: string;
   score: number;
+  bingo?: boolean;
   at: string;
 }
 export interface PlayerScore {
@@ -44,6 +45,7 @@ export interface GameScoring {
 export interface HistoryEntry extends Position {
   label: string;
   score?: number;
+  bingo?: boolean;
   player?: Player;
   scoring?: GameScoring;
   at: string;
@@ -235,24 +237,57 @@ export const coordinate = (index: number, size: number) =>
   `${String.fromCharCode(65 + (index % size))}${Math.floor(index / size) + 1}`;
 export const emptyBoard = (size: number): Board => Array(size * size).fill("");
 
-function trackedMove(entry: HistoryEntry): TrackedMove | undefined {
+function trackedMove(
+  entry: HistoryEntry,
+  after?: GameScoring,
+): TrackedMove | undefined {
+  const beforeScore =
+    entry.player &&
+    (entry.scoring?.[entry.player] ?? { moves: 0, points: 0, bingos: 0 });
+  const afterScore = entry.player && after?.[entry.player];
+  const bingo =
+    entry.bingo ??
+    (beforeScore &&
+    afterScore &&
+    afterScore.moves === beforeScore.moves + 1 &&
+    afterScore.points === beforeScore.points + (entry.score ?? 0)
+      ? afterScore.bingos > beforeScore.bingos
+      : undefined);
   if (entry.player && entry.score !== undefined)
     return {
       player: entry.player,
       word: entry.label,
       score: entry.score,
+      ...(bingo !== undefined && { bingo }),
       at: entry.at,
     };
 }
 
 export function trackedMoveHistory(game: Game): TrackedMove[] {
-  return (
-    game.trackedMoves ??
-    game.past.flatMap((entry) => {
-      const move = trackedMove(entry);
-      return move ? [move] : [];
-    })
-  );
+  if (game.trackedMoves?.every((move) => move.bingo !== undefined))
+    return game.trackedMoves;
+  const recent = game.past.flatMap((entry, index) => {
+    const after =
+      index + 1 < game.past.length
+        ? game.past[index + 1].scoring
+        : game.scoring;
+    const move = trackedMove(entry, after);
+    return move ? [move] : [];
+  });
+  if (!game.trackedMoves) return recent;
+  // The undo history holds the most recent moves, in the same order as the log.
+  const offset = game.trackedMoves.length - recent.length;
+  return game.trackedMoves.map((move, index) => {
+    const saved = recent[index - offset];
+    return move.bingo === undefined &&
+      saved?.bingo !== undefined &&
+      saved.at === move.at &&
+      saved.player === move.player &&
+      saved.word === move.word &&
+      saved.score === move.score
+      ? { ...move, bingo: saved.bingo }
+      : move;
+  });
 }
 
 export function remember(
@@ -260,6 +295,7 @@ export function remember(
   label: string,
   score?: number,
   player?: Player,
+  bingo?: boolean,
 ): Pick<Game, "past" | "future" | "trackedMoves"> {
   const entry: HistoryEntry = {
     board: [...game.board],
@@ -268,6 +304,7 @@ export function remember(
     label,
     score,
     player,
+    bingo,
     scoring: game.scoring,
     at: new Date().toISOString(),
   };
@@ -288,7 +325,13 @@ export function applyMove(game: Game, move: Move, player?: Player): Game {
   }
   return {
     ...game,
-    ...remember(game, move.word, move.score, player),
+    ...remember(
+      game,
+      move.word,
+      move.score,
+      player,
+      player ? move.tiles.length === game.template.rackSize : undefined,
+    ),
     board,
     rack: rackAfterMove(game, move.tiles, move.leave),
   };
@@ -315,6 +358,7 @@ export function undo(game: Game): Game {
         label: step.label,
         score: step.score,
         player: step.player,
+        bingo: trackedMove(step, game.scoring)?.bingo,
         scoring: game.scoring,
         at: step.at,
       },
@@ -343,6 +387,7 @@ export function redo(game: Game): Game {
         label: step.label,
         score: step.score,
         player: step.player,
+        bingo: move?.bingo,
         scoring: game.scoring,
         at: step.at,
       },

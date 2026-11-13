@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Trophy } from "lucide-react";
 import { trackedMoveHistory, type Game } from "../../shared/model";
 import {
   emptyScoring,
@@ -132,7 +132,19 @@ export default function GameScores({
                         </div>
                       )}
                     </td>
-                    <td className="score-move-points">{move.score}</td>
+                    <td className="score-move-points">
+                      {move.score}
+                      {move.bingo && (
+                        <span
+                          className="bingo-badge score-history-bingo"
+                          role="img"
+                          aria-label="Bingo"
+                          title="Bingo"
+                        >
+                          <Trophy size={12} aria-hidden="true" />
+                        </span>
+                      )}
+                    </td>
                     <td>
                       {move.player === "opponent" && (
                         <div className="score-move-play">
