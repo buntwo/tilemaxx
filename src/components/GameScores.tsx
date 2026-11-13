@@ -103,6 +103,9 @@ export default function GameScores({
             <table aria-label="Tracked moves">
               <thead>
                 <tr>
+                  <th scope="col" aria-label="Move number">
+                    #
+                  </th>
                   <th scope="col">You</th>
                   <th scope="col">Pts</th>
                   <th scope="col">Opponent</th>
@@ -111,6 +114,7 @@ export default function GameScores({
               <tbody>
                 {moves.map((move, index) => (
                   <tr key={index}>
+                    <td className="score-move-number">{index + 1}</td>
                     <td>
                       {move.player === "you" && <strong>{move.word}</strong>}
                     </td>

@@ -664,14 +664,35 @@ label + label {
   text-align: left;
   border-radius: 4px;
 }
-.game-picker-trigger span {
+.game-picker-title {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.game-picker-chevron {
+  flex-shrink: 0;
+  transition: transform 160ms ease;
+}
+.game-picker-trigger[aria-expanded="true"] .game-picker-chevron {
+  transform: rotate(90deg);
+}
+.game-picker-count {
+  display: grid;
+  min-width: 21px;
+  height: 21px;
+  padding-inline: 5px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+}
 .game-picker-trigger svg,
-.game-picker-menu svg {
+.game-picker-menu svg,
+.game-picker-drag-preview svg {
   color: var(--primary);
 }
 .game-picker-menu {
@@ -688,7 +709,8 @@ label + label {
   background: var(--surface);
   box-shadow: 0 8px 22px #0003;
 }
-.game-picker-menu button {
+.game-picker-menu button,
+.game-picker-drag-label {
   width: 100%;
   min-height: 46px;
   padding: 8px 10px;
@@ -703,8 +725,7 @@ label + label {
   color: var(--text);
 }
 .game-picker-menu button:hover,
-.game-picker-menu button:focus-visible,
-.game-picker-menu [aria-checked="true"] {
+.game-picker-menu button:focus-visible {
   background: var(--soft);
 }
 .game-picker-menu button:focus-visible {
@@ -714,6 +735,10 @@ label + label {
   display: flex;
   align-items: stretch;
   position: relative;
+  border-radius: 5px;
+}
+.game-picker-option[data-selected] {
+  background: var(--soft);
 }
 .game-picker-option [role="menuitemradio"] {
   min-width: 0;
@@ -727,7 +752,34 @@ label + label {
   touch-action: none;
 }
 .game-picker-option[data-dragging] {
-  opacity: 0.55;
+  opacity: 0.45;
+}
+.game-picker-drag-preview {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 5px 16px #0004;
+  opacity: 0.78;
+  pointer-events: none;
+}
+.game-picker-drag-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+.game-picker-drag-grip {
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+}
+.game-picker-number {
+  min-width: 2ch;
+  color: var(--muted);
+  text-align: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 .game-picker-option[data-drop]::after {
   content: "";
@@ -753,6 +805,7 @@ label + label {
   overflow-wrap: anywhere;
 }
 .game-picker-menu .game-picker-label,
+.game-picker-drag-label .game-picker-label,
 .archive-open .game-picker-label {
   flex: 1;
   min-width: 0;
@@ -926,7 +979,13 @@ label + label {
   background: var(--surface);
   color: var(--muted);
 }
-.score-history th:nth-child(2),
+.score-history th:first-child,
+.score-move-number {
+  width: 5ch;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.score-history th:nth-child(3),
 .score-move-points {
   width: 5ch;
   text-align: center;

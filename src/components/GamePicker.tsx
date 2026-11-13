@@ -6,11 +6,38 @@ import {
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Check, ChevronDown, GripVertical } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Check, ChevronRight, GripVertical } from "lucide-react";
 import type { Game } from "../../shared/model";
 
 import { GameMetadata } from "./GameDetails";
 import LayoutThumbnail from "./LayoutThumbnail";
+
+function GamePickerLabel({
+  game,
+  number,
+  selected,
+}: {
+  game: Game;
+  number: number;
+  selected: boolean;
+}) {
+  return (
+    <>
+      <span className="game-picker-number" aria-hidden="true">
+        {number}
+      </span>
+      <LayoutThumbnail board={game.board} template={game.template} />
+      <span className="game-picker-label">
+        <strong>{game.name}</strong>
+        <small>
+          <GameMetadata game={game} />
+        </small>
+      </span>
+      {selected && <Check size={16} aria-hidden="true" />}
+    </>
+  );
+}
 
 export default function GamePicker({
   game,
@@ -33,11 +60,21 @@ export default function GamePicker({
     from: number;
     to: number;
     y: number;
+    startX: number;
     startY: number;
+    offsetX: number;
+    offsetY: number;
+    width: number;
     moved: boolean;
     frame: number;
   } | null>(null);
   const [drop, setDrop] = useState<{ from: number; to: number }>();
+  const [dragPreview, setDragPreview] = useState<{
+    index: number;
+    left: number;
+    top: number;
+    width: number;
+  }>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -46,6 +83,7 @@ export default function GamePicker({
     cancelAnimationFrame(drag.current.frame);
     drag.current = null;
     setDrop(undefined);
+    setDragPreview(undefined);
   }
 
   useEffect(() => {
@@ -119,6 +157,10 @@ export default function GamePicker({
     from: number,
   ) {
     if (saving || drag.current || event.button !== 0) return;
+    const row = event.currentTarget
+      .closest(".game-picker-option")
+      ?.getBoundingClientRect();
+    if (!row) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     const active = {
@@ -126,12 +168,15 @@ export default function GamePicker({
       from,
       to: from,
       y: event.clientY,
+      startX: event.clientX,
       startY: event.clientY,
+      offsetX: event.clientX - row.left,
+      offsetY: event.clientY - row.top,
+      width: row.width,
       moved: false,
       frame: 0,
     };
     drag.current = active;
-    setDrop({ from, to: from });
     const scroll = () => {
       if (drag.current !== active || !list.current) return;
       const { top, bottom } = list.current.getBoundingClientRect();
@@ -148,8 +193,20 @@ export default function GamePicker({
     const active = drag.current;
     if (!active || active.pointer !== event.pointerId) return;
     active.y = event.clientY;
-    if (!active.moved && Math.abs(active.y - active.startY) < 5) return;
-    active.moved = true;
+    if (!active.moved) {
+      if (
+        Math.hypot(event.clientX - active.startX, active.y - active.startY) < 5
+      )
+        return;
+      active.moved = true;
+      setDrop({ from: active.from, to: active.to });
+    }
+    setDragPreview({
+      index: active.from,
+      left: event.clientX - active.offsetX,
+      top: active.y - active.offsetY,
+      width: active.width,
+    });
     updateTarget(active);
   }
   function finishDrag(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -216,8 +273,23 @@ export default function GamePicker({
               }
             }}
           >
-            <span>{game?.name ?? "Select a game"}</span>
-            <ChevronDown size={18} aria-hidden="true" />
+            <span className="game-picker-title">
+              {game?.name ?? "Select a game"}
+            </span>
+            <ChevronRight
+              className="game-picker-chevron"
+              size={18}
+              aria-hidden="true"
+            />
+            {open && (
+              <span
+                className="game-picker-count"
+                aria-hidden="true"
+                title={`${games.length} active ${games.length === 1 ? "game" : "games"}`}
+              >
+                {games.length}
+              </span>
+            )}
           </button>
         ) : (
           (game?.name ?? "No active games")
@@ -237,6 +309,7 @@ export default function GamePicker({
               role="none"
               key={option.id}
               className="game-picker-option"
+              data-selected={option.id === game?.id || undefined}
               data-dragging={drop?.from === index || undefined}
               data-drop={
                 drop?.to === index && drop.from !== index
@@ -253,19 +326,11 @@ export default function GamePicker({
                 aria-checked={option.id === game?.id}
                 onClick={() => choose(option.id)}
               >
-                <LayoutThumbnail
-                  board={option.board}
-                  template={option.template}
+                <GamePickerLabel
+                  game={option}
+                  number={index + 1}
+                  selected={option.id === game?.id}
                 />
-                <span className="game-picker-label">
-                  <strong>{option.name}</strong>
-                  <small>
-                    <GameMetadata game={option} />
-                  </small>
-                </span>
-                {option.id === game?.id && (
-                  <Check size={16} aria-hidden="true" />
-                )}
               </button>
               {games.length > 1 && (
                 <button
@@ -303,6 +368,32 @@ export default function GamePicker({
           )}
         </div>
       )}
+      {open &&
+        dragPreview &&
+        games[dragPreview.index] &&
+        createPortal(
+          <div
+            className="game-picker-drag-preview"
+            aria-hidden="true"
+            style={{
+              left: dragPreview.left,
+              top: dragPreview.top,
+              width: dragPreview.width,
+            }}
+          >
+            <div className="game-picker-drag-label">
+              <GamePickerLabel
+                game={games[dragPreview.index]}
+                number={dragPreview.index + 1}
+                selected={games[dragPreview.index].id === game?.id}
+              />
+            </div>
+            <span className="game-picker-drag-grip">
+              <GripVertical size={18} />
+            </span>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

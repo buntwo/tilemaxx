@@ -62,7 +62,7 @@ export default function RackEntry({
   function enter(text: string) {
     if (!/[a-z ?]/i.test(text)) return;
     eraseSelected.current = false;
-    const start = selectAll ? 0 : position;
+    const start = selectAll ? 0 : Math.min(position, capacity - 1);
     const result = enterRack(selectAll ? "" : game.rack, start, text, capacity);
     if (result.cursor !== start) save(result, start);
   }

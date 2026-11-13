@@ -605,7 +605,10 @@ test("direct rack entry supports Space blanks, replacement, paste, full-rack bou
   await user.paste("AT ?XYZ");
   expect(current().rack).toBe("COAT??X");
   await user.keyboard("Y Z");
-  expect(current().rack).toBe("COAT??X");
+  expect(current().rack).toBe("COAT??Z");
+  await user.keyboard("{Backspace}");
+  expect(current().rack).toBe("COAT??");
+  await user.keyboard("X");
   expect(rackTile(7).getAttribute("aria-pressed")).toBe("true");
   expect(screen.queryByText(/End of rack/)).toBeNull();
   await user.keyboard("{ArrowLeft}");
@@ -1203,8 +1206,8 @@ test("score tracking records typed opponent moves and solver plays across undo, 
           .map((cell) => cell.textContent),
       ),
   ).toEqual([
-    ["", "10", "CAT"],
-    ["CATS", "6", ""],
+    ["1", "", "10", "CAT"],
+    ["2", "CATS", "6", ""],
   ]);
   await user.click(cell("Undo"));
   expect(current().scoring?.opponent.points).toBe(10);
@@ -1294,17 +1297,28 @@ test("reordering My games saves the profile order without switching games", asyn
   const user = await start();
   await user.click(cell("Switch game"));
   const handle = screen.getByRole("menuitem", { name: "Reorder First game" });
+  expect(handle.closest("[data-selected]")).toBeTruthy();
+  expect(screen.getByTitle("2 active games").textContent).toBe("2");
   handle.focus();
   await user.keyboard("{ArrowDown}");
   const options = () =>
     screen
       .getAllByRole("menuitemradio")
-      .map((item) => item.querySelector("strong")?.textContent);
-  await waitFor(() => expect(options()).toEqual(["Second game", "First game"]));
+      .map((item) => [
+        item.querySelector(".game-picker-number")?.textContent,
+        item.querySelector("strong")?.textContent,
+      ]);
+  const reordered = [
+    ["1", "Second game"],
+    ["2", "First game"],
+  ];
+  await waitFor(() => expect(options()).toEqual(reordered));
   expect(remote.profiles[0].gameOrder).toEqual(["second", "g"]);
   expect(cell("Switch game").textContent).toContain("First game");
   await act(() => store.refresh());
-  expect(options()).toEqual(["Second game", "First game"]);
+  expect(options()).toEqual(reordered);
+  await user.keyboard("{Escape}");
+  expect(screen.queryByTitle("2 active games")).toBeNull();
 });
 
 test("an overdrawn vowel keeps the other unseen tile counts visible", async () => {
