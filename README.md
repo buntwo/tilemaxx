@@ -70,6 +70,8 @@ The first build downloads the Node base image and npm dependencies. If your NAS 
 
 Open `http://YOUR-NAS-IP:4173` from a browser on the same network. Set `TILEMAXX_PORT` in a `.env` file beside `compose.yaml` if you need a different host port. On iPhone, use Safari's **Share → Add to Home Screen** for a shortcut.
 
+The container is named `tilemaxx-1` and uses the `tilemaxx:local` image. Set `TILEMAXX_CONTAINER_NAME` in `.env` if you run a second instance on the same host.
+
 Compose mounts `./data` at `/app/data`. SQLite (`data/tilewise.sqlite`) stores profiles, games, and custom boards. Imported dictionaries and saved screenshot examples also live under `data/`. Git and the Docker build context both exclude `data/`. The container runs as UID/GID `1000:1000`, which needs write access to this directory and its contents.
 
 For a fresh setup, use **Word lists → Import word list** to install WOW24 or another dictionary. To use an image you already loaded into Docker, point `compose.prebuilt.yaml` at its tag and use `docker compose -f compose.prebuilt.yaml up -d`.
@@ -83,7 +85,9 @@ Run the update script in the Tilemaxx checkout on the NAS:
 docker compose ps
 ```
 
-The script runs `git pull --ff-only && docker compose up -d --build`. If your NAS uses standalone `docker-compose`, run `git pull --ff-only && docker-compose up -d --build` instead. Compose reuses the same `./data` directory and can reuse the dependency layer when the package files are unchanged. Refresh the app once the container is healthy.
+The script pulls changes, then runs `docker compose up -d --build --remove-orphans`. If your NAS uses standalone `docker-compose`, run `git pull --ff-only && docker-compose up -d --build --remove-orphans` instead. Compose reuses the same `./data` directory and can reuse the dependency layer when the package files are unchanged. Refresh the app once the container is healthy.
+
+If your container is still named `tilemaxx-tilewise-1` and already uses the `./data` bind mount, run `git pull --ff-only && ./update.sh` once to fetch the new script before running it. Compose removes the old service container and starts `tilemaxx-1` using the same data directory.
 
 ### Move saved games to another server
 
@@ -127,4 +131,4 @@ Browser drafts are written immediately to local storage; server writes are debou
 
 Source map: `shared/` contains game rules and solver; `server/` contains the SQLite API; `src/` contains the React UI and worker. The server uses Node's built-in SQLite API, which may print an experimental-feature warning on older supported Node versions.
 
-The app is now named Tilemaxx. Existing `tilewise:` browser storage keys, the `tilewise.sqlite` filename, and Docker volume/image identifiers are retained for compatibility with saved games and deployment scripts.
+Tilemaxx keeps the `tilewise:` browser storage keys and the `tilewise.sqlite` filename for compatibility with saved games.

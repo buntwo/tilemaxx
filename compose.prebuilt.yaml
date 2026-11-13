@@ -1,6 +1,7 @@
 services:
-  tilewise:
-    image: tilewise:local
+  tilemaxx:
+    image: tilemaxx:local
+    container_name: ${TILEMAXX_CONTAINER_NAME:-tilemaxx-1}
     ports:
       - "${TILEMAXX_PORT:-4173}:4173"
     volumes:
