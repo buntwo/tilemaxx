@@ -1138,11 +1138,6 @@ export default function App() {
                 boardOddsError={boardOddsError}
                 onBoardOdds={runBoardOdds}
                 onCancelBoardOdds={cancelBoardOdds}
-                scoreBreakdown={
-                  previewScore ? (
-                    <ScoreBreakdown breakdown={previewScore} />
-                  ) : undefined
-                }
               />
               {warnings.length > 0 && (
                 <div className="board-warnings">

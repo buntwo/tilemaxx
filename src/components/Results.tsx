@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect, type ReactNode } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import {
   ArrowDownWideNarrow,
   ArrowRight,
@@ -8,12 +8,20 @@ import {
   LoaderCircle,
   Trophy,
   ChartNoAxesCombined,
+  Calculator,
 } from "lucide-react";
 import { type Game, type Move, coordinate } from "../../shared/model";
-import { ANALYSIS_LIMIT, leaveValue } from "../../shared/move-analysis";
+import {
+  ANALYSIS_LIMIT,
+  leaveValue,
+  placeTiles,
+} from "../../shared/move-analysis";
+import { scorePlacement } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import MoveAnalysis from "./MoveAnalysis";
 import BingoOddsControls from "./BingoOddsControls";
+import Modal from "./Modal";
+import { ScoreBreakdownContent } from "./ScoreBreakdown";
 
 function formatOdds(chance: number, exact: boolean) {
   const value =
@@ -47,7 +55,6 @@ export default function Results({
   boardOddsError,
   onBoardOdds,
   onCancelBoardOdds,
-  scoreBreakdown,
 }: {
   moves: Move[] | null;
   busy: string;
@@ -70,7 +77,6 @@ export default function Results({
   boardOddsError?: string;
   onBoardOdds?: (moves: Move[], bagSize: number) => void;
   onCancelBoardOdds?: () => void;
-  scoreBreakdown?: ReactNode;
 }) {
   const [filter, setFilter] = useState(""),
     [sort, setSort] = useState("score"),
@@ -80,6 +86,18 @@ export default function Results({
     pointer = useRef("mouse");
   const [analyzing, setAnalyzing] = useState(false);
   const [candidates, setCandidates] = useState<Move[]>([]);
+  const [inspected, setInspected] = useState<{ move: Move; key?: string }>();
+  const inspectedMove =
+    inspected?.key === analysisKey ? inspected?.move : undefined;
+  const breakdown =
+    inspectedMove &&
+    analysisGame &&
+    scorePlacement(
+      analysisGame.board,
+      placeTiles(analysisGame.board, inspectedMove),
+      analysisGame.template,
+      inspectedMove.direction,
+    );
   const results = useMemo(() => {
     const list = (moves || []).filter((m) =>
       m.word.includes(filter.trim().toUpperCase()),
@@ -293,7 +311,9 @@ export default function Results({
             <span className="result-letter existing">On board</span>
             <span className="result-letter assigned-blank">Blank</span>
           </div>
-          <div className="result-columns">
+          <div
+            className={`result-columns${analysisGame ? " with-score-action" : ""}`}
+          >
             <span>WORD</span>
             <span>POSITION</span>
             <span className="result-leave">
@@ -329,137 +349,156 @@ export default function Results({
                   analyzing &&
                   candidates.some((candidate) => candidate.id === m.id);
                 return (
-                  <button
+                  <div
+                    className={`result-slot${analysisGame ? " with-score-action" : ""}`}
                     key={m.id}
-                    className={`result-row ${bingo ? "bingo" : ""} ${preview?.id === m.id || selected ? "active" : ""}`}
-                    aria-pressed={analyzing ? selected : undefined}
-                    disabled={
-                      analyzing &&
-                      !selected &&
-                      candidates.length >= ANALYSIS_LIMIT
-                    }
                     style={{ top: (start + offset) * 58 }}
-                    aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}`}
-                    onPointerDown={(e) => {
-                      pointer.current = e.pointerType;
-                    }}
-                    onPointerEnter={(e) => {
-                      if (
-                        !analyzing &&
-                        !locked &&
-                        e.pointerType === "mouse" &&
-                        matchMedia("(min-width:651px)").matches
-                      )
-                        onPreview(m);
-                    }}
-                    onPointerLeave={(e) => {
-                      if (e.pointerType === "mouse" && !locked) onPreview(null);
-                    }}
-                    onFocus={() => {
-                      if (!analyzing && !locked) onPreview(m);
-                    }}
-                    onContextMenu={(event) => {
-                      if (analyzing) return;
-                      event.preventDefault();
-                      setLocked(m.id);
-                      onPreview(m);
-                    }}
-                    onKeyDown={(event) => {
-                      if (analyzing || event.key.toLowerCase() !== "p") return;
-                      event.preventDefault();
-                      setLocked(m.id);
-                      onPreview(m);
-                    }}
-                    onClick={(e) => {
-                      if (analyzing) {
-                        toggleCandidate(m);
-                        return;
+                  >
+                    <button
+                      className={`result-row ${bingo ? "bingo" : ""} ${preview?.id === m.id || selected ? "active" : ""}`}
+                      aria-pressed={analyzing ? selected : undefined}
+                      disabled={
+                        analyzing &&
+                        !selected &&
+                        candidates.length >= ANALYSIS_LIMIT
                       }
-                      if (
-                        (pointer.current === "mouse" &&
-                          e.detail > 0 &&
-                          matchMedia("(min-width:651px) and (hover:hover)")
-                            .matches) ||
-                        locked === m.id
-                      ) {
-                        setLocked(null);
-                        onPlay(m);
-                      } else {
+                      aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}`}
+                      onPointerDown={(e) => {
+                        pointer.current = e.pointerType;
+                      }}
+                      onPointerEnter={(e) => {
+                        if (
+                          !analyzing &&
+                          !locked &&
+                          e.pointerType === "mouse" &&
+                          matchMedia("(min-width:651px)").matches
+                        )
+                          onPreview(m);
+                      }}
+                      onPointerLeave={(e) => {
+                        if (e.pointerType === "mouse" && !locked)
+                          onPreview(null);
+                      }}
+                      onFocus={() => {
+                        if (!analyzing && !locked) onPreview(m);
+                      }}
+                      onContextMenu={(event) => {
+                        if (analyzing) return;
+                        event.preventDefault();
                         setLocked(m.id);
                         onPreview(m);
-                      }
-                    }}
-                  >
-                    <span className="result-word">
-                      <span className="result-letters" aria-hidden="true">
-                        {[...m.word].map((letter, i) => {
-                          const index =
-                            m.row * size +
-                            m.col +
-                            i * (m.direction === "across" ? 1 : size);
-                          const tile = placed.get(index);
-                          const blank = tile && tile === tile.toLowerCase();
-                          return (
+                      }}
+                      onKeyDown={(event) => {
+                        if (analyzing || event.key.toLowerCase() !== "p")
+                          return;
+                        event.preventDefault();
+                        setLocked(m.id);
+                        onPreview(m);
+                      }}
+                      onClick={(e) => {
+                        if (analyzing) {
+                          toggleCandidate(m);
+                          return;
+                        }
+                        if (
+                          (pointer.current === "mouse" &&
+                            e.detail > 0 &&
+                            matchMedia("(min-width:651px) and (hover:hover)")
+                              .matches) ||
+                          locked === m.id
+                        ) {
+                          setLocked(null);
+                          onPlay(m);
+                        } else {
+                          setLocked(m.id);
+                          onPreview(m);
+                        }
+                      }}
+                    >
+                      <span className="result-word">
+                        <span className="result-letters" aria-hidden="true">
+                          {[...m.word].map((letter, i) => {
+                            const index =
+                              m.row * size +
+                              m.col +
+                              i * (m.direction === "across" ? 1 : size);
+                            const tile = placed.get(index);
+                            const blank = tile && tile === tile.toLowerCase();
+                            return (
+                              <span
+                                key={i}
+                                className={`result-letter ${tile ? "played" : "existing"} ${blank ? "assigned-blank" : ""}`}
+                                title={
+                                  tile
+                                    ? blank
+                                      ? "Play a blank"
+                                      : "Play from rack"
+                                    : "Already on board"
+                                }
+                              >
+                                {letter}
+                              </span>
+                            );
+                          })}
+                        </span>
+                        <small>
+                          {bingo && (
                             <span
-                              key={i}
-                              className={`result-letter ${tile ? "played" : "existing"} ${blank ? "assigned-blank" : ""}`}
-                              title={
-                                tile
-                                  ? blank
-                                    ? "Play a blank"
-                                    : "Play from rack"
-                                  : "Already on board"
-                              }
+                              className="bingo-badge"
+                              title={`All ${rackSize} tiles · +${bingoBonus} bonus included in score`}
                             >
-                              {letter}
+                              <Trophy size={10} aria-hidden="true" />
+                              BINGO
                             </span>
-                          );
-                        })}
+                          )}
+                          {m.tiles.length} tile{m.tiles.length !== 1 ? "s" : ""}
+                          {m.blanks
+                            ? ` · ${m.blanks} blank${m.blanks > 1 ? "s" : ""}`
+                            : ""}
+                          {m.crosses.length
+                            ? ` · +${m.crosses.length} cross`
+                            : ""}
+                        </small>
                       </span>
-                      <small>
-                        {bingo && (
-                          <span
-                            className="bingo-badge"
-                            title={`All ${rackSize} tiles · +${bingoBonus} bonus included in score`}
+                      <span className="result-coordinate">
+                        {coordinate(m.row * size + m.col, size)}
+                        <span>{m.direction === "across" ? "→" : "↓"}</span>
+                      </span>
+                      <span className="result-leave">
+                        <span>{m.leave || "—"}</span>
+                        {(analysisGame || rackOdds) && (
+                          <strong
+                            className="result-draw-odds"
+                            title="Chance the refilled rack spells a full-length word"
                           >
-                            <Trophy size={10} aria-hidden="true" />
-                            BINGO
+                            {rackPercent ?? (rackOddsPending ? "…" : "—")}
+                          </strong>
+                        )}
+                        {boardPercent && (
+                          <span
+                            className="result-board-odds"
+                            title="Chance of a legal bingo before the opponent replies"
+                          >
+                            After play {boardPercent}
                           </span>
                         )}
-                        {m.tiles.length} tile{m.tiles.length !== 1 ? "s" : ""}
-                        {m.blanks
-                          ? ` · ${m.blanks} blank${m.blanks > 1 ? "s" : ""}`
-                          : ""}
-                        {m.crosses.length
-                          ? ` · +${m.crosses.length} cross`
-                          : ""}
-                      </small>
-                    </span>
-                    <span className="result-coordinate">
-                      {coordinate(m.row * size + m.col, size)}
-                      <span>{m.direction === "across" ? "→" : "↓"}</span>
-                    </span>
-                    <span className="result-leave">
-                      <span>{m.leave || "—"}</span>
-                      {(analysisGame || rackOdds) && (
-                        <strong
-                          className="result-draw-odds"
-                          title="Chance the refilled rack spells a full-length word"
-                        >
-                          {rackPercent ?? (rackOddsPending ? "…" : "—")}
-                        </strong>
-                      )}
-                      {boardPercent && (
-                        <span
-                          className="result-board-odds"
-                          title="Chance of a legal bingo before the opponent replies"
-                        >
-                          After play {boardPercent}
-                        </span>
-                      )}
-                    </span>
-                    <strong className="result-score">{m.score}</strong>
-                  </button>
+                      </span>
+                      <strong className="result-score">{m.score}</strong>
+                    </button>
+                    {analysisGame && (
+                      <button
+                        type="button"
+                        className="result-score-action icon-button"
+                        aria-label={`Score breakdown for ${m.word} at ${coordinate(m.row * size + m.col, size)} ${m.direction}`}
+                        title="Score breakdown"
+                        onClick={() =>
+                          setInspected({ move: m, key: analysisKey })
+                        }
+                      >
+                        <Calculator size={15} aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -500,7 +539,6 @@ export default function Results({
                 ? ` · also ${preview.crosses.join(", ")}`
                 : ""}
             </span>
-            {scoreBreakdown}
           </div>
           <button
             className="button primary"
@@ -523,6 +561,19 @@ export default function Results({
             <X size={16} />
           </button>
         </div>
+      )}
+      {inspectedMove && (
+        <Modal
+          title={`Score breakdown · ${inspectedMove.word}`}
+          subtitle={`${coordinate(inspectedMove.row * size + inspectedMove.col, size)} ${inspectedMove.direction}`}
+          onClose={() => setInspected(undefined)}
+        >
+          {breakdown ? (
+            <ScoreBreakdownContent breakdown={breakdown} />
+          ) : (
+            <p>This position changed. Find moves again to check the score.</p>
+          )}
+        </Modal>
       )}
     </section>
   );

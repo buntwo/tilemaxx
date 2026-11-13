@@ -1560,13 +1560,30 @@ label + label {
   scrollbar-color: var(--line) transparent;
 }
 .result-row {
-  position: absolute;
   width: 100%;
   height: 58px;
   background: var(--surface);
   border: 0;
   border-bottom: 1px solid var(--line);
   text-align: left;
+}
+.result-slot {
+  position: absolute;
+  width: 100%;
+}
+.result-slot:has(.result-score-action:hover) .result-row {
+  background: var(--soft);
+}
+.result-score-action.icon-button {
+  position: absolute;
+  top: 7px;
+  right: 5px;
+  width: 34px;
+  height: 44px;
+  color: var(--primary);
+}
+.result-score-action.icon-button:hover {
+  background: var(--soft);
 }
 .result-row:hover,
 .result-row.active {
@@ -3699,6 +3716,10 @@ kbd {
   gap: 6px;
   padding-inline: 12px;
 }
+.results-panel .result-columns.with-score-action,
+.results-panel .result-slot.with-score-action .result-row {
+  padding-right: 45px;
+}
 .with-bingo-odds .result-leave {
   display: grid;
   gap: 2px;
@@ -3770,8 +3791,13 @@ kbd {
 
 .score-breakdown { margin-top: 6px; font-size: 12px; }
 .score-breakdown summary { cursor: pointer; color: var(--primary); }
-.score-breakdown ul, .practice-results { margin: 7px 0; padding-left: 19px; }
-.score-breakdown li small, .practice-results small { display: block; color: var(--muted); }
+.practice-results { margin: 7px 0; padding-left: 19px; }
+.score-breakdown-content ul { list-style: none; margin: 8px 0; padding: 0; }
+.score-breakdown-content li + li { margin-top: 6px; }
+.score-breakdown-line { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }
+.score-breakdown-line > :last-child { white-space: nowrap; }
+.score-breakdown-total { padding-top: 7px; border-top: 1px solid var(--line); }
+.score-breakdown-content li small, .practice-results small { display: block; color: var(--muted); }
 .practice-body { display: grid; justify-items: start; gap: 9px; }
 .practice-body p { margin: 0; }
 .practice-results li + li { margin-top: 6px; }

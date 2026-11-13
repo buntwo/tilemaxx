@@ -1340,3 +1340,24 @@ test("an overdrawn vowel keeps the other unseen tile counts visible", async () =
   expect(screen.getByText("Consonants 56")).toBeTruthy();
   expect(screen.getByText("Blanks 2")).toBeTruthy();
 });
+
+test("a move's score button opens its own breakdown without playing it", async () => {
+  const user = await start();
+  await typeRack(user, "CAT");
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  const suggestion = (
+    await screen.findAllByRole("button", { name: /^CAT, / })
+  )[0];
+  await user.hover(suggestion);
+  const action = within(suggestion.parentElement!).getByRole("button", {
+    name: /Score breakdown for CAT at/,
+  });
+  await user.click(action);
+  const dialog = screen.getByRole("dialog");
+  expect(
+    within(dialog).getByRole("heading", { name: /Score breakdown · CAT/ }),
+  ).toBeTruthy();
+  expect(within(dialog).getByText("5 × 2 = 10")).toBeTruthy();
+  expect(current().board.some(Boolean)).toBe(false);
+  expect(current().rack).toBe("CAT");
+});
