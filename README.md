@@ -56,38 +56,55 @@ Word lists are shared by profiles on this server. Each game chooses its own list
 
 ## Deploy on Synology with Docker
 
-Use Container Manager's **Project** feature; no SSH is required.
+With Git and Docker Compose available on the NAS, run these commands from the folder where you keep your Compose projects:
 
-1. Copy this project to a folder on the NAS. You can omit `.git`, `node_modules`, `dist`, `dist-server`, `.local`, and `data` for a fresh deployment.
-2. Open **Container Manager → Project → Create**. Name it `tilewise`, select that folder, and use the included `compose.yaml`.
-3. Build and start the project. The first build needs internet access to download Node and npm dependencies.
-4. Open `http://YOUR-NAS-IP:4173` from a browser on the same network. If DSM's firewall is enabled, allow this port from your local subnet.
-5. Open **Word lists → Import word list** and select the WOW24 file from WGPO or another dictionary you use. Imported dictionaries are stored in the persistent data folder.
-6. On iPhone, use Safari's **Share → Add to Home Screen** for a shortcut.
+```sh
+git clone https://github.com/buntwo/tilemaxx.git
+cd tilemaxx
+mkdir -p data
+sudo chown 1000:1000 data
+docker compose up -d --build
+```
 
-The default Compose configuration uses the persistent Docker volume `tilewise-data` (Compose prefixes its actual name with the project name). It survives container rebuilds and ordinary project stops. Do not delete the volume when updating.
+The first build downloads the Node base image and npm dependencies. If your NAS provides `docker-compose`, substitute that for `docker compose` in these commands.
 
-If you have a prebuilt image for your NAS architecture, import it under **Container Manager → Image → Add → Add from file**. Use `compose.prebuilt.yaml` in place of `compose.yaml`, with the image name and tag set to match the imported image.
+Open `http://YOUR-NAS-IP:4173` from a browser on the same network. Set `TILEMAXX_PORT` in a `.env` file beside `compose.yaml` if you need a different host port. On iPhone, use Safari's **Share → Add to Home Screen** for a shortcut.
 
-If you prefer an ordinary NAS folder for backup, replace the volume mapping with `./data:/app/data`. Create `data/dictionaries` first and grant UID/GID `1000:1000` read/write access to that folder; the image runs as the unprivileged `node` user. Alternatively set Compose's `user` to the UID:GID of a NAS user that owns the data folder. Avoid granting broad permissions to unrelated NAS directories.
+Compose mounts `./data` at `/app/data`. SQLite (`data/tilewise.sqlite`) stores profiles, games, and custom boards. Imported dictionaries and saved screenshot examples also live under `data/`. Git and the Docker build context both exclude `data/`. The container runs as UID/GID `1000:1000`, which needs write access to this directory and its contents.
+
+For a fresh setup, use **Word lists → Import word list** to install WOW24 or another dictionary. To use an image you already loaded into Docker, point `compose.prebuilt.yaml` at its tag and use `docker compose -f compose.prebuilt.yaml up -d`.
+
+### Update from GitHub
+
+Run these commands in the same checkout on the NAS:
+
+```sh
+git pull --ff-only && docker compose up -d --build
+docker compose ps
+```
+
+Compose rebuilds from the updated checkout and reuses the same `./data` directory. Refresh the app once the container is healthy. Docker can reuse the dependency layer when the package files are unchanged.
 
 ### Move saved games to another server
 
-Stop the source server and copy its entire data directory (default: `./data`) to an empty data directory on the destination. Keep the database and word-list files together. For Docker, use the data mount described above and set its permissions before starting the destination server. Connect all devices to the destination server to keep games in sync.
+Stop the source server and copy its entire data directory (default: `./data`) to an empty data directory on the destination. Keep the database and word-list files together. For Docker, run `sudo chown -R 1000:1000 data` from the destination checkout before starting it. Connect all devices to the destination server to keep games in sync.
 
-### Backup and update
+If you already deployed the bind-mounted bundle on the NAS, clone into a separate folder, stop the old project with `docker compose down`, and move its `data/` and any `.env` into the new checkout on the NAS before starting it.
 
-Stop the container before backing up its data volume/folder, including `tilewise.sqlite`, any SQLite `-wal`/`-shm` files, and `dictionaries/`. Restart afterward. Restore into an empty data volume/folder with the same permissions. For updates, replace the source and rebuild the project while keeping the volume.
-
-Equivalent Docker commands on a machine with Docker running:
+If you used the older Compose file with a `tilewise-data` Docker volume, export it before switching. From the old project folder, with an empty `./data` directory, run:
 
 ```sh
-docker compose up -d --build
-docker compose logs -f
-docker compose down
+mkdir -p data
+docker compose stop tilewise
+docker cp "$(docker compose ps -a -q tilewise):/app/data/." ./data/
+sudo chown -R 1000:1000 data
 ```
 
-Use `docker compose down` without `-v` to preserve saved data.
+Then bring down the old project and use the exported `data/` with the new checkout.
+
+### Backup
+
+Stop the container and back up the entire `data/` directory, then start it again. To restore, stop the container and restore the backup into an empty `data/` directory with the same permissions.
 
 ## Development and verification
 
