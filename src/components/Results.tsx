@@ -11,11 +11,7 @@ import {
   Calculator,
 } from "lucide-react";
 import { type Game, type Move, coordinate } from "../../shared/model";
-import {
-  ANALYSIS_LIMIT,
-  leaveValue,
-  placeTiles,
-} from "../../shared/move-analysis";
+import { ANALYSIS_LIMIT, placeTiles } from "../../shared/move-analysis";
 import { scorePlacement } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import MoveAnalysis from "./MoveAnalysis";
@@ -28,7 +24,17 @@ import PremiumDefense, {
 } from "./PremiumDefense";
 import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
 import { useReplyAnalysis } from "../useReplyAnalysis";
-import { shortlistMoves } from "../../shared/move-shortlist";
+import type { ShortlistEntry } from "../../shared/move-shortlist";
+import type {
+  MoveResults,
+  MoveSort,
+  ShortlistOptions,
+} from "../../shared/move-results";
+import {
+  moveRowHeight,
+  useMoveResults,
+  type FetchMovePage,
+} from "../useMoveResults";
 import ReplyAnalysis, {
   ReplyCell,
   replyScoreTotals,
@@ -47,7 +53,9 @@ function formatOdds(chance: number, exact: boolean) {
 }
 
 export default function Results({
-  moves,
+  results: resultSet,
+  fetchPage,
+  fetchShortlist,
   busy,
   elapsed,
   error,
@@ -72,7 +80,12 @@ export default function Results({
   onBoardOdds,
   onCancelBoardOdds,
 }: {
-  moves: Move[] | null;
+  results: MoveResults | null;
+  fetchPage: FetchMovePage;
+  fetchShortlist: (
+    searchId: number,
+    options: ShortlistOptions,
+  ) => Promise<ShortlistEntry[] | undefined>;
   busy: string;
   elapsed: number;
   error: string;
@@ -98,7 +111,7 @@ export default function Results({
   onCancelBoardOdds?: () => void;
 }) {
   const [filter, setFilter] = useState(""),
-    [sort, setSort] = useState("score"),
+    [sort, setSort] = useState<MoveSort>("score"),
     [scroll, setScroll] = useState(0),
     [locked, setLocked] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null),
@@ -107,10 +120,12 @@ export default function Results({
   const [candidates, setCandidates] = useState<Move[]>([]);
   const [shortlistOnly, setShortlistOnly] = useState(false);
   const shortlistActive = shortlistOnly && !!analysisGame;
+  const replyCandidates = resultSet?.head ?? null;
+  const totalMoves = resultSet?.total ?? 0;
   const replyAnalysis = useReplyAnalysis(
     analysisGame,
     analysisKey,
-    moves,
+    replyCandidates,
     replyEnabled && !busy && !error,
   );
   const targetIds = useMemo(
@@ -119,34 +134,53 @@ export default function Results({
   );
   const [inspectedReply, setInspectedReply] = useState<{
     id: string;
-    moves: Move[] | null;
+    searchId: number;
   }>();
   const replyMove =
-    inspectedReply?.moves === moves
+    inspectedReply?.searchId === resultSet?.searchId
       ? replyAnalysis.target.find(({ id }) => id === inspectedReply?.id)
       : undefined;
   const replyDetail = replyMove && replyAnalysis.results?.[replyMove.id];
   const shortlistReplies = replyAnalysis.pending
     ? undefined
     : replyAnalysis.results;
-  const shortlist = useMemo(
-    () =>
-      shortlistMoves(moves ?? [], {
-        rackOdds,
-        boardOdds,
-        defense,
-        replies: shortlistReplies,
-        endgame: replyAnalysis.bagSize === 0,
-      }),
-    [
-      moves,
+  const [shortlistResult, setShortlistResult] = useState<{
+    searchId: number;
+    entries: ShortlistEntry[];
+  }>();
+  const searchId = resultSet?.searchId;
+  const endgame = replyAnalysis.bagSize === 0;
+  const canShortlist = !!analysisGame && !busy && !error;
+  useEffect(() => {
+    if (!canShortlist || searchId === undefined) return;
+    let current = true;
+    const settle = (entries: ShortlistEntry[] = []) => {
+      if (current) setShortlistResult({ searchId, entries });
+    };
+    void fetchShortlist(searchId, {
       rackOdds,
       boardOdds,
       defense,
-      shortlistReplies,
-      replyAnalysis.bagSize,
-    ],
-  );
+      replies: shortlistReplies,
+      endgame,
+    }).then(settle, () => settle());
+    return () => {
+      current = false;
+    };
+  }, [
+    canShortlist,
+    searchId,
+    fetchShortlist,
+    rackOdds,
+    boardOdds,
+    defense,
+    shortlistReplies,
+    endgame,
+  ]);
+  const shortlist =
+    shortlistResult && shortlistResult.searchId === searchId
+      ? shortlistResult.entries
+      : [];
   const shortlistById = useMemo(
     () => new Map(shortlist.map((entry) => [entry.move.id, entry])),
     [shortlist],
@@ -155,10 +189,7 @@ export default function Results({
     analysisGame && replyAnalysis.bagSize === 0
       ? replyScoreTotals(analysisGame)
       : undefined;
-  const topScore = useMemo(
-    () => moves?.reduce((best, move) => Math.max(best, move.score), 0) ?? 0,
-    [moves],
-  );
+  const topScore = resultSet?.head[0]?.score ?? 0;
   const [inspected, setInspected] = useState<{ move: Move; key?: string }>();
   const [inspectedDefense, setInspectedDefense] = useState<{
     move: Move;
@@ -178,54 +209,31 @@ export default function Results({
       analysisGame.template,
       inspectedMove.direction,
     );
-  const allResults = useMemo(() => {
-    const list = (moves ?? []).filter((m) =>
-      m.word.includes(filter.trim().toUpperCase()),
-    );
-    if (sort === "word")
-      list.sort((a, b) => a.word.localeCompare(b.word) || b.score - a.score);
-    if (sort === "length")
-      list.sort((a, b) => b.word.length - a.word.length || b.score - a.score);
-    if (sort === "tiles")
-      list.sort((a, b) => b.tiles.length - a.tiles.length || b.score - a.score);
-    if (sort === "leave")
-      list.sort((a, b) => a.leave.localeCompare(b.leave) || b.score - a.score);
-    if (sort === "blanks")
-      list.sort((a, b) => a.blanks - b.blanks || b.score - a.score);
-    if (sort === "equity") {
-      const values = new Map<string, number>();
-      for (const move of list)
-        values.set(move.id, move.score + leaveValue(move.leave));
-      list.sort(
-        (a, b) => values.get(b.id)! - values.get(a.id)! || b.score - a.score,
-      );
-    }
-    if (sort === "bingo-draw") {
-      list.sort(
-        (a, b) =>
-          (rackOdds?.byLeave[b.leave] ?? -1) -
-            (rackOdds?.byLeave[a.leave] ?? -1) || b.score - a.score,
-      );
-    }
-    if (sort === "board-bingo") {
-      list.sort(
-        (a, b) =>
-          (boardOdds?.byMove[b.id]?.chance ?? -1) -
-            (boardOdds?.byMove[a.id]?.chance ?? -1) || b.score - a.score,
-      );
-    }
-    return list;
-  }, [moves, filter, sort, rackOdds, boardOdds]);
-  const results = shortlistActive
-    ? shortlist
-        .map(({ move }) => move)
-        .filter((move) => move.word.includes(filter.trim().toUpperCase()))
-    : allResults;
+  const filteredShortlist = shortlist
+    .map(({ move }) => move)
+    .filter((move) => move.word.includes(filter.trim().toUpperCase()));
+  const page = useMoveResults(
+    resultSet,
+    {
+      filter,
+      sort,
+      offset: shortlistActive
+        ? 0
+        : Math.max(0, Math.floor(scroll / moveRowHeight) - 5),
+      rackOdds: sort === "bingo-draw" ? rackOdds : undefined,
+      boardOdds: sort === "board-bingo" ? boardOdds : undefined,
+    },
+    fetchPage,
+    !busy && !error,
+  );
+  const total = shortlistActive ? filteredShortlist.length : page.total;
+  const start = shortlistActive ? 0 : page.start;
+  const visible = shortlistActive ? filteredShortlist : page.visible;
   useEffect(() => {
     setAnalyzing(false);
     setCandidates([]);
     setSort((current) => (current === "board-bingo" ? "score" : current));
-  }, [moves]);
+  }, [resultSet]);
   function toggleCandidate(move: Move) {
     setCandidates((current) =>
       current.some((candidate) => candidate.id === move.id)
@@ -239,9 +247,7 @@ export default function Results({
     setScroll(0);
     if (scroller.current) scroller.current.scrollTop = 0;
     setLocked(null);
-  }, [moves, filter, sort, shortlistOnly]);
-  const start = shortlistActive ? 0 : Math.max(0, Math.floor(scroll / 58) - 5),
-    visible = results.slice(start, start + 30);
+  }, [resultSet, filter, sort, shortlistOnly]);
   return (
     <section
       className={`results-panel panel ${analysisGame || rackOdds ? "with-bingo-odds" : ""}`}
@@ -251,20 +257,24 @@ export default function Results({
           <Sparkles size={19} />
           <h2>Possible moves</h2>
         </div>
-        {moves && (
-          <span className="count-badge">{moves.length.toLocaleString()}</span>
+        {resultSet && (
+          <span className="count-badge">{totalMoves.toLocaleString()}</span>
         )}
-        {analysisGame && !!moves?.length && !busy && !error && (
+        {analysisGame && !!totalMoves && !busy && !error && (
           <button
             type="button"
             className="button secondary analysis-toggle"
             aria-expanded={analyzing}
+            disabled={
+              !analyzing &&
+              (shortlistActive ? !total : page.pending || page.unavailable)
+            }
             onClick={() => {
               if (!analyzing)
                 setCandidates(
                   shortlistActive
-                    ? results.slice(0, ANALYSIS_LIMIT)
-                    : [preview ?? results[0] ?? moves[0]],
+                    ? filteredShortlist.slice(0, ANALYSIS_LIMIT)
+                    : [preview ?? page.head[0] ?? resultSet!.head[0]],
                 );
               setLocked(null);
               onPreview(null);
@@ -276,7 +286,7 @@ export default function Results({
           </button>
         )}
       </header>
-      {analysisGame && !!moves?.length && !busy && !error && (
+      {analysisGame && !!totalMoves && !busy && !error && (
         <div
           className="result-view-picker"
           role="group"
@@ -314,7 +324,7 @@ export default function Results({
             <select
               aria-label="Sort moves"
               value={sort}
-              onChange={(e) => setSort(e.target.value)}
+              onChange={(e) => setSort(e.target.value as MoveSort)}
             >
               <option value="score">Score</option>
               <option value="equity">Score + leave</option>
@@ -338,14 +348,14 @@ export default function Results({
       </div>
       {!busy &&
         !error &&
-        !!moves?.length &&
+        !!totalMoves &&
         analysisGame &&
         onBoardOdds &&
         onCancelBoardOdds && (
           <BingoOddsControls
             key={analysisKey}
             game={analysisGame}
-            moves={allResults}
+            moves={page.head}
             rackOdds={rackOdds}
             rackOddsPending={rackOddsPending}
             boardOdds={boardOdds}
@@ -382,7 +392,7 @@ export default function Results({
             Try again
           </button>
         </div>
-      ) : moves === null ? (
+      ) : resultSet === null ? (
         <div className="results-empty">
           <div className="illustrated-tiles">
             <span>
@@ -410,7 +420,25 @@ export default function Results({
             Find moves
           </button>
         </div>
-      ) : !results.length ? (
+      ) : !shortlistActive && page.unavailable ? (
+        <div className="results-empty">
+          <p role="status">
+            Move results are unavailable. Find moves again to reload them.
+          </p>
+          <button className="button secondary" onClick={onSolve}>
+            Find moves
+          </button>
+        </div>
+      ) : (
+          shortlistActive
+            ? shortlistResult?.searchId !== searchId
+            : page.pending
+        ) ? (
+        <div className="results-empty" role="status">
+          <LoaderCircle className="spin" size={24} />
+          <p>Loading move list…</p>
+        </div>
+      ) : !total ? (
         <div className="results-empty">
           <Search size={30} />
           <h3>{filter ? "No matching words" : "No legal moves found"}</h3>
@@ -479,7 +507,9 @@ export default function Results({
             onScroll={(e) => setScroll(e.currentTarget.scrollTop)}
             aria-label="Suggested moves"
           >
-            <div style={{ height: results.length * 58, position: "relative" }}>
+            <div
+              style={{ height: total * moveRowHeight, position: "relative" }}
+            >
               {visible.map((m, offset) => {
                 const bingo = m.tiles.length === rackSize;
                 const rackChance = rackOdds?.byLeave[m.leave];
@@ -513,7 +543,7 @@ export default function Results({
                   <div
                     className={`result-slot${analysisGame ? " with-score-action" : ""}`}
                     key={m.id}
-                    style={{ top: (start + offset) * 58 }}
+                    style={{ top: (start + offset) * moveRowHeight }}
                   >
                     <button
                       className={`result-row ${bingo ? "bingo" : ""} ${preview?.id === m.id || selected ? "active" : ""}`}
@@ -668,7 +698,10 @@ export default function Results({
                       <button
                         type="button"
                         className="result-defense-action result-reply-action icon-button"
-                        onClick={() => setInspectedReply({ id: m.id, moves })}
+                        onClick={() => {
+                          if (searchId !== undefined)
+                            setInspectedReply({ id: m.id, searchId });
+                        }}
                       >
                         <span className="reply-sr-only">
                           Reply analysis for {m.word} at{" "}
@@ -760,7 +793,7 @@ export default function Results({
         ) : defenseProgress ? (
           <span title="Checking premium replies">Risk {defenseProgress}</span>
         ) : (
-          moves && (
+          resultSet && (
             <span>
               {elapsed < 1000
                 ? `${Math.round(elapsed)} ms`

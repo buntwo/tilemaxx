@@ -2,101 +2,140 @@ import { Lexicon, parseWords } from "../shared/lexicon";
 import { solvePosition, inspectBoard } from "../shared/solver";
 import { RackBingoIndex, checkBoardBingo } from "../shared/bingo-odds";
 import { checkPremiumDefense } from "../shared/premium-defense";
-import type { BoardTemplate, Move, Position } from "../shared/model";
+import { MOVE_CACHE_LIMIT, MoveResultIndex } from "../shared/move-results";
+import type { SolverMessage, SolverRequest } from "./solver-messages";
 
-type SolverRequest = Position & {
-  id: number;
-  dictionaryId: string;
-  template: BoardTemplate;
-} & (
-    | { kind?: "solve" }
-    | { kind: "board-odds"; candidates: Move[]; bagSize: number }
-  );
-
+const results = new Map<number, MoveResultIndex>();
+let activeSolve: { id: number; abort: AbortController } | undefined;
 let dictionary:
   | { id: string; lexicon: Lexicon; bingo: RackBingoIndex }
   | undefined;
+
+const post = (message: SolverMessage) => self.postMessage(message);
+const yieldToQueries = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 self.onmessage = async (event: MessageEvent<SolverRequest>) => {
   const request = event.data;
+  switch (request.kind) {
+    case "discard":
+      results.delete(request.searchId);
+      return;
+    case "cancel":
+      if (activeSolve?.id === request.searchId) activeSolve.abort.abort();
+      return;
+    case "page":
+      post({
+        id: request.id,
+        kind: "page",
+        page: results.get(request.searchId)?.page(request.query),
+      });
+      return;
+    case "shortlist":
+      post({
+        id: request.id,
+        kind: "shortlist",
+        shortlist: results.get(request.searchId)?.shortlist(request.options),
+      });
+      return;
+  }
   const { id, dictionaryId, board, template } = request;
+  const abort = request.kind === "solve" ? new AbortController() : undefined;
+  if (abort) {
+    activeSolve?.abort.abort();
+    activeSolve = { id, abort };
+  }
   try {
-    if (dictionary?.id !== dictionaryId) {
-      if (request.kind !== "board-odds")
-        self.postMessage({ id, status: "Loading dictionary…" });
+    let index = dictionary;
+    if (index?.id !== dictionaryId) {
+      if (request.kind === "solve")
+        post({ id, kind: "solve-status", status: "Loading dictionary…" });
       const response = await fetch(
         `/api/dictionaries/${encodeURIComponent(dictionaryId)}`,
+        { signal: abort?.signal },
       );
       if (!response.ok)
         throw new Error(
           "Could not load the dictionary. Check your connection to Tilemaxx.",
         );
-      const words = parseWords(await response.text());
-      dictionary = {
+      const text = await response.text();
+      if (abort?.signal.aborted) return;
+      const words = parseWords(text);
+      dictionary = index = {
         id: dictionaryId,
         lexicon: new Lexicon(words),
         bingo: new RackBingoIndex(words),
       };
     }
-    const { lexicon, bingo } = dictionary;
+    const { lexicon, bingo } = index;
     if (request.kind === "board-odds") {
-      const boardOdds = checkBoardBingo(
+      const odds = checkBoardBingo(
         lexicon,
         request,
         template,
         request.candidates,
         request.bagSize,
-        (checked) => {
-          self.postMessage({ id, boardOddsProgress: checked });
-        },
+        (checked) => post({ id, kind: "board-odds-progress", checked }),
       );
-      self.postMessage({ id, boardOdds });
+      post({ id, kind: "board-odds", odds });
       return;
     }
 
-    self.postMessage({ id, status: "Finding every move…" });
+    post({ id, kind: "solve-status", status: "Finding every move…" });
     const start = performance.now();
     const warnings = inspectBoard(lexicon, board, template);
     const moves = solvePosition(lexicon, request, template);
-    self.postMessage({
+    const elapsed = performance.now() - start;
+    const result = new MoveResultIndex(moves);
+    results.set(id, result);
+    if (results.size > MOVE_CACHE_LIMIT + 1)
+      results.delete(results.keys().next().value!);
+    post({
       id,
-      moves,
+      kind: "moves",
+      results: result.summary(id),
       warnings,
-      elapsed: performance.now() - start,
-      rackOddsPending: moves.length > 0,
+      elapsed,
     });
-    if (moves.length) {
-      try {
-        const defense = checkPremiumDefense(
-          lexicon,
-          request,
-          template,
-          moves,
-          (quick) => self.postMessage({ id, defense: quick }),
-          (checked) => self.postMessage({ id, defenseProgress: checked }),
-        );
-        self.postMessage({ id, defense, defenseDone: true });
-      } catch {
-        self.postMessage({ id, defenseDone: true });
-      }
-      try {
-        self.postMessage({
-          id,
-          rackOdds: bingo.calculate(lexicon, request, template, moves),
-        });
-      } catch {
-        self.postMessage({
-          id,
-          rackOddsError: "Bingo draw odds could not be calculated.",
-        });
-      }
+    if (!moves.length) return;
+    await yieldToQueries();
+    if (abort?.signal.aborted) return;
+    try {
+      const defense = checkPremiumDefense(
+        lexicon,
+        request,
+        template,
+        moves,
+        (defense) => post({ id, kind: "defense", defense }),
+        (checked) => post({ id, kind: "defense-progress", checked }),
+      );
+      post({ id, kind: "defense", defense, done: true });
+    } catch {
+      post({ id, kind: "defense", done: true });
     }
+    await yieldToQueries();
+    if (abort?.signal.aborted) return;
+    let odds: ReturnType<RackBingoIndex["calculate"]>;
+    try {
+      odds = bingo.calculate(lexicon, request, template, moves);
+    } catch {
+      odds = {
+        byLeave: {},
+        exact: false,
+        bagSize: 0,
+        error: "Bingo draw odds could not be calculated.",
+      };
+    }
+    post({ id, kind: "rack-odds", odds });
   } catch (error) {
+    if (abort?.signal.aborted) return;
     const message =
       error instanceof Error ? error.message : "The solver could not finish.";
-    self.postMessage(
+    post(
       request.kind === "board-odds"
-        ? { id, boardOddsError: message }
-        : { id, error: message },
+        ? { id, kind: "board-odds", error: message }
+        : { id, kind: "solve-error", error: message },
     );
+  } finally {
+    if (activeSolve?.id === id) activeSolve = undefined;
   }
 };

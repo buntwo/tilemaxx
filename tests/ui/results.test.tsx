@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
-import { act, render, screen, fireEvent, within } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Results from "../../src/components/Results";
 import { emptyBoard, type Game, type Move } from "../../shared/model";
@@ -11,6 +18,8 @@ import type {
   ReplyDistribution,
 } from "../../shared/reply-analysis";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
+import { MoveResultIndex } from "../../shared/move-results";
+import { moveRowHeight, type FetchMovePage } from "../../src/useMoveResults";
 const moves: Move[] = [
   {
     id: "a",
@@ -72,16 +81,26 @@ function setup(
     boardOdds?: BoardOddsResult;
     analysisGame?: Game;
     replyEnabled?: boolean;
+    fetchPage?: FetchMovePage;
   } = {},
 ) {
   vi.stubGlobal("matchMedia", () => ({ matches: !mobile }));
   const onPlay = vi.fn(),
     onPreview = vi.fn();
+  const index = new MoveResultIndex(options.moves ?? moves);
+  const results = index.summary(0);
+  const fetchPage =
+    options.fetchPage ?? vi.fn(async (_id, query) => index.page(query));
+  const fetchShortlist = vi.fn(async (_id, options) =>
+    index.shortlist(options),
+  );
   function Harness() {
     const [preview, setPreview] = useState<Move | null>(null);
     return (
       <Results
-        moves={options.moves ?? moves}
+        results={results}
+        fetchPage={fetchPage}
+        fetchShortlist={fetchShortlist}
         busy=""
         elapsed={4}
         error=""
@@ -107,6 +126,39 @@ function setup(
   return { onPlay, onPreview, user: userEvent.setup() };
 }
 const rows = () => screen.getAllByRole("button", { name: /points,/ });
+
+test("scrolling and filtering use worker pages and ignore out-of-order results", async () => {
+  const longList = Array.from({ length: 200 }, (_, i) => ({
+    ...moves[0],
+    id: String(i),
+    word: i === 199 ? "ZEBRA" : i === 190 ? "QUICK" : "CATS",
+    score: 400 - i,
+  }));
+  const index = new MoveResultIndex(longList);
+  const pending: Array<() => void> = [];
+  const fetchPage: FetchMovePage = (_id, query) =>
+    new Promise((resolve) => pending.push(() => resolve(index.page(query))));
+  setup(false, { moves: longList, fetchPage });
+  expect(rows()).toHaveLength(30);
+  expect(pending).toHaveLength(0);
+  const scroller = screen.getByLabelText("Suggested moves");
+  scroller.scrollTop = 200 * moveRowHeight;
+  fireEvent.scroll(scroller);
+  await waitFor(() => expect(pending).toHaveLength(1));
+  await act(async () => pending[0]());
+  expect(screen.getByRole("button", { name: /^ZEBRA,/ })).toBeTruthy();
+
+  const filter = screen.getByRole("textbox", { name: "Filter moves" });
+  fireEvent.change(filter, { target: { value: "QUI" } });
+  fireEvent.change(filter, { target: { value: "ZEB" } });
+  await waitFor(() => expect(pending).toHaveLength(3));
+  await act(async () => pending[2]());
+  expect(rows()).toHaveLength(1);
+  expect(screen.getByRole("button", { name: /^ZEBRA,/ })).toBeTruthy();
+  await act(async () => pending[1]());
+  expect(rows()).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: /^QUICK,/ })).toBeNull();
+});
 
 test("reply rows resolve individually and compare against the highest score after sorting", async () => {
   let worker: ReplyWorker | undefined;
