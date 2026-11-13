@@ -533,6 +533,22 @@ test("board edits stop a running solver and game switching clears the entry curs
 });
 
 test("rack → real solver → hover preview → play → undo/redo → save", async () => {
+  let solves = 0;
+  class CountingWorker extends SolverWorker {
+    postMessage(request: Parameters<SolverWorker["postMessage"]>[0]) {
+      solves++;
+      super.postMessage(request);
+      queueMicrotask(() =>
+        this.onmessage?.({
+          data: {
+            id: request.id,
+            rackOdds: { byLeave: { "": 0.25 }, exact: true, bagSize: 89 },
+          },
+        }),
+      );
+    }
+  }
+  vi.stubGlobal("Worker", CountingWorker);
   const user = await start();
   await typeRack(user, "CATS");
   await user.click(screen.getByText("Unseen tiles"));
@@ -541,6 +557,12 @@ test("rack → real solver → hover preview → play → undo/redo → save", a
   expect(countA()).toBeTruthy();
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   const row = await screen.findAllByRole("button", { name: /^CATS, / });
+  const moveRows = () =>
+    within(screen.getByLabelText("Suggested moves"))
+      .getAllByRole("button")
+      .map((move) => move.getAttribute("aria-label"));
+  const originalRows = moveRows();
+  expect(row[0].querySelector(".result-draw-odds")?.textContent).toBe("25%");
   fireEvent.pointerEnter(row[0], { pointerType: "mouse" });
   expect(current().board.some(Boolean)).toBe(false);
   expect(countA()).toBeTruthy();
@@ -549,14 +571,52 @@ test("rack → real solver → hover preview → play → undo/redo → save", a
   expect(current().rack).toBe("");
   expect(countA()).toBeTruthy();
   expect(current().past.at(-1)?.score).toBeGreaterThan(0);
+  expect(screen.queryByLabelText("Suggested moves")).toBeNull();
+  await act(async () => store.flush());
   await user.click(screen.getByRole("button", { name: "Undo" }));
   expect(current().rack).toBe("CATS");
   expect(countA()).toBeTruthy();
   expect(current().board.some(Boolean)).toBe(false);
+  expect(moveRows()).toEqual(originalRows);
+  expect(
+    screen
+      .getAllByRole("button", { name: /^CATS, / })[0]
+      .querySelector(".result-draw-odds")?.textContent,
+  ).toBe("25%");
+  expect(solves).toBe(1);
   await user.click(screen.getByRole("button", { name: "Redo" }));
-  await store.flush();
+  expect(screen.queryByLabelText("Suggested moves")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Move history" }));
+  await user.click(screen.getByRole("button", { name: "Undo last change" }));
+  expect(moveRows()).toEqual(originalRows);
+  expect(solves).toBe(1);
+  await user.click(
+    within(screen.getByRole("dialog")).getByRole("button", { name: "Redo" }),
+  );
+  await act(async () => store.flush());
   expect(remote.games[0].board).toEqual(current().board);
   expect(remote.games[0].rack).toBe("");
+});
+
+test("undo does not restore a played move list from a different dictionary", async () => {
+  remote.dictionaries.push({
+    ...remote.dictionaries[0],
+    id: "other",
+    name: "Other words",
+  });
+  const user = await start();
+  await typeRack(user, "CATS");
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  await user.click(
+    (await screen.findAllByRole("button", { name: /^CATS, / }))[0],
+  );
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "Game dictionary" }),
+    "other",
+  );
+  await user.click(screen.getByRole("button", { name: "Undo" }));
+  expect(current().rack).toBe("CATS");
+  expect(screen.queryByLabelText("Suggested moves")).toBeNull();
 });
 
 test("focus moves between board, rack and moves without leaving an inactive cursor", async () => {

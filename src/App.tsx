@@ -117,6 +117,35 @@ function saved(key: string, fallback = "") {
   }
 }
 
+interface SavedMoveResults {
+  moves: Move[];
+  warnings: string[];
+  elapsed: number;
+  rackOdds?: RackOdds;
+  boardOdds?: BoardOddsResult;
+}
+
+const savedMoveResultsLimit = 8;
+
+function positionSignature(game: Game) {
+  const { size, start, premiums, rackSize, bingo, rules, tileCounts } =
+    game.template;
+  return JSON.stringify([
+    game.id,
+    game.dictionaryId,
+    game.rack,
+    game.excludedRackSlots ?? [],
+    game.board,
+    size,
+    start,
+    premiums,
+    rackSize,
+    bingo,
+    rules,
+    tileCounts,
+  ]);
+}
+
 export default function App() {
   const state = useStore(),
     data = state.data;
@@ -154,6 +183,8 @@ export default function App() {
     request = useRef(0),
     solverTask = useRef<"moves" | "rack-odds" | "board-odds" | null>(null),
     importBase = useRef<Game | null>(null);
+  const savedMoveResults = useRef(new Map<string, SavedMoveResults>());
+  const restoreOnUndo = useRef<string | null>(null);
   const game = data?.games.find(
       (g) => g.id === gameId && g.profileId === profileId,
     ),
@@ -164,9 +195,7 @@ export default function App() {
         (g) => g.id === archiveEditId && g.profileId === profileId,
       )
     : game;
-  const signature = game
-    ? `${game.id}|${game.dictionaryId}|${game.rack}|${game.excludedRackSlots?.join(",") ?? ""}|${game.board.join(".")}`
-    : "";
+  const signature = game ? positionSignature(game) : "";
   const [exchange, setExchange] = useState<{ key: string; slots: number[] }>();
   const previewScore =
     game && preview
@@ -230,14 +259,20 @@ export default function App() {
   }, [theme]);
   useEffect(() => {
     if (solverTask.current) stopSolver();
-    setMoves(null);
+    const restored =
+      restoreOnUndo.current === signature
+        ? savedMoveResults.current.get(signature)
+        : undefined;
+    restoreOnUndo.current = null;
+    setMoves(restored?.moves ?? null);
     setPreview(null);
-    setWarnings([]);
+    setWarnings(restored?.warnings ?? []);
+    setElapsed(restored?.elapsed ?? 0);
     setSolveError("");
     setBusy("");
-    setRackOdds(undefined);
+    setRackOdds(restored?.rackOdds);
     setRackOddsPending(false);
-    setBoardOdds(undefined);
+    setBoardOdds(restored?.boardOdds);
     setBoardOddsProgress(undefined);
     setBoardOddsError("");
     request.current++;
@@ -274,6 +309,14 @@ export default function App() {
       };
     }
     store.update(next);
+  }
+  function undoGame() {
+    if (!game?.past.length) return;
+    const previous = undo(game);
+    const previousSignature = positionSignature(previous);
+    if (previousSignature !== signature)
+      restoreOnUndo.current = previousSignature;
+    update(previous);
   }
   function notify(text: string) {
     setToast(text);
@@ -465,7 +508,15 @@ export default function App() {
   function play(move: Move) {
     if (!game) return;
     try {
-      update(playTrackedMove(game, move));
+      const next = playTrackedMove(game, move);
+      if (moves) {
+        const cache = savedMoveResults.current;
+        cache.delete(signature);
+        cache.set(signature, { moves, warnings, elapsed, rackOdds, boardOdds });
+        if (cache.size > savedMoveResultsLimit)
+          cache.delete(cache.keys().next().value!);
+      }
+      update(next);
       setError("");
       notify(
         `${move.word} played for ${move.score} points. Add your new rack letters.`,
@@ -866,7 +917,7 @@ export default function App() {
                       disabled={!game.past.length}
                       aria-label="Undo"
                       title="Undo"
-                      onClick={() => update(undo(game))}
+                      onClick={undoGame}
                     >
                       <Undo2 size={17} />
                     </button>
@@ -1450,7 +1501,7 @@ export default function App() {
             <button
               className="button primary"
               disabled={!game.past.length}
-              onClick={() => update(undo(game))}
+              onClick={undoGame}
             >
               <Undo2 size={16} />
               Undo last change
