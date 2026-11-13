@@ -14,7 +14,20 @@ const brandIndex = Math.floor(Math.random() * uniqueLetters.length);
 const brandLetter = uniqueLetters[brandIndex];
 const highlightedIndex =
   brandLetter === "X" && Math.random() < 0.5 ? brandIndex + 1 : brandIndex;
-const brandOnFire = Math.random() < 0.1;
+const fireTileKey = "tilemaxx:fire-next-refresh";
+const fireTileCombo = [6, 7, 4, 5, 6, 7];
+
+function forceFireTile() {
+  try {
+    if (sessionStorage.getItem(fireTileKey) !== "1") return false;
+    sessionStorage.removeItem(fireTileKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const brandOnFire = forceFireTile() || Math.random() < 0.1;
 
 export function updateFavicon() {
   const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
@@ -60,13 +73,37 @@ export function BrandTile({
   );
 }
 
-export default function Brand() {
+export default function Brand({ onFireArmed }: { onFireArmed?: () => void }) {
   const [selected, setSelected] = useState(highlightedIndex);
   const selectedRef = useRef(highlightedIndex);
+  const tileButton = useRef<HTMLButtonElement>(null);
   const tile = useRef<HTMLSpanElement>(null);
   const word = useRef<HTMLSpanElement>(null);
   const timer = useRef<number | undefined>(undefined);
   const stopMotion = useRef<(() => void) | undefined>(undefined);
+  const tapStart = useRef<{ pointer: number; index: number } | null>(null);
+  const combo = useRef({ length: 0, lastTap: 0 });
+
+  function recordTap(index: number) {
+    const now = performance.now();
+    const length =
+      now - combo.current.lastTap <= 2000 ? combo.current.length : 0;
+    const next =
+      index === fireTileCombo[length]
+        ? length + 1
+        : index === fireTileCombo[0]
+          ? 1
+          : 0;
+    combo.current = { length: next, lastTap: now };
+    if (next !== fireTileCombo.length) return;
+    combo.current.length = 0;
+    try {
+      sessionStorage.setItem(fireTileKey, "1");
+    } catch {
+      return;
+    }
+    onFireArmed?.();
+  }
 
   function cancelReturn() {
     window.clearTimeout(timer.current);
@@ -77,7 +114,8 @@ export default function Brand() {
 
   useEffect(() => cancelReturn, []);
   useEffect(() => {
-    if (tile.current) return attachBrandSparkle(tile.current, brandOnFire);
+    if (tileButton.current && tile.current)
+      return attachBrandSparkle(tileButton.current, tile.current, brandOnFire);
   }, []);
 
   function preview(index: number) {
@@ -109,14 +147,21 @@ export default function Brand() {
   }
 
   return (
-    <a
-      className={`brand${brandOnFire ? " on-fire" : ""}`}
-      href="/"
-      aria-label="Tilemaxx"
-      onClick={(e) => e.preventDefault()}
-    >
-      <BrandTile ref={tile} letter={BRAND_WORD[selected].toUpperCase()} />
-      <span>
+    <div className={`brand${brandOnFire ? " on-fire" : ""}`}>
+      <button
+        className="brand-tile-button"
+        ref={tileButton}
+        type="button"
+        aria-label="Sparkle the Tilemaxx tile"
+      >
+        <BrandTile ref={tile} letter={BRAND_WORD[selected].toUpperCase()} />
+      </button>
+      <a
+        className="brand-name"
+        href="/"
+        aria-label="Tilemaxx"
+        onClick={(e) => e.preventDefault()}
+      >
         <span
           ref={word}
           className="brand-word"
@@ -137,9 +182,22 @@ export default function Brand() {
             }
           }}
           onPointerUp={(e) => {
+            const tap = tapStart.current;
+            if (tap?.pointer === e.pointerId) {
+              tapStart.current = null;
+              const target =
+                e.pointerType === "mouse"
+                  ? e.target
+                  : document.elementFromPoint?.(e.clientX, e.clientY);
+              if (target === e.currentTarget.children[tap.index])
+                recordTap(tap.index);
+            }
             if (e.pointerType !== "mouse") scheduleReturn();
           }}
-          onPointerCancel={scheduleReturn}
+          onPointerCancel={() => {
+            tapStart.current = null;
+            scheduleReturn();
+          }}
           onLostPointerCapture={scheduleReturn}
         >
           {[...BRAND_WORD].map((letter, index) => (
@@ -156,7 +214,9 @@ export default function Brand() {
                   preview(index);
               }}
               onPointerDown={(e) => {
-                if (e.pointerType === "mouse" || !e.isPrimary) return;
+                if (!e.isPrimary || e.button !== 0) return;
+                tapStart.current = { pointer: e.pointerId, index };
+                if (e.pointerType === "mouse") return;
                 word.current?.setPointerCapture(e.pointerId);
                 preview(index);
               }}
@@ -166,7 +226,7 @@ export default function Brand() {
           ))}
         </span>
         <span className="brand-caption">A LITTLE WORD WISDOM</span>
-      </span>
-    </a>
+      </a>
+    </div>
   );
 }

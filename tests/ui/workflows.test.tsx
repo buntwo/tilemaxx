@@ -722,6 +722,7 @@ function touch(
     pointerType: "touch",
     pointerId: 1,
     isPrimary: true,
+    button: 0,
     clientX: 20,
     clientY: 20,
     ...extra,
@@ -731,7 +732,9 @@ function touch(
 
 test("touching the wordmark previews its tile and returns after a pause on release or cancel", async () => {
   await start();
-  const brand = screen.getByRole("link", { name: "Tilemaxx" });
+  const brand = screen
+    .getByRole("link", { name: "Tilemaxx" })
+    .closest(".brand")!;
   const tile = brand.querySelector(".brand-mark")!;
   const highlighted = () => brand.querySelector(".brand-highlight");
   const original = highlighted();

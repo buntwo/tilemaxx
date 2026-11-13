@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import Brand from "../../src/components/Brand";
 import { attachBrandSparkle } from "../../src/components/brand-sparkle";
 
-function setup(reducedMotion = false) {
+function setup(reducedMotion = false, onFireArmed?: () => void) {
   vi.useFakeTimers();
   vi.mocked(window.matchMedia).mockReturnValue({
     matches: reducedMotion,
@@ -25,8 +25,10 @@ function setup(reducedMotion = false) {
   });
   vi.stubGlobal("PointerEvent", MouseEvent);
   const random = vi.spyOn(Math, "random").mockReturnValue(0);
-  render(<Brand />);
-  const brand = screen.getByRole("link", { name: "Tilemaxx" });
+  render(<Brand onFireArmed={onFireArmed} />);
+  const brand = screen
+    .getByRole("link", { name: "Tilemaxx" })
+    .closest(".brand")!;
   const word = brand.querySelector<HTMLElement>(".brand-word")!;
   const base = word.querySelector(".brand-highlight")!;
   const [preview, other] = [...word.children].filter(
@@ -66,8 +68,30 @@ function pointer(target: Element, type: string, pointerType: string) {
 }
 
 afterEach(() => {
+  sessionStorage.clear();
   Reflect.deleteProperty(Element.prototype, "animate");
   vi.useRealTimers();
+});
+
+test("the fire combo requires deliberate taps in order", () => {
+  const onFireArmed = vi.fn();
+  const { word, wait } = setup(false, onFireArmed);
+  const key = "tilemaxx:fire-next-refresh";
+  function tap(index: number) {
+    const letter = word.children[index];
+    pointer(letter, "pointerdown", "mouse");
+    pointer(letter, "pointerup", "mouse");
+  }
+  [6, 7, 4].forEach(tap);
+  wait(2100);
+  [5, 6, 7].forEach(tap);
+  expect(sessionStorage.getItem(key)).toBeNull();
+
+  [6, 7, 5, 4, 6, 7].forEach(tap);
+  expect(sessionStorage.getItem(key)).toBeNull();
+  [6, 7, 4, 5, 6, 7].forEach(tap);
+  expect(sessionStorage.getItem(key)).toBe("1");
+  expect(onFireArmed).toHaveBeenCalledOnce();
 });
 
 test("each return chooses an effect after the 500 ms pause", async () => {
@@ -135,29 +159,40 @@ test("touch release and lost capture share the same pause", () => {
 });
 
 test.each([
-  { onFire: false, perSecond: 10, burst: 28 },
-  { onFire: true, perSecond: 25, burst: 42 },
+  { onFire: false, perSecond: 10, burst: 56 },
+  { onFire: true, perSecond: 25, burst: 84 },
 ])(
-  "tile sparkle emits $perSecond flecks per second and $burst per tap",
+  "tile sparkle emits $perSecond flecks per second and $burst per click or tap",
   async ({ onFire, perSecond, burst }) => {
     const { animate, finish, cancel, wait } = setup();
+    const button = document.createElement("button");
     const tile = document.createElement("span");
-    const detach = attachBrandSparkle(tile, onFire)!;
+    button.append(tile);
+    const detach = attachBrandSparkle(button, tile, onFire)!;
+    const count = () =>
+      button.querySelector(".brand-sparkle")!.childElementCount;
     try {
-      pointer(tile, "pointerenter", "mouse");
-      const initial = animate.mock.calls.length;
+      pointer(button, "pointerenter", "mouse");
+      const initial = count();
       wait(1000);
-      expect(animate).toHaveBeenCalledTimes(initial + perSecond);
-      pointer(tile, "pointerleave", "mouse");
+      expect(count()).toBe(initial + perSecond);
+      fireEvent.click(button);
+      expect(count()).toBe(initial + perSecond + burst);
+      expect(animate).toHaveBeenCalledWith(
+        expect.arrayContaining([{ scale: 0.87, offset: 0.32 }]),
+        expect.objectContaining({ duration: 175 }),
+      );
+      pointer(button, "pointerleave", "mouse");
       wait(1000);
-      expect(animate).toHaveBeenCalledTimes(initial + perSecond);
+      expect(count()).toBe(initial + perSecond + burst);
       await act(async () => finish());
-      fireEvent.click(tile);
-      expect(animate).toHaveBeenCalledTimes(initial + perSecond + burst);
+      expect(count()).toBe(0);
+      fireEvent.click(button);
+      expect(count()).toBe(burst);
     } finally {
       detach();
     }
-    expect(tile.children).toHaveLength(0);
+    expect(button.children).toHaveLength(1);
     expect(cancel).toHaveBeenCalled();
   },
 );
