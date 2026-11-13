@@ -6,13 +6,19 @@ import {
   writeDraft,
   type StoredDraft,
 } from "./draft-storage";
-import type {
-  AppState,
-  Game,
-  Profile,
-  BoardTemplate,
-  Dictionary,
-} from "../shared/model";
+import {
+  cacheGameIndex,
+  cacheOpenGame,
+  dropCachedGame,
+  loadGameCache,
+  RECENT_GAME_LIMIT,
+} from "./game-cache";
+import {
+  summarizeGame,
+  type GameIndex,
+  type GameSummary,
+} from "../shared/game-index";
+import type { Game, Profile, BoardTemplate, Dictionary } from "../shared/model";
 
 export async function api<T>(
   path: string,
@@ -35,15 +41,10 @@ export async function api<T>(
     });
   return result;
 }
-const read = <T>(key: string, fallback: T): T => {
-  try {
-    return JSON.parse(localStorage.getItem(key) || "null") ?? fallback;
-  } catch {
-    return fallback;
-  }
-};
 interface Snapshot {
-  data: AppState | null;
+  data: GameIndex | null;
+  games: Record<string, Game>;
+  loadErrors: Record<string, string>;
   online: boolean;
   error: string;
   pending: string[];
@@ -53,7 +54,9 @@ interface Snapshot {
 }
 export class GameStore {
   snapshot: Snapshot = {
-    data: read<AppState | null>("tilewise:cache", null),
+    data: null,
+    games: {},
+    loadErrors: {},
     online: false,
     error: "",
     pending: [],
@@ -67,6 +70,13 @@ export class GameStore {
   private recoveredDrafts = new Map<string, StoredDraft[]>();
   private undurableDrafts = new Set<string>();
   private confirmedGames = new Map<string, Game>();
+  private confirmedSummaries = new Map<string, GameSummary>();
+  private gameRequests = new Set<string>();
+  private openGameId?: string;
+  private editGameId?: string;
+  private lastCachedGame?: Game;
+  private recentGames = new Set<string>();
+  private lastCachedIndex?: string;
   private cacheError = false;
   listeners = new Set<() => void>();
   deletedGames = new Set<string>();
@@ -76,6 +86,19 @@ export class GameStore {
   refreshing = false;
   timer: ReturnType<typeof setTimeout> | undefined;
   constructor() {
+    const { index, games } = loadGameCache();
+    this.snapshot.data = index;
+    for (const summary of index?.games ?? [])
+      this.confirmedSummaries.set(summary.id, summary);
+    for (const game of games) {
+      if (!this.confirmedSummaries.has(game.id)) continue;
+      this.confirmGame(game);
+      this.snapshot.games[game.id] = game;
+    }
+    if (this.snapshot.data)
+      this.snapshot.data.games = this.snapshot.data.games.map(
+        (summary) => this.confirmedSummaries.get(summary.id) ?? summary,
+      );
     for (const draft of loadDrafts()) {
       const id = draft.game.id;
       if (this.drafts.has(id)) {
@@ -85,14 +108,9 @@ export class GameStore {
       } else {
         this.drafts.set(id, draft.game);
         this.storedDrafts.set(id, draft);
+        this.replace(draft.game);
       }
     }
-    for (const game of this.snapshot.data?.games ?? [])
-      this.confirmedGames.set(game.id, game);
-    if (this.snapshot.data)
-      this.snapshot.data.games = this.snapshot.data.games.map(
-        (g) => this.drafts.get(g.id) || g,
-      );
     this.snapshot.pending = [...this.drafts.keys()];
   }
   subscribe = (fn: () => void) => {
@@ -113,17 +131,125 @@ export class GameStore {
   persist() {
     try {
       if (this.snapshot.data) {
-        const games = this.snapshot.data.games.map(
-          (game) => this.confirmedGames.get(game.id) ?? game,
-        );
-        localStorage.setItem(
-          "tilewise:cache",
-          JSON.stringify({ ...this.snapshot.data, games }),
-        );
+        const index = {
+          ...this.snapshot.data,
+          games: this.snapshot.data.games.map(
+            (game) => this.confirmedSummaries.get(game.id) ?? game,
+          ),
+        };
+        const serialized = JSON.stringify(index);
+        if (serialized !== this.lastCachedIndex) {
+          cacheGameIndex(serialized);
+          this.lastCachedIndex = serialized;
+        }
+      }
+      const open = this.openGameId && this.confirmedGames.get(this.openGameId);
+      if (open && open !== this.lastCachedGame) {
+        cacheOpenGame(open);
+        this.lastCachedGame = open;
       }
       this.cacheError = false;
     } catch {
       this.cacheError = true;
+    }
+  }
+  private confirmGame(game: Game) {
+    const known = this.confirmedSummaries.get(game.id);
+    if (
+      (known && known.revision > game.revision) ||
+      this.deletedGames.has(game.id)
+    )
+      return false;
+    this.confirmedGames.set(game.id, game);
+    this.confirmedSummaries.set(game.id, summarizeGame(game));
+    return true;
+  }
+  watchGames(openGameId?: string, editGameId?: string) {
+    this.openGameId = openGameId;
+    this.editGameId = editGameId;
+    const games = this.snapshot.games;
+    if (openGameId && this.confirmedGames.has(openGameId))
+      this.rememberOpenedGame(openGameId);
+    this.persist();
+    if (
+      games !== this.snapshot.games ||
+      this.snapshot.storageError !==
+        (this.cacheError || !!this.undurableDrafts.size)
+    )
+      this.emit();
+    this.loadWatchedGames();
+  }
+  private rememberOpenedGame(id: string) {
+    this.recentGames.delete(id);
+    this.recentGames.add(id);
+    if (this.recentGames.size <= RECENT_GAME_LIMIT) return;
+    const oldest = this.recentGames.values().next().value!;
+    this.recentGames.delete(oldest);
+    if (
+      oldest === this.openGameId ||
+      oldest === this.editGameId ||
+      this.drafts.has(oldest)
+    )
+      return;
+    this.confirmedGames.delete(oldest);
+    const { [oldest]: _game, ...games } = this.snapshot.games;
+    this.snapshot.games = games;
+  }
+  private loadWatchedGames() {
+    for (const id of new Set([this.openGameId, this.editGameId]))
+      if (id) void this.loadGame(id);
+  }
+  async loadGame(id: string, retryIfStale = true) {
+    const summary = this.confirmedSummaries.get(id);
+    const current = this.confirmedGames.get(id);
+    if (
+      !summary ||
+      this.deletedGames.has(id) ||
+      this.gameRequests.has(id) ||
+      this.drafts.has(id) ||
+      (current && current.revision >= summary.revision)
+    )
+      return;
+
+    this.gameRequests.add(id);
+    let stale = false;
+    try {
+      const game = await api<Game>(`/games/${encodeURIComponent(id)}`);
+      if (this.deletedGames.has(id)) return;
+      if (!this.confirmGame(game)) {
+        stale = true;
+        return;
+      }
+      if (!this.drafts.has(id))
+        this.replace(game, this.confirmedSummaries.get(id));
+      this.rememberOpenedGame(id);
+      if (id in this.snapshot.loadErrors) {
+        const { [id]: _error, ...loadErrors } = this.snapshot.loadErrors;
+        this.snapshot.loadErrors = loadErrors;
+      }
+      this.persist();
+      this.emit();
+    } catch (error) {
+      if (this.deletedGames.has(id)) return;
+      if ((error as { status?: number }).status === 404) {
+        this.forgetGame(id);
+        this.persist();
+      } else {
+        this.snapshot.loadErrors = {
+          ...this.snapshot.loadErrors,
+          [id]:
+            error instanceof Error ? error.message : "Could not load the game.",
+        };
+      }
+      this.emit();
+    } finally {
+      this.gameRequests.delete(id);
+      if (
+        stale &&
+        retryIfStale &&
+        (id === this.openGameId || id === this.editGameId)
+      )
+        await this.loadGame(id, false);
     }
   }
   private persistDraft(game: Game) {
@@ -157,41 +283,52 @@ export class GameStore {
   }
   private finishDraft(saved: Game) {
     const id = saved.id;
-    this.confirmedGames.set(id, saved);
+    this.confirmGame(saved);
     this.removeDraft(id);
-    this.replace(saved);
+    this.replace(
+      this.confirmedGames.get(id) ?? saved,
+      this.confirmedSummaries.get(id),
+    );
     const remaining = this.recoveredDrafts.get(id);
-    if (!remaining?.length) return;
-    // Another tab may have resolved a recovered draft since startup.
-    const active = new Map(loadDrafts().map((draft) => [draft.key, draft.raw]));
-    while (remaining.length) {
-      const next = remaining.shift()!;
-      if (active.get(next.key) !== next.raw) continue;
-      this.drafts.set(id, next.game);
-      this.storedDrafts.set(id, next);
-      this.replace(next.game);
-      this.snapshot.conflicts = { ...this.snapshot.conflicts, [id]: saved };
-      break;
+    if (remaining?.length) {
+      // Another tab may have resolved a recovered draft since startup.
+      const active = new Map(
+        loadDrafts().map((draft) => [draft.key, draft.raw]),
+      );
+      while (remaining.length) {
+        const next = remaining.shift()!;
+        if (active.get(next.key) !== next.raw) continue;
+        this.drafts.set(id, next.game);
+        this.storedDrafts.set(id, next);
+        this.replace(next.game);
+        this.snapshot.conflicts = { ...this.snapshot.conflicts, [id]: saved };
+        break;
+      }
+      if (!remaining.length) this.recoveredDrafts.delete(id);
     }
-    if (!remaining.length) this.recoveredDrafts.delete(id);
+    if (
+      !this.drafts.has(id) &&
+      (id === this.openGameId || id === this.editGameId)
+    )
+      void this.loadGame(id);
   }
   retrySave(id: string) {
     this.clearSaveError(id);
     this.emit();
     void this.flush();
   }
-  replace(game: Game) {
+  replace(game: Game, summary = summarizeGame(game)) {
+    this.snapshot.games = { ...this.snapshot.games, [game.id]: game };
     if (!this.snapshot.data) return;
     this.snapshot.data = {
       ...this.snapshot.data,
-      games: this.snapshot.data.games.map((g) => (g.id === game.id ? game : g)),
+      games: this.snapshot.data.games.map((g) =>
+        g.id === game.id ? summary : g,
+      ),
     };
   }
   update(game: Game) {
     if (this.deletedGames.has(game.id)) return;
-    const previous = this.snapshot.data?.games.find(({ id }) => id === game.id);
-    if (previous && !this.confirmedGames.has(game.id))
-      this.confirmedGames.set(game.id, previous);
     this.replace(game);
     this.drafts.set(game.id, game);
     this.clearSaveError(game.id);
@@ -205,12 +342,18 @@ export class GameStore {
     this.refreshing = true;
     const before = this.snapshot.data;
     try {
-      const remote = await api<AppState>("/state");
+      const remote = await api<GameIndex>("/state/index");
       remote.games = remote.games.map((game) => {
-        const known = this.confirmedGames.get(game.id);
-        const current = known && known.revision > game.revision ? known : game;
-        this.confirmedGames.set(game.id, current);
-        return this.drafts.get(game.id) ?? current;
+        const known = this.confirmedSummaries.get(game.id);
+        const current = known && known.revision >= game.revision ? known : game;
+        if (!this.deletedGames.has(game.id))
+          this.confirmedSummaries.set(game.id, current);
+        const draft = this.drafts.get(game.id);
+        if (!draft) return current;
+        return (
+          this.snapshot.data?.games.find(({ id }) => id === game.id) ??
+          summarizeGame(draft)
+        );
       });
       // A list request can finish after a creation request. Keep items created
       // during that request so selecting a new game cannot jump back to an old one.
@@ -254,16 +397,24 @@ export class GameStore {
       remote.games = remote.games.filter((g) => profileIds.has(g.profileId));
       const remoteIds = new Set(remote.games.map((g) => g.id));
       for (const game of before?.games || [])
-        if (!remoteIds.has(game.id)) this.forgetGame(game.id);
+        if (!remoteIds.has(game.id) && !this.deletedGames.has(game.id))
+          this.forgetGame(game.id);
       remote.games = remote.games.filter((g) => !this.deletedGames.has(g.id));
-      this.snapshot = {
-        ...this.snapshot,
-        data: remote,
-        online: true,
-        error: "",
-      };
-      this.persist();
-      this.emit();
+      const unchanged =
+        this.snapshot.online &&
+        this.snapshot.data &&
+        JSON.stringify(remote) === JSON.stringify(this.snapshot.data);
+      if (!unchanged) {
+        this.snapshot = {
+          ...this.snapshot,
+          data: remote,
+          online: true,
+          error: "",
+        };
+        this.persist();
+        this.emit();
+      }
+      this.loadWatchedGames();
       void this.flush();
     } catch (error) {
       this.snapshot = {
@@ -278,7 +429,7 @@ export class GameStore {
     }
   }
   async flush() {
-    if (this.busy) return;
+    if (this.busy || !this.drafts.size) return;
     this.busy = true;
     try {
       for (const [id] of this.drafts) {
@@ -286,18 +437,32 @@ export class GameStore {
           continue;
         const draft = this.drafts.get(id)!;
         try {
-          const saved = await api<Game>(`/games/${id}`, "PUT", draft);
+          const saved = await api<Game>(
+            `/games/${encodeURIComponent(id)}`,
+            "PUT",
+            draft,
+          );
           if (this.deletedGames.has(id)) continue;
           this.snapshot.online = true;
           if (this.drafts.get(id) === draft) {
-            this.finishDraft(saved);
+            // The server may normalize metadata, but position and history are
+            // accepted as submitted. Keep their identity through acknowledgement.
+            this.finishDraft({
+              ...saved,
+              board: draft.board,
+              scoring: draft.scoring,
+              past: draft.past,
+              future: draft.future,
+              trackedMoves: draft.trackedMoves,
+              excludedRackSlots: draft.excludedRackSlots,
+            });
           } else {
             const newer = {
               ...this.drafts.get(id)!,
               revision: saved.revision,
               updatedAt: saved.updatedAt,
             };
-            this.confirmedGames.set(id, saved);
+            this.confirmGame(saved);
             this.drafts.set(id, newer);
             this.replace(newer);
             this.persistDraft(newer);
@@ -349,9 +514,12 @@ export class GameStore {
     const saved = await api<Game>("/games", "POST", game);
     if (this.deletedProfiles.has(saved.profileId))
       throw new Error("This profile was deleted.");
+    this.confirmGame(saved);
+    this.rememberOpenedGame(saved.id);
+    this.snapshot.games = { ...this.snapshot.games, [saved.id]: saved };
     this.snapshot.data = {
       ...this.snapshot.data!,
-      games: [...this.snapshot.data!.games, saved],
+      games: [...this.snapshot.data!.games, summarizeGame(saved)],
     };
     this.persist();
     this.emit();
@@ -360,6 +528,17 @@ export class GameStore {
   private forgetGame(id: string) {
     this.deletedGames.add(id);
     this.confirmedGames.delete(id);
+    this.confirmedSummaries.delete(id);
+    this.recentGames.delete(id);
+    try {
+      dropCachedGame(id);
+    } catch {
+      this.cacheError = true;
+    }
+    const { [id]: _game, ...games } = this.snapshot.games;
+    const { [id]: _error, ...loadErrors } = this.snapshot.loadErrors;
+    this.snapshot.games = games;
+    this.snapshot.loadErrors = loadErrors;
     this.removeDraft(id);
     for (const draft of this.recoveredDrafts.get(id) ?? []) {
       try {

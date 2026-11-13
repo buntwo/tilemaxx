@@ -35,7 +35,7 @@ test("typing and deletion form separate whole-word undo/redo steps across save a
   let game = fixture();
   for (const [offset, letter] of [..."CAT"].entries()) {
     game = write(history, game, 112 + offset, letter);
-    game = structuredClone({ ...game, revision: game.revision + 1 });
+    game = { ...game, revision: game.revision + 1 };
   }
   assert.equal(game.past.length, 1);
   assert.equal(undo(game).board.filter(Boolean).length, 0);

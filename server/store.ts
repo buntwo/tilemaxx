@@ -17,6 +17,11 @@ import {
   emptyBoard,
   localDate,
 } from "../shared/model";
+import {
+  summarizeGame,
+  type GameIndex,
+  type GameSummary,
+} from "../shared/game-index";
 import { PRESETS } from "../shared/presets";
 import { parseWords } from "../shared/lexicon";
 import { defaultDictionary } from "../shared/dictionaries";
@@ -29,6 +34,9 @@ export function createStore(directory: string, root: string) {
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
     CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY,name TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY,revision INTEGER NOT NULL,data TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS game_summaries (id TEXT PRIMARY KEY,revision INTEGER NOT NULL,data TEXT NOT NULL);
+    CREATE TRIGGER IF NOT EXISTS delete_game_summary AFTER DELETE ON games
+      BEGIN DELETE FROM game_summaries WHERE id=OLD.id; END;
     CREATE TABLE IF NOT EXISTS profile_game_order (profile_id TEXT PRIMARY KEY,game_ids TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS templates (id TEXT PRIMARY KEY,data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS dictionaries (id TEXT PRIMARY KEY,data TEXT NOT NULL,file TEXT NOT NULL);`);
@@ -91,6 +99,53 @@ export function createStore(directory: string, root: string) {
       .prepare("SELECT data FROM games")
       .all()
       .map((row) => JSON.parse(row.data as string) as Game);
+  const writeSummary = db.prepare(`
+    INSERT INTO game_summaries VALUES (?,?,?)
+    ON CONFLICT(id) DO UPDATE SET revision=excluded.revision,data=excluded.data
+  `);
+  function saveSummary(game: Game) {
+    writeSummary.run(
+      game.id,
+      game.revision,
+      JSON.stringify(summarizeGame(game)),
+    );
+  }
+  const staleSummaryJoin = `
+    FROM games LEFT JOIN game_summaries AS summaries
+      ON summaries.id=games.id AND summaries.revision=games.revision
+    WHERE summaries.id IS NULL
+  `;
+  const hasStaleSummary = db.prepare(`SELECT 1 ${staleSummaryJoin} LIMIT 1`);
+  const missingSummaries = db.prepare(`SELECT games.data ${staleSummaryJoin}`);
+  const summaries = db.prepare(`
+    SELECT summaries.data FROM games
+    JOIN game_summaries AS summaries
+      ON summaries.id=games.id AND summaries.revision=games.revision
+    ORDER BY games.rowid
+  `);
+  function transaction<T>(run: () => T): T {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const result = run();
+      db.exec("COMMIT");
+      return result;
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  function gameIndex() {
+    // Older databases and saves made by an older server have no current summary.
+    if (hasStaleSummary.get()) {
+      transaction(() => {
+        for (const row of missingSummaries.all())
+          saveSummary(JSON.parse(row.data as string) as Game);
+      });
+    }
+    return summaries
+      .all()
+      .map((row) => JSON.parse(row.data as string) as GameSummary);
+  }
   const dictionaries = () =>
     db
       .prepare("SELECT data FROM dictionaries")
@@ -114,6 +169,17 @@ export function createStore(directory: string, root: string) {
           gameOrder: JSON.parse(row.game_ids) as string[],
         }),
       }));
+  const workspace = () => ({
+    profiles: profiles(),
+    templates: [
+      ...PRESETS,
+      ...db
+        .prepare("SELECT data FROM templates")
+        .all()
+        .map((row) => JSON.parse(row.data as string) as BoardTemplate),
+    ],
+    dictionaries: dictionaries(),
+  });
   function createGame(
     input: Omit<Game, "id" | "revision" | "updatedAt">,
   ): Game {
@@ -124,11 +190,14 @@ export function createStore(directory: string, root: string) {
       revision: 0,
       updatedAt: new Date().toISOString(),
     };
-    db.prepare("INSERT INTO games VALUES (?,?,?)").run(
-      game.id,
-      0,
-      JSON.stringify(game),
-    );
+    transaction(() => {
+      db.prepare("INSERT INTO games VALUES (?,?,?)").run(
+        game.id,
+        0,
+        JSON.stringify(game),
+      );
+      saveSummary(game);
+    });
     return game;
   }
   if (db.prepare("PRAGMA user_version").get()?.user_version === 0) {
@@ -171,19 +240,14 @@ export function createStore(directory: string, root: string) {
     getGame,
     createGame,
     dictionaries,
+    hasProfile(id: string) {
+      return !!db.prepare("SELECT 1 FROM profiles WHERE id=?").get(id);
+    },
     state(): AppState {
-      return {
-        profiles: profiles(),
-        games: games(),
-        templates: [
-          ...PRESETS,
-          ...db
-            .prepare("SELECT data FROM templates")
-            .all()
-            .map((row) => JSON.parse(row.data as string)),
-        ],
-        dictionaries: dictionaries(),
-      };
+      return { ...workspace(), games: games() };
+    },
+    index(): GameIndex {
+      return { ...workspace(), games: gameIndex() };
     },
     createProfile(name: string) {
       const profile = { id: randomUUID(), name };
@@ -205,7 +269,7 @@ export function createStore(directory: string, root: string) {
       const profile = profiles().find((item) => item.id === profileId);
       if (!profile) return "missing";
       const active = new Set(
-        games()
+        gameIndex()
           .filter((g) => g.profileId === profileId && !g.archived)
           .map((g) => g.id),
       );
@@ -226,8 +290,7 @@ export function createStore(directory: string, root: string) {
         .get(id);
       if (!profile) return { status: "missing" } as const;
       if (profile.name !== name) return { status: "mismatch" } as const;
-      db.exec("BEGIN");
-      try {
+      return transaction(() => {
         const deleted = db
           .prepare(
             "DELETE FROM games WHERE json_extract(data, '$.profileId')=? RETURNING id",
@@ -235,15 +298,11 @@ export function createStore(directory: string, root: string) {
           .all(id);
         db.prepare("DELETE FROM profiles WHERE id=?").run(id);
         db.prepare("DELETE FROM profile_game_order WHERE profile_id=?").run(id);
-        db.exec("COMMIT");
         return {
           status: "deleted",
           gameIds: deleted.map((game) => game.id as string),
         } as const;
-      } catch (error) {
-        db.exec("ROLLBACK");
-        throw error;
-      }
+      });
     },
     deleteGame(id: string) {
       db.prepare("DELETE FROM games WHERE id=?").run(id);
@@ -254,10 +313,16 @@ export function createStore(directory: string, root: string) {
         revision: game.revision + 1,
         updatedAt: new Date().toISOString(),
       };
-      const result = db
-        .prepare("UPDATE games SET revision=?,data=? WHERE id=? AND revision=?")
-        .run(saved.revision, JSON.stringify(saved), game.id, game.revision);
-      return result.changes ? saved : undefined;
+      return transaction(() => {
+        const result = db
+          .prepare(
+            "UPDATE games SET revision=?,data=? WHERE id=? AND revision=?",
+          )
+          .run(saved.revision, JSON.stringify(saved), game.id, game.revision);
+        if (!result.changes) return undefined;
+        saveSummary(saved);
+        return saved;
+      });
     },
     saveTemplate(template: BoardTemplate) {
       const saved = { ...template, id: randomUUID(), builtin: false };
