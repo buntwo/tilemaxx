@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, Pencil } from "lucide-react";
-import type { Game } from "../../shared/model";
+import type { GameSummary } from "../../shared/game-index";
 import { GameMetadata } from "./GameDetails";
 import LayoutThumbnail from "./LayoutThumbnail";
 
@@ -17,7 +17,7 @@ export default function ArchivedGames({
   onEdit,
   onBack,
 }: {
-  games: Game[];
+  games: GameSummary[];
   sort: ArchiveSort;
   onSort: (sort: ArchiveSort) => void;
   onOpen: (id: string) => void;
@@ -61,10 +61,7 @@ export default function ArchivedGames({
                     className="archive-open"
                     onClick={() => onOpen(game.id)}
                   >
-                    <LayoutThumbnail
-                      board={game.board}
-                      template={game.template}
-                    />
+                    <LayoutThumbnail thumbnail={game.thumbnail} />
                     <span className="game-picker-label">
                       <strong>{game.name}</strong>
                       <small>

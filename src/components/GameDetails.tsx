@@ -1,7 +1,11 @@
 import { useId } from "react";
 import { localDate, MAX_GAME_NOTES, type Game } from "../../shared/model";
 
-export function GameMetadata({ game }: { game: Game }) {
+export function GameMetadata({
+  game,
+}: {
+  game: Pick<Game, "platform" | "startedOn">;
+}) {
   return (
     <>
       {game.platform && <>{game.platform} · </>}

@@ -8,7 +8,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronRight, GripVertical } from "lucide-react";
-import type { Game } from "../../shared/model";
+import type { GameSummary } from "../../shared/game-index";
 
 import { GameMetadata } from "./GameDetails";
 import LayoutThumbnail from "./LayoutThumbnail";
@@ -18,7 +18,7 @@ function GamePickerLabel({
   number,
   selected,
 }: {
-  game: Game;
+  game: GameSummary;
   number: number;
   selected: boolean;
 }) {
@@ -27,7 +27,7 @@ function GamePickerLabel({
       <span className="game-picker-number" aria-hidden="true">
         {number}
       </span>
-      <LayoutThumbnail board={game.board} template={game.template} />
+      <LayoutThumbnail thumbnail={game.thumbnail} />
       <span className="game-picker-label">
         <strong>{game.name}</strong>
         <small>
@@ -45,8 +45,8 @@ export default function GamePicker({
   onChoose,
   onReorder,
 }: {
-  game?: Game;
-  games: Game[];
+  game?: GameSummary;
+  games: GameSummary[];
   onChoose: (id: string) => void;
   onReorder: (ids: string[]) => Promise<void>;
 }) {

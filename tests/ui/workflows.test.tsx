@@ -10,6 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import App from "../../src/App";
 import { GameStore, store } from "../../src/store";
+import { summarizeGame } from "../../shared/game-index";
 import { PRESETS } from "../../shared/presets";
 import { emptyBoard, type AppState, type Game } from "../../shared/model";
 import { Lexicon } from "../../shared/lexicon";
@@ -33,8 +34,7 @@ const game = (): Game => ({
   updatedAt: "",
   archived: false,
 });
-const current = () =>
-  store.getSnapshot().data!.games.find((g) => g.id === "g")!;
+const current = () => store.getSnapshot().games.g;
 class SolverWorker {
   onmessage: ((e: { data: unknown }) => void) | null = null;
   terminate = vi.fn();
@@ -289,12 +289,13 @@ beforeEach(() => {
     ],
   };
   clearTimeout(store.timer);
+  localStorage.setItem("tilewise:cache", JSON.stringify(remote));
   const initial = new GameStore();
   for (const [key, value] of Object.entries(initial)) {
     if (typeof value !== "function") Object.assign(store, { [key]: value });
   }
   store.snapshot = {
-    data: structuredClone(remote),
+    ...initial.snapshot,
     online: true,
     error: "",
     pending: [],
@@ -308,7 +309,14 @@ beforeEach(() => {
     vi.fn(async (url: string, options?: RequestInit) => {
       let value: unknown = remote;
       const body = options?.body ? JSON.parse(options.body as string) : null;
-      if (url.startsWith("/api/games/") && options?.method === "DELETE") {
+      if (url === "/api/state/index") {
+        value = { ...remote, games: remote.games.map(summarizeGame) };
+      } else if (url.startsWith("/api/games/") && options?.method === "GET") {
+        value = remote.games.find(({ id }) => id === url.split("/").at(-1));
+      } else if (
+        url.startsWith("/api/games/") &&
+        options?.method === "DELETE"
+      ) {
         remote.games = remote.games.filter(
           (g) => g.id !== url.split("/").at(-1),
         );
@@ -1097,7 +1105,8 @@ test("multiple games retain separate racks and theme selection survives remount"
   await user.click(screen.getByRole("button", { name: "dark theme" }));
   expect(localStorage.getItem("tilewise:theme")).toBe("dark");
   expect(
-    store.snapshot.data!.games.find((g) => g.name === "Second game")!.rack,
+    Object.values(store.snapshot.games).find((g) => g.name === "Second game")!
+      .rack,
   ).toBe("DOG");
 });
 
@@ -1394,7 +1403,7 @@ test("exclude rack tiles with Down or taps, keep the unseen count, and retain he
 
 test("reordering My games saves the profile order without switching games", async () => {
   remote.games.push({ ...game(), id: "second", name: "Second game" });
-  store.snapshot.data = structuredClone(remote);
+  await store.refresh();
   const user = await start();
   await user.click(cell("Switch game"));
   const handle = screen.getByRole("menuitem", { name: "Reorder First game" });
@@ -1425,7 +1434,9 @@ test("reordering My games saves the profile order without switching games", asyn
 test("an overdrawn vowel keeps the other unseen tile counts visible", async () => {
   const board = remote.games[0].board;
   board.fill("U", 0, 4);
+  remote.games[0].revision++;
   const user = await start();
+  await waitFor(() => expect(current().revision).toBe(1));
   await typeRack(user, "UA");
   expect(
     screen

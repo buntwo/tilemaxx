@@ -147,6 +147,22 @@ function positionSignature(game: Game) {
   ]);
 }
 
+function GameLoadStatus({ id, error }: { id: string; error?: string }) {
+  return error ? (
+    <div>
+      <p role="alert">{error}</p>
+      <button
+        className="button secondary"
+        onClick={() => void store.loadGame(id)}
+      >
+        Try again
+      </button>
+    </div>
+  ) : (
+    <p role="status">Opening game…</p>
+  );
+}
+
 export default function App() {
   const boardPanel = useRef<HTMLElement>(null);
   const rackPanel = useRef<HTMLElement>(null);
@@ -172,16 +188,26 @@ export default function App() {
   const [archiveSort, setArchiveSort] = useState<ArchiveSort>("date");
   const [archiveEditId, setArchiveEditId] = useState<string>();
   const importBase = useRef<Game | null>(null);
-  const game = data?.games.find(
-      (g) => g.id === gameId && g.profileId === profileId,
-    ),
-    profile = data?.profiles.find((p) => p.id === profileId);
+  const selectedGame = data?.games.find(
+    (g) => g.id === gameId && g.profileId === profileId,
+  );
+  const game = selectedGame ? state.games[selectedGame.id] : undefined;
+  const profile = data?.profiles.find((p) => p.id === profileId);
   const editProfile = data?.profiles.find((p) => p.id === editProfileId);
+  const editingArchive =
+    dialog === "rename" && archiveEditId
+      ? data?.games.find(
+          (g) => g.id === archiveEditId && g.profileId === profileId,
+        )
+      : undefined;
   const editGame = archiveEditId
-    ? data?.games.find(
-        (g) => g.id === archiveEditId && g.profileId === profileId,
-      )
+    ? editingArchive && state.games[editingArchive.id]
     : game;
+  const openId = workspace === "games" ? selectedGame?.id : undefined;
+  const editId = editingArchive?.id;
+  useEffect(() => {
+    store.watchGames(openId, editId);
+  }, [openId, editId]);
   const signature = game ? positionSignature(game) : "";
   const solver = useSolver(signature);
   const { busy, warnings } = solver;
@@ -297,7 +323,7 @@ export default function App() {
     // Older archives have no saved baseline. Capture their board before the
     // first edit so that additions stay marked after reloading or undoing.
     if (next.archived && !next.archivedBoard) {
-      const previous = data?.games.find((g) => g.id === next.id);
+      const previous = store.getSnapshot().games[next.id];
       const baseline = archiveGame(previous ?? next);
       next = {
         ...next,
@@ -336,7 +362,7 @@ export default function App() {
   }
   function openMyGames() {
     showWorkspace("games");
-    if (!game?.archived) return;
+    if (!selectedGame?.archived) return;
     const last = saved(`tilewise:last:${profileId}`);
     setGameId(
       activeGames.find((g) => g.id === last)?.id ?? activeGames[0]?.id ?? "",
@@ -416,8 +442,10 @@ export default function App() {
     profile?.gameOrder,
   );
   const archivedGames = profileGames.filter((g) => g.archived);
-  const viewingArchivedGame = workspace === "games" && game?.archived;
-  const pending = game && state.pending.includes(game.id),
+  const viewingArchivedGame = workspace === "games" && selectedGame?.archived;
+  const pending = state.pending.length > 0,
+    hasConflict = Object.keys(state.conflicts).length > 0,
+    hasSaveError = Object.keys(state.saveErrors).length > 0,
     conflict = game && state.conflicts[game.id],
     saveError = game && state.saveErrors[game.id];
   const profileLetter =
@@ -562,17 +590,17 @@ export default function App() {
                 ? "Board studio"
                 : workspace === "archive"
                   ? "Archived games"
-                  : game?.name || "Your workspace"}
+                  : selectedGame?.name || "Your workspace"}
             </span>
           </div>
           <div className="topbar-actions">
             <span
-              className={`sync-status ${!state.online || conflict || saveError ? "offline" : ""}`}
+              className={`sync-status ${!state.online || hasConflict || hasSaveError ? "offline" : ""}`}
               title={
                 saveError || state.error || "Games are saved on your server"
               }
             >
-              {conflict || saveError ? (
+              {hasConflict || hasSaveError ? (
                 <Info size={14} />
               ) : !state.online ? (
                 <CloudOff size={14} />
@@ -582,9 +610,9 @@ export default function App() {
                 <CheckCheck size={15} />
               )}
               <span>
-                {conflict
+                {hasConflict
                   ? "Review changes"
-                  : saveError
+                  : hasSaveError
                     ? "Save rejected"
                     : !state.online
                       ? "Saved on this device"
@@ -629,12 +657,12 @@ export default function App() {
           <div className="workspace-heading">
             <div>
               <div className="game-title-row">
-                {game?.archived ? (
-                  <h1>{game.name}</h1>
+                {selectedGame?.archived ? (
+                  <h1>{selectedGame.name}</h1>
                 ) : (
                   <GamePicker
                     key={profileId}
-                    game={game}
+                    game={selectedGame}
                     games={activeGames}
                     onChoose={chooseGame}
                     onReorder={(ids) => store.reorderGames(profileId, ids)}
@@ -656,12 +684,12 @@ export default function App() {
                   </span>
                 )}
               </div>
-              {game && (
+              {selectedGame && (
                 <div className="game-title-meta">
                   <div>
-                    <GameMetadata game={game} />
+                    <GameMetadata game={selectedGame} />
                   </div>
-                  {game.archived && <span>Archived</span>}
+                  {selectedGame.archived && <span>Archived</span>}
                 </div>
               )}
               {game?.notes && (
@@ -1022,6 +1050,13 @@ export default function App() {
               </div>
             </div>
           </div>
+        ) : selectedGame ? (
+          <section className="welcome-panel panel" aria-label="Game board">
+            <GameLoadStatus
+              id={selectedGame.id}
+              error={state.loadErrors[selectedGame.id]}
+            />
+          </section>
         ) : (
           <div className="welcome-panel panel">
             <div className="illustrated-tiles">
@@ -1139,9 +1174,7 @@ export default function App() {
           onClose={() => setDialog(null)}
           onApply={(board) => {
             const base = importBase.current!;
-            const latest = store
-              .getSnapshot()
-              .data?.games.find((g) => g.id === base.id);
+            const latest = store.getSnapshot().games[base.id];
             if (!latest || latest.board.join(".") !== base.board.join("."))
               throw new Error(
                 "The board changed while you were reviewing. Close this import and try again with the latest game.",
@@ -1383,20 +1416,29 @@ export default function App() {
           </form>
         </Modal>
       )}
-      {dialog === "rename" && editGame && (
+      {dialog === "rename" && (editGame || editingArchive) && (
         <Modal title="Edit game details" onClose={() => setDialog(null)}>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              update({ ...editGame, ...readGameDetails(e.currentTarget) });
-              setDialog(null);
-            }}
-          >
-            <GameDetailFields key={editGame.id} game={editGame} />
-            <footer className="modal-footer">
-              <button className="button primary">Save details</button>
-            </footer>
-          </form>
+          {editGame ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                update({ ...editGame, ...readGameDetails(e.currentTarget) });
+                setDialog(null);
+              }}
+            >
+              <GameDetailFields key={editGame.id} game={editGame} />
+              <footer className="modal-footer">
+                <button className="button primary">Save details</button>
+              </footer>
+            </form>
+          ) : (
+            editingArchive && (
+              <GameLoadStatus
+                id={editingArchive.id}
+                error={state.loadErrors[editingArchive.id]}
+              />
+            )
+          )}
         </Modal>
       )}
       {dialog === "history" && game && (
