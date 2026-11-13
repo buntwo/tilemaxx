@@ -1102,6 +1102,16 @@ label + label {
     inset 0 0 0 1px #719f7b;
   color: #234c30;
 }
+@media (prefers-reduced-motion: no-preference) {
+  .square.ghost:not(.blank) {
+    animation: preview-tile-pulse 2.8s ease-in-out infinite;
+  }
+}
+@keyframes preview-tile-pulse {
+  50% {
+    background-color: #91c49b;
+  }
+}
 .square.selected {
   outline: 2px solid var(--primary);
   outline-offset: 1px !important;
