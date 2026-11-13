@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createStore } from "../server/store";
@@ -30,6 +30,35 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
       game = state.games[0];
     assert.equal(state.templates.length, 3);
     assert.equal(state.dictionaries.length, 2);
+    assert.match(game.startedOn!, /^\d{4}-\d{2}-\d{2}$/);
+    const croppedPng = readFileSync("tests/fixtures/board.png");
+    const corrected = [...game.board];
+    corrected[112] = "c";
+    const example = {
+      size: 15,
+      crop: { left: 0, top: 0, width: 750, height: 750 },
+      sourceWidth: 750,
+      sourceHeight: 750,
+      recognized: { board: game.board, uncertain: [112], candidates: 1 },
+      corrected,
+      croppedPng: croppedPng.toString("base64"),
+    };
+    assert.equal(
+      (await req("/screenshot-examples", "POST", { ...example, corrected: [] }))
+        .status,
+      400,
+    );
+    const savedExample = await req("/screenshot-examples", "POST", example);
+    assert.equal(savedExample.status, 201);
+    const { id: exampleId } = await savedExample.json();
+    const exampleDir = join(dir, "screenshot-examples", exampleId);
+    assert.deepEqual(readFileSync(join(exampleDir, "board.png")), croppedPng);
+    assert.equal(
+      JSON.parse(readFileSync(join(exampleDir, "labels.json"), "utf8"))
+        .corrected[112],
+      "c",
+    );
+    assert.deepEqual(store.getGame(game.id), game);
     const profile = await (
       await req("/profiles", "POST", { name: "Phone player" })
     ).json();
@@ -113,6 +142,7 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
       start: 24,
       premiums: Array(49).fill("DL"),
       bingo: 40,
+      tileCounts: { ...template.tileCounts, Q: 3, "?": 0 },
     };
     const editedTemplate = await (
       await req(`/templates/${template.id}`, "PUT", templateChanges)
@@ -120,6 +150,21 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
     assert.equal(editedTemplate.id, template.id);
     assert.equal(editedTemplate.name, "Edited custom");
     assert.equal(editedTemplate.size, 7);
+    assert.deepEqual(editedTemplate.tileCounts, templateChanges.tileCounts);
+    for (const tileCounts of [
+      { A: 1 },
+      { ...templateChanges.tileCounts, A: -1 },
+    ]) {
+      assert.equal(
+        (
+          await req(`/templates/${template.id}`, "PUT", {
+            ...templateChanges,
+            tileCounts,
+          })
+        ).status,
+        400,
+      );
+    }
     assert.deepEqual(store.getGame(customGame.id)!.template, template);
     assert.equal(store.state().templates.length, 4);
     assert.equal(
@@ -171,6 +216,40 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
       (await req("/games", "POST", { ...created, board: [] })).status,
       400,
     );
+    const withSlots = await req(`/games/${created.id}`, "PUT", {
+      ...created,
+      startedOn: "2026-03-15",
+      platform: "Words With Friends",
+      notes: "Close game.\nReview the endgame.",
+      archived: true,
+      archivedBoard: created.board,
+      archivedState: { rack: "DOG", past: [], future: [] },
+      trackScores: true,
+      trackedMoves: [
+        { player: "you", word: "CAT", score: 10, at: new Date().toISOString() },
+      ],
+      scoring: {
+        you: { points: 10, moves: 1, best: 10, bingos: 0 },
+        opponent: { points: 0, moves: 0, best: 0, bingos: 0 },
+      },
+      rack: ".A.T.?",
+      past: [
+        {
+          board: created.board,
+          rack: "C..T",
+          label: "Before deletion",
+          at: new Date().toISOString(),
+          player: "you",
+        },
+      ],
+    });
+    assert.equal(withSlots.status, 200);
+    assert.equal((await withSlots.json()).rack, ".A.T.?");
+    const anotherDevice: AppState = await (await req("/state")).json();
+    assert.equal(
+      anotherDevice.games.find((g) => g.id === created.id)!.rack,
+      ".A.T.?",
+    );
     await new Promise<void>((r) => server.close(() => r()));
     store.db.close();
     store = createStore(dir, process.cwd());
@@ -181,7 +260,19 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
       "Renamed player",
     );
     assert.equal(store.getGame(created.id)!.profileId, profile.id);
-    assert.ok(store.getGame(created.id));
+    assert.equal(store.getGame(created.id)!.rack, ".A.T.?");
+    assert.equal(store.getGame(created.id)!.past[0].rack, "C..T");
+    assert.equal(store.getGame(created.id)!.past[0].player, "you");
+    assert.equal(store.getGame(created.id)!.startedOn, "2026-03-15");
+    assert.equal(store.getGame(created.id)!.platform, "Words With Friends");
+    assert.equal(
+      store.getGame(created.id)!.notes,
+      "Close game.\nReview the endgame.",
+    );
+    assert.deepEqual(store.getGame(created.id)!.archivedBoard, created.board);
+    assert.equal(store.getGame(created.id)!.archivedState?.rack, "DOG");
+    assert.equal(store.getGame(created.id)!.scoring?.you.points, 10);
+    assert.equal(store.getGame(created.id)!.trackedMoves?.[0].word, "CAT");
     assert.equal(store.state().templates.length, 4);
     assert.deepEqual(
       store.state().templates.find((t) => t.id === template.id),

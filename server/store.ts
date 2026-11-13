@@ -14,9 +14,13 @@ import {
   type Game,
   type BoardTemplate,
   emptyBoard,
+  localDate,
 } from "../shared/model";
 import { PRESETS } from "../shared/presets";
 import { parseWords } from "../shared/lexicon";
+import { defaultDictionary } from "../shared/dictionaries";
+import { type z } from "zod";
+import { type screenshotExampleSchema } from "./validation";
 
 export function createStore(directory: string, root: string) {
   mkdirSync(join(directory, "dictionaries"), { recursive: true });
@@ -104,6 +108,7 @@ export function createStore(directory: string, root: string) {
   ): Game {
     const game = {
       ...input,
+      startedOn: input.startedOn ?? localDate(),
       id: randomUUID(),
       revision: 0,
       updatedAt: new Date().toISOString(),
@@ -122,8 +127,7 @@ export function createStore(directory: string, root: string) {
       profileId: id,
       name: "First game",
       template: PRESETS[0],
-      dictionaryId:
-        dictionaries().find((d) => d.id === "csw24")?.id || "wordnik",
+      dictionaryId: defaultDictionary(dictionaries())?.id || "wordnik",
       board: emptyBoard(15),
       rack: "",
       past: [],
@@ -133,6 +137,23 @@ export function createStore(directory: string, root: string) {
   }
   return {
     db,
+    saveScreenshotExample({
+      croppedPng,
+      ...example
+    }: z.infer<typeof screenshotExampleSchema>) {
+      const id = randomUUID();
+      const folder = join(directory, "screenshot-examples", id);
+      mkdirSync(folder, { recursive: true });
+      writeFileSync(
+        join(folder, "board.png"),
+        Buffer.from(croppedPng, "base64"),
+      );
+      writeFileSync(
+        join(folder, "labels.json"),
+        JSON.stringify({ ...example, id, version: 1 }, null, 2),
+      );
+      return { id };
+    },
     getGame,
     createGame,
     dictionaries,

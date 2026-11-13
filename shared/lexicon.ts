@@ -11,23 +11,30 @@ export function parseWords(text: string): string[] {
   ].sort();
 }
 
-/** Compact, sorted trie: about 11 bytes per node, without an object per letter. */
+export function popcount(bits: number): number {
+  bits -= (bits >>> 1) & 0x55555555;
+  bits = (bits & 0x33333333) + ((bits >>> 2) & 0x33333333);
+  return (((bits + (bits >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
+}
+
+/** Each node's children occupy a contiguous range, in descending letter order. */
 export class Lexicon {
-  first: Int32Array;
-  next: Int32Array;
-  letters: Uint8Array;
-  terminal: Uint8Array;
-  count: number;
+  readonly first: Int32Array;
+  readonly mask: Int32Array;
+  readonly terminal: Uint8Array;
+  readonly maxTail: Uint8Array;
+  readonly count: number;
+
   constructor(words: string[]) {
     const capacity = 1 + words.reduce((n, w) => n + w.length, 0);
     const first = new Int32Array(capacity),
-      next = new Int32Array(capacity),
-      letters = new Uint8Array(capacity),
+      next = new Int32Array(capacity);
+    const letters = new Uint8Array(capacity),
       terminal = new Uint8Array(capacity);
     let used = 1,
-      previous = "",
-      path = [0];
-    // parseWords sorts inputs; sort defensively for callers constructing test dictionaries.
+      previous = "";
+    const path = [0];
+    // Sorted words let construction append only the part after the shared prefix.
     for (const word of [...words].sort()) {
       let prefix = 0;
       while (prefix < word.length && previous[prefix] === word[prefix])
@@ -44,23 +51,68 @@ export class Lexicon {
       terminal[path[word.length]] = 1;
       previous = word;
     }
-    this.first = first.slice(0, used);
-    this.next = next.slice(0, used);
-    this.letters = letters.slice(0, used);
-    this.terminal = terminal.slice(0, used);
+    this.first = new Int32Array(used);
+    this.mask = new Int32Array(used);
+    this.terminal = new Uint8Array(used);
+    this.maxTail = new Uint8Array(used);
     this.count = words.length;
-  }
-  child(node: number, letter: number): number {
-    for (let i = this.first[node]; i; i = this.next[i])
-      if (this.letters[i] === letter) return i;
-    return 0;
-  }
-  has(word: string): boolean {
-    let node = 0;
-    for (const char of word.toUpperCase()) {
-      node = this.child(node, char.charCodeAt(0) - 65);
-      if (!node) return false;
+    // Remap in breadth-first order so every set of siblings is adjacent.
+    const original = new Int32Array(used);
+    let free = 1;
+    for (let node = 0; node < used; node++) {
+      const old = original[node];
+      this.terminal[node] = terminal[old];
+      this.first[node] = free;
+      for (let child = first[old]; child; child = next[child]) {
+        this.mask[node] |= 1 << letters[child];
+        original[free++] = child;
+      }
     }
-    return !!this.terminal[node];
+    for (let node = used - 1; node >= 0; node--) {
+      const start = this.first[node],
+        end = start + popcount(this.mask[node]);
+      for (let child = start; child < end; child++) {
+        this.maxTail[node] = Math.max(
+          this.maxTail[node],
+          1 + this.maxTail[child],
+        );
+      }
+    }
+  }
+
+  child(node: number, letter: number): number {
+    if (letter < 0 || letter >= 26) return 0;
+    const mask = this.mask[node];
+    return mask & (1 << letter)
+      ? this.first[node] + popcount(mask >>> (letter + 1))
+      : 0;
+  }
+
+  private follow(node: number, text: string): number {
+    for (let i = 0; i < text.length; i++) {
+      node = this.child(node, text.charCodeAt(i) - 65);
+      if (!node) break;
+    }
+    return node;
+  }
+
+  has(word: string): boolean {
+    const node = this.follow(0, word.toUpperCase());
+    return (node !== 0 || word.length === 0) && !!this.terminal[node];
+  }
+
+  /** Letters that make a word when inserted between two fixed strings. */
+  crossMask(prefix: string, suffix: string): number {
+    const node = this.follow(0, prefix);
+    if (prefix && !node) return 0;
+    let allowed = 0,
+      child = this.first[node];
+    for (let bits = this.mask[node]; bits; child++) {
+      const bit = 1 << (31 - Math.clz32(bits));
+      const end = this.follow(child, suffix);
+      if (end && this.terminal[end]) allowed |= bit;
+      bits ^= bit;
+    }
+    return allowed;
   }
 }

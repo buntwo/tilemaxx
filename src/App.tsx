@@ -1,20 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowDown,
   ImagePlus,
   ArrowRight,
   ArrowUpRight,
   BookOpen,
   Check,
   CheckCheck,
-  ChevronDown,
   CloudOff,
   Copy,
   Grid2X2,
+  Flame,
   History,
   Home,
   Info,
-  LayoutGrid,
   LoaderCircle,
   Menu,
   Monitor,
@@ -31,28 +29,49 @@ import {
   Sun,
   Undo2,
   Upload,
-  UserRound,
   Wifi,
   X,
   Archive,
   Trash2,
 } from "lucide-react";
 import Board from "./components/Board";
+import BoardEntry from "./components/BoardEntry";
+import RackEntry from "./components/RackEntry";
+import TilePool from "./components/TilePool";
+import { rackLetters } from "../shared/rack-entry";
 import BoardStudio from "./components/BoardStudio";
 import ScreenshotImport from "./components/ScreenshotImport";
 import { importBoard } from "../shared/screenshot";
 import Modal from "./components/Modal";
 import Results from "./components/Results";
+import GamePicker from "./components/GamePicker";
+import {
+  GameDetailFields,
+  GameMetadata,
+  readGameDetails,
+} from "./components/GameDetails";
+import ArchivedGames, { type ArchiveSort } from "./components/ArchivedGames";
+import GameScores from "./components/GameScores";
+import {
+  emptyScoring,
+  playTrackedMove,
+  recordOpponentPlay,
+  setScoreTracking,
+  treatBoardEditAsCorrection,
+} from "../shared/game-scoring";
+import { defaultDictionary } from "../shared/dictionaries";
+import { type BoardOddsResult, type RackOdds } from "../shared/bingo-odds";
 import { store, useStore } from "./store";
 import {
   type BoardTemplate,
   type Game,
   type Move,
-  applyMove,
+  archiveGame,
   coordinate,
   emptyBoard,
   redo,
   remember,
+  restoreArchivedGame,
   tileScore,
   undo,
 } from "../shared/model";
@@ -78,6 +97,24 @@ function saved(key: string, fallback = "") {
   }
 }
 
+const BRAND_LETTERS = "TILEMAX";
+const brandLetter =
+  BRAND_LETTERS[Math.floor(Math.random() * BRAND_LETTERS.length)];
+const brandOnFire = Math.random() < 0.1;
+
+function BrandTile() {
+  return (
+    <span
+      className={`brand-mark${brandOnFire ? " on-fire" : ""}`}
+      aria-hidden="true"
+    >
+      {brandOnFire && <Flame className="brand-flame" size={19} />}
+      {brandLetter}
+      <small>{tileScore(brandLetter, "scrabble")}</small>
+    </span>
+  );
+}
+
 export default function App() {
   const state = useStore(),
     data = state.data;
@@ -88,29 +125,41 @@ export default function App() {
     [toast, setToast] = useState(""),
     [error, setError] = useState("");
   const [theme, setTheme] = useState(saved("tilewise:theme", "system"));
-  const [selected, setSelected] = useState<number | null>(null),
-    [direction, setDirection] = useState<"across" | "down">("across"),
-    [entry, setEntry] = useState("");
   const [moves, setMoves] = useState<Move[] | null>(null),
     [preview, setPreview] = useState<Move | null>(null),
     [busy, setBusy] = useState(""),
     [solveError, setSolveError] = useState(""),
     [elapsed, setElapsed] = useState(0),
     [warnings, setWarnings] = useState<string[]>([]);
+  const [rackOdds, setRackOdds] = useState<RackOdds>();
+  const [rackOddsPending, setRackOddsPending] = useState(false);
+  const [boardOdds, setBoardOdds] = useState<BoardOddsResult>();
+  const [boardOddsProgress, setBoardOddsProgress] = useState<{
+    checked: number;
+    total: number;
+  }>();
+  const [boardOddsError, setBoardOddsError] = useState("");
   const [formName, setFormName] = useState(""),
+    [formTrackScores, setFormTrackScores] = useState(true),
     [formTemplate, setFormTemplate] = useState("scrabble"),
     [formDictionary, setFormDictionary] = useState(""),
-    [formBusy, setFormBusy] = useState(false),
-    [showArchive, setShowArchive] = useState(false);
+    [formBusy, setFormBusy] = useState(false);
+  const [archiveView, setArchiveView] = useState(
+    () => location.hash === "#archived-games",
+  );
+  const [archiveSort, setArchiveSort] = useState<ArchiveSort>("date");
+  const [archiveEditId, setArchiveEditId] = useState<string>();
   const worker = useRef<Worker | null>(null),
     request = useRef(0),
-    searching = useRef(false),
-    wordInput = useRef<HTMLInputElement>(null),
-    keepWordFocus = useRef(false),
-    importBase = useRef<Game | null>(null),
-    rackInput = useRef<HTMLInputElement>(null);
+    solverTask = useRef<"moves" | "rack-odds" | "board-odds" | null>(null),
+    importBase = useRef<Game | null>(null);
   const game = data?.games.find((g) => g.id === gameId),
     profile = data?.profiles.find((p) => p.id === profileId);
+  const editGame = archiveEditId
+    ? data?.games.find(
+        (g) => g.id === archiveEditId && g.profileId === profileId,
+      )
+    : game;
   const signature = game
     ? `${game.id}|${game.dictionaryId}|${game.rack}|${game.board.join(".")}`
     : "";
@@ -165,23 +214,32 @@ export default function App() {
     } catch {}
   }, [theme]);
   useEffect(() => {
-    if (searching.current) {
-      worker.current?.terminate();
-      worker.current = null;
-      searching.current = false;
-    }
+    if (solverTask.current) stopSolver();
     setMoves(null);
     setPreview(null);
     setWarnings([]);
     setSolveError("");
     setBusy("");
+    setRackOdds(undefined);
+    setRackOddsPending(false);
+    setBoardOdds(undefined);
+    setBoardOddsProgress(undefined);
+    setBoardOddsError("");
     request.current++;
   }, [signature]);
   useEffect(() => {
-    setSelected(null);
-    setEntry("");
     setError("");
   }, [gameId]);
+  useEffect(() => {
+    const changeView = () => {
+      setArchiveView(location.hash === "#archived-games");
+      setDialog(null);
+      setSidebar(false);
+      setPreview(null);
+    };
+    window.addEventListener("hashchange", changeView);
+    return () => window.removeEventListener("hashchange", changeView);
+  }, []);
   useEffect(() => () => worker.current?.terminate(), []);
   useEffect(() => {
     if (!toast) return;
@@ -189,12 +247,35 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
   function update(next: Game) {
+    // Older archives have no saved baseline. Capture their board before the
+    // first edit so that additions stay marked after reloading or undoing.
+    if (next.archived && !next.archivedBoard) {
+      const previous = data?.games.find((g) => g.id === next.id);
+      const baseline = archiveGame(previous ?? next);
+      next = {
+        ...next,
+        archivedBoard: baseline.archivedBoard,
+        archivedState: baseline.archivedState,
+      };
+    }
     store.update(next);
   }
   function notify(text: string) {
     setToast(text);
   }
+  function showArchive(open: boolean) {
+    if (archiveView !== open)
+      history.pushState(
+        null,
+        "",
+        open ? "#archived-games" : location.pathname + location.search,
+      );
+    setArchiveView(open);
+    setSidebar(false);
+    setPreview(null);
+  }
   function chooseGame(id: string) {
+    if (archiveView) showArchive(false);
     setGameId(id);
     setSidebar(false);
   }
@@ -205,21 +286,16 @@ export default function App() {
     setSidebar(false);
     if (next === "screenshot") importBase.current = game || null;
     if (next === "new") {
-      setFormName("");
+      setFormTrackScores(true);
       setFormTemplate("scrabble");
       setFormDictionary(
-        game?.dictionaryId ||
-          data?.dictionaries.find((d) => d.id === "csw24")?.id ||
-          data?.dictionaries[0]?.id ||
+        defaultDictionary(data?.dictionaries ?? [], game?.dictionaryId)?.id ??
           "",
       );
     }
-    if (next === "rename") setFormName(game?.name || "");
+    if (next === "rename") setArchiveEditId(undefined);
     if (next === "profile") setFormName("");
     if (next === "rename-profile") setFormName(profile?.name || "");
-  }
-  function toggleDirection() {
-    setDirection((current) => (current === "across" ? "down" : "across"));
   }
   async function action(fn: () => Promise<void>) {
     setFormBusy(true);
@@ -232,29 +308,55 @@ export default function App() {
       setFormBusy(false);
     }
   }
-  function solve() {
-    if (busy) {
-      worker.current?.terminate();
-      worker.current = null;
-      searching.current = false;
-      setBusy("");
-      request.current++;
-      return;
-    }
-    if (!game?.rack) return;
+  function stopSolver() {
+    worker.current?.terminate();
+    worker.current = null;
+    solverTask.current = null;
+    request.current++;
+  }
+  function solverWorker() {
     if (!worker.current) {
-      worker.current = new Worker(
+      const active = new Worker(
         new URL("./solver.worker.ts", import.meta.url),
         { type: "module" },
       );
-      worker.current.onmessage = (e) => {
+      worker.current = active;
+      active.onmessage = (e) => {
         const result = e.data;
-        if (result.id !== request.current) return;
+        if (worker.current !== active || result.id !== request.current) return;
+        if ("boardOddsProgress" in result) {
+          setBoardOddsProgress(
+            (previous) =>
+              previous && { ...previous, checked: result.boardOddsProgress },
+          );
+          return;
+        }
+        if ("boardOdds" in result || "boardOddsError" in result) {
+          solverTask.current = null;
+          setBoardOddsProgress(undefined);
+          setBoardOdds(result.boardOdds);
+          setBoardOddsError(result.boardOddsError ?? "");
+          return;
+        }
+        if ("rackOdds" in result || "rackOddsError" in result) {
+          solverTask.current = null;
+          setRackOddsPending(false);
+          setRackOdds(
+            result.rackOdds ?? {
+              byLeave: {},
+              exact: false,
+              bagSize: 0,
+              error: result.rackOddsError,
+            },
+          );
+          return;
+        }
         if (result.status) {
           setBusy(result.status);
           return;
         }
-        searching.current = false;
+        solverTask.current = result.rackOddsPending ? "rack-odds" : null;
+        setRackOddsPending(!!result.rackOddsPending);
         setBusy("");
         if (result.error) {
           setSolveError(result.error);
@@ -264,19 +366,45 @@ export default function App() {
         setWarnings(result.warnings);
         setElapsed(result.elapsed);
       };
-      worker.current.onerror = () => {
-        searching.current = false;
+      active.onerror = () => {
+        if (worker.current !== active) return;
+        const task = solverTask.current;
+        stopSolver();
         setBusy("");
-        setSolveError("The solver stopped unexpectedly. Try again.");
-        worker.current?.terminate();
-        worker.current = null;
+        setRackOddsPending(false);
+        setBoardOddsProgress(undefined);
+        if (task === "board-odds")
+          setBoardOddsError("The board check stopped unexpectedly. Try again.");
+        else if (task === "rack-odds")
+          setRackOdds({
+            byLeave: {},
+            exact: false,
+            bagSize: 0,
+            error: "Bingo draw odds could not be calculated.",
+          });
+        else setSolveError("The solver stopped unexpectedly. Try again.");
       };
     }
+    return worker.current;
+  }
+  function solve() {
+    if (busy) {
+      stopSolver();
+      setBusy("");
+      return;
+    }
+    if (!game || !rackLetters(game.rack)) return;
+    if (solverTask.current) stopSolver();
     setPreview(null);
     setSolveError("");
     setBusy("Finding moves…");
-    searching.current = true;
-    worker.current.postMessage({
+    setRackOdds(undefined);
+    setRackOddsPending(false);
+    setBoardOdds(undefined);
+    setBoardOddsProgress(undefined);
+    setBoardOddsError("");
+    solverTask.current = "moves";
+    solverWorker().postMessage({
       id: ++request.current,
       dictionaryId: game.dictionaryId,
       board: game.board,
@@ -284,10 +412,32 @@ export default function App() {
       template: game.template,
     });
   }
+  function runBoardOdds(candidates: Move[], bagSize: number) {
+    if (!game || solverTask.current || !candidates.length) return;
+    setBoardOdds(undefined);
+    setBoardOddsError("");
+    setBoardOddsProgress({ checked: 0, total: candidates.length });
+    solverTask.current = "board-odds";
+    solverWorker().postMessage({
+      id: ++request.current,
+      kind: "board-odds",
+      dictionaryId: game.dictionaryId,
+      board: game.board,
+      rack: game.rack,
+      template: game.template,
+      candidates,
+      bagSize,
+    });
+  }
+  function cancelBoardOdds() {
+    if (solverTask.current !== "board-odds") return;
+    stopSolver();
+    setBoardOddsProgress(undefined);
+  }
   function play(move: Move) {
     if (!game) return;
     try {
-      update(applyMove(game, move));
+      update(playTrackedMove(game, move));
       notify(
         `${move.word} played for ${move.score} points. Add your new rack letters.`,
       );
@@ -295,58 +445,20 @@ export default function App() {
       setError((e as Error).message);
     }
   }
-  function enterWord() {
-    if (!game || selected === null || !entry) return;
-    const text = entry.replace(/[^a-zA-Z.]/g, "").toUpperCase(),
-      n = game.template.size;
-    const available =
-      direction === "across"
-        ? n - (selected % n)
-        : n - Math.floor(selected / n);
-    if (text.length > available) {
-      setError("That word runs past the edge of the board.");
-      return;
-    }
-    const board = [...game.board];
-    for (let k = 0; k < text.length; k++)
-      if (text[k] !== ".")
-        board[selected + k * (direction === "across" ? 1 : n)] = text[k];
-    update({ ...game, ...remember(game, `Entered ${text}`), board });
-    setEntry("");
-    setError("");
-  }
-  function editCell(blank = false) {
-    if (!game || selected === null) return;
-    const board = [...game.board];
-    if (blank) {
-      if (!board[selected]) return;
-      board[selected] =
-        board[selected] === board[selected].toUpperCase()
-          ? board[selected].toLowerCase()
-          : board[selected].toUpperCase();
-    } else board[selected] = "";
-    update({
-      ...game,
-      ...remember(game, blank ? "Changed blank tile" : "Erased a tile"),
-      board,
-    });
-  }
   const profileGames =
-    data?.games.filter(
-      (g) => g.profileId === profileId && g.archived === showArchive,
-    ) || [];
+    data?.games.filter((g) => g.profileId === profileId) ?? [];
+  const activeGames = profileGames.filter((g) => !g.archived);
+  const archivedGames = profileGames.filter((g) => g.archived);
   const pending = game && state.pending.includes(game.id),
     conflict = game && state.conflicts[game.id];
   if (!data)
     return (
       <div className="loading-screen">
-        <div className="brand-mark">
-          T<small>1</small>
-        </div>
-        <h1>Tilewise</h1>
+        <BrandTile />
+        <h1>Tilemaxx</h1>
         {state.error ? (
           <>
-            <p>Cannot reach the Tilewise server.</p>
+            <p>Cannot reach the Tilemaxx server.</p>
             <button
               className="button primary"
               onClick={() => void store.refresh()}
@@ -369,62 +481,32 @@ export default function App() {
       )}
       <aside className={`sidebar ${sidebar ? "open" : ""}`}>
         <a className="brand" href="/" onClick={(e) => e.preventDefault()}>
-          <span className="brand-mark">
-            T<small>1</small>
-          </span>
+          <BrandTile />
           <span>
-            tilewise<span className="brand-caption">A LITTLE WORD WISDOM</span>
+            tilemaxx<span className="brand-caption">A LITTLE WORD WISDOM</span>
           </span>
         </a>
         <button className="button new-game" onClick={() => openDialog("new")}>
           <Plus size={18} />
           New game
         </button>
-        <div className="sidebar-label">YOUR WORKSPACE</div>
-        <button
-          className="nav-link selected-nav"
-          onClick={() => setSidebar(false)}
-        >
-          <LayoutGrid size={18} />
-          My games
-          <span className="nav-count">
-            {
-              data.games.filter((g) => g.profileId === profileId && !g.archived)
-                .length
-            }
-          </span>
-        </button>
-        <div className="game-list">
-          {profileGames.map((g) => (
-            <button
-              className={`game-link ${g.id === gameId ? "active" : ""}`}
-              key={g.id}
-              onClick={() => chooseGame(g.id)}
-            >
-              <span className="game-dot" />
-              <span>
-                {g.name}
-                <small>{g.template.name}</small>
-              </span>
-              {g.id === gameId && <ChevronDown size={14} />}
-            </button>
-          ))}
-          {!profileGames.length && (
-            <p className="small muted no-games">
-              {showArchive
-                ? "No archived games."
-                : "Your next game starts here."}
-            </p>
-          )}
-        </div>
-        <button
-          className="text-button archive-toggle"
-          onClick={() => setShowArchive(!showArchive)}
-        >
-          <Archive size={14} />
-          {showArchive ? "Show active games" : "Archived games"}
-        </button>
         <div className="sidebar-divider" />
+        <button
+          className="nav-link"
+          aria-current={archiveView ? undefined : "page"}
+          onClick={() => showArchive(false)}
+        >
+          <Home size={18} />
+          My games
+        </button>
+        <button
+          className="nav-link"
+          aria-current={archiveView ? "page" : undefined}
+          onClick={() => showArchive(true)}
+        >
+          <Archive size={18} />
+          Archived games
+        </button>
         <button className="nav-link" onClick={() => openDialog("boards")}>
           <Grid2X2 size={18} />
           Board studio
@@ -443,8 +525,8 @@ export default function App() {
             Your games. Your home server.
           </div>
           <div className="profile-picker">
-            <span className="avatar">
-              <UserRound size={18} />
+            <span className="avatar" aria-hidden="true">
+              {[...(profile?.name.trim() ?? "")][0]?.toLocaleUpperCase() || "?"}
             </span>
             <span>
               <small>PLAYING AS</small>
@@ -484,7 +566,7 @@ export default function App() {
           <div className="breadcrumb">
             <button
               className="icon-button menu-button"
-              aria-label="Open games menu"
+              aria-label="Open workspace menu"
               onClick={() => setSidebar(true)}
             >
               <Menu size={20} />
@@ -492,7 +574,9 @@ export default function App() {
             <Home size={15} />
             <span>My games</span>
             <span className="breadcrumb-slash">/</span>
-            <span>{game?.name || "Your workspace"}</span>
+            <span>
+              {archiveView ? "Archived games" : game?.name || "Your workspace"}
+            </span>
           </div>
           <div className="topbar-actions">
             <span
@@ -541,34 +625,61 @@ export default function App() {
             </div>
           </div>
         </header>
-        <div className="workspace-heading">
-          <div>
-            <div className="eyebrow">MAKE ROOM FOR A GREAT WORD</div>
-            <h1>
-              {game?.name || "A fresh start."}
+        {!archiveView && (
+          <div className="workspace-heading">
+            <div>
+              <div className="game-title-row">
+                <GamePicker
+                  game={game}
+                  games={activeGames}
+                  onChoose={chooseGame}
+                />
+              </div>
               {game && (
-                <button
-                  className="icon-button edit-title"
-                  aria-label="Rename game"
-                  onClick={() => openDialog("rename")}
-                >
-                  <Pencil size={16} />
-                </button>
+                <div className="game-title-meta">
+                  <div>
+                    <GameMetadata game={game} />
+                  </div>
+                  {game.archived && <span>Archived</span>}
+                </div>
               )}
-            </h1>
-            <p>Your board. Your letters. All the possibilities.</p>
+              {game?.notes && (
+                <details className="game-notes" key={game.id}>
+                  <summary>Notes</summary>
+                  <p>{game.notes}</p>
+                </details>
+              )}
+            </div>
+            {game && (
+              <div className="game-actions">
+                {game.archived && (
+                  <button
+                    className="button secondary"
+                    disabled={!game.archivedBoard}
+                    onClick={() => {
+                      update(restoreArchivedGame(game));
+                      notify(
+                        game.archivedState
+                          ? "Archived position restored."
+                          : "Archived board restored.",
+                      );
+                    }}
+                  >
+                    <Undo2 size={16} /> Restore game
+                  </button>
+                )}
+                <button
+                  className="button secondary manage-button"
+                  aria-label="Game options"
+                  onClick={() => openDialog("manage")}
+                >
+                  <MoreHorizontal size={18} />
+                  <span>Game options</span>
+                </button>
+              </div>
+            )}
           </div>
-          {game && (
-            <button
-              className="button secondary manage-button"
-              aria-label="Game options"
-              onClick={() => openDialog("manage")}
-            >
-              <MoreHorizontal size={18} />
-              <span>Game options</span>
-            </button>
-          )}
-        </div>
+        )}
         {state.storageError && (
           <div className="banner warning">
             Browser storage is full or disabled. Keep this tab open until the
@@ -614,7 +725,19 @@ export default function App() {
             </button>
           </div>
         )}
-        {game ? (
+        {archiveView ? (
+          <ArchivedGames
+            games={archivedGames}
+            sort={archiveSort}
+            onSort={setArchiveSort}
+            onOpen={chooseGame}
+            onEdit={(id) => {
+              setArchiveEditId(id);
+              setDialog("rename");
+            }}
+            onBack={() => showArchive(false)}
+          />
+        ) : game ? (
           <div className="workspace-grid">
             <div className="board-column">
               <section className="board-panel panel">
@@ -666,18 +789,24 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-                <Board
-                  template={game.template}
-                  board={game.board}
+                <BoardEntry
+                  key={game.id}
+                  game={game}
                   preview={preview}
-                  selected={selected}
-                  onSelect={(i) => {
-                    setSelected(i);
-                    setPreview(null);
-                    wordInput.current?.focus({ preventScroll: true });
-                  }}
+                  onChange={update}
+                  onSelect={() => setPreview(null)}
                 />
                 <div className="board-legend">
+                  {game.archivedBoard &&
+                    game.archived &&
+                    game.board.some(
+                      (tile, i) => tile && tile !== game.archivedBoard![i],
+                    ) && (
+                      <span>
+                        <i className="archive-edit" />
+                        Edited after archiving
+                      </span>
+                    )}
                   {[
                     "TW",
                     "DW",
@@ -700,171 +829,13 @@ export default function App() {
                     </span>
                   ))}
                 </div>
-                <div className="entry-panel">
-                  <div className="entry-heading">
-                    <span>
-                      <Pencil size={14} />
-                      {selected === null
-                        ? "Click a square to enter the board"
-                        : `Enter at ${coordinate(selected, game.template.size)}`}
-                    </span>
-                    <button
-                      className="text-button direction-button"
-                      aria-label="Toggle entry direction"
-                      title="Switch Across/Down (Shift+Enter)"
-                      aria-keyshortcuts="Shift+Enter"
-                      onPointerDown={(e) => {
-                        keepWordFocus.current =
-                          document.activeElement === wordInput.current;
-                        // Prevent the pointer's default focus transfer, keeping
-                        // the iPhone keyboard open and preserving the caret.
-                        if (keepWordFocus.current) e.preventDefault();
-                      }}
-                      onClick={() => {
-                        toggleDirection();
-                        if (keepWordFocus.current)
-                          wordInput.current?.focus({ preventScroll: true });
-                        keepWordFocus.current = false;
-                      }}
-                    >
-                      {direction === "across" ? (
-                        <ArrowRight size={16} />
-                      ) : (
-                        <ArrowDown size={16} />
-                      )}{" "}
-                      {direction === "across" ? "Across" : "Down"}
-                      <kbd className="direction-shortcut" aria-hidden="true">
-                        ⇧↵
-                      </kbd>
-                    </button>
-                  </div>
-                  <form
-                    className="entry-form"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      enterWord();
-                    }}
-                  >
-                    <input
-                      ref={wordInput}
-                      aria-label="Word to enter on board"
-                      placeholder={
-                        selected === null
-                          ? "Select a starting square…"
-                          : "Type a word, then press Enter"
-                      }
-                      value={entry}
-                      autoComplete="off"
-                      autoCorrect="off"
-                      autoCapitalize="characters"
-                      spellCheck={false}
-                      onChange={(e) =>
-                        setEntry(
-                          e.target.value
-                            .replace(/[^a-zA-Z.]/g, "")
-                            .toUpperCase(),
-                        )
-                      }
-                      onKeyDown={(e) => {
-                        if (
-                          e.key === "Enter" &&
-                          e.shiftKey &&
-                          !e.nativeEvent.isComposing
-                        ) {
-                          e.preventDefault();
-                          if (!e.repeat) toggleDirection();
-                          return;
-                        }
-                        if (selected === null) return;
-                        if (e.key === "Escape") {
-                          setSelected(null);
-                          setEntry("");
-                        }
-                        if (
-                          !entry &&
-                          [
-                            "ArrowLeft",
-                            "ArrowRight",
-                            "ArrowUp",
-                            "ArrowDown",
-                          ].includes(e.key)
-                        ) {
-                          e.preventDefault();
-                          const n = game.template.size,
-                            r = Math.floor(selected / n),
-                            c = selected % n;
-                          const dr =
-                              e.key === "ArrowDown"
-                                ? 1
-                                : e.key === "ArrowUp"
-                                  ? -1
-                                  : 0,
-                            dc =
-                              e.key === "ArrowRight"
-                                ? 1
-                                : e.key === "ArrowLeft"
-                                  ? -1
-                                  : 0;
-                          if (
-                            r + dr >= 0 &&
-                            r + dr < n &&
-                            c + dc >= 0 &&
-                            c + dc < n
-                          )
-                            setSelected((r + dr) * n + c + dc);
-                        }
-                        if (
-                          !entry &&
-                          (e.key === "Backspace" || e.key === "Delete")
-                        ) {
-                          e.preventDefault();
-                          editCell();
-                        }
-                      }}
-                    />
-                    <button
-                      className="button secondary"
-                      disabled={selected === null || !entry}
-                    >
-                      Add
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label="Erase selected tile"
-                      title="Erase selected tile"
-                      disabled={selected === null || !game.board[selected]}
-                      onClick={() => editCell()}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </form>
-                  <div className="entry-note">
-                    <span>
-                      Enter opponent moves here · a dot skips a square
-                    </span>
-                    <button
-                      className={`text-button ${selected !== null && game.board[selected] && game.board[selected] === game.board[selected].toLowerCase() ? "active" : ""}`}
-                      disabled={selected === null || !game.board[selected]}
-                      onClick={() => editCell(true)}
-                    >
-                      Blank tile:{" "}
-                      {selected !== null &&
-                      game.board[selected] &&
-                      game.board[selected] ===
-                        game.board[selected].toLowerCase()
-                        ? "on"
-                        : "off"}
-                    </button>
-                  </div>
-                </div>
               </section>
               <section className="rack-panel panel">
                 <div className="rack-heading">
                   <h2>Your rack</h2>
                   <span>
-                    {game.rack.length} / {game.template.rackSize} tiles{" "}
-                    <span className="rack-hint">· ? is a blank</span>
+                    {rackLetters(game.rack).length} / {game.template.rackSize}{" "}
+                    tiles
                   </span>
                   <button
                     className="icon-button"
@@ -873,63 +844,15 @@ export default function App() {
                     onClick={() =>
                       update({
                         ...game,
-                        rack: game.rack.split("").sort().join(""),
+                        rack: rackLetters(game.rack).split("").sort().join(""),
                       })
                     }
                   >
                     <Shuffle size={16} />
                   </button>
-                </div>
-                <div
-                  className="rack-tiles"
-                  onClick={() => rackInput.current?.focus()}
-                >
-                  {Array.from({ length: game.template.rackSize }, (_, i) => {
-                    const tile = game.rack[i];
-                    return (
-                      <span
-                        key={i}
-                        className={`rack-tile ${!tile ? "empty" : ""}`}
-                      >
-                        {tile === "?" ? "" : tile || "·"}
-                        {tile && (
-                          <small>
-                            {tile === "?"
-                              ? 0
-                              : tileScore(tile, game.template.rules)}
-                          </small>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-                <div className="rack-input-row">
-                  <input
-                    aria-label="Rack letters"
-                    ref={rackInput}
-                    value={game.rack}
-                    placeholder="Type your letters…"
-                    maxLength={game.template.rackSize * 2}
-                    autoCapitalize="characters"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    onChange={(e) =>
-                      update({
-                        ...game,
-                        rack: e.target.value
-                          .toUpperCase()
-                          .replace(/[^A-Z?]/g, "")
-                          .slice(0, game.template.rackSize),
-                      })
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") solve();
-                    }}
-                  />
                   <button
                     className="button primary solve-button"
-                    disabled={!game.rack && !busy}
+                    disabled={!rackLetters(game.rack) && !busy}
                     onClick={solve}
                   >
                     {busy ? (
@@ -941,7 +864,21 @@ export default function App() {
                     {!busy && <ArrowRight size={17} />}
                   </button>
                 </div>
+                <RackEntry
+                  key={game.id}
+                  game={game}
+                  onChange={update}
+                  onSolve={solve}
+                />
+                <TilePool key={`tile-pool:${game.id}`} game={game} />
               </section>
+              <GameScores
+                key={game.id}
+                game={game}
+                onToggle={(enabled) => update(setScoreTracking(game, enabled))}
+                onRecord={() => update(recordOpponentPlay(game))}
+                onCorrection={() => update(treatBoardEditAsCorrection(game))}
+              />
               <div className="dictionary-strip">
                 <BookOpen size={15} />
                 <label>
@@ -976,11 +913,22 @@ export default function App() {
                 elapsed={elapsed}
                 error={solveError}
                 size={game.template.size}
+                rackSize={game.template.rackSize}
+                bingoBonus={game.template.bingo}
                 preview={preview}
                 onPreview={setPreview}
                 onPlay={play}
                 onSolve={solve}
-                hasRack={!!game.rack}
+                hasRack={!!rackLetters(game.rack)}
+                analysisGame={game}
+                analysisKey={signature}
+                rackOdds={rackOdds}
+                rackOddsPending={rackOddsPending}
+                boardOdds={boardOdds}
+                boardOddsProgress={boardOddsProgress}
+                boardOddsError={boardOddsError}
+                onBoardOdds={runBoardOdds}
+                onCancelBoardOdds={cancelBoardOdds}
               />
               {warnings.length > 0 && (
                 <div className="board-warnings">
@@ -1005,8 +953,8 @@ export default function App() {
                 </div>
               </div>
               <div className="keyboard-tip">
-                <span>TIP</span>Use <kbd>?</kbd> for a blank in your rack. On
-                the board, select a letter and turn on “Blank tile”.
+                <span>TIP</span>Use <kbd>Space</kbd> for a blank in your rack.
+                On the board, press Space before a letter to enter a blank.
               </div>
             </div>
           </div>
@@ -1036,15 +984,16 @@ export default function App() {
         )}
         <footer className="workspace-footer">
           <span>Less guessing. More good words.</span>
-          <span>Tilewise · Local & personal</span>
+          <span>Tilemaxx · Local & personal</span>
         </footer>
       </main>
-      {preview && game && (
+      {!archiveView && preview && game && (
         <div className="mobile-preview-dock" aria-label="Move preview">
           <div className="dock-board">
             <Board
               template={game.template}
               board={game.board}
+              archivedBoard={game.archived ? game.archivedBoard : undefined}
               preview={preview}
               compact
             />
@@ -1095,8 +1044,6 @@ export default function App() {
               );
             update(importBoard(latest, board));
             setDialog(null);
-            setSelected(null);
-            setEntry("");
             notify("Screenshot imported. You can undo this change.");
           }}
         />
@@ -1121,14 +1068,11 @@ export default function App() {
         />
       )}
       {dialog === "new" && (
-        <Modal
-          title="A new game, a fresh board."
-          subtitle="Every game keeps its own board, rack, and history."
-          onClose={() => setDialog(null)}
-        >
+        <Modal title="New game" onClose={() => setDialog(null)}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              const details = readGameDetails(e.currentTarget);
               void action(async () => {
                 const template = data.templates.find(
                   (t) => t.id === formTemplate,
@@ -1139,9 +1083,7 @@ export default function App() {
                   );
                 const created = await store.createGame({
                   profileId,
-                  name:
-                    formName.trim() ||
-                    `Game ${data.games.filter((g) => g.profileId === profileId).length + 1}`,
+                  ...details,
                   template,
                   dictionaryId: formDictionary,
                   board: emptyBoard(template.size),
@@ -1149,22 +1091,14 @@ export default function App() {
                   past: [],
                   future: [],
                   archived: false,
+                  trackScores: formTrackScores,
                 });
                 chooseGame(created.id);
                 setDialog(null);
               });
             }}
           >
-            <label>
-              Game name
-              <input
-                autoFocus
-                placeholder="Sunday afternoon"
-                maxLength={80}
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-              />
-            </label>
+            <GameDetailFields />
             <label>
               Board layout
               <select
@@ -1190,6 +1124,14 @@ export default function App() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="score-checkbox">
+              <input
+                type="checkbox"
+                checked={formTrackScores}
+                onChange={(e) => setFormTrackScores(e.target.checked)}
+              />
+              Track scores
             </label>
             <p className="small muted">
               Saved under {profile?.name}. Custom layouts are available in Board
@@ -1277,29 +1219,18 @@ export default function App() {
           </form>
         </Modal>
       )}
-      {dialog === "rename" && game && (
-        <Modal title="Name your game" onClose={() => setDialog(null)}>
+      {dialog === "rename" && editGame && (
+        <Modal title="Edit game details" onClose={() => setDialog(null)}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              update({ ...game, name: formName.trim() });
+              update({ ...editGame, ...readGameDetails(e.currentTarget) });
               setDialog(null);
             }}
           >
-            <label>
-              Game name
-              <input
-                autoFocus
-                required
-                maxLength={80}
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-              />
-            </label>
+            <GameDetailFields key={editGame.id} game={editGame} />
             <footer className="modal-footer">
-              <button className="button primary" disabled={!formName.trim()}>
-                Save name
-              </button>
+              <button className="button primary">Save details</button>
             </footer>
           </form>
         </Modal>
@@ -1323,8 +1254,10 @@ export default function App() {
                   <div>
                     <strong>{h.label}</strong>
                     <small>
+                      {h.player &&
+                        (h.player === "you" ? "You · " : "Opponent · ")}
                       {new Date(h.at).toLocaleString()} · rack{" "}
-                      {h.rack || "empty"}
+                      {h.rack.replaceAll(".", "·") || "empty"}
                     </small>
                   </div>
                   {h.score !== undefined && (
@@ -1434,7 +1367,7 @@ export default function App() {
       {dialog === "help" && (
         <Modal
           title="Same game. Any screen."
-          subtitle="Open Tilewise on your iPhone or Mac, then choose the same profile."
+          subtitle="Open Tilemaxx on your iPhone or Mac, then choose the same profile."
           onClose={() => setDialog(null)}
         >
           <div className="device-illustration">
@@ -1445,7 +1378,7 @@ export default function App() {
           <ol className="help-steps">
             <li>Connect both devices to your home Wi-Fi.</li>
             <li>
-              Open your NAS’s Tilewise address in Safari. While testing on the
+              Open your NAS’s Tilemaxx address in Safari. While testing on the
               Mac, use its local network address and port 4173.
             </li>
             <li>
@@ -1530,11 +1463,19 @@ export default function App() {
       )}
       {dialog === "manage" && game && (
         <Modal
-          title="A little housekeeping."
+          title="Game options"
           subtitle={game.name}
           onClose={() => setDialog(null)}
         >
           <div className="game-option-list">
+            <button onClick={() => openDialog("rename")}>
+              <Pencil size={19} />
+              <span>
+                <strong>Edit game details</strong>
+                <small>Opponent, platform, date, and notes.</small>
+              </span>
+              <ArrowUpRight size={16} />
+            </button>
             <button
               onClick={() =>
                 void action(async () => {
@@ -1542,6 +1483,8 @@ export default function App() {
                     ...game,
                     name: `${game.name.slice(0, 65)} (copy)`,
                     archived: false,
+                    archivedBoard: undefined,
+                    archivedState: undefined,
                   });
                   chooseGame(copy.id);
                   setDialog(null);
@@ -1558,20 +1501,30 @@ export default function App() {
             </button>
             <button
               onClick={() => {
-                update({ ...game, archived: !game.archived });
-                setShowArchive(!game.archived);
+                update(
+                  game.archived
+                    ? {
+                        ...game,
+                        archived: false,
+                        archivedBoard: undefined,
+                        archivedState: undefined,
+                      }
+                    : archiveGame(game),
+                );
+                if (!game.archived)
+                  chooseGame(
+                    activeGames.find((g) => g.id !== game.id)?.id ?? "",
+                  );
                 setDialog(null);
                 notify(
-                  game.archived
-                    ? "Game restored."
-                    : "Game archived. You can restore it any time.",
+                  game.archived ? "Game moved to My games." : "Game archived.",
                 );
               }}
             >
               <Archive size={19} />
               <span>
                 <strong>
-                  {game.archived ? "Restore game" : "Archive game"}
+                  {game.archived ? "Move to My games" : "Archive game"}
                 </strong>
                 <small>Keep the board and history for later.</small>
               </span>
@@ -1582,6 +1535,7 @@ export default function App() {
                 update({
                   ...game,
                   ...remember(game, "Cleared board and rack"),
+                  scoring: emptyScoring(),
                   board: emptyBoard(game.template.size),
                   rack: "",
                 });

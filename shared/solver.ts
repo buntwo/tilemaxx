@@ -1,4 +1,4 @@
-import { Lexicon } from "./lexicon";
+import { type Lexicon, popcount } from "./lexicon";
 import {
   type Board,
   type BoardTemplate,
@@ -6,14 +6,20 @@ import {
   type Placement,
   tileScore,
   SCORES,
+  letterBonuses,
+  wordBonuses,
 } from "./model";
 
 const ALL = (1 << 26) - 1;
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 export const SEARCH_LIMITS = {
   maxNodes: 2_000_000,
   maxMoves: 150_000,
   maxMs: 2_000,
 };
+type Limits = Partial<typeof SEARCH_LIMITS>;
+type Options = { bingoOnly?: boolean; unsorted?: boolean };
+
 export class SearchLimitError extends Error {
   constructor() {
     super(
@@ -22,239 +28,432 @@ export class SearchLimitError extends Error {
     this.name = "SearchLimitError";
   }
 }
+
+interface Start {
+  line: number;
+  position: number;
+  cell: number;
+}
+
+interface Direction {
+  direction: Move["direction"];
+  step: number;
+  starts: Start[];
+  toAnchor: Uint8Array;
+  space: Uint8Array;
+  mask: Int32Array;
+  crossScore: Uint8Array;
+  prefix: string[];
+  suffix: string[];
+}
+
+function prepareDirection(
+  lexicon: Lexicon,
+  letters: string[],
+  points: Uint8Array,
+  anchors: Uint8Array,
+  size: number,
+  rackSize: number,
+  across: boolean,
+): Direction {
+  const step = across ? 1 : size;
+  const crossStep = across ? size : 1;
+  const cellCount = size ** 2;
+  const starts: Start[] = [];
+  const toAnchor = new Uint8Array(cellCount);
+  const space = new Uint8Array(cellCount);
+  const mask = new Int32Array(cellCount).fill(ALL);
+  const crossScore = new Uint8Array(cellCount);
+  const prefix = Array<string>(cellCount).fill("");
+  const suffix = Array<string>(cellCount).fill("");
+  for (let line = 0; line < size; line++) {
+    const first = line * crossStep;
+    let distance = size + 1;
+    let remaining = 0;
+    for (let position = size - 1; position >= 0; position--) {
+      const cell = first + position * step;
+      if (!letters[cell]) {
+        remaining++;
+        distance = anchors[cell] ? 1 : distance + 1;
+      }
+      toAnchor[cell] = distance;
+      space[cell] = remaining;
+    }
+    for (let position = 0; position < size; position++) {
+      const cell = first + position * step;
+      if (
+        toAnchor[cell] <= rackSize &&
+        (position === 0 || !letters[cell - step])
+      ) {
+        starts.push({ line, position, cell });
+      }
+      // Only an anchor can touch existing tiles perpendicular to the move.
+      if (!anchors[cell] || letters[cell]) continue;
+      for (
+        let row = line - 1, i = cell - crossStep;
+        row >= 0 && letters[i];
+        row--, i -= crossStep
+      ) {
+        prefix[cell] = letters[i] + prefix[cell];
+        crossScore[cell] += points[i];
+      }
+      for (
+        let row = line + 1, i = cell + crossStep;
+        row < size && letters[i];
+        row++, i += crossStep
+      ) {
+        suffix[cell] += letters[i];
+        crossScore[cell] += points[i];
+      }
+      if (prefix[cell] || suffix[cell]) {
+        mask[cell] = lexicon.crossMask(prefix[cell], suffix[cell]);
+      }
+    }
+  }
+  return {
+    direction: across ? "across" : "down",
+    step,
+    starts,
+    toAnchor,
+    space,
+    mask,
+    crossScore,
+    prefix,
+    suffix,
+  };
+}
+
+/** Compile a board snapshot once so it can be searched with many different racks. */
+export function prepareSolver(
+  lexicon: Lexicon,
+  board: Board,
+  template: BoardTemplate,
+) {
+  const { size, rackSize, bingo: bonus, rules } = template;
+  if (
+    !Number.isInteger(size) ||
+    size < 5 ||
+    size > 25 ||
+    board.length !== size ** 2 ||
+    template.premiums.length !== size ** 2
+  ) {
+    throw new Error("The board size does not match its layout.");
+  }
+  const letters = board.map((tile) => tile.toUpperCase());
+  const codes = Int16Array.from(letters, (letter) =>
+    letter ? letter.charCodeAt(0) - 65 : -1,
+  );
+  const points = Uint8Array.from(board, (tile) => tileScore(tile, rules));
+  const lm = Uint8Array.from(template.premiums, (p) => letterBonuses[p] ?? 1);
+  const wm = Uint8Array.from(template.premiums, (p) => wordBonuses[p] ?? 1);
+  const letterPoints = Uint8Array.from(
+    LETTERS.slice(0, 26),
+    (letter) => SCORES[rules][letter],
+  );
+  const indexPrefixes = board.map((_, i) => `${i}:`);
+  const empty = !board.some(Boolean);
+  const anchors = Uint8Array.from(board, (tile, i) => {
+    if (tile) return 0;
+    if (empty) return Number(i === template.start);
+    return Number(
+      Boolean(
+        board[i - size] ||
+        board[i + size] ||
+        (i % size > 0 && board[i - 1]) ||
+        (i % size < size - 1 && board[i + 1]),
+      ),
+    );
+  });
+  const directions = [true, false].map((across) =>
+    prepareDirection(lexicon, letters, points, anchors, size, rackSize, across),
+  );
+  const { first, mask: children, terminal, maxTail } = lexicon;
+
+  function run(
+    rack: string,
+    limits: Limits,
+    options: Options,
+    summaryOnly: boolean,
+  ) {
+    const budget = { ...SEARCH_LIMITS, ...limits };
+    for (const key of Object.keys(
+      SEARCH_LIMITS,
+    ) as (keyof typeof SEARCH_LIMITS)[]) {
+      if (
+        !Number.isFinite(budget[key]) ||
+        budget[key] < 0 ||
+        budget[key] > SEARCH_LIMITS[key]
+      ) {
+        throw new Error("Invalid search budget.");
+      }
+    }
+    const deadline = performance.now() + budget.maxMs;
+    if (
+      !/^[A-Z?.]*$/i.test(rack) ||
+      rack.length > rackSize ||
+      rack.length > 10
+    ) {
+      throw new Error("The rack contains invalid tiles or too many letters.");
+    }
+    rack = rack.replaceAll(".", "").toUpperCase();
+    const rackLength = rack.length;
+    const moves: Move[] = [];
+    let bestScore = 0,
+      hasBingo = false;
+    if (!rackLength || (options.bingoOnly && rackLength < rackSize))
+      return { moves, bestScore, hasBingo };
+    if (performance.now() >= deadline) throw new SearchLimitError();
+
+    const counts = new Uint8Array(26);
+    let rackMask = 0,
+      blankCount = 0;
+    for (const letter of rack) {
+      if (letter === "?") blankCount++;
+      else {
+        const code = letter.charCodeAt(0) - 65;
+        counts[code]++;
+        rackMask |= 1 << code;
+      }
+    }
+
+    let nodes = 0,
+      moveCount = 0;
+    const seenSingles = new Set<number>();
+    const tileCells = new Uint16Array(rackLength);
+    const tileCodes = new Uint8Array(rackLength);
+    const wordCodes = new Uint8Array(size);
+    const bingoOnly = options.bingoOnly === true;
+
+    for (const {
+      direction,
+      step,
+      starts,
+      mask,
+      toAnchor,
+      space,
+      crossScore,
+      prefix,
+      suffix,
+    } of directions) {
+      let startLine = 0,
+        startPosition = 0;
+      function emit(
+        length: number,
+        used: number,
+        score: number,
+        available: number,
+        blanks: number,
+      ) {
+        // Multiple new squares determine the word's axis. A one-tile play
+        // making two words can be found from both axes.
+        if (used === 1) {
+          const key = tileCells[0] * 52 + tileCodes[0];
+          if (seenSingles.has(key)) return;
+          seenSingles.add(key);
+        }
+        if (moveCount >= budget.maxMoves) throw new SearchLimitError();
+        moveCount++;
+        if (summaryOnly) {
+          if (score > bestScore) bestScore = score;
+          hasBingo ||= used === rackSize;
+          return;
+        }
+        const tiles: Placement[] = [];
+        const keys: string[] = [];
+        const crosses: string[] = [];
+        for (let k = 0; k < used; k++) {
+          const index = tileCells[k];
+          const letter = LETTERS[tileCodes[k]];
+          tiles.push({ index, letter });
+          keys.push(indexPrefixes[index] + letter);
+          if (prefix[index] || suffix[index]) {
+            crosses.push(prefix[index] + letter.toUpperCase() + suffix[index]);
+          }
+        }
+        let leave = "";
+        for (let bits = available; bits; bits &= bits - 1) {
+          const code = 31 - Math.clz32(bits & -bits);
+          leave += LETTERS[code].repeat(counts[code]);
+        }
+        let word = "";
+        for (let k = 0; k < length; k++) word += LETTERS[wordCodes[k]];
+        moves.push({
+          id: keys.sort().join(","),
+          word,
+          row: direction === "across" ? startLine : startPosition,
+          col: direction === "across" ? startPosition : startLine,
+          direction,
+          score,
+          tiles,
+          leave: leave + "?".repeat(blanks),
+          blanks: blankCount - blanks,
+          crosses,
+        });
+      }
+
+      function walk(
+        cell: number,
+        length: number,
+        node: number,
+        used: number,
+        available: number,
+        blanks: number,
+        sum: number,
+        multiplier: number,
+        crossTotal: number,
+        connected: boolean,
+      ) {
+        if (
+          ++nodes > budget.maxNodes ||
+          ((nodes & 255) === 0 && performance.now() >= deadline)
+        ) {
+          throw new SearchLimitError();
+        }
+        const atEdge = startPosition + length === size;
+        if (
+          bingoOnly &&
+          (maxTail[node] < rackSize - used ||
+            (atEdge ? used < rackSize : space[cell] < rackSize - used))
+        )
+          return false;
+        if (!connected && (atEdge || toAnchor[cell] > rackLength - used))
+          return false;
+        if (
+          terminal[node] &&
+          length >= 2 &&
+          used &&
+          connected &&
+          (atEdge || !letters[cell]) &&
+          (!bingoOnly || used === rackSize)
+        ) {
+          emit(
+            length,
+            used,
+            sum * multiplier + crossTotal + (used === rackSize ? bonus : 0),
+            available,
+            blanks,
+          );
+          if (bingoOnly && moveCount) return true;
+        }
+        if (atEdge) return false;
+        if (letters[cell]) {
+          const code = codes[cell];
+          const child = lexicon.child(node, code);
+          if (!child) return false;
+          if (!summaryOnly) wordCodes[length] = code;
+          return walk(
+            cell + step,
+            length + 1,
+            child,
+            used,
+            available,
+            blanks,
+            sum + points[cell],
+            multiplier,
+            crossTotal,
+            connected,
+          );
+        }
+        if (used === rackLength) return false;
+        const allChildren = children[node];
+        let possible = allChildren & mask[cell] & (blanks ? ALL : available);
+        const nextMultiplier = multiplier * wm[cell];
+        const hasCross = !!(prefix[cell] || suffix[cell]);
+        const baseCross = crossTotal + crossScore[cell] * wm[cell];
+        const nextConnected = connected || !!anchors[cell];
+        tileCells[used] = cell;
+        while (possible) {
+          const code = 31 - Math.clz32(possible);
+          const bit = 1 << code;
+          possible ^= bit;
+          const child = first[node] + popcount(allChildren >>> (code + 1));
+          if (!summaryOnly) wordCodes[length] = code;
+          if (available & bit) {
+            const points = letterPoints[code] * lm[cell];
+            const left = --counts[code] ? available : available ^ bit;
+            tileCodes[used] = code;
+            const found = walk(
+              cell + step,
+              length + 1,
+              child,
+              used + 1,
+              left,
+              blanks,
+              sum + points,
+              nextMultiplier,
+              baseCross + (hasCross ? points * wm[cell] : 0),
+              nextConnected,
+            );
+            counts[code]++;
+            if (found) return true;
+          }
+          if (blanks) {
+            tileCodes[used] = code + 26;
+            if (
+              walk(
+                cell + step,
+                length + 1,
+                child,
+                used + 1,
+                available,
+                blanks - 1,
+                sum,
+                nextMultiplier,
+                baseCross,
+                nextConnected,
+              )
+            )
+              return true;
+          }
+        }
+        return false;
+      }
+
+      for (const start of starts) {
+        if (performance.now() >= deadline) throw new SearchLimitError();
+        if (
+          toAnchor[start.cell] > rackLength ||
+          (bingoOnly && space[start.cell] < rackSize)
+        )
+          continue;
+        startLine = start.line;
+        startPosition = start.position;
+        if (walk(start.cell, 0, 0, 0, rackMask, blankCount, 0, 1, 0, false)) {
+          return { moves, bestScore, hasBingo };
+        }
+      }
+    }
+    if (!options.unsorted && !summaryOnly) {
+      moves.sort(
+        (a, b) =>
+          b.score - a.score ||
+          b.tiles.length - a.tiles.length ||
+          a.word.localeCompare(b.word) ||
+          a.id.localeCompare(b.id),
+      );
+    }
+    return { moves, bestScore, hasBingo };
+  }
+
+  return {
+    solve: (rack: string, limits: Limits = {}, options: Options = {}) =>
+      run(rack, limits, options, false).moves,
+    summarize: (rack: string, limits: Limits = {}) => {
+      const { bestScore, hasBingo } = run(rack, limits, {}, true);
+      return { score: bestScore, bingo: hasBingo };
+    },
+  };
+}
+
 export function solve(
   lexicon: Lexicon,
   board: Board,
   rack: string,
   template: BoardTemplate,
-  limits: Partial<typeof SEARCH_LIMITS> = {},
+  limits: Limits = {},
+  options: Options = {},
 ): Move[] {
-  const budget = { ...SEARCH_LIMITS, ...limits };
-  for (const key of Object.keys(
-    SEARCH_LIMITS,
-  ) as (keyof typeof SEARCH_LIMITS)[]) {
-    if (
-      !Number.isFinite(budget[key]) ||
-      budget[key] < 0 ||
-      budget[key] > SEARCH_LIMITS[key]
-    )
-      throw new Error("Invalid search budget.");
-  }
-  const deadline = performance.now() + budget.maxMs;
-  let nodes = 0;
-  const n = template.size,
-    scores = SCORES[template.rules];
-  if (
-    !Number.isInteger(n) ||
-    n < 5 ||
-    n > 25 ||
-    board.length !== n * n ||
-    template.premiums.length !== n * n
-  )
-    throw new Error("The board size does not match its layout.");
-  if (
-    !/^[A-Z?]*$/i.test(rack) ||
-    rack.length > template.rackSize ||
-    rack.length > 10
-  )
-    throw new Error("The rack contains invalid tiles or too many letters.");
-  const counts = new Int8Array(27);
-  for (const c of rack.toUpperCase())
-    counts[c === "?" ? 26 : c.charCodeAt(0) - 65]++;
-  const moves: Move[] = [],
-    seen = new Set<string>(),
-    empty = !board.some(Boolean);
-  const value = (i: number) => tileScore(board[i], template.rules);
-  const letterBonuses: Record<string, number> = { DL: 2, TL: 3, QL: 4 },
-    wordBonuses: Record<string, number> = { DW: 2, TW: 3, QW: 4 };
-  const letterMultiplier = (i: number) =>
-    letterBonuses[template.premiums[i]] ?? 1;
-  const wordMultiplier = (i: number) => wordBonuses[template.premiums[i]] ?? 1;
-  const letterAt = (i: number) => board[i]?.toUpperCase() || "";
-  for (const direction of ["across", "down"] as const) {
-    const across = direction === "across";
-    const index = (line: number, pos: number) =>
-      across ? line * n + pos : pos * n + line;
-    const crosses = Array.from({ length: n * n }, () => ({
-      mask: ALL,
-      sum: 0,
-      prefix: "",
-      suffix: "",
-    }));
-    const anchors = new Set<number>();
-    for (let r = 0; r < n; r++)
-      for (let c = 0; c < n; c++) {
-        const i = r * n + c;
-        if (board[i]) continue;
-        if (
-          empty
-            ? i === template.start
-            : (r > 0 && board[i - n]) ||
-              (r < n - 1 && board[i + n]) ||
-              (c > 0 && board[i - 1]) ||
-              (c < n - 1 && board[i + 1])
-        )
-          anchors.add(i);
-        let prefix = "",
-          suffix = "",
-          sum = 0;
-        const crossLine = across ? c : r,
-          crossPos = across ? r : c;
-        const ix = (p: number) =>
-          across ? p * n + crossLine : crossLine * n + p;
-        for (let p = crossPos - 1; p >= 0 && board[ix(p)]; p--) {
-          prefix = letterAt(ix(p)) + prefix;
-          sum += value(ix(p));
-        }
-        for (let p = crossPos + 1; p < n && board[ix(p)]; p++) {
-          suffix += letterAt(ix(p));
-          sum += value(ix(p));
-        }
-        let mask = ALL;
-        if (prefix || suffix) {
-          mask = 0;
-          for (let letter = 0; letter < 26; letter++)
-            if (lexicon.has(prefix + String.fromCharCode(65 + letter) + suffix))
-              mask |= 1 << letter;
-        }
-        crosses[i] = { mask, sum, prefix, suffix };
-      }
-    for (let line = 0; line < n; line++)
-      for (let start = 0; start < n; start++) {
-        if (performance.now() >= deadline) throw new SearchLimitError();
-        if (start > 0 && board[index(line, start - 1)]) continue;
-        // Skip starts that cannot reach an anchor with the tiles in this rack.
-        let needed = 0,
-          reachable = false;
-        for (let p = start; p < n; p++) {
-          const i = index(line, p);
-          if (!board[i]) needed++;
-          if (needed > rack.length) break;
-          if (anchors.has(i)) {
-            reachable = true;
-            break;
-          }
-        }
-        if (!reachable) continue;
-        const placed: Placement[] = [],
-          crossWords: string[] = [];
-        function walk(
-          pos: number,
-          node: number,
-          word: string,
-          sum: number,
-          multiplier: number,
-          crossScore: number,
-          connected: boolean,
-          blanks: number,
-        ) {
-          if (
-            ++nodes > budget.maxNodes ||
-            (nodes % 256 === 0 && performance.now() >= deadline)
-          )
-            throw new SearchLimitError();
-          const i = pos < n ? index(line, pos) : -1;
-          if (
-            lexicon.terminal[node] &&
-            word.length >= 2 &&
-            placed.length &&
-            connected &&
-            (pos === n || !board[i])
-          ) {
-            const id = placed
-              .map((t) => `${t.index}:${t.letter}`)
-              .sort()
-              .join(",");
-            if (!seen.has(id)) {
-              if (moves.length >= budget.maxMoves) throw new SearchLimitError();
-              seen.add(id);
-              let leave = "";
-              for (let k = 0; k < 27; k++)
-                leave += (k === 26 ? "?" : String.fromCharCode(65 + k)).repeat(
-                  counts[k],
-                );
-              moves.push({
-                id,
-                word,
-                row: across ? line : start,
-                col: across ? start : line,
-                direction,
-                score:
-                  sum * multiplier +
-                  crossScore +
-                  (placed.length === template.rackSize ? template.bingo : 0),
-                tiles: placed.map((t) => ({ ...t })),
-                leave,
-                blanks,
-                crosses: [...crossWords],
-              });
-            }
-          }
-          if (pos === n) return;
-          if (board[i]) {
-            const child = lexicon.child(node, letterAt(i).charCodeAt(0) - 65);
-            if (child)
-              walk(
-                pos + 1,
-                child,
-                word + letterAt(i),
-                sum + value(i),
-                multiplier,
-                crossScore,
-                connected,
-                blanks,
-              );
-            return;
-          }
-          if (placed.length === rack.length) return;
-          const cross = crosses[i],
-            lm = letterMultiplier(i),
-            wm = wordMultiplier(i);
-          for (
-            let child = lexicon.first[node];
-            child;
-            child = lexicon.next[child]
-          ) {
-            const code = lexicon.letters[child];
-            if (!(cross.mask & (1 << code))) continue;
-            const char = String.fromCharCode(65 + code);
-            for (const blank of [false, true]) {
-              const slot = blank ? 26 : code;
-              if (!counts[slot]) continue;
-              counts[slot]--;
-              placed.push({
-                index: i,
-                letter: blank ? char.toLowerCase() : char,
-              });
-              const points = blank ? 0 : scores[char],
-                hasCross = !!(cross.prefix || cross.suffix);
-              if (hasCross) crossWords.push(cross.prefix + char + cross.suffix);
-              walk(
-                pos + 1,
-                child,
-                word + char,
-                sum + points * lm,
-                multiplier * wm,
-                crossScore + (hasCross ? (cross.sum + points * lm) * wm : 0),
-                connected || anchors.has(i),
-                blanks + (blank ? 1 : 0),
-              );
-              if (hasCross) crossWords.pop();
-              placed.pop();
-              counts[slot]++;
-            }
-          }
-        }
-        walk(start, 0, "", 0, 1, 0, false, 0);
-      }
-  }
-  return moves.sort(
-    (a, b) =>
-      b.score - a.score ||
-      b.tiles.length - a.tiles.length ||
-      a.word.localeCompare(b.word) ||
-      a.id.localeCompare(b.id),
-  );
+  return prepareSolver(lexicon, board, template).solve(rack, limits, options);
 }
 
 /** Diagnose entered positions without preventing transcription of an in-progress board. */

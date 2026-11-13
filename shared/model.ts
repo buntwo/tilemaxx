@@ -9,31 +9,105 @@ export interface BoardTemplate {
   rackSize: number;
   bingo: number;
   rules: Rules;
+  tileCounts?: Record<string, number>;
   builtin?: boolean;
 }
 // Lowercase letters are assigned blanks (zero points); empty cells are ''.
 export type Board = string[];
 export interface Position {
   board: Board;
+  // A–Z are letters, ? is a blank, and . preserves an empty slot.
   rack: string;
+}
+export type Player = "you" | "opponent";
+export interface TrackedMove {
+  player: Player;
+  word: string;
+  score: number;
+  at: string;
+}
+export interface PlayerScore {
+  points: number;
+  moves: number;
+  best: number;
+  bingos: number;
+}
+export interface GameScoring {
+  you: PlayerScore;
+  opponent: PlayerScore;
+  pendingBase?: Board;
+  imported?: boolean;
 }
 export interface HistoryEntry extends Position {
   label: string;
   score?: number;
+  player?: Player;
+  scoring?: GameScoring;
   at: string;
 }
 export interface Game extends Position {
   id: string;
   profileId: string;
   name: string;
+  platform?: string;
+  startedOn?: string;
+  notes?: string;
+  trackScores?: boolean;
+  scoring?: GameScoring;
   template: BoardTemplate;
+  trackedMoves?: TrackedMove[];
   dictionaryId: string;
   past: HistoryEntry[];
   future: HistoryEntry[];
   revision: number;
   updatedAt: string;
   archived: boolean;
+  archivedBoard?: Board;
+  archivedState?: ArchiveState;
 }
+export type ArchiveState = Pick<
+  Game,
+  "rack" | "scoring" | "trackScores" | "trackedMoves" | "past" | "future"
+>;
+
+export function archiveGame(game: Game): Game {
+  const { rack, scoring, trackScores, trackedMoves, past, future } = game;
+  return {
+    ...game,
+    archived: true,
+    archivedBoard: game.board,
+    archivedState: { rack, scoring, trackScores, trackedMoves, past, future },
+  };
+}
+
+export function restoreArchivedGame(game: Game): Game {
+  if (!game.archived || !game.archivedBoard) return game;
+  if (!game.archivedState) {
+    if (game.board.every((tile, i) => tile === game.archivedBoard?.[i]))
+      return game;
+    return {
+      ...game,
+      ...remember(game, "Restored archived board"),
+      board: game.archivedBoard,
+      scoring: game.scoring
+        ? { ...game.scoring, pendingBase: undefined }
+        : undefined,
+    };
+  }
+  const { rack, scoring, trackScores, trackedMoves, past, future } =
+    game.archivedState;
+  return {
+    ...game,
+    board: game.archivedBoard,
+    rack,
+    scoring,
+    trackScores,
+    trackedMoves,
+    past,
+    future,
+  };
+}
+export const MAX_GAME_NOTES = 2000;
 export interface Profile {
   id: string;
   name: string;
@@ -93,29 +167,71 @@ export const SCORES: Record<Rules, Record<string, number>> = {
 };
 export const tileScore = (letter: string, rules: Rules) =>
   letter && letter === letter.toUpperCase() ? (SCORES[rules][letter] ?? 0) : 0;
+export const letterBonuses: Partial<Record<Premium, number>> = {
+  DL: 2,
+  TL: 3,
+  QL: 4,
+};
+export const wordBonuses: Partial<Record<Premium, number>> = {
+  DW: 2,
+  TW: 3,
+  QW: 4,
+};
+export function localDate(date = new Date()) {
+  return [
+    String(date.getFullYear()).padStart(4, "0"),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
 export const coordinate = (index: number, size: number) =>
   `${String.fromCharCode(65 + (index % size))}${Math.floor(index / size) + 1}`;
 export const emptyBoard = (size: number): Board => Array(size * size).fill("");
+
+function trackedMove(entry: HistoryEntry): TrackedMove | undefined {
+  if (entry.player && entry.score !== undefined)
+    return {
+      player: entry.player,
+      word: entry.label,
+      score: entry.score,
+      at: entry.at,
+    };
+}
+
+export function trackedMoveHistory(game: Game): TrackedMove[] {
+  return (
+    game.trackedMoves ??
+    game.past.flatMap((entry) => {
+      const move = trackedMove(entry);
+      return move ? [move] : [];
+    })
+  );
+}
+
 export function remember(
   game: Game,
   label: string,
   score?: number,
-): Pick<Game, "past" | "future"> {
+  player?: Player,
+): Pick<Game, "past" | "future" | "trackedMoves"> {
+  const entry: HistoryEntry = {
+    board: [...game.board],
+    rack: game.rack,
+    label,
+    score,
+    player,
+    scoring: game.scoring,
+    at: new Date().toISOString(),
+  };
+  const move = trackedMove(entry);
+  const moves = trackedMoveHistory(game);
   return {
-    past: [
-      ...game.past,
-      {
-        board: [...game.board],
-        rack: game.rack,
-        label,
-        score,
-        at: new Date().toISOString(),
-      },
-    ].slice(-100),
+    past: [...game.past, entry].slice(-100),
     future: [],
+    trackedMoves: move ? [...moves, move] : moves,
   };
 }
-export function applyMove(game: Game, move: Move): Game {
+export function applyMove(game: Game, move: Move, player?: Player): Game {
   const board = [...game.board];
   for (const tile of move.tiles) {
     if (board[tile.index])
@@ -124,7 +240,7 @@ export function applyMove(game: Game, move: Move): Game {
   }
   return {
     ...game,
-    ...remember(game, move.word, move.score),
+    ...remember(game, move.word, move.score, player),
     board,
     rack: move.leave,
   };
@@ -136,6 +252,10 @@ export function undo(game: Game): Game {
     ...game,
     board: step.board,
     rack: step.rack,
+    scoring: step.scoring,
+    trackedMoves: trackedMove(step)
+      ? trackedMoveHistory(game).slice(0, -1)
+      : game.trackedMoves,
     past: game.past.slice(0, -1),
     future: [
       ...game.future,
@@ -144,6 +264,8 @@ export function undo(game: Game): Game {
         rack: game.rack,
         label: step.label,
         score: step.score,
+        player: step.player,
+        scoring: game.scoring,
         at: step.at,
       },
     ],
@@ -152,10 +274,15 @@ export function undo(game: Game): Game {
 export function redo(game: Game): Game {
   const step = game.future.at(-1);
   if (!step) return game;
+  const move = trackedMove(step);
   return {
     ...game,
     board: step.board,
     rack: step.rack,
+    scoring: step.scoring,
+    trackedMoves: move
+      ? [...trackedMoveHistory(game), move]
+      : game.trackedMoves,
     past: [
       ...game.past,
       {
@@ -163,6 +290,8 @@ export function redo(game: Game): Game {
         rack: game.rack,
         label: step.label,
         score: step.score,
+        player: step.player,
+        scoring: game.scoring,
         at: step.at,
       },
     ],

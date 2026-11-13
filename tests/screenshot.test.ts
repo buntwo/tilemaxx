@@ -4,6 +4,11 @@ import sharp from "sharp";
 import { createWorker, PSM } from "tesseract.js";
 import { createRequire } from "node:module";
 import { extractGlyphs, importBoard, validateCrop } from "../shared/screenshot";
+import {
+  OCR_TILE_SIZE,
+  readGlyphs,
+  renderGlyph,
+} from "../shared/screenshot-ocr";
 import { PRESETS } from "../shared/presets";
 import { emptyBoard, undo, redo, type Game } from "../shared/model";
 
@@ -60,6 +65,54 @@ test("screenshot replacement keeps rack and blank identities, supports undo/redo
   );
 });
 
+test("Scrabble GO ink detection keeps blue assigned blanks and rejects bonus text and point values", async () => {
+  const svg =
+    Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192">
+    <rect width="192" height="192" fill="#4979b0"/>
+    <rect width="64" height="64" fill="#f6e7c3"/>
+    <rect x="64" width="64" height="64" fill="#f6e7c3"/>
+    <path d="M14 15 L29 46 L44 15" fill="none" stroke="#76b1f8" stroke-width="6"/>
+    <rect x="92" y="15" width="7" height="32" fill="#503f30"/>
+    <rect x="115" y="42" width="4" height="10" fill="#503f30"/>
+    <path d="M143 16 v28 h9 c14 0 14 -28 0 -28 z M172 16 v28 h15"
+          fill="none" stroke="#fff" stroke-width="4"/>
+  </svg>`);
+  const { data, info } = await sharp(svg)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const glyphs = extractGlyphs(
+    { data, width: info.width, height: info.height },
+    { left: 0, top: 0, width: 192, height: 192 },
+    3,
+  );
+  assert.deepEqual(
+    glyphs.map(({ index, assignedBlank }) => [index, assignedBlank]),
+    [
+      [0, true],
+      [1, false],
+    ],
+  );
+  const result = await readGlyphs(
+    glyphs,
+    3,
+    async (glyph, pass) => {
+      if (glyph.index === 0 && pass === "smallCharacter")
+        return { text: "Vv", confidence: 82 };
+      if (glyph.index === 1 && pass === "character")
+        return { text: "|", confidence: 44 };
+      return { text: "", confidence: 0 };
+    },
+    () => {},
+    () => {},
+  );
+  assert.deepEqual(result, {
+    board: ["v", "I", "", "", "", "", "", "", ""],
+    uncertain: [0, 1],
+    candidates: 2,
+  });
+});
+
 test(
   "local OCR recognizes a fixture and rejects premium labels and point values",
   { timeout: 60000 },
@@ -96,36 +149,29 @@ test(
         tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
         tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
       });
-      for (const g of glyphs) {
-        const width = Math.round(
-            g.width * Math.min(60 / g.width, 64 / g.height),
-          ),
-          height = Math.round(g.height * Math.min(60 / g.width, 64 / g.height));
-        const letter = await sharp(g.data, {
-          raw: { width: g.width, height: g.height, channels: 4 },
-        })
-          .resize(width, height)
-          .png()
-          .toBuffer();
-        const tile = await sharp({
-          create: { width: 96, height: 96, channels: 4, background: "white" },
-        })
-          .composite([
-            {
-              input: letter,
-              left: Math.round((96 - width) / 2),
-              top: Math.round((96 - height) / 2),
-            },
-          ])
-          .png()
-          .toBuffer();
-        const result = await worker.recognize(tile);
-        assert.equal(
-          result.data.text.trim(),
-          expected.get(g.index),
-          `Cell ${g.index}`,
-        );
-      }
+      const result = await readGlyphs(
+        glyphs,
+        15,
+        async (glyph, pass) => {
+          await worker.setParameters({
+            tessedit_char_whitelist:
+              pass === "block" ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ" : "",
+            tessedit_pageseg_mode:
+              pass === "block" ? PSM.SINGLE_BLOCK : PSM.SINGLE_CHAR,
+          });
+          const tile = await sharp(renderGlyph(glyph, pass), {
+            raw: { width: OCR_TILE_SIZE, height: OCR_TILE_SIZE, channels: 4 },
+          })
+            .png()
+            .toBuffer();
+          return (await worker.recognize(tile)).data;
+        },
+        () => {},
+        () => {},
+      );
+      const expectedBoard = emptyBoard(15);
+      for (const [index, letter] of expected) expectedBoard[index] = letter;
+      assert.deepEqual(result.board, expectedBoard);
     } finally {
       await worker.terminate();
     }

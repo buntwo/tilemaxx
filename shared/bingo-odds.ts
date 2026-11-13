@@ -1,0 +1,359 @@
+import { popcount, type Lexicon } from "./lexicon";
+import { type BoardTemplate, type Move, type Position } from "./model";
+import { placeTiles, sampleTiles, weightedDraws } from "./move-analysis";
+import { prepareSolver, SEARCH_LIMITS, SearchLimitError } from "./solver";
+import { unseenTiles } from "./tile-pool";
+
+export const BOARD_ODDS_LIMIT = 20;
+const SAMPLES = 200;
+const INDEX_LIMIT = 350_000;
+const DRAW_TIMEOUT = 350;
+const sortTiles = (letters: string) => [...letters].sort().join("");
+const letterCode = (letter: string) =>
+  letter === "?" ? 26 : letter.charCodeAt(0) - 65;
+
+export interface RackOdds {
+  byLeave: Record<string, number>;
+  exact: boolean;
+  bagSize: number;
+  error?: string;
+}
+
+export interface BoardOdds {
+  chance: number;
+  exact: boolean;
+}
+export interface BoardOddsResult {
+  byMove: Record<string, BoardOdds>;
+  checked: number;
+  total: number;
+  bagSize: number;
+}
+
+function choose(n: number, k: number): number {
+  if (k > n) return 0;
+  let result = 1;
+  for (let i = 1; i <= k; i++) result = (result * (n - i + 1)) / i;
+  return result;
+}
+
+interface LeaveNode {
+  children: Map<string, LeaveNode>;
+  weight: number;
+}
+const leaveNode = (): LeaveNode => ({ children: new Map(), weight: 0 });
+
+/** Dictionary-only index reused as the board and rack change. */
+export class RackBingoIndex {
+  private cached?: { size: number; blanks: number; racks: Set<string> | null };
+
+  constructor(private words: readonly string[]) {}
+
+  private winningRacks(size: number, blanks: number) {
+    if (this.cached?.size === size && this.cached.blanks === blanks)
+      return this.cached.racks;
+    const deadline = performance.now() + 500;
+    const natural = new Set<string>();
+    for (const word of this.words) {
+      if (word.length === size) natural.add(sortTiles(word));
+    }
+    const racks = new Set(natural);
+    let generated = 0;
+    function addBlanks(letters: string, start: number, count: number) {
+      if (count > blanks) return;
+      for (let i = start; i < letters.length; i++) {
+        if (i > start && letters[i] === letters[i - 1]) continue;
+        const reduced = letters.slice(0, i) + letters.slice(i + 1);
+        racks.add("?".repeat(count) + reduced);
+        if (
+          racks.size > INDEX_LIMIT ||
+          ((++generated & 1023) === 0 && performance.now() >= deadline)
+        ) {
+          throw new SearchLimitError();
+        }
+        addBlanks(reduced, i, count + 1);
+      }
+    }
+    try {
+      for (const letters of natural) addBlanks(letters, 0, 1);
+      this.cached = { size, blanks, racks };
+    } catch (error) {
+      if (!(error instanceof SearchLimitError)) throw error;
+      this.cached = { size, blanks, racks: null };
+    }
+    return this.cached.racks;
+  }
+
+  calculate(
+    lexicon: Lexicon,
+    position: Position,
+    template: BoardTemplate,
+    moves: readonly Move[],
+  ): RackOdds {
+    const { tiles, total, excess } = unseenTiles(position, template);
+    const size = template.rackSize;
+    const bagSize = Math.max(0, total - size);
+    const byLeave: Record<string, number> = Object.create(null);
+    if (excess.length)
+      return {
+        byLeave,
+        exact: true,
+        bagSize,
+        error: "Check the starting tile counts to calculate bingo odds.",
+      };
+    const leaves = [...new Set(moves.map((move) => move.leave))];
+    const eligible = leaves.filter((leave) => {
+      if (size - leave.length <= bagSize) return true;
+      byLeave[leave] = 0;
+      return false;
+    });
+    if (!eligible.length) return { byLeave, exact: true, bagSize };
+    const blanks = Math.min(
+      size,
+      tiles[26].count +
+        [...position.rack].filter((letter) => letter === "?").length,
+    );
+    const winning = this.winningRacks(size, blanks);
+    const deadline = performance.now() + 700;
+    if (winning) {
+      const weights = tiles.map(({ count }) =>
+        Array.from({ length: size + 1 }, (_, used) => choose(count, used)),
+      );
+      const root = leaveNode();
+      const endings = eligible.map((leave) => {
+        let node = root;
+        for (const letter of sortTiles(leave)) {
+          let child = node.children.get(letter);
+          if (!child) {
+            child = leaveNode();
+            node.children.set(letter, child);
+          }
+          node = child;
+        }
+        return node;
+      });
+      // A successful rack contributes to each contained leave. Its draw weight
+      // is the product of the combinations of unseen copies for each letter.
+      function addRack(
+        letters: string,
+        i: number,
+        node: LeaveNode,
+        weight: number,
+      ) {
+        if (i === letters.length) {
+          node.weight += weight;
+          return;
+        }
+        const letter = letters[i];
+        let end = i + 1;
+        while (letters[end] === letter) end++;
+        const row = weights[letterCode(letter)];
+        let at: LeaveNode | undefined = node;
+        for (let draws = end - i; draws >= 0 && at; draws--) {
+          if (row[draws]) addRack(letters, end, at, weight * row[draws]);
+          at = at.children.get(letter);
+        }
+      }
+      let checked = 0;
+      for (const letters of winning) {
+        addRack(letters, 0, root, 1);
+        if ((++checked & 1023) === 0 && performance.now() >= deadline) break;
+      }
+      if (checked === winning.size) {
+        eligible.forEach((leave, i) => {
+          byLeave[leave] = Math.min(
+            1,
+            endings[i].weight / choose(total, size - leave.length),
+          );
+        });
+        return { byLeave, exact: true, bagSize };
+      }
+    }
+
+    // Unusually large custom sets can make wildcard expansion impractical.
+    // Keep the whole list sortable with a shared, bounded sample when possible.
+    const sampleDeadline = performance.now() + 1_000;
+    const maxDraw = Math.max(...eligible.map((leave) => size - leave.length));
+    const pool = tiles.flatMap(({ symbol, count }) =>
+      Array<string>(count).fill(symbol),
+    );
+    const deals = Array.from({ length: SAMPLES }, () =>
+      sampleTiles(pool, maxDraw, Math.random),
+    );
+    const memo = new Map<string, boolean>();
+    try {
+      for (const leave of eligible) {
+        let hits = 0;
+        for (const deal of deals) {
+          if (performance.now() >= sampleDeadline) throw new SearchLimitError();
+          const rack = sortTiles(leave + deal.slice(0, size - leave.length));
+          let hit = memo.get(rack);
+          if (hit === undefined) {
+            hit = winning
+              ? winning.has(rack)
+              : canSpellRack(lexicon, rack, sampleDeadline);
+            memo.set(rack, hit);
+          }
+          if (hit) hits++;
+        }
+        byLeave[leave] = hits / SAMPLES;
+      }
+      return { byLeave, exact: false, bagSize };
+    } catch (error) {
+      if (!(error instanceof SearchLimitError)) throw error;
+      return {
+        byLeave: {},
+        exact: false,
+        bagSize,
+        error: "This tile set exceeded the bingo draw calculation limit.",
+      };
+    }
+  }
+}
+
+function canSpellRack(lexicon: Lexicon, rack: string, deadline: number) {
+  const counts = new Uint8Array(27);
+  let available = 0;
+  for (const tile of rack) {
+    const code = letterCode(tile);
+    counts[code]++;
+    if (code < 26) available |= 1 << code;
+  }
+  let visited = 0;
+  function walk(
+    node: number,
+    left: number,
+    letters: number,
+    blanks: number,
+  ): boolean {
+    if ((++visited & 255) === 0 && performance.now() >= deadline)
+      throw new SearchLimitError();
+    if (!left) return !!lexicon.terminal[node];
+    if (lexicon.maxTail[node] < left) return false;
+    const all = lexicon.mask[node];
+    for (let possible = all & (blanks ? -1 : letters); possible; ) {
+      const code = 31 - Math.clz32(possible),
+        bit = 1 << code;
+      possible ^= bit;
+      const child = lexicon.first[node] + popcount(all >>> (code + 1));
+      if (letters & bit) {
+        const remaining = --counts[code] ? letters : letters ^ bit;
+        const found = walk(child, left - 1, remaining, blanks);
+        counts[code]++;
+        if (found) return true;
+      }
+      if (blanks && walk(child, left - 1, letters, blanks - 1)) return true;
+    }
+    return false;
+  }
+  return walk(0, rack.length, available, counts[26]);
+}
+
+export function checkBoardBingo(
+  lexicon: Lexicon,
+  position: Position,
+  template: BoardTemplate,
+  candidates: readonly Move[],
+  bagSize: number,
+  progress: (checked: number) => void = () => {},
+  random = Math.random,
+): BoardOddsResult {
+  const { tiles, total, excess } = unseenTiles(position, template);
+  if (excess.length)
+    throw new Error("Check the starting tile counts to calculate board odds.");
+  if (
+    !Number.isInteger(bagSize) ||
+    bagSize < Math.max(0, total - template.rackSize) ||
+    bagSize > total
+  ) {
+    throw new Error("Check the number of tiles in the bag.");
+  }
+  if (!candidates.length || candidates.length > BOARD_ODDS_LIMIT) {
+    throw new Error("Choose up to 20 moves to check.");
+  }
+  const pool = tiles.flatMap(({ symbol, count }) =>
+    Array<string>(count).fill(symbol),
+  );
+  const maxDraw = Math.min(bagSize, template.rackSize);
+  const deals = Array.from({ length: SAMPLES }, () =>
+    sampleTiles(pool, maxDraw, random),
+  );
+  const drawsBySize = new Map<number, { draw: string; weight: number }[]>();
+  const deadline = performance.now() + 8_000;
+  const byMove: Record<string, BoardOdds> = Object.create(null);
+  function measure(
+    prepared: ReturnType<typeof prepareSolver>,
+    leave: string,
+    draws: { draw: string; weight: number }[],
+    until: number,
+  ) {
+    let total = 0,
+      hits = 0;
+    for (const { draw, weight } of draws) {
+      const maxMs = Math.min(SEARCH_LIMITS.maxMs, until - performance.now());
+      if (maxMs <= 0) throw new SearchLimitError();
+      total += weight;
+      if (prepared.solve(leave + draw, { maxMs }, { bingoOnly: true }).length)
+        hits += weight;
+    }
+    return hits / total;
+  }
+  for (const move of candidates) {
+    const size = template.rackSize - move.leave.length;
+    if (size > bagSize) {
+      byMove[move.id] = { chance: 0, exact: true };
+    } else {
+      const prepared = prepareSolver(
+        lexicon,
+        placeTiles(position.board, move),
+        template,
+      );
+      if (size <= 2) {
+        try {
+          byMove[move.id] = {
+            chance: measure(
+              prepared,
+              move.leave,
+              weightedDraws(pool, size),
+              Math.min(deadline, performance.now() + DRAW_TIMEOUT),
+            ),
+            exact: true,
+          };
+        } catch (error) {
+          if (!(error instanceof SearchLimitError)) throw error;
+        }
+      }
+      if (!byMove[move.id]) {
+        try {
+          let draws = drawsBySize.get(size);
+          if (!draws) {
+            const multiplicities = new Map<string, number>();
+            for (const deal of deals) {
+              const draw = sortTiles(deal.slice(0, size));
+              multiplicities.set(draw, (multiplicities.get(draw) ?? 0) + 1);
+            }
+            draws = [...multiplicities].map(([draw, weight]) => ({
+              draw,
+              weight,
+            }));
+            drawsBySize.set(size, draws);
+          }
+          byMove[move.id] = {
+            chance: measure(prepared, move.leave, draws, deadline),
+            exact: false,
+          };
+        } catch (error) {
+          if (!(error instanceof SearchLimitError)) throw error;
+          if (performance.now() >= deadline) break;
+        }
+      }
+    }
+    progress(Object.keys(byMove).length);
+  }
+  return {
+    byMove,
+    checked: Object.keys(byMove).length,
+    total: candidates.length,
+    bagSize,
+  };
+}

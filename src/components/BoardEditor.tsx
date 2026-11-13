@@ -8,6 +8,11 @@ import {
   emptyBoard,
 } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
+import {
+  getTileCounts,
+  MAX_TILE_COUNT,
+  TILE_SYMBOLS,
+} from "../../shared/tile-pool";
 
 export default function BoardEditor({
   templates,
@@ -31,6 +36,11 @@ export default function BoardEditor({
     [symmetry, setSymmetry] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const tileCounts = getTileCounts(draft);
+  const tileTotal = Object.values(tileCounts).reduce(
+    (total, count) => total + count,
+    0,
+  );
   function resize(size: number) {
     if (!Number.isInteger(size) || size < 5 || size > 25) return;
     const premiums: Premium[] = Array(size * size).fill("");
@@ -81,7 +91,7 @@ export default function BoardEditor({
           setBusy(true);
           setError("");
           try {
-            await onSave(draft);
+            await onSave({ ...draft, tileCounts });
           } catch (err) {
             setError((err as Error).message);
             setBusy(false);
@@ -222,6 +232,37 @@ export default function BoardEditor({
             paint
           />
         </div>
+        <details className="tile-count-editor">
+          <summary>Starting tile counts · {tileTotal} tiles</summary>
+          <div className="tile-count-fields">
+            {TILE_SYMBOLS.map((symbol) => (
+              <label key={symbol}>
+                {symbol === "?" ? "Blank" : symbol}
+                <input
+                  aria-label={`Starting ${symbol === "?" ? "blank" : symbol} count`}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={MAX_TILE_COUNT}
+                  value={tileCounts[symbol]}
+                  onChange={(e) => {
+                    const count = Math.max(
+                      0,
+                      Math.min(
+                        MAX_TILE_COUNT,
+                        Math.trunc(Number(e.target.value)),
+                      ),
+                    );
+                    setDraft({
+                      ...draft,
+                      tileCounts: { ...tileCounts, [symbol]: count },
+                    });
+                  }}
+                />
+              </label>
+            ))}
+          </div>
+        </details>
         {error && (
           <p className="error" role="alert">
             {error}

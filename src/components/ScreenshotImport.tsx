@@ -4,6 +4,7 @@ import {
   type Board as BoardState,
   type BoardTemplate,
   coordinate,
+  emptyBoard,
 } from "../../shared/model";
 import {
   type Crop,
@@ -13,7 +14,8 @@ import {
 import { acceptsScreenshot, isHeif } from "../../shared/heif";
 import { convertHeif } from "../heif";
 import { recognizeBoard } from "../recognize";
-import Board from "./Board";
+import { BoardInput } from "./BoardEntry";
+import { saveScreenshotExample } from "../screenshot-example";
 import { findBoard } from "../detect-board";
 import Modal from "./Modal";
 
@@ -37,7 +39,11 @@ export default function ScreenshotImport({
   });
   const [corner, setCorner] = useState<{ x: number; y: number } | null>(null);
   const [result, setResult] = useState<Recognition | null>(null),
-    [selected, setSelected] = useState(0);
+    [selected, setSelected] = useState<number | null>(null);
+  const [selection, setSelection] = useState<{ index: number }>();
+  const [exampleStatus, setExampleStatus] = useState("");
+  const [savingExample, setSavingExample] = useState(false);
+  const original = useRef<Recognition | null>(null);
   const [busy, setBusy] = useState(""),
     [error, setError] = useState("");
   const task = useRef<AbortController | null>(null),
@@ -60,6 +66,8 @@ export default function ScreenshotImport({
     task.current?.abort();
     setError("");
     setResult(null);
+    setExampleStatus("");
+    original.current = null;
     const version = ++fileVersion.current;
     if (!acceptsScreenshot(file)) {
       setError("Choose a PNG, JPEG, WebP, HEIF or HEIC image under 20 MB.");
@@ -141,8 +149,7 @@ export default function ScreenshotImport({
         controller.signal,
       );
       if (!controller.signal.aborted) {
-        setResult(recognized);
-        setSelected(recognized.uncertain[0] ?? 0);
+        startReview(recognized);
       }
     } catch (err) {
       if (!task.current?.signal.aborted)
@@ -154,21 +161,69 @@ export default function ScreenshotImport({
       setBusy("");
     }
   }
-  function changeTile(letter: string) {
-    if (!result) return;
-    const board = [...result.board];
-    board[selected] = letter;
-    setResult({
-      ...result,
-      board,
-      uncertain: result.uncertain.filter((i) => i !== selected),
-    });
+  function startReview(recognized: Recognition) {
+    original.current = recognized;
+    setResult(recognized);
+    setSelection({ index: recognized.uncertain[0] ?? template.start });
+    setExampleStatus("");
   }
+  function enterManually() {
+    if (!image) return;
+    try {
+      validateCrop(
+        crop,
+        image.naturalWidth,
+        image.naturalHeight,
+        template.size,
+      );
+      setError("");
+      startReview({
+        board: emptyBoard(template.size),
+        uncertain: [],
+        candidates: 0,
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+  async function saveExample() {
+    if (!result || !original.current || !image) return;
+    setSavingExample(true);
+    setError("");
+    setExampleStatus("");
+    try {
+      const { id } = await saveScreenshotExample(
+        image,
+        crop,
+        template.size,
+        original.current,
+        result.board,
+      );
+      setExampleStatus(`Corrected example saved · ${id.slice(0, 8)}`);
+    } catch (err) {
+      setError(
+        (err as Error).message || "Could not save the corrected example.",
+      );
+    } finally {
+      setSavingExample(false);
+    }
+  }
+  const squareWidth = crop.width / template.size;
+  const squareHeight = crop.height / template.size;
+  const selectedX =
+    selected === null
+      ? 0
+      : crop.left + (selected % template.size) * squareWidth;
+  const selectedY =
+    selected === null
+      ? 0
+      : crop.top + Math.floor(selected / template.size) * squareHeight;
   return (
     <Modal
       title="Import a screenshot"
       subtitle="Choose a screenshot. We’ll look for the board, then you can review the letters."
       wide
+      className="screenshot-modal"
       onClose={close}
     >
       {!result ? (
@@ -295,6 +350,15 @@ export default function ScreenshotImport({
             <button className="button secondary" onClick={close}>
               Cancel
             </button>
+            {image && !busy && (
+              <button
+                className="button secondary"
+                disabled={!!corner}
+                onClick={enterManually}
+              >
+                Enter manually
+              </button>
+            )}
             <button
               className="button primary"
               disabled={!image || !!busy || !!corner}
@@ -311,16 +375,13 @@ export default function ScreenshotImport({
         </>
       ) : (
         <>
-          <p className="import-note" role="status">
-            Found {result.board.filter(Boolean).length} letters.{" "}
-            {result.uncertain.length
-              ? `${result.uncertain.length} squares need a closer look.`
-              : "Check every row against the screenshot."}{" "}
-            Empty squares can also be missed. Mark any assigned blanks manually.
+          <p className="import-note">
+            Tap a square on the review board and type. Check amber marks and
+            compare the whole board with the screenshot before saving.
           </p>
           <div className="import-review">
             <div className="import-original">
-              <span className="field-label">SCREENSHOT</span>
+              <span className="field-label">Screenshot</span>
               <svg
                 viewBox={`${crop.left} ${crop.top} ${crop.width} ${crop.height}`}
                 aria-label="Original board crop"
@@ -330,72 +391,104 @@ export default function ScreenshotImport({
                   width={image!.naturalWidth}
                   height={image!.naturalHeight}
                 />
+                {selected !== null && (
+                  <rect
+                    className="import-source-highlight"
+                    x={selectedX}
+                    y={selectedY}
+                    width={squareWidth}
+                    height={squareHeight}
+                  />
+                )}
               </svg>
             </div>
             <div>
-              <span className="field-label">
-                RECOGNIZED BOARD · TAP TO CORRECT
-              </span>
-              <Board
+              <div className="import-review-heading">
+                <span className="field-label">Review board</span>
+                {selected !== null && (
+                  <div className="import-tile-preview">
+                    <span>{coordinate(selected, template.size)}</span>
+                    <svg
+                      viewBox={`${selectedX} ${selectedY} ${squareWidth} ${squareHeight}`}
+                      aria-label={`Screenshot tile ${coordinate(selected, template.size)}`}
+                    >
+                      <image
+                        href={source}
+                        width={image!.naturalWidth}
+                        height={image!.naturalHeight}
+                      />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              <BoardInput
                 template={template}
                 board={result.board}
-                selected={selected}
-                onSelect={setSelected}
+                selection={selection}
+                uncertain={new Set(result.uncertain)}
+                onCursorChange={setSelected}
+                inputLabel="Correct letters on review board"
+                onChange={(board) => {
+                  setResult({
+                    ...result,
+                    board,
+                    uncertain: result.uncertain.filter(
+                      (i) => board[i] === result.board[i],
+                    ),
+                  });
+                  setExampleStatus("");
+                }}
               />
+              <div className="uncertain-squares">
+                {!!result.uncertain.length && (
+                  <>
+                    <button
+                      className="button secondary"
+                      onClick={() => {
+                        const next =
+                          result.uncertain.find((i) => i > (selected ?? -1)) ??
+                          result.uncertain[0];
+                        setSelection({ index: next });
+                      }}
+                    >
+                      Next marked square
+                    </button>
+                    <button
+                      className="button secondary"
+                      disabled={
+                        selected === null ||
+                        !result.uncertain.includes(selected)
+                      }
+                      onClick={() =>
+                        setResult({
+                          ...result,
+                          uncertain: result.uncertain.filter(
+                            (i) => i !== selected,
+                          ),
+                        })
+                      }
+                    >
+                      Confirm square
+                    </button>
+                    <span role="status">{result.uncertain.length} marked</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-          {!!result.uncertain.length && (
-            <div className="uncertain-squares">
-              <span>Check:</span>
-              {result.uncertain.map((i) => (
-                <button
-                  key={i}
-                  className="button secondary small"
-                  onClick={() => setSelected(i)}
-                >
-                  {coordinate(i, template.size)}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="import-correction">
-            <label>
-              Letter at {coordinate(selected, template.size)}
-              <input
-                aria-label="Recognized tile letter"
-                maxLength={1}
-                autoComplete="off"
-                autoCapitalize="characters"
-                value={result.board[selected].toUpperCase()}
-                onChange={(e) =>
-                  changeTile(
-                    e.target.value.replace(/[^a-z]/gi, "").toUpperCase(),
-                  )
-                }
-              />
-            </label>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={
-                  !!result.board[selected] &&
-                  result.board[selected] ===
-                    result.board[selected].toLowerCase()
-                }
-                disabled={!result.board[selected]}
-                onChange={(e) =>
-                  changeTile(
-                    e.target.checked
-                      ? result.board[selected].toLowerCase()
-                      : result.board[selected].toUpperCase(),
-                  )
-                }
-              />
-              Assigned blank (0 points)
-            </label>
-            <button className="button secondary" onClick={() => changeTile("")}>
-              Clear square
+          <div className="import-example">
+            <button
+              className="button secondary"
+              onClick={() => void saveExample()}
+              disabled={savingExample}
+            >
+              {savingExample ? "Saving example…" : "Save corrected example"}
             </button>
+            <p className="import-note">
+              Saves the cropped screenshot and reviewed letters on your Tilemaxx
+              server for improving recognition.
+            </p>
+            {exampleStatus && <p role="status">{exampleStatus}</p>}
           </div>
           <p className="import-note">
             Replace the current board with this reviewed layout. Your rack stays

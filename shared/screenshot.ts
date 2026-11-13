@@ -1,4 +1,5 @@
 import { type Board, type Game, remember } from "./model";
+import { emptyScoring } from "./game-scoring";
 
 export interface Crop {
   left: number;
@@ -16,6 +17,8 @@ export interface Glyph {
   width: number;
   height: number;
   data: Uint8ClampedArray;
+  warmTile: boolean;
+  assignedBlank: boolean;
 }
 export interface Recognition {
   board: Board;
@@ -61,22 +64,27 @@ export function extractGlyphs(
       h = Math.floor(ch * 0.76);
     const gray = new Uint8Array(w * h),
       histogram = new Uint32Array(256);
+    const blue = new Uint8Array(w * h);
+    let warm = 0;
     for (let j = 0; j < h; j++)
       for (let i = 0; i < w; i++) {
         const p = ((y + j) * image.width + x + i) * 4;
-        const v = Math.round(
-          image.data[p] * 0.299 +
-            image.data[p + 1] * 0.587 +
-            image.data[p + 2] * 0.114,
-        );
+        const r = image.data[p],
+          g = image.data[p + 1],
+          b = image.data[p + 2];
+        if (r > 175 && g > 145 && g - b > 18 && r >= g - 12) warm++;
+        if (b - r > 65 && g - r > 25 && b > 135) blue[j * w + i] = 1;
+        const v = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
         gray[j * w + i] = v;
         histogram[v]++;
       }
     let background = 0;
     for (let i = 1; i < 256; i++)
       if (histogram[i] > histogram[background]) background = i;
-    const ink = Uint8Array.from(gray, (v) =>
-      Math.abs(v - background) > 65 ? 1 : 0,
+    // Pale wood tiles in Scrabble GO use dark letters and blue assigned blanks.
+    const warmTile = warm > gray.length * 0.43;
+    const ink = Uint8Array.from(gray, (v, p) =>
+      (warmTile ? v < 115 || blue[p] : Math.abs(v - background) > 65) ? 1 : 0,
     );
     const components: {
       pixels: number[];
@@ -121,7 +129,7 @@ export function extractGlyphs(
       (c) =>
         c.maxY - c.minY + 1 >= ch * 0.32 &&
         c.maxY - c.minY + 1 <= ch * 0.72 &&
-        c.maxX - c.minX + 1 <= cw * 0.69 &&
+        c.maxX - c.minX + 1 <= cw * (warmTile ? 0.75 : 0.69) &&
         c.pixels.length < w * h * 0.55 &&
         (c.minX + c.maxX) / 2 > w * 0.14 &&
         (c.minX + c.maxX) / 2 < w * 0.82,
@@ -141,11 +149,14 @@ export function extractGlyphs(
     const width = c.maxX - c.minX + 1,
       height = c.maxY - c.minY + 1;
     const data = new Uint8ClampedArray(width * height * 4).fill(255);
+    let blueInk = 0;
     for (const p of c.pixels) {
       const out = ((Math.floor(p / w) - c.minY) * width + (p % w) - c.minX) * 4;
       data[out] = data[out + 1] = data[out + 2] = 0;
+      blueInk += blue[p];
     }
-    glyphs.push({ index, width, height, data });
+    const assignedBlank = warmTile && blueInk > c.pixels.length * 0.55;
+    glyphs.push({ index, width, height, data, warmTile, assignedBlank });
   }
   return glyphs;
 }
@@ -160,5 +171,6 @@ export function importBoard(game: Game, board: Board): Game {
     ...game,
     ...remember(game, "Imported screenshot"),
     board: [...board],
+    scoring: emptyScoring(true),
   };
 }

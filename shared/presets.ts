@@ -1,4 +1,5 @@
 import { type BoardTemplate, type Premium } from "./model";
+import { getTileCounts } from "./tile-pool";
 
 function board(
   id: string,
@@ -20,6 +21,7 @@ function board(
     rackSize: 7,
     bingo: rules === "wwf" ? 35 : 50,
     rules,
+    tileCounts: getTileCounts({ id, rules }),
     builtin: true,
   };
 }

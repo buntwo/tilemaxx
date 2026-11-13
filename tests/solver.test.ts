@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Lexicon, parseWords } from "../shared/lexicon";
-import { solve, inspectBoard } from "../shared/solver";
+import { solve, inspectBoard, prepareSolver } from "../shared/solver";
 import { PRESETS } from "../shared/presets";
 import {
   emptyBoard,
@@ -317,6 +317,18 @@ test("all legal placements and scores match exhaustive enumeration across 30 pos
     const expected = brute(words, b, rack, t),
       actual = new Map(solve(dict, b, rack, t).map((m) => [m.id, m.score]));
     assert.deepEqual(actual, expected, `Trial ${trial}, rack ${rack}`);
+    const prepared = prepareSolver(dict, b, t);
+    const bingo = [...expected.keys()].some(
+      (id) => id.split(",").length === t.rackSize,
+    );
+    assert.deepEqual(prepared.summarize(rack), {
+      score: Math.max(0, ...expected.values()),
+      bingo,
+    });
+    assert.equal(
+      prepared.solve(rack, {}, { bingoOnly: true }).length,
+      Number(bingo),
+    );
   }
 });
 
@@ -335,4 +347,57 @@ test("blank-heavy searches stop at work, result and time budgets instead of retu
   assert.equal(solve(lex("CAT AT ACT TAC DOG"), board, "CAT", t).length, 22);
   assert.throws(() => solve(dict, board, "???????????", t), /too many/);
   assert.throws(() => solve(dict, board, "CAT!", t), /invalid/);
+});
+
+test("a prepared board can reuse its snapshot across racks and interrupted searches", () => {
+  const dict = lex("AT CAT ACT CATS RAT");
+  const template = structuredClone(PRESETS[0]);
+  const board = emptyBoard(15);
+  const prepared = prepareSolver(dict, board, template);
+  assert.throws(() => prepared.summarize("???????", { maxMoves: 1 }), {
+    name: "SearchLimitError",
+  });
+  const withBlank = prepared.solve("C.T?");
+  assert.ok(withBlank.some((move) => move.word === "CAT" && move.score === 8));
+  board[112] = "Z";
+  template.premiums[112] = "";
+  assert.deepEqual(prepared.solve("C.T?"), withBlank);
+  assert.equal(prepared.summarize("CAT").score, 10);
+  assert.deepEqual(solve(dict, board, "CAT", template), []);
+});
+
+test("empty rack slots never become playable tiles, blanks or bingo bonuses", () => {
+  const t = PRESETS[0],
+    board = emptyBoard(15),
+    words = lex("CAT AT ACT");
+  assert.deepEqual(
+    solve(words, board, "C.A.T..", t),
+    solve(words, board, "CAT", t),
+  );
+  assert.deepEqual(
+    solve(words, board, "C.?.T..", t),
+    solve(words, board, "C?T", t),
+  );
+  assert.deepEqual(solve(words, board, ".......", t), []);
+  assert.throws(() => solve(words, board, "C......T", t), /too many/);
+  const game: Game = {
+    id: "gaps",
+    profileId: "p",
+    name: "Gaps",
+    template: t,
+    dictionaryId: "test",
+    board,
+    rack: "C.A.T..",
+    past: [],
+    future: [],
+    revision: 0,
+    updatedAt: "",
+    archived: false,
+  };
+  const played = applyMove(
+    game,
+    solve(words, board, game.rack, t).find((m) => m.word === "CAT")!,
+  );
+  assert.equal(played.rack, "");
+  assert.equal(undo(played).rack, "C.A.T..");
 });

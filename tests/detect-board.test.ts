@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
 import { detectBoard } from "../shared/detect-board";
+import { detectScrabbleGoBoard } from "../shared/detect-scrabble-go";
+import { PRESETS } from "../shared/presets";
 for (const [width, height, left, top, side] of [
   [900, 1600, 75, 340, 750],
   [1200, 900, 210, 60, 750],
@@ -47,5 +49,49 @@ test("no grid is reported for a blank image", () => {
       15,
     ),
     null,
+  );
+});
+
+test("Scrabble GO detector locates the board even when most triple words are covered", async () => {
+  const width = 350,
+    height = 740,
+    left = 10,
+    top = 233,
+    cell = 22;
+  const colors = {
+    TW: "#da3878",
+    DW: "#f09177",
+    TL: "#3876ad",
+    DL: "#a0c9fa",
+  };
+  const visibleTriples = [0, 7, 105];
+  const squares = PRESETS[0].premiums.map((premium, i) => {
+    const x = left + (i % 15) * cell,
+      y = top + Math.floor(i / 15) * cell;
+    const color =
+      premium === "TW" && !visibleTriples.includes(i)
+        ? "#f5e3be"
+        : (colors[premium as keyof typeof colors] ?? "#e8e9ef");
+    return `<rect x="${x + 1}" y="${y + 1}" width="20" height="20" rx="2" fill="${color}"/>`;
+  });
+  const chrome = `<rect width="${width}" height="${height}" fill="#f9fcff"/>
+    <rect x="11" y="180" width="20" height="20" fill="${colors.TW}"/>
+    <rect x="165" y="180" width="20" height="20" fill="${colors.TW}"/>
+    <rect x="319" y="180" width="20" height="20" fill="${colors.TW}"/>`;
+  const pixels = async (content: string) => {
+    const data = await sharp(
+      Buffer.from(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${content}</svg>`,
+      ),
+    )
+      .ensureAlpha()
+      .raw()
+      .toBuffer();
+    return { width, height, data };
+  };
+  assert.equal(detectScrabbleGoBoard(await pixels(chrome)), null);
+  assert.deepEqual(
+    detectScrabbleGoBoard(await pixels(chrome + squares.join(""))),
+    { left, top, width: 330, height: 330 },
   );
 });

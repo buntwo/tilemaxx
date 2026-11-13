@@ -3,7 +3,12 @@ import compression from "compression";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { createStore } from "./store";
-import { gameSchema, nameSchema, templateSchema } from "./validation";
+import {
+  gameSchema,
+  nameSchema,
+  screenshotExampleSchema,
+  templateSchema,
+} from "./validation";
 import { PRESETS } from "../shared/presets";
 
 export function createApp(store: ReturnType<typeof createStore>) {
@@ -29,6 +34,23 @@ export function createApp(store: ReturnType<typeof createStore>) {
   app.use(express.json({ limit: "16mb" }));
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
   app.get("/api/state", (_req, res) => res.json(store.state()));
+  app.post("/api/screenshot-examples", (req, res) => {
+    const example = screenshotExampleSchema.parse(req.body);
+    const header = Buffer.from(example.croppedPng.slice(0, 32), "base64");
+    if (
+      header.length < 24 ||
+      header.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" ||
+      header.toString("ascii", 12, 16) !== "IHDR" ||
+      !header.readUInt32BE(16) ||
+      header.readUInt32BE(16) > 1500 ||
+      !header.readUInt32BE(20) ||
+      header.readUInt32BE(20) > 1500
+    ) {
+      res.status(400).json({ error: "Expected a cropped PNG board." });
+      return;
+    }
+    res.status(201).json(store.saveScreenshotExample(example));
+  });
   app.post("/api/profiles", (req, res) =>
     res.status(201).json(store.createProfile(nameSchema.parse(req.body.name))),
   );

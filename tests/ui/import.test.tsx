@@ -5,11 +5,15 @@ import ScreenshotImport from "../../src/components/ScreenshotImport";
 import { findBoard } from "../../src/detect-board";
 import { convertHeif } from "../../src/heif";
 import { recognizeBoard } from "../../src/recognize";
+import { saveScreenshotExample } from "../../src/screenshot-example";
 import { emptyBoard } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
 vi.mock("../../src/detect-board", () => ({ findBoard: vi.fn(() => null) }));
 vi.mock("../../src/heif", () => ({ convertHeif: vi.fn() }));
 vi.mock("../../src/recognize", () => ({ recognizeBoard: vi.fn() }));
+vi.mock("../../src/screenshot-example", () => ({
+  saveScreenshotExample: vi.fn(),
+}));
 beforeEach(() => {
   vi.stubGlobal(
     "Image",
@@ -61,16 +65,23 @@ test("recognition is a draft until applied; corrections and blanks reach the imp
   await user.click(screen.getByRole("button", { name: "Read board" }));
   await screen.findByRole("button", { name: "Use this board" });
   expect(onApply).not.toHaveBeenCalled();
-  await user.clear(
-    screen.getByRole("textbox", { name: "Recognized tile letter" }),
-  );
-  await user.type(
-    screen.getByRole("textbox", { name: "Recognized tile letter" }),
-    "E",
-  );
+  await user.click(screen.getByRole("button", { name: "I8: A" }));
+  await user.keyboard(" E");
+  expect(screen.getByRole("button", { name: "I8: E blank" })).toBeTruthy();
+  expect(screen.getByLabelText("Screenshot tile J8")).toBeTruthy();
+  vi.mocked(saveScreenshotExample).mockResolvedValueOnce({
+    id: "12345678-abcd",
+  });
   await user.click(
-    screen.getByRole("checkbox", { name: "Assigned blank (0 points)" }),
+    screen.getByRole("button", { name: "Save corrected example" }),
   );
+  await screen.findByText(/Corrected example saved/);
+  const [, , , original, corrected] = vi
+    .mocked(saveScreenshotExample)
+    .mock.calls.at(-1)!;
+  expect(original.board[113]).toBe("A");
+  expect(corrected[113]).toBe("e");
+  expect(onApply).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "Use this board" }));
   expect(onApply.mock.calls[0][0][113]).toBe("e");
   expect(board[113]).toBe("A");
@@ -153,4 +164,15 @@ test("detected board preselects the crop and keeps manual adjustment available",
   expect((screen.getByLabelText("Crop left") as HTMLInputElement).value).toBe(
     "12",
   );
+});
+
+test("manual review accepts a missed tile and can clear a false positive", async () => {
+  const { user, onApply } = await setup();
+  await user.click(screen.getByRole("button", { name: "Enter manually" }));
+  await user.click(screen.getByRole("button", { name: /^H8:/ }));
+  await user.keyboard("CAT");
+  await user.click(screen.getByRole("button", { name: "J8: T" }));
+  await user.keyboard("{Delete}");
+  await user.click(screen.getByRole("button", { name: "Use this board" }));
+  expect(onApply.mock.calls[0][0].slice(112, 115)).toEqual(["C", "A", ""]);
 });

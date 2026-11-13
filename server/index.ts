@@ -33,7 +33,7 @@ if (dev) {
 const port = Number(process.env.PORT || 4173),
   host = process.env.HOST || "0.0.0.0";
 const server = app.listen(port, host, () => {
-  console.log(`Tilewise: http://localhost:${port}`);
+  console.log(`Tilemaxx: http://localhost:${port}`);
   if (host === "0.0.0.0")
     for (const interfaces of Object.values(networkInterfaces()))
       for (const nic of interfaces || [])

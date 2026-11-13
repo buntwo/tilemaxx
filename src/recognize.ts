@@ -1,6 +1,12 @@
 import type { Worker } from "tesseract.js";
 import { emptyBoard } from "../shared/model";
 import {
+  OCR_TILE_SIZE,
+  readGlyphs,
+  renderGlyph,
+  type GlyphPass,
+} from "../shared/screenshot-ocr";
+import {
   extractGlyphs,
   type Crop,
   type Recognition,
@@ -27,9 +33,8 @@ export async function recognizeBoard(
     crop,
     size,
   );
-  const board = emptyBoard(size),
-    uncertain: number[] = [];
-  if (!glyphs.length) return { board, uncertain, candidates: 0 };
+  if (!glyphs.length)
+    return { board: emptyBoard(size), uncertain: [], candidates: 0 };
   progress("Loading letter recognition…");
   const { createWorker, PSM } = await import("tesseract.js");
   check();
@@ -39,7 +44,7 @@ export async function recognizeBoard(
   };
   signal.addEventListener("abort", cancel, { once: true });
   try {
-    worker = await createWorker("eng", 1, {
+    const engine = (worker = await createWorker("eng", 1, {
       workerPath: "/ocr/worker.min.js",
       corePath: "/ocr",
       langPath: "/ocr",
@@ -47,43 +52,38 @@ export async function recognizeBoard(
         if (!signal.aborted && m.status === "loading language traineddata")
           progress("Loading English letters…");
       },
-    });
+    }));
     check();
-    await worker.setParameters({
-      user_defined_dpi: "300",
-      tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-      tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-    });
-    const tile = document.createElement("canvas"),
-      glyph = document.createElement("canvas");
-    tile.width = tile.height = 96;
+    let mode: GlyphPass | undefined;
+    const tile = document.createElement("canvas");
+    tile.width = tile.height = OCR_TILE_SIZE;
     const tc = tile.getContext("2d")!;
-    for (let i = 0; i < glyphs.length; i++) {
-      check();
-      progress(`Reading tile ${i + 1} of ${glyphs.length}…`);
-      const g = glyphs[i];
-      glyph.width = g.width;
-      glyph.height = g.height;
-      glyph
-        .getContext("2d")!
-        .putImageData(
-          new ImageData(new Uint8ClampedArray(g.data), g.width, g.height),
+    return await readGlyphs(
+      glyphs,
+      size,
+      async (g, pass) => {
+        const nextMode = pass === "block" ? "block" : "character";
+        if (mode !== nextMode) {
+          await engine.setParameters({
+            user_defined_dpi: "300",
+            tessedit_char_whitelist:
+              pass === "block" ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ" : "",
+            tessedit_pageseg_mode:
+              pass === "block" ? PSM.SINGLE_BLOCK : PSM.SINGLE_CHAR,
+          });
+          mode = nextMode;
+        }
+        tc.putImageData(
+          new ImageData(renderGlyph(g, pass), OCR_TILE_SIZE, OCR_TILE_SIZE),
           0,
           0,
         );
-      tc.fillStyle = "white";
-      tc.fillRect(0, 0, 96, 96);
-      const scale = Math.min(60 / g.width, 64 / g.height),
-        width = g.width * scale,
-        height = g.height * scale;
-      tc.drawImage(glyph, (96 - width) / 2, (96 - height) / 2, width, height);
-      const { data } = await worker.recognize(tile);
-      check();
-      const text = data.text.trim();
-      if (/^[A-Z]$/.test(text)) board[g.index] = text;
-      if (!board[g.index] || data.confidence < 75) uncertain.push(g.index);
-    }
-    return { board, uncertain, candidates: glyphs.length };
+        const { data } = await engine.recognize(tile);
+        return data;
+      },
+      (completed, total) => progress(`Reading tile ${completed} of ${total}…`),
+      check,
+    );
   } finally {
     signal.removeEventListener("abort", cancel);
     await worker?.terminate();
