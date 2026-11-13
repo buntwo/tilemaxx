@@ -1041,6 +1041,29 @@ label + label {
   width: fit-content;
   margin: 3px auto 0;
 }
+.score-edit-move {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.score-edit-move svg {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+.score-add-move {
+  margin-top: 8px;
+}
+.modal .score-edit-bingo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
 .manage-button {
   font-size: 11px;
   padding: 8px 12px;

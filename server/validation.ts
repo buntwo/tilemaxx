@@ -88,6 +88,17 @@ const scoringSchema = z.object({
   pendingBase: z.array(cell).max(625).optional(),
   imported: z.boolean().optional(),
 });
+const trackedMoves = z
+  .array(
+    z.object({
+      player: z.enum(["you", "opponent"]),
+      word: z.string().regex(/^[A-Z]{2,25}$/),
+      score: z.number().int().nonnegative(),
+      bingo: z.boolean().optional(),
+      at: z.string().max(50),
+    }),
+  )
+  .optional();
 const historySchema = z.object({
   board: z.array(cell).max(625),
   rack,
@@ -97,22 +108,13 @@ const historySchema = z.object({
   bingo: z.boolean().optional(),
   player: z.enum(["you", "opponent"]).optional(),
   scoring: scoringSchema.optional(),
+  trackedMoves,
   at: z.string().max(50),
 });
 const gameProgress = z.object({
   trackScores: z.boolean().optional(),
   scoring: scoringSchema.optional(),
-  trackedMoves: z
-    .array(
-      z.object({
-        player: z.enum(["you", "opponent"]),
-        word: z.string().regex(/^[A-Z]{2,25}$/),
-        score: z.number().int().nonnegative(),
-        bingo: z.boolean().optional(),
-        at: z.string().max(50),
-      }),
-    )
-    .optional(),
+  trackedMoves,
   rack,
   excludedRackSlots,
   past: z.array(historySchema).max(100),

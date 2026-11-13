@@ -48,6 +48,8 @@ export interface HistoryEntry extends Position {
   bingo?: boolean;
   player?: Player;
   scoring?: GameScoring;
+  // Only score-log edits need to snapshot the whole log for undo and redo.
+  trackedMoves?: TrackedMove[];
   at: string;
 }
 export interface Game extends Position {
@@ -345,9 +347,11 @@ export function undo(game: Game): Game {
     rack: step.rack,
     excludedRackSlots: step.excludedRackSlots,
     scoring: step.scoring,
-    trackedMoves: trackedMove(step)
-      ? trackedMoveHistory(game).slice(0, -1)
-      : game.trackedMoves,
+    trackedMoves:
+      step.trackedMoves ??
+      (trackedMove(step)
+        ? trackedMoveHistory(game).slice(0, -1)
+        : game.trackedMoves),
     past: game.past.slice(0, -1),
     future: [
       ...game.future,
@@ -360,6 +364,7 @@ export function undo(game: Game): Game {
         player: step.player,
         bingo: trackedMove(step, game.scoring)?.bingo,
         scoring: game.scoring,
+        trackedMoves: step.trackedMoves && trackedMoveHistory(game),
         at: step.at,
       },
     ],
@@ -375,9 +380,9 @@ export function redo(game: Game): Game {
     rack: step.rack,
     excludedRackSlots: step.excludedRackSlots,
     scoring: step.scoring,
-    trackedMoves: move
-      ? [...trackedMoveHistory(game), move]
-      : game.trackedMoves,
+    trackedMoves:
+      step.trackedMoves ??
+      (move ? [...trackedMoveHistory(game), move] : game.trackedMoves),
     past: [
       ...game.past,
       {
@@ -389,6 +394,7 @@ export function redo(game: Game): Game {
         player: step.player,
         bingo: move?.bingo,
         scoring: game.scoring,
+        trackedMoves: step.trackedMoves && trackedMoveHistory(game),
         at: step.at,
       },
     ],

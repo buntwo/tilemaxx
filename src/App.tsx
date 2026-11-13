@@ -1071,6 +1071,7 @@ export default function App() {
                 onToggle={(enabled) => update(setScoreTracking(game, enabled))}
                 onRecord={() => update(recordOpponentPlay(game))}
                 onCorrection={() => update(treatBoardEditAsCorrection(game))}
+                onChange={update}
               />
               <div className="dictionary-strip">
                 <BookOpen size={15} />

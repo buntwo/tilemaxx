@@ -2,6 +2,7 @@ import {
   applyMove,
   letterBonuses,
   remember,
+  trackedMoveHistory,
   tileScore,
   wordBonuses,
   type Board,
@@ -10,6 +11,7 @@ import {
   type GameScoring,
   type Move,
   type Player,
+  type TrackedMove,
 } from "./model";
 
 export function emptyScoring(imported = false): GameScoring {
@@ -187,4 +189,83 @@ export function playTrackedMove(game: Game, move: Move): Game {
       bingo: move.tiles.length === game.template.rackSize,
     }),
   };
+}
+
+export function correctTrackedMove(
+  game: Game,
+  index: number,
+  change: Omit<TrackedMove, "at">,
+  insert: boolean,
+): Game {
+  const moves = trackedMoveHistory(game);
+  if (
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index >= moves.length + Number(insert)
+  )
+    throw new Error("That move position is no longer available.");
+  if (
+    !/^[A-Z]{2,25}$/.test(change.word) ||
+    !Number.isSafeInteger(change.score) ||
+    change.score < 0
+  )
+    throw new Error("Enter a word and a whole, nonnegative score.");
+
+  const previous = insert ? undefined : moves[index];
+  const next = [...moves];
+  next.splice(index, insert ? 0 : 1, {
+    ...change,
+    at: previous?.at ?? new Date().toISOString(),
+  });
+
+  // A screenshot import or clearing the board resets the score while retaining the log.
+  const scoring = game.scoring ?? emptyScoring(isImportedPosition(game));
+  const sessionStart = game.scoring
+    ? Math.max(0, moves.length - scoring.you.moves - scoring.opponent.moves)
+    : 0;
+  const corrected = { ...scoring };
+  if (index >= sessionStart) {
+    for (const player of ["you", "opponent"] as const) {
+      const oldMoves = moves
+        .slice(sessionStart)
+        .filter((move) => move.player === player);
+      const newMoves = next
+        .slice(sessionStart)
+        .filter((move) => move.player === player);
+      const stats = game.scoring ? scoring[player] : summarizeMoves(oldMoves);
+      const oldStats = summarizeMoves(oldMoves);
+      const newStats = summarizeMoves(newMoves);
+      corrected[player] = {
+        points: stats.points - oldStats.points + newStats.points,
+        moves: stats.moves - oldStats.moves + newStats.moves,
+        best: Math.max(
+          stats.moves > oldStats.moves ? stats.best : 0,
+          newStats.best,
+        ),
+        bingos: Math.max(
+          newStats.bingos,
+          stats.bingos - oldStats.bingos + newStats.bingos,
+        ),
+      };
+      if (!Number.isSafeInteger(corrected[player].points))
+        throw new Error("The running score is too large.");
+    }
+  }
+  const history = remember(
+    game,
+    insert ? "Added missed move" : "Corrected tracked move",
+  );
+  const past = [...history.past];
+  past[past.length - 1] = { ...past[past.length - 1], trackedMoves: moves };
+  return { ...game, ...history, past, trackedMoves: next, scoring: corrected };
+}
+
+function summarizeMoves(moves: readonly TrackedMove[]) {
+  const result = { points: 0, moves: moves.length, best: 0, bingos: 0 };
+  for (const move of moves) {
+    result.points += move.score;
+    result.best = Math.max(result.best, move.score);
+    result.bingos += Number(move.bingo === true);
+  }
+  return result;
 }

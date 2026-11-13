@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { gameSchema } from "../server/validation";
 import { BoardEditHistory } from "../shared/board-entry";
 import {
+  correctTrackedMove,
   pendingOpponentPlay,
   playTrackedMove,
   recordOpponentPlay,
@@ -252,4 +254,75 @@ test("playing a suggestion requires resolving ambiguous new tiles but permits co
     trackedMoveHistory(next).map(({ player }) => player),
     ["you", "you"],
   );
+});
+
+test("inserting and correcting tracked moves updates scores and can be undone independently", () => {
+  const game = { ...fixture(), rack: "CAT" };
+  const opening = solve(
+    new Lexicon(["CAT"]),
+    game.board,
+    game.rack,
+    game.template,
+  )[0];
+  const played = playTrackedMove(game, opening);
+  const reply = solve(
+    new Lexicon(["CATS"]),
+    played.board,
+    "S",
+    played.template,
+  )[0];
+  const later = playTrackedMove({ ...played, rack: "S" }, reply);
+  const inserted = correctTrackedMove(
+    later,
+    1,
+    { word: "SAD", player: "opponent", score: 6, bingo: false },
+    true,
+  );
+  const corrected = correctTrackedMove(
+    inserted,
+    0,
+    { word: "CAT", player: "you", score: 8, bingo: false },
+    false,
+  );
+  assert.deepEqual(
+    trackedMoveHistory(corrected).map((move) => [move.word, move.score]),
+    [
+      ["CAT", 8],
+      ["SAD", 6],
+      ["CATS", reply.score],
+    ],
+  );
+  assert.equal(corrected.board, later.board);
+  assert.equal(corrected.rack, later.rack);
+  assert.equal(corrected.scoring?.opponent.points, 6);
+  assert.equal(corrected.scoring?.you.points, 8 + reply.score);
+  assert.equal(corrected.scoring?.you.best, Math.max(8, reply.score));
+  const saved = gameSchema.parse(JSON.parse(JSON.stringify(corrected)));
+  const reverted = undo(saved);
+  assert.deepEqual(reverted.trackedMoves, inserted.trackedMoves);
+  assert.deepEqual(redo(reverted).trackedMoves, corrected.trackedMoves);
+  assert.deepEqual(undo(undo(reverted)).trackedMoves, played.trackedMoves);
+});
+
+test("correcting a move from before a score reset keeps current totals and pending edits", () => {
+  const game = { ...fixture(), rack: "CAT" };
+  const opening = solve(
+    new Lexicon(["CAT"]),
+    game.board,
+    game.rack,
+    game.template,
+  )[0];
+  const imported = importBoard(playTrackedMove(game, opening), emptyBoard(15));
+  const tracked = setScoreTracking(imported, true);
+  const board = [...tracked.board];
+  board[tracked.template.start] = "S";
+  const pending = new BoardEditHistory().apply(tracked, board, "enter");
+  const corrected = correctTrackedMove(
+    pending,
+    0,
+    { word: "CAT", player: "you", score: 12 },
+    false,
+  );
+  assert.deepEqual(corrected.scoring, pending.scoring);
+  assert.equal(trackedMoveHistory(corrected)[0].score, 12);
 });
