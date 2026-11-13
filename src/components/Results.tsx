@@ -9,8 +9,6 @@ import {
   Trophy,
   ChartNoAxesCombined,
   Calculator,
-  ShieldAlert,
-  ShieldCheck,
 } from "lucide-react";
 import { type Game, type Move, coordinate } from "../../shared/model";
 import {
@@ -29,6 +27,13 @@ import PremiumDefense, {
   defenseLabel,
 } from "./PremiumDefense";
 import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
+import { useReplyAnalysis } from "../useReplyAnalysis";
+import ReplyAnalysis, {
+  ReplyCell,
+  replyScoreTotals,
+  ReplySettings,
+  signedPoints,
+} from "./ReplyAnalysis";
 
 function formatOdds(chance: number, exact: boolean) {
   const value =
@@ -55,6 +60,7 @@ export default function Results({
   hasRack,
   analysisGame,
   analysisKey,
+  replyEnabled = !!analysisGame,
   rackOdds,
   rackOddsPending,
   defense,
@@ -79,6 +85,7 @@ export default function Results({
   hasRack: boolean;
   analysisGame?: Game;
   analysisKey?: string;
+  replyEnabled?: boolean;
   rackOdds?: RackOdds;
   rackOddsPending?: boolean;
   defense?: DefenseResults;
@@ -97,6 +104,33 @@ export default function Results({
     pointer = useRef("mouse");
   const [analyzing, setAnalyzing] = useState(false);
   const [candidates, setCandidates] = useState<Move[]>([]);
+  const replyAnalysis = useReplyAnalysis(
+    analysisGame,
+    analysisKey,
+    moves,
+    replyEnabled && !busy && !error,
+  );
+  const targetIds = useMemo(
+    () => new Set(replyAnalysis.target.map(({ id }) => id)),
+    [replyAnalysis.target],
+  );
+  const [inspectedReply, setInspectedReply] = useState<{
+    id: string;
+    moves: Move[] | null;
+  }>();
+  const replyMove =
+    inspectedReply?.moves === moves
+      ? replyAnalysis.target.find(({ id }) => id === inspectedReply?.id)
+      : undefined;
+  const replyDetail = replyMove && replyAnalysis.results?.[replyMove.id];
+  const replyScores =
+    analysisGame && replyAnalysis.bagSize === 0 && !replyAnalysis.needsBag
+      ? replyScoreTotals(analysisGame)
+      : undefined;
+  const topScore = useMemo(
+    () => moves?.reduce((best, move) => Math.max(best, move.score), 0) ?? 0,
+    [moves],
+  );
   const [inspected, setInspected] = useState<{ move: Move; key?: string }>();
   const [inspectedDefense, setInspectedDefense] = useState<{
     move: Move;
@@ -324,6 +358,29 @@ export default function Results({
         </div>
       ) : (
         <>
+          {replyEnabled && analysisGame && (
+            <div className="reply-controls" key={analysisKey}>
+              <ReplySettings analysis={replyAnalysis} />
+              {replyAnalysis.needsBag && !replyAnalysis.invalid && (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => replyAnalysis.setOptions(0, 0)}
+                >
+                  Bag is empty
+                </button>
+              )}
+              {replyAnalysis.invalid && (
+                <span>Check tile counts for reply analysis.</span>
+              )}
+              {replyAnalysis.error && (
+                <span role="status">{replyAnalysis.error}</span>
+              )}
+              {!replyAnalysis.invalid &&
+                !replyAnalysis.needsBag &&
+                replyAnalysis.bagSize === 0 && <span>Empty bag</span>}
+            </div>
+          )}
           <div className="result-legend" aria-label="Move letter colors">
             <span className="result-letter played">New tiles</span>
             <span className="result-letter existing">On board</span>
@@ -342,7 +399,20 @@ export default function Results({
                 </span>
               )}
             </span>
-            <span>PTS</span>
+            <span
+              className="result-points-heading"
+              title="Score and points below the highest-scoring play"
+            >
+              PTS
+            </span>
+            {replyEnabled && analysisGame && (
+              <span
+                className="result-reply-heading"
+                title="Reply score compared with the highest-scoring play. A standalone badge flags a premium-square opening or block."
+              >
+                Δ REPLY
+              </span>
+            )}
           </div>
           <div
             className="result-scroll"
@@ -364,11 +434,16 @@ export default function Results({
                   formatOdds(boardChance.chance, boardChance.exact);
                 const placed = new Map(m.tiles.map((t) => [t.index, t.letter]));
                 const risk = analysisGame && defense?.[m.id];
-                const RiskIcon = risk?.opened ? ShieldAlert : ShieldCheck;
                 const riskScore = risk?.opened?.after?.score;
                 const blockedPoints = risk?.closed
                   ? blockedReplyPoints(risk.closed)
                   : undefined;
+                const reply = replyAnalysis.results?.[m.id];
+                const replyPending =
+                  targetIds.has(m.id) &&
+                  replyAnalysis.pending &&
+                  !(m.id in (replyAnalysis.results ?? {}));
+                const sacrifice = topScore - m.score;
                 const selected =
                   analyzing &&
                   candidates.some((candidate) => candidate.id === m.id);
@@ -386,7 +461,7 @@ export default function Results({
                         !selected &&
                         candidates.length >= ANALYSIS_LIMIT
                       }
-                      aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}`}
+                      aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrifice ? `, ${sacrifice} below top score` : ""}`}
                       onPointerDown={(e) => {
                         pointer.current = e.pointerType;
                       }}
@@ -439,7 +514,7 @@ export default function Results({
                         }
                       }}
                     >
-                      <span className="result-word">
+                      <span className="result-word result-stack">
                         <span className="result-letters" aria-hidden="true">
                           {[...m.word].map((letter, i) => {
                             const index =
@@ -507,8 +582,42 @@ export default function Results({
                           </span>
                         )}
                       </span>
-                      <strong className="result-score">{m.score}</strong>
+                      <span className="result-score result-stack">
+                        <strong>{m.score}</strong>
+                        <small
+                          className="result-score-delta"
+                          data-loss={
+                            sacrifice >= 6
+                              ? "high"
+                              : sacrifice >= 3
+                                ? "mid"
+                                : sacrifice
+                                  ? "low"
+                                  : "none"
+                          }
+                        >
+                          {signedPoints(-sacrifice)}
+                        </small>
+                      </span>
                     </button>
+                    {reply && analysisGame && (
+                      <button
+                        type="button"
+                        className="result-defense-action result-reply-action icon-button"
+                        onClick={() => setInspectedReply({ id: m.id, moves })}
+                      >
+                        <span className="reply-sr-only">
+                          Reply analysis for {m.word} at{" "}
+                          {coordinate(m.row * size + m.col, size)} {m.direction}
+                          .{" "}
+                        </span>
+                        <ReplyCell
+                          move={m}
+                          result={reply}
+                          scores={replyScores}
+                        />
+                      </button>
+                    )}
                     {analysisGame && (
                       <button
                         type="button"
@@ -522,7 +631,20 @@ export default function Results({
                         <Calculator size={15} aria-hidden="true" />
                       </button>
                     )}
-                    {risk && (
+                    {replyPending && (
+                      <span
+                        className="result-defense-action result-reply-pending"
+                        role="img"
+                        aria-label={`Checking replies after ${m.word}`}
+                      >
+                        <LoaderCircle
+                          size={14}
+                          className="spin"
+                          aria-hidden="true"
+                        />
+                      </span>
+                    )}
+                    {!reply && !replyPending && risk && (
                       <button
                         type="button"
                         className={`result-defense-action icon-button ${risk.opened ? "defense-warning" : "defense-covered"}`}
@@ -540,8 +662,9 @@ export default function Results({
                           className="result-defense-badge"
                           aria-hidden="true"
                         >
-                          <RiskIcon size={13} />
-                          {riskScore ?? `−${blockedPoints}`}
+                          {riskScore === undefined
+                            ? `−${blockedPoints}`
+                            : `↑${riskScore}`}
                         </span>
                       </button>
                     )}
@@ -565,7 +688,12 @@ export default function Results({
             </span>
           </>
         )}
-        {defenseProgress ? (
+        {replyAnalysis.pending ? (
+          <span title="Checking opponent replies">
+            Replies {Object.keys(replyAnalysis.results ?? {}).length}/
+            {replyAnalysis.target.length}
+          </span>
+        ) : defenseProgress ? (
           <span title="Checking premium replies">Risk {defenseProgress}</span>
         ) : (
           moves && (
@@ -632,6 +760,16 @@ export default function Results({
           move={defenseDetail.move}
           defense={defense?.[defenseDetail.move.id] ?? defenseDetail.risk}
           onClose={() => setInspectedDefense(undefined)}
+        />
+      )}
+      {analysisGame && replyMove && replyDetail && (
+        <ReplyAnalysis
+          game={analysisGame}
+          move={replyMove}
+          result={replyDetail}
+          defense={defense?.[replyMove.id]}
+          analysis={replyAnalysis}
+          onClose={() => setInspectedReply(undefined)}
         />
       )}
     </section>

@@ -1,9 +1,14 @@
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { act, render, screen, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Results from "../../src/components/Results";
-import { type Move } from "../../shared/model";
+import { emptyBoard, type Game, type Move } from "../../shared/model";
+import { PRESETS } from "../../shared/presets";
+import type {
+  ReplyRequest,
+  ReplyDistribution,
+} from "../../shared/reply-analysis";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 const moves: Move[] = [
   {
@@ -64,6 +69,8 @@ function setup(
     bingoBonus?: number;
     rackOdds?: RackOdds;
     boardOdds?: BoardOddsResult;
+    analysisGame?: Game;
+    replyEnabled?: boolean;
   } = {},
 ) {
   vi.stubGlobal("matchMedia", () => ({ matches: !mobile }));
@@ -82,6 +89,8 @@ function setup(
         bingoBonus={options.bingoBonus ?? 50}
         rackOdds={options.rackOdds}
         boardOdds={options.boardOdds}
+        analysisGame={options.analysisGame}
+        replyEnabled={options.replyEnabled}
         preview={preview}
         onPreview={(m) => {
           setPreview(m);
@@ -97,6 +106,88 @@ function setup(
   return { onPlay, onPreview, user: userEvent.setup() };
 }
 const rows = () => screen.getAllByRole("button", { name: /points,/ });
+
+test("reply rows resolve individually and compare against the highest score after sorting", async () => {
+  let worker: ReplyWorker | undefined;
+  class ReplyWorker {
+    onmessage?: (message: { data: unknown }) => void;
+    terminate = vi.fn();
+    request?: ReplyRequest;
+    constructor() {
+      worker = this;
+    }
+    postMessage(request: ReplyRequest) {
+      this.request = request;
+    }
+  }
+  vi.stubGlobal("Worker", ReplyWorker);
+  const game: Game = {
+    id: "test",
+    name: "Test",
+    profileId: "p",
+    board: emptyBoard(15),
+    rack: "CATS",
+    template: PRESETS[0],
+    dictionaryId: "test",
+    past: [],
+    future: [],
+    revision: 0,
+    updatedAt: "",
+    archived: false,
+  };
+  const { user, onPlay } = setup(false, {
+    analysisGame: game,
+    replyEnabled: true,
+  });
+  const request = worker!.request!;
+  expect(request.reference.id).toBe("a");
+  expect(
+    screen.getAllByRole("img", { name: /^Checking replies after/ }),
+  ).toHaveLength(3);
+  const reply: ReplyDistribution = {
+    kind: "distribution",
+    mean: 31,
+    buckets: [5, 200, 240, 25, 30],
+    difference: -4,
+    count: 500,
+    exact: false,
+    discordant: [0, 130, 115, 45, 60],
+    reference: { mean: 35, buckets: [5, 120, 240, 65, 70] },
+  };
+  act(() =>
+    worker!.onmessage?.({
+      data: {
+        kind: "reply-summary",
+        id: request.id,
+        moveId: "b",
+        result: reply,
+      },
+    }),
+  );
+  expect(
+    screen.getAllByRole("img", { name: /^Checking replies after/ }),
+  ).toHaveLength(2);
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "Sort moves" }),
+    "word",
+  );
+  const row = rows().find((element) =>
+    element.getAttribute("aria-label")?.startsWith("CAT,"),
+  )!;
+  expect(row.querySelector(".result-score-delta")?.textContent).toBe("−10");
+  await user.click(
+    screen.getByRole("button", { name: /^Reply analysis for CAT at/ }),
+  );
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByText("35.0 → 31.0 pts")).toBeTruthy();
+  expect(within(dialog).getByText("Reference · After CATS")).toBeTruthy();
+  await user.click(
+    within(dialog).getByRole("button", { name: "Refine to 5,000 racks" }),
+  );
+  expect(worker!.request?.kind).toBe("reply-refine");
+  expect(worker!.request?.reference.id).toBe("a");
+  expect(onPlay).not.toHaveBeenCalled();
+});
 test("rack odds sort every move and board odds rank checked moves separately", async () => {
   const { user } = setup(true, {
     rackOdds: { byLeave: { Z: 0.05, AS: 0.6 }, exact: true, bagSize: 55 },

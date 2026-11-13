@@ -6,6 +6,13 @@ export interface EndgameLine {
   line: (Move | null)[];
 }
 
+export function rackPoints(rack: string, rules: BoardTemplate["rules"]) {
+  return [...rack].reduce(
+    (total, letter) => total + tileScore(letter, rules),
+    0,
+  );
+}
+
 /** Point differential with optimal play from both known racks and an empty bag. */
 export function solveEmptyBag(
   board: Board,
@@ -16,11 +23,7 @@ export function solveEmptyBag(
   search: (board: Board, rack: string) => Move[],
   place: (board: Board, move: Move) => Board,
 ): EndgameLine {
-  const value = (rack: string) =>
-    [...rack].reduce(
-      (total, letter) => total + tileScore(letter, template.rules),
-      0,
-    );
+  const value = (rack: string) => rackPoints(rack, template.rules);
   const cache = new Map<string, EndgameLine>();
   let states = 0;
   function turn(

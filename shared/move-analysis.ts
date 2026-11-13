@@ -165,7 +165,7 @@ function isFamiliar(word: string, familiar: ReadonlySet<string>) {
   });
 }
 
-function randomGenerator(seed: number) {
+export function randomGenerator(seed: number) {
   let state = seed >>> 0;
   return () => {
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0;

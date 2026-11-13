@@ -36,6 +36,10 @@ const current = () =>
 class SolverWorker {
   onmessage: ((e: { data: unknown }) => void) | null = null;
   terminate = vi.fn();
+  constructor(url?: URL) {
+    if (url?.pathname.endsWith("/reply.worker.ts"))
+      return { onmessage: null, terminate: vi.fn(), postMessage() {} };
+  }
   postMessage(request: {
     id: number;
     board: string[];
