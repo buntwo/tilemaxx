@@ -334,6 +334,20 @@ label + label {
   margin-top: 4px;
   font-weight: 550;
 }
+.brand-word {
+  white-space: nowrap;
+}
+.brand-highlight {
+  color: var(--primary);
+  background: var(--soft);
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px var(--soft);
+}
+.brand-highlight.on-fire {
+  color: #fff5dd;
+  background: #af3228;
+  box-shadow: 0 0 0 2px #af3228;
+}
 .new-game {
   background: var(--surface);
   border-color: var(--line);
@@ -395,6 +409,7 @@ label + label {
   padding: 18px 4px 0;
 }
 .avatar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -417,6 +432,14 @@ label + label {
   font-weight: 500;
   letter-spacing: 1px;
   color: var(--muted);
+}
+.avatar small {
+  position: absolute;
+  bottom: 3px;
+  right: 4px;
+  line-height: 1;
+  color: inherit;
+  letter-spacing: 0;
 }
 .profile-picker select {
   border: 0;
@@ -3183,14 +3206,7 @@ kbd {
   align-items: baseline;
   justify-content: space-between;
   gap: 3px;
-  background: var(--tile);
-  background: color-mix(
-    in srgb,
-    var(--tile),
-    #917450 var(--tile-shade, 0%)
-  );
-  color: #3c3023;
-  border: 1px solid var(--tile-edge);
+  border: 1px solid transparent;
   border-radius: 5px;
   padding: 6px;
   font-size: 13px;
@@ -3199,15 +3215,32 @@ kbd {
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
-.tile-pool-tile.blank {
-  background: var(--blank-tile);
-  background: color-mix(
-    in srgb,
-    var(--blank-tile),
-    #7b9bb0 var(--tile-shade, 0%)
-  );
-  color: var(--blank-ink);
-  border-color: #9fbccc;
+.tile-pool .count-low {
+  background: #f2cd8d;
+  color: #512f0e;
+  border-color: #cb9f57;
+}
+.tile-pool .count-mid {
+  background: #bbd8f4;
+  color: #213d5e;
+  border-color: #86aacd;
+}
+.tile-pool .count-high {
+  background: #a8ddbc;
+  color: #1f472f;
+  border-color: #73af8a;
+}
+.tile-pool-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 7px;
+  font-size: 11px;
+}
+.tile-pool-key span {
+  padding: 2px 6px;
+  border: 1px solid;
+  border-radius: 4px;
 }
 .tile-pool-tile.exhausted {
   color: var(--muted);

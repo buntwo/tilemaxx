@@ -98,8 +98,10 @@ function saved(key: string, fallback = "") {
 }
 
 const BRAND_LETTERS = "TILEMAX";
-const brandLetter =
-  BRAND_LETTERS[Math.floor(Math.random() * BRAND_LETTERS.length)];
+const brandIndex = Math.floor(Math.random() * BRAND_LETTERS.length);
+const brandLetter = BRAND_LETTERS[brandIndex];
+const highlightedIndex =
+  brandLetter === "X" && Math.random() < 0.5 ? brandIndex + 1 : brandIndex;
 const brandOnFire = Math.random() < 0.1;
 
 function BrandTile() {
@@ -451,6 +453,8 @@ export default function App() {
   const archivedGames = profileGames.filter((g) => g.archived);
   const pending = game && state.pending.includes(game.id),
     conflict = game && state.conflicts[game.id];
+  const profileLetter =
+    [...(profile?.name.trim() ?? "")][0]?.toLocaleUpperCase() || "?";
   if (!data)
     return (
       <div className="loading-screen">
@@ -483,7 +487,16 @@ export default function App() {
         <a className="brand" href="/" onClick={(e) => e.preventDefault()}>
           <BrandTile />
           <span>
-            tilemaxx<span className="brand-caption">A LITTLE WORD WISDOM</span>
+            <span className="brand-word">
+              {"tilemaxx".slice(0, highlightedIndex)}
+              <span
+                className={`brand-highlight${brandOnFire ? " on-fire" : ""}`}
+              >
+                {"tilemaxx"[highlightedIndex]}
+              </span>
+              {"tilemaxx".slice(highlightedIndex + 1)}
+            </span>
+            <span className="brand-caption">A LITTLE WORD WISDOM</span>
           </span>
         </a>
         <button className="button new-game" onClick={() => openDialog("new")}>
@@ -526,7 +539,8 @@ export default function App() {
           </div>
           <div className="profile-picker">
             <span className="avatar" aria-hidden="true">
-              {[...(profile?.name.trim() ?? "")][0]?.toLocaleUpperCase() || "?"}
+              {profileLetter}
+              <small>{tileScore(profileLetter, "scrabble")}</small>
             </span>
             <span>
               <small>PLAYING AS</small>

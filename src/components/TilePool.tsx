@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
 import { ChevronDown, TriangleAlert } from "lucide-react";
 import { type Game } from "../../shared/model";
 import { unseenTiles } from "../../shared/tile-pool";
@@ -6,7 +6,6 @@ import { unseenTiles } from "../../shared/tile-pool";
 export default function TilePool({ game }: { game: Game }) {
   const [filter, setFilter] = useState("all");
   const { tiles, totals, total, excess } = unseenTiles(game, game.template);
-  const highestCount = Math.max(1, ...tiles.map((tile) => tile.count));
   const visible = tiles.filter((tile) => {
     switch (filter) {
       case "remaining":
@@ -75,26 +74,28 @@ export default function TilePool({ game }: { game: Game }) {
           </p>
         )}
         {visible.length ? (
-          <ul
-            className={`tile-pool-grid ${filter === "remaining" ? "remaining" : ""}`}
-            aria-label="Unseen tile counts"
-          >
-            {visible.map(({ symbol, count, kind, excess: extra }) => (
-              <li
-                key={symbol}
-                className={`tile-pool-tile ${kind === "blank" ? "blank" : ""} ${!count && !extra ? "exhausted" : ""} ${extra ? "overdrawn" : ""}`}
-                style={
-                  {
-                    "--tile-shade": `${(count / highestCount) * 32}%`,
-                  } as CSSProperties
-                }
-                aria-label={`${kind === "blank" ? "Blank" : symbol}: ${extra ? `${extra} extra` : `${count} unseen`}`}
-              >
-                <strong>{symbol}</strong>
-                <span>{extra ? "!" : count}</span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <div className="tile-pool-key" aria-label="Unseen count colors">
+              <span className="count-low">1–2</span>
+              <span className="count-mid">3–5</span>
+              <span className="count-high">6+</span>
+            </div>
+            <ul
+              className={`tile-pool-grid ${filter === "remaining" ? "remaining" : ""}`}
+              aria-label="Unseen tile counts"
+            >
+              {visible.map(({ symbol, count, kind, excess: extra }) => (
+                <li
+                  key={symbol}
+                  className={`tile-pool-tile ${extra ? "overdrawn" : !count ? "exhausted" : count <= 2 ? "count-low" : count <= 5 ? "count-mid" : "count-high"}`}
+                  aria-label={`${kind === "blank" ? "Blank" : symbol}: ${extra ? `${extra} extra` : `${count} unseen`}`}
+                >
+                  <strong>{symbol}</strong>
+                  <span>{extra ? "!" : count}</span>
+                </li>
+              ))}
+            </ul>
+          </>
         ) : (
           <p className="tile-pool-empty">No unseen tiles left.</p>
         )}
