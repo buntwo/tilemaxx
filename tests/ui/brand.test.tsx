@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import Brand from "../../src/components/Brand";
 import { attachBrandSparkle } from "../../src/components/brand-sparkle";
 
-function setup(reducedMotion = false, onFireArmed?: () => void) {
+function setup(reducedMotion = false) {
   vi.useFakeTimers();
   vi.mocked(window.matchMedia).mockReturnValue({
     matches: reducedMotion,
@@ -25,7 +25,7 @@ function setup(reducedMotion = false, onFireArmed?: () => void) {
   });
   vi.stubGlobal("PointerEvent", MouseEvent);
   const random = vi.spyOn(Math, "random").mockReturnValue(0);
-  render(<Brand onFireArmed={onFireArmed} />);
+  render(<Brand />);
   const brand = screen
     .getByRole("link", { name: "Tilemaxx" })
     .closest(".brand")!;
@@ -43,6 +43,7 @@ function setup(reducedMotion = false, onFireArmed?: () => void) {
     act(() => vi.advanceTimersByTime(ms));
   }
   return {
+    brand,
     word,
     base,
     preview,
@@ -73,9 +74,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-test("the fire combo requires deliberate taps in order", () => {
-  const onFireArmed = vi.fn();
-  const { word, wait } = setup(false, onFireArmed);
+test("only the completed fire combo queues a fire tile and shows a burst", () => {
+  const { brand, word, animate, wait } = setup();
   const key = "tilemaxx:fire-next-refresh";
   function tap(index: number) {
     const letter = word.children[index];
@@ -89,9 +89,16 @@ test("the fire combo requires deliberate taps in order", () => {
 
   [6, 7, 5, 4, 6, 7].forEach(tap);
   expect(sessionStorage.getItem(key)).toBeNull();
+  expect(animate).not.toHaveBeenCalled();
+  const wasOnFire = brand.classList.contains("on-fire");
   [6, 7, 4, 5, 6, 7].forEach(tap);
   expect(sessionStorage.getItem(key)).toBe("1");
-  expect(onFireArmed).toHaveBeenCalledOnce();
+  expect(brand.querySelectorAll(".brand-ember")).toHaveLength(24);
+  expect(brand.classList.contains("on-fire")).toBe(wasOnFire);
+  expect(animate).toHaveBeenCalledWith(
+    expect.arrayContaining([expect.objectContaining({ opacity: 1 })]),
+    expect.objectContaining({ duration: 560 }),
+  );
 });
 
 test("each return chooses an effect after the 500 ms pause", async () => {
@@ -159,7 +166,7 @@ test("touch release and lost capture share the same pause", () => {
 });
 
 test.each([
-  { onFire: false, perSecond: 10, burst: 56 },
+  { onFire: false, perSecond: 10, burst: 48 },
   { onFire: true, perSecond: 25, burst: 84 },
 ])(
   "tile sparkle emits $perSecond flecks per second and $burst per click or tap",
@@ -168,7 +175,7 @@ test.each([
     const button = document.createElement("button");
     const tile = document.createElement("span");
     button.append(tile);
-    const detach = attachBrandSparkle(button, tile, onFire)!;
+    const { detach } = attachBrandSparkle(button, tile, onFire)!;
     const count = () =>
       button.querySelector(".brand-sparkle")!.childElementCount;
     try {

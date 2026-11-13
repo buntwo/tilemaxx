@@ -566,7 +566,7 @@ export default function App() {
         <div className="sidebar-scrim" onClick={() => setSidebar(false)} />
       )}
       <aside className={`sidebar ${sidebar ? "open" : ""}`}>
-        <Brand onFireArmed={() => notify("Fire tile queued for the next refresh.")} />
+        <Brand />
         <button
           className="button new-game"
           onClick={() => openDialog(profile ? "new" : "profile")}

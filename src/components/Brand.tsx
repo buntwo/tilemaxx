@@ -73,7 +73,7 @@ export function BrandTile({
   );
 }
 
-export default function Brand({ onFireArmed }: { onFireArmed?: () => void }) {
+export default function Brand() {
   const [selected, setSelected] = useState(highlightedIndex);
   const selectedRef = useRef(highlightedIndex);
   const tileButton = useRef<HTMLButtonElement>(null);
@@ -81,6 +81,7 @@ export default function Brand({ onFireArmed }: { onFireArmed?: () => void }) {
   const word = useRef<HTMLSpanElement>(null);
   const timer = useRef<number | undefined>(undefined);
   const stopMotion = useRef<(() => void) | undefined>(undefined);
+  const sparkle = useRef<ReturnType<typeof attachBrandSparkle>>(undefined);
   const tapStart = useRef<{ pointer: number; index: number } | null>(null);
   const combo = useRef({ length: 0, lastTap: 0 });
 
@@ -102,7 +103,7 @@ export default function Brand({ onFireArmed }: { onFireArmed?: () => void }) {
     } catch {
       return;
     }
-    onFireArmed?.();
+    sparkle.current?.fireBurst();
   }
 
   function cancelReturn() {
@@ -114,8 +115,17 @@ export default function Brand({ onFireArmed }: { onFireArmed?: () => void }) {
 
   useEffect(() => cancelReturn, []);
   useEffect(() => {
-    if (tileButton.current && tile.current)
-      return attachBrandSparkle(tileButton.current, tile.current, brandOnFire);
+    if (!tileButton.current || !tile.current) return;
+    const effect = attachBrandSparkle(
+      tileButton.current,
+      tile.current,
+      brandOnFire,
+    );
+    sparkle.current = effect;
+    return () => {
+      effect?.detach();
+      sparkle.current = undefined;
+    };
   }, []);
 
   function preview(index: number) {
@@ -155,6 +165,7 @@ export default function Brand({ onFireArmed }: { onFireArmed?: () => void }) {
         aria-label="Sparkle the Tilemaxx tile"
       >
         <BrandTile ref={tile} letter={BRAND_WORD[selected].toUpperCase()} />
+        <Flame className="brand-combo-flame" size={26} aria-hidden="true" />
       </button>
       <a
         className="brand-name"

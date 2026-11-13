@@ -11,21 +11,24 @@ export function attachBrandSparkle(
     "(prefers-reduced-motion: reduce)",
   );
   const layer = document.createElement("span");
+  const flame = button.querySelector(".brand-combo-flame");
   layer.className = "brand-sparkle";
   layer.setAttribute("aria-hidden", "true");
   button.append(layer);
 
   const flecksPerSecond = onFire ? 25 : 10;
-  const burstSize = onFire ? 84 : 56;
+  const burstSize = onFire ? 84 : 48;
   const particleLimit = 180;
   const particles = new Map<HTMLElement, Animation>();
   let hovering = false;
   let interval: number | undefined;
   let press: Animation | undefined;
+  let flare: Animation | undefined;
 
-  function emit(count: number, burst = false) {
+  function emit(count: number, effect: "hover" | "burst" | "fire" = "hover") {
     if (document.hidden) return;
     const still = motionPreference.matches;
+    const burst = effect !== "hover";
     if (burst && particles.size + count > particleLimit) {
       for (const [particle, animation] of particles) {
         animation.cancel();
@@ -39,6 +42,7 @@ export function attachBrandSparkle(
       const particle = document.createElement("span");
       const glint = Math.random() < 0.12;
       particle.className = glint ? "brand-glint" : "brand-fleck";
+      if (effect === "fire") particle.classList.add("brand-ember");
       particle.style.width = `${glint ? random(4, 6) : random(1.3, 3.3)}px`;
       const x = random(5, 92);
       particle.style.left = `${x}%`;
@@ -117,12 +121,34 @@ export function attachBrandSparkle(
         { duration: 175, easing: "cubic-bezier(.22,.65,.34,1)" },
       );
     }
-    emit(motionPreference.matches ? 8 : burstSize, true);
+    emit(motionPreference.matches ? 8 : burstSize, "burst");
+  }
+
+  function fireBurst() {
+    if (document.hidden) return;
+    const still = motionPreference.matches;
+    flare?.cancel();
+    flare = flame?.animate(
+      still
+        ? [{ opacity: 1 }, { opacity: 1 }]
+        : [
+            { opacity: 0, transform: "translateY(4px) scale(.55)" },
+            {
+              opacity: 1,
+              transform: "translateY(-3px) scale(1.12)",
+              offset: 0.22,
+            },
+            { opacity: 0, transform: "translateY(-19px) scale(.78)" },
+          ],
+      { duration: still ? 650 : 560, easing: "ease-out" },
+    );
+    emit(still ? 8 : 24, "fire");
   }
 
   function visibilityChanged() {
     if (document.hidden) {
       stop();
+      flare?.cancel();
       clearParticles();
     } else if (hovering && button.matches(":hover")) {
       start();
@@ -133,6 +159,7 @@ export function attachBrandSparkle(
     if (motionPreference.matches) {
       stop();
       press?.cancel();
+      flare?.cancel();
       clearParticles();
     } else if (hovering) {
       start();
@@ -145,9 +172,10 @@ export function attachBrandSparkle(
   document.addEventListener("visibilitychange", visibilityChanged);
   motionPreference.addEventListener("change", motionChanged);
 
-  return () => {
+  function detach() {
     stop();
     press?.cancel();
+    flare?.cancel();
     clearParticles();
     layer.remove();
     button.removeEventListener("pointerenter", enter);
@@ -155,5 +183,7 @@ export function attachBrandSparkle(
     button.removeEventListener("click", tap);
     document.removeEventListener("visibilitychange", visibilityChanged);
     motionPreference.removeEventListener("change", motionChanged);
-  };
+  }
+
+  return { detach, fireBurst };
 }
