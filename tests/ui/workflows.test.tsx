@@ -254,6 +254,7 @@ beforeEach(() => {
   clearTimeout(store.timer);
   store.drafts.clear();
   store.deletedGames.clear();
+  store.deletedProfiles.clear();
   store.deletedTemplates.clear();
   store.busy = false;
   store.refreshing = false;
@@ -289,6 +290,18 @@ beforeEach(() => {
           updatedAt: "",
         };
         remote.games.push(value as Game);
+      } else if (
+        url.startsWith("/api/profiles/") &&
+        options?.method === "DELETE"
+      ) {
+        const id = url.split("/").at(-1);
+        value = {
+          gameIds: remote.games
+            .filter((g) => g.profileId === id)
+            .map((g) => g.id),
+        };
+        remote.games = remote.games.filter((g) => g.profileId !== id);
+        remote.profiles = remote.profiles.filter((p) => p.id !== id);
       } else if (
         url.startsWith("/api/profiles/") &&
         options?.method === "PUT"
@@ -845,7 +858,7 @@ test("rack typing and mobile Backspace return to the erased slot without shiftin
 test("rename profile preserves games and stable profile selection", async () => {
   const user = await start();
   await user.click(
-    screen.getByRole("button", { name: "Rename current profile" }),
+    screen.getByRole("button", { name: "Edit current profile" }),
   );
   const field = screen.getByRole("textbox", { name: "Profile name" });
   await user.clear(field);
@@ -863,6 +876,38 @@ test("rename profile preserves games and stable profile selection", async () => 
   ).toBe("p");
   expect(current().profileId).toBe("p");
   expect(current().name).toBe("First game");
+});
+
+test("profile deletion requires the exact name and allows a new profile after deleting the last one", async () => {
+  const user = await start();
+  await user.click(
+    screen.getByRole("button", { name: "Edit current profile" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Delete profile…" }));
+  const confirm = screen.getByRole("button", { name: "Delete permanently" });
+  const input = screen.getByRole("textbox", {
+    name: "Type My profile to confirm",
+  });
+  expect(confirm.hasAttribute("disabled")).toBe(true);
+  await user.type(input, "my profile");
+  expect(confirm.hasAttribute("disabled")).toBe(true);
+  await user.click(screen.getByRole("button", { name: "Keep profile" }));
+  expect(current()).toBeDefined();
+  await user.click(screen.getByRole("button", { name: "Delete profile…" }));
+  await user.type(
+    screen.getByRole("textbox", { name: "Type My profile to confirm" }),
+    "My profile",
+  );
+  await user.click(screen.getByRole("button", { name: "Delete permanently" }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Create a profile" }),
+    ).toBeTruthy(),
+  );
+  expect(remote.profiles).toEqual([]);
+  expect(remote.games).toEqual([]);
+  await user.click(screen.getByRole("button", { name: "Create a profile" }));
+  expect(screen.getByRole("textbox", { name: "Profile name" })).toBeTruthy();
 });
 
 test("custom template creation/editing persists one template and built-ins have no edit action", async () => {

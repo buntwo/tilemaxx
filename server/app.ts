@@ -65,6 +65,22 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
     res.json(renamed);
   });
+  app.delete("/api/profiles/:id", (req, res) => {
+    const name = z.string().min(1).max(80).parse(req.body.name);
+    const result = store.deleteProfile(req.params.id, name);
+    if (result.status === "missing") {
+      res.status(404).json({ error: "Profile not found." });
+    } else if (result.status === "mismatch") {
+      res
+        .status(409)
+        .json({
+          error:
+            "The profile name no longer matches. Check the current name and try again.",
+        });
+    } else {
+      res.json({ gameIds: result.gameIds });
+    }
+  });
   app.post("/api/games", (req, res) => {
     const game = gameSchema.parse({
       ...req.body,

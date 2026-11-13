@@ -120,20 +120,23 @@ export function createStore(directory: string, root: string) {
     );
     return game;
   }
-  if (!profiles().length) {
-    const id = randomUUID();
-    db.prepare("INSERT INTO profiles VALUES (?,?)").run(id, "My profile");
-    createGame({
-      profileId: id,
-      name: "First game",
-      template: PRESETS[0],
-      dictionaryId: defaultDictionary(dictionaries())?.id || "wordnik",
-      board: emptyBoard(15),
-      rack: "",
-      past: [],
-      future: [],
-      archived: false,
-    });
+  if (db.prepare("PRAGMA user_version").get()?.user_version === 0) {
+    if (!profiles().length) {
+      const id = randomUUID();
+      db.prepare("INSERT INTO profiles VALUES (?,?)").run(id, "My profile");
+      createGame({
+        profileId: id,
+        name: "First game",
+        template: PRESETS[0],
+        dictionaryId: defaultDictionary(dictionaries())?.id || "wordnik",
+        board: emptyBoard(15),
+        rack: "",
+        past: [],
+        future: [],
+        archived: false,
+      });
+    }
+    db.exec("PRAGMA user_version=1");
   }
   return {
     db,
@@ -184,6 +187,30 @@ export function createStore(directory: string, root: string) {
         .prepare("UPDATE profiles SET name=? WHERE id=?")
         .run(name, id);
       return result.changes ? { id, name } : undefined;
+    },
+    deleteProfile(id: string, name: string) {
+      const profile = db
+        .prepare("SELECT name FROM profiles WHERE id=?")
+        .get(id);
+      if (!profile) return { status: "missing" } as const;
+      if (profile.name !== name) return { status: "mismatch" } as const;
+      db.exec("BEGIN");
+      try {
+        const deleted = db
+          .prepare(
+            "DELETE FROM games WHERE json_extract(data, '$.profileId')=? RETURNING id",
+          )
+          .all(id);
+        db.prepare("DELETE FROM profiles WHERE id=?").run(id);
+        db.exec("COMMIT");
+        return {
+          status: "deleted",
+          gameIds: deleted.map((game) => game.id as string),
+        } as const;
+      } catch (error) {
+        db.exec("ROLLBACK");
+        throw error;
+      }
     },
     deleteGame(id: string) {
       db.prepare("DELETE FROM games WHERE id=?").run(id);

@@ -99,3 +99,47 @@ test("custom template deletion preserves existing game snapshots and protects al
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("profile deletion requires its current name and removes only its games", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-profile-delete-"));
+  let store = createStore(dir, process.cwd());
+  const initial = store.state();
+  const [profile] = initial.profiles;
+  const [game] = initial.games;
+  const other = store.createProfile("Other");
+  const otherGame = store.createGame({ ...game, profileId: other.id });
+  const archived = store.createGame({ ...game, archived: true });
+  const server = createApp(store).listen(0, "127.0.0.1");
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`;
+  const remove = (id: string, name: string) =>
+    fetch(`${base}/profiles/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+  try {
+    store.renameProfile(profile.id, "Renamed");
+    assert.equal((await remove(profile.id, profile.name)).status, 409);
+    assert.ok(store.getGame(game.id));
+    const response = await remove(profile.id, "Renamed");
+    assert.equal(response.status, 200);
+    assert.deepEqual(
+      new Set((await response.json()).gameIds),
+      new Set([game.id, archived.id]),
+    );
+    assert.deepEqual(store.state().profiles.map((p) => ({ ...p })), [other]);
+    assert.deepEqual(store.state().games, [otherGame]);
+    assert.deepEqual(store.state().dictionaries, initial.dictionaries);
+    assert.equal((await remove(other.id, other.name)).status, 200);
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    store.db.close();
+    store = createStore(dir, process.cwd());
+    assert.deepEqual(store.state().profiles, []);
+    assert.deepEqual(store.state().games, []);
+  } finally {
+    server.close();
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

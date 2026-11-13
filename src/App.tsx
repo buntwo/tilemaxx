@@ -83,6 +83,7 @@ type Dialog =
   | "dictionaries"
   | "profile"
   | "rename-profile"
+  | "delete-profile"
   | "history"
   | "help"
   | "rename"
@@ -117,6 +118,28 @@ const brandLetter = BRAND_LETTERS[brandIndex];
 const highlightedIndex =
   brandLetter === "X" && Math.random() < 0.5 ? brandIndex + 1 : brandIndex;
 const brandOnFire = Math.random() < 0.1;
+
+function updateFavicon() {
+  const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+  if (!icon) return;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.fillStyle = brandOnFire ? "#af3228" : "#184f41";
+  ctx.beginPath();
+  ctx.roundRect(2, 2, 60, 60, 12);
+  ctx.fill();
+  ctx.fillStyle = brandOnFire ? "#fff5dd" : "#f3e6c9";
+  ctx.font = "bold 43px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText(brandLetter, 31, 46);
+  ctx.font = "bold 14px system-ui";
+  ctx.textAlign = "right";
+  ctx.fillText(String(tileScore(brandLetter, "scrabble")), 56, 54);
+  icon.type = "image/png";
+  icon.href = canvas.toDataURL();
+}
 
 function BrandTile({ letter = brandLetter }: { letter?: string }) {
   return (
@@ -227,6 +250,7 @@ export default function App() {
     [formTemplate, setFormTemplate] = useState("scrabble"),
     [formDictionary, setFormDictionary] = useState(""),
     [formBusy, setFormBusy] = useState(false);
+  const [editProfileId, setEditProfileId] = useState("");
   const [workspace, setWorkspace] = useState(currentWorkspace);
   const [archiveSort, setArchiveSort] = useState<ArchiveSort>("date");
   const [archiveEditId, setArchiveEditId] = useState<string>();
@@ -234,8 +258,11 @@ export default function App() {
     request = useRef(0),
     solverTask = useRef<"moves" | "rack-odds" | "board-odds" | null>(null),
     importBase = useRef<Game | null>(null);
-  const game = data?.games.find((g) => g.id === gameId),
+  const game = data?.games.find(
+      (g) => g.id === gameId && g.profileId === profileId,
+    ),
     profile = data?.profiles.find((p) => p.id === profileId);
+  const editProfile = data?.profiles.find((p) => p.id === editProfileId);
   const editGame = archiveEditId
     ? data?.games.find(
         (g) => g.id === archiveEditId && g.profileId === profileId,
@@ -245,6 +272,7 @@ export default function App() {
     ? `${game.id}|${game.dictionaryId}|${game.rack}|${game.board.join(".")}`
     : "";
   useEffect(() => {
+    updateFavicon();
     void store.refresh();
     const interval = setInterval(() => {
       if (!document.hidden) void store.refresh();
@@ -385,7 +413,11 @@ export default function App() {
     }
     if (next === "rename") setArchiveEditId(undefined);
     if (next === "profile") setFormName("");
-    if (next === "rename-profile") setFormName(profile?.name || "");
+    if (next === "rename-profile" && profile) {
+      setEditProfileId(profile.id);
+      setFormName(profile.name);
+    }
+    if (next === "delete-profile") setFormName("");
   }
   async function action(fn: () => Promise<void>) {
     setFormBusy(true);
@@ -574,9 +606,12 @@ export default function App() {
       )}
       <aside className={`sidebar ${sidebar ? "open" : ""}`}>
         <Brand />
-        <button className="button new-game" onClick={() => openDialog("new")}>
+        <button
+          className="button new-game"
+          onClick={() => openDialog(profile ? "new" : "profile")}
+        >
           <Plus size={18} />
-          New game
+          {profile ? "New game" : "New profile"}
         </button>
         <div className="sidebar-divider" />
         <button
@@ -621,10 +656,18 @@ export default function App() {
             Your games. Your home server.
           </div>
           <div className="profile-picker">
-            <span className="avatar" aria-hidden="true">
-              {profileLetter}
-              <small>{tileScore(profileLetter, "scrabble")}</small>
-            </span>
+            {profile && (
+              <button
+                className="avatar"
+                type="button"
+                aria-label="Edit current profile"
+                title="Edit profile"
+                onClick={() => openDialog("rename-profile")}
+              >
+                {profileLetter}
+                <small>{tileScore(profileLetter, "scrabble")}</small>
+              </button>
+            )}
             <span>
               <small>PLAYING AS</small>
               <select
@@ -639,6 +682,11 @@ export default function App() {
                   setGameId("");
                 }}
               >
+                {!profile && (
+                  <option value="" disabled>
+                    Select a profile
+                  </option>
+                )}
                 {data.profiles.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -647,14 +695,6 @@ export default function App() {
                 <option value="new">+ New profile</option>
               </select>
             </span>
-            <button
-              className="icon-button"
-              aria-label="Rename current profile"
-              title="Rename profile"
-              onClick={() => openDialog("rename-profile")}
-            >
-              <Pencil size={15} />
-            </button>
           </div>
         </div>
       </aside>
@@ -1104,15 +1144,16 @@ export default function App() {
             </div>
             <h2>A board full of possibilities.</h2>
             <p>
-              Create a game for {profile?.name || "your profile"} to get
-              started.
+              {profile
+                ? `Create a game for ${profile.name} to get started.`
+                : "Create a profile to start saving games."}
             </p>
             <button
               className="button primary"
-              onClick={() => openDialog("new")}
+              onClick={() => openDialog(profile ? "new" : "profile")}
             >
               <Plus size={16} />
-              Create a game
+              {profile ? "Create a game" : "Create a profile"}
             </button>
           </div>
         )}
@@ -1273,11 +1314,12 @@ export default function App() {
           </form>
         </Modal>
       )}
-      {(dialog === "profile" || dialog === "rename-profile") && (
+      {(dialog === "profile" ||
+        (dialog === "rename-profile" && editProfile)) && (
         <Modal
           title={
             dialog === "rename-profile"
-              ? "Rename your profile"
+              ? "Edit profile"
               : "Make yourself at home."
           }
           subtitle={
@@ -1285,14 +1327,16 @@ export default function App() {
               ? "Your new name will appear on all your devices. Your games stay with this profile."
               : "Pick the same profile on every device to find your games."
           }
-          onClose={() => setDialog(null)}
+          onClose={() => {
+            if (!formBusy) setDialog(null);
+          }}
         >
           <form
             onSubmit={(e) => {
               e.preventDefault();
               void action(async () => {
                 if (dialog === "rename-profile") {
-                  await store.renameProfile(profileId, formName.trim());
+                  await store.renameProfile(editProfileId, formName.trim());
                   notify("Profile renamed.");
                 } else {
                   const p = await store.createProfile(formName.trim());
@@ -1318,8 +1362,22 @@ export default function App() {
               Profiles organize games. Everyone on this home server can select
               any profile.
             </p>
-            {error && <p className="error">{error}</p>}
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
             <footer className="modal-footer">
+              {dialog === "rename-profile" && (
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={formBusy}
+                  onClick={() => openDialog("delete-profile")}
+                >
+                  Delete profile…
+                </button>
+              )}
               <button
                 className="button primary"
                 disabled={formBusy || !formName.trim()}
@@ -1329,6 +1387,67 @@ export default function App() {
                   : dialog === "rename-profile"
                     ? "Save name"
                     : "Create profile"}
+              </button>
+            </footer>
+          </form>
+        </Modal>
+      )}
+      {dialog === "delete-profile" && editProfile && (
+        <Modal
+          title="Delete profile?"
+          onClose={() => {
+            if (!formBusy) setDialog(null);
+          }}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (formBusy || formName !== editProfile.name) return;
+              void action(async () => {
+                await store.deleteProfile(editProfile.id, formName);
+                setDialog(null);
+                notify("Profile deleted.");
+              });
+            }}
+          >
+            <p>
+              This permanently deletes the profile and all its active and
+              archived games from every device.
+            </p>
+            <label>
+              Type <strong>{editProfile.name}</strong> to confirm
+              <input
+                  data-initial-focus
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+              />
+            </label>
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
+            <footer className="modal-footer">
+              <button
+                type="button"
+                className="button secondary"
+                disabled={formBusy}
+                onClick={() => {
+                  setFormName(editProfile.name);
+                  setError("");
+                  setDialog("rename-profile");
+                }}
+              >
+                Keep profile
+              </button>
+              <button
+                className="button danger"
+                disabled={formBusy || formName !== editProfile.name}
+              >
+                {formBusy ? "Deleting…" : "Delete permanently"}
               </button>
             </footer>
           </form>

@@ -406,6 +406,9 @@ label + label {
   padding: 18px 4px 0;
 }
 .avatar {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
   position: relative;
   display: flex;
   align-items: center;
@@ -419,6 +422,13 @@ label + label {
   font-size: 19px;
   font-weight: 650;
   flex-shrink: 0;
+}
+.avatar:hover {
+  filter: brightness(1.08);
+}
+.avatar:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
 }
 .profile-picker > span:last-child {
   min-width: 0;
@@ -445,11 +455,6 @@ label + label {
   font-size: 12px;
   width: 100%;
   font-weight: 600;
-}
-.profile-picker > .icon-button {
-  flex-shrink: 0;
-  width: 26px;
-  height: 30px;
 }
 .direction-shortcut {
   font-size: 10px;

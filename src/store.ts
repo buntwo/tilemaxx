@@ -54,6 +54,7 @@ export class GameStore {
   );
   listeners = new Set<() => void>();
   deletedGames = new Set<string>();
+  deletedProfiles = new Set<string>();
   deletedTemplates = new Set<string>();
   busy = false;
   refreshing = false;
@@ -155,6 +156,11 @@ export class GameStore {
       remote.templates = remote.templates.filter(
         (t) => !this.deletedTemplates.has(t.id),
       );
+      remote.profiles = remote.profiles.filter(
+        (p) => !this.deletedProfiles.has(p.id),
+      );
+      const profileIds = new Set(remote.profiles.map((p) => p.id));
+      remote.games = remote.games.filter((g) => profileIds.has(g.profileId));
       const remoteIds = new Set(remote.games.map((g) => g.id));
       for (const game of before?.games || [])
         if (!remoteIds.has(game.id)) this.forgetGame(game.id);
@@ -235,6 +241,8 @@ export class GameStore {
   }
   async createGame(game: Omit<Game, "id" | "revision" | "updatedAt">) {
     const saved = await api<Game>("/games", "POST", game);
+    if (this.deletedProfiles.has(saved.profileId))
+      throw new Error("This profile was deleted.");
     this.snapshot.data = {
       ...this.snapshot.data!,
       games: [...this.snapshot.data!.games, saved],
@@ -286,6 +294,21 @@ export class GameStore {
     this.persist();
     this.emit();
     return profile;
+  }
+  async deleteProfile(id: string, name: string) {
+    const { gameIds } = await api<{ gameIds: string[] }>(
+      `/profiles/${encodeURIComponent(id)}`,
+      "DELETE",
+      { name },
+    );
+    this.deletedProfiles.add(id);
+    for (const gameId of gameIds) this.forgetGame(gameId);
+    this.snapshot.data = {
+      ...this.snapshot.data!,
+      profiles: this.snapshot.data!.profiles.filter((p) => p.id !== id),
+    };
+    this.persist();
+    this.emit();
   }
   async saveTemplate(template: BoardTemplate) {
     const saved = await api<BoardTemplate>("/templates", "POST", template);
