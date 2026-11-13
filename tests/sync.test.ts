@@ -13,8 +13,13 @@ function setup() {
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
     value: {
+      get length() {
+        return values.size;
+      },
+      key: (index: number) => [...values.keys()][index] ?? null,
       getItem: (key: string) => values.get(key) || null,
       setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
     },
   });
   const originalFetch = globalThis.fetch;
@@ -39,6 +44,7 @@ function setup() {
     templates: PRESETS,
     dictionaries: [],
   };
+  localStorage.setItem("tilewise:cache", JSON.stringify(client.snapshot.data));
   return {
     client,
     game,
@@ -229,6 +235,118 @@ test("custom board deletion survives stale polling and leaves templates intact o
       JSON.parse(localStorage.getItem("tilewise:cache")!).templates,
       PRESETS,
     );
+  } finally {
+    cleanup();
+  }
+});
+
+test("another tab polling cannot erase drafts for the same or a different game", async () => {
+  const { client, game, cleanup } = setup();
+  const otherGame = { ...game, id: "other" };
+  const remote = { ...client.snapshot.data!, games: [game, otherGame] };
+  localStorage.setItem("tilewise:cache", JSON.stringify(remote));
+  const secondTab = new GameStore();
+  client.snapshot.data = remote;
+  try {
+    client.update({ ...game, rack: "CAT" });
+    clearTimeout(client.timer);
+    globalThis.fetch = async () => response(remote);
+    await secondTab.refresh();
+    assert.equal(new GameStore().drafts.get(game.id)?.rack, "CAT");
+
+    secondTab.update({ ...game, rack: "DOG" });
+    secondTab.update({ ...otherGame, rack: "BIRD" });
+    clearTimeout(secondTab.timer);
+    globalThis.fetch = async () =>
+      response({ ...game, rack: "CAT", revision: 1 });
+    await client.flush();
+    const reloaded = new GameStore();
+    assert.equal(reloaded.drafts.get(game.id)?.rack, "DOG");
+    assert.equal(reloaded.drafts.get(otherGame.id)?.rack, "BIRD");
+  } finally {
+    clearTimeout(secondTab.timer);
+    cleanup();
+  }
+});
+
+test("reload lets the user resolve multiple drafts for the same game", async () => {
+  const { client, game, cleanup } = setup();
+  localStorage.setItem("tilewise:cache", JSON.stringify(client.snapshot.data));
+  const secondTab = new GameStore();
+  let reloaded: GameStore | undefined;
+  try {
+    client.update({ ...game, rack: "CAT" });
+    secondTab.update({ ...game, rack: "DOG" });
+    reloaded = new GameStore();
+    const saved = { ...reloaded.drafts.get(game.id)!, revision: 1 };
+    globalThis.fetch = async () => response(saved);
+    await reloaded.flush();
+    assert.equal(reloaded.snapshot.conflicts[game.id].rack, saved.rack);
+    assert.deepEqual(
+      new Set([saved.rack, reloaded.drafts.get(game.id)?.rack]),
+      new Set(["CAT", "DOG"]),
+    );
+    reloaded.acceptRemote(game.id);
+    assert.equal(new GameStore().drafts.size, 0);
+  } finally {
+    clearTimeout(secondTab.timer);
+    if (reloaded) clearTimeout(reloaded.timer);
+    cleanup();
+  }
+});
+
+test("legacy drafts are recovered and removed only after acknowledgment", async () => {
+  const { game, client, cleanup } = setup();
+  try {
+    localStorage.setItem(
+      "tilewise:cache",
+      JSON.stringify(client.snapshot.data),
+    );
+    localStorage.setItem(
+      "tilewise:drafts",
+      JSON.stringify({ [game.id]: { ...game, rack: "CAT" } }),
+    );
+    const reloaded = new GameStore();
+    assert.equal(reloaded.drafts.get(game.id)?.rack, "CAT");
+    assert.equal(new GameStore().drafts.get(game.id)?.rack, "CAT");
+    globalThis.fetch = async () =>
+      response({ ...game, rack: "CAT", revision: 1 });
+    await reloaded.flush();
+    assert.equal(new GameStore().drafts.size, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test("a permanently rejected draft leaves other games online and retries only after an edit", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    const otherGame = { ...game, id: "other" };
+    client.snapshot.data!.games.push(otherGame);
+    const remote = structuredClone(client.snapshot.data!);
+    const writes: string[] = [];
+    globalThis.fetch = async (url, options) => {
+      if (!options?.method || options.method === "GET") return response(remote);
+      const draft: Game = JSON.parse(options.body as string);
+      writes.push(String(url));
+      return draft.id === game.id && draft.rack === "CAT"
+        ? new Response("Payload too large", { status: 413 })
+        : response({ ...draft, revision: 1 });
+    };
+    client.update({ ...game, rack: "CAT" });
+    client.update({ ...otherGame, rack: "DOG" });
+    await client.flush();
+    assert.deepEqual(writes, ["/api/games/g", "/api/games/other"]);
+    assert.equal(client.snapshot.online, true);
+    assert.ok(client.snapshot.saveErrors[game.id]);
+    assert.equal(client.snapshot.data!.games[1].revision, 1);
+    await client.refresh();
+    assert.equal(writes.length, 2);
+    client.update({ ...game, rack: "CATS" });
+    await client.flush();
+    assert.equal(writes.length, 3);
+    assert.equal(client.snapshot.saveErrors[game.id], undefined);
+    assert.equal(client.drafts.size, 0);
   } finally {
     cleanup();
   }

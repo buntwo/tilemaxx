@@ -1,4 +1,11 @@
 import { useSyncExternalStore } from "react";
+import {
+  clearDraft,
+  draftToken,
+  loadDrafts,
+  writeDraft,
+  type StoredDraft,
+} from "./draft-storage";
 import type {
   AppState,
   Game,
@@ -17,7 +24,10 @@ export async function api<T>(
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
-  const result = await response.json();
+  const result = await response.json().catch((error) => {
+    if (response.ok) throw error;
+    return {};
+  });
   if (!response.ok)
     throw Object.assign(new Error(result.error || "Request failed."), {
       status: response.status,
@@ -38,6 +48,7 @@ interface Snapshot {
   error: string;
   pending: string[];
   conflicts: Record<string, Game>;
+  saveErrors: Record<string, string>;
   storageError: boolean;
 }
 export class GameStore {
@@ -47,11 +58,16 @@ export class GameStore {
     error: "",
     pending: [],
     conflicts: {},
+    saveErrors: {},
     storageError: false,
   };
-  drafts = new Map<string, Game>(
-    Object.entries(read<Record<string, Game>>("tilewise:drafts", {})),
-  );
+  drafts = new Map<string, Game>();
+  private draftOwner = draftToken();
+  private storedDrafts = new Map<string, StoredDraft>();
+  private recoveredDrafts = new Map<string, StoredDraft[]>();
+  private undurableDrafts = new Set<string>();
+  private confirmedGames = new Map<string, Game>();
+  private cacheError = false;
   listeners = new Set<() => void>();
   deletedGames = new Set<string>();
   deletedProfiles = new Set<string>();
@@ -60,6 +76,19 @@ export class GameStore {
   refreshing = false;
   timer: ReturnType<typeof setTimeout> | undefined;
   constructor() {
+    for (const draft of loadDrafts()) {
+      const id = draft.game.id;
+      if (this.drafts.has(id)) {
+        const other = this.recoveredDrafts.get(id) ?? [];
+        other.push(draft);
+        this.recoveredDrafts.set(id, other);
+      } else {
+        this.drafts.set(id, draft.game);
+        this.storedDrafts.set(id, draft);
+      }
+    }
+    for (const game of this.snapshot.data?.games ?? [])
+      this.confirmedGames.set(game.id, game);
     if (this.snapshot.data)
       this.snapshot.data.games = this.snapshot.data.games.map(
         (g) => this.drafts.get(g.id) || g,
@@ -74,24 +103,82 @@ export class GameStore {
   };
   getSnapshot = () => this.snapshot;
   emit() {
-    this.snapshot = { ...this.snapshot, pending: [...this.drafts.keys()] };
+    this.snapshot = {
+      ...this.snapshot,
+      pending: [...this.drafts.keys()],
+      storageError: this.cacheError || !!this.undurableDrafts.size,
+    };
     for (const fn of this.listeners) fn();
   }
   persist() {
     try {
-      localStorage.setItem(
-        "tilewise:drafts",
-        JSON.stringify(Object.fromEntries(this.drafts)),
-      );
-      if (this.snapshot.data)
+      if (this.snapshot.data) {
+        const games = this.snapshot.data.games.map(
+          (game) => this.confirmedGames.get(game.id) ?? game,
+        );
         localStorage.setItem(
           "tilewise:cache",
-          JSON.stringify(this.snapshot.data),
+          JSON.stringify({ ...this.snapshot.data, games }),
         );
-      this.snapshot.storageError = false;
+      }
+      this.cacheError = false;
     } catch {
-      this.snapshot.storageError = true;
+      this.cacheError = true;
     }
+  }
+  private persistDraft(game: Game) {
+    try {
+      const previous = this.storedDrafts.get(game.id);
+      const saved = writeDraft(this.draftOwner, game);
+      this.storedDrafts.set(game.id, saved);
+      if (previous && previous.key !== saved.key) clearDraft(previous);
+      this.undurableDrafts.delete(game.id);
+    } catch {
+      this.undurableDrafts.add(game.id);
+    }
+  }
+  private removeDraft(id: string) {
+    const stored = this.storedDrafts.get(id);
+    this.drafts.delete(id);
+    this.storedDrafts.delete(id);
+    this.undurableDrafts.delete(id);
+    if (stored) {
+      try {
+        clearDraft(stored);
+      } catch {
+        this.cacheError = true;
+      }
+    }
+  }
+  private clearSaveError(id: string) {
+    if (!(id in this.snapshot.saveErrors)) return;
+    const { [id]: _error, ...saveErrors } = this.snapshot.saveErrors;
+    this.snapshot.saveErrors = saveErrors;
+  }
+  private finishDraft(saved: Game) {
+    const id = saved.id;
+    this.confirmedGames.set(id, saved);
+    this.removeDraft(id);
+    this.replace(saved);
+    const remaining = this.recoveredDrafts.get(id);
+    if (!remaining?.length) return;
+    // Another tab may have resolved a recovered draft since startup.
+    const active = new Map(loadDrafts().map((draft) => [draft.key, draft.raw]));
+    while (remaining.length) {
+      const next = remaining.shift()!;
+      if (active.get(next.key) !== next.raw) continue;
+      this.drafts.set(id, next.game);
+      this.storedDrafts.set(id, next);
+      this.replace(next.game);
+      this.snapshot.conflicts = { ...this.snapshot.conflicts, [id]: saved };
+      break;
+    }
+    if (!remaining.length) this.recoveredDrafts.delete(id);
+  }
+  retrySave(id: string) {
+    this.clearSaveError(id);
+    this.emit();
+    void this.flush();
   }
   replace(game: Game) {
     if (!this.snapshot.data) return;
@@ -102,9 +189,13 @@ export class GameStore {
   }
   update(game: Game) {
     if (this.deletedGames.has(game.id)) return;
+    const previous = this.snapshot.data?.games.find(({ id }) => id === game.id);
+    if (previous && !this.confirmedGames.has(game.id))
+      this.confirmedGames.set(game.id, previous);
     this.replace(game);
     this.drafts.set(game.id, game);
-    this.persist();
+    this.clearSaveError(game.id);
+    this.persistDraft(game);
     this.emit();
     clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.flush(), 300);
@@ -116,10 +207,10 @@ export class GameStore {
     try {
       const remote = await api<AppState>("/state");
       remote.games = remote.games.map((game) => {
-        const draft = this.drafts.get(game.id);
-        if (draft) return draft;
-        const local = this.snapshot.data?.games.find((g) => g.id === game.id);
-        return local && local.revision > game.revision ? local : game;
+        const known = this.confirmedGames.get(game.id);
+        const current = known && known.revision > game.revision ? known : game;
+        this.confirmedGames.set(game.id, current);
+        return this.drafts.get(game.id) ?? current;
       });
       // A list request can finish after a creation request. Keep items created
       // during that request so selecting a new game cannot jump back to an old one.
@@ -191,23 +282,25 @@ export class GameStore {
     this.busy = true;
     try {
       for (const [id] of this.drafts) {
-        if (this.snapshot.conflicts[id]) continue;
+        if (this.snapshot.conflicts[id] || this.snapshot.saveErrors[id])
+          continue;
         const draft = this.drafts.get(id)!;
         try {
           const saved = await api<Game>(`/games/${id}`, "PUT", draft);
           if (this.deletedGames.has(id)) continue;
           this.snapshot.online = true;
           if (this.drafts.get(id) === draft) {
-            this.drafts.delete(id);
-            this.replace(saved);
+            this.finishDraft(saved);
           } else {
             const newer = {
               ...this.drafts.get(id)!,
               revision: saved.revision,
               updatedAt: saved.updatedAt,
             };
+            this.confirmedGames.set(id, saved);
             this.drafts.set(id, newer);
             this.replace(newer);
+            this.persistDraft(newer);
           }
         } catch (error) {
           const err = error as Error & { status?: number; game?: Game };
@@ -219,6 +312,18 @@ export class GameStore {
               ...this.snapshot.conflicts,
               [id]: err.game,
             };
+          } else if (
+            err.status &&
+            err.status >= 400 &&
+            err.status < 500 &&
+            ![408, 425, 429].includes(err.status)
+          ) {
+            this.snapshot.online = true;
+            if (this.drafts.get(id) === draft)
+              this.snapshot.saveErrors = {
+                ...this.snapshot.saveErrors,
+                [id]: err.message,
+              };
           } else {
             this.snapshot.online = false;
             this.snapshot.error = err.message;
@@ -230,11 +335,12 @@ export class GameStore {
       }
     } finally {
       this.busy = false;
-      this.persist();
       this.emit();
       if (
         this.snapshot.online &&
-        [...this.drafts.keys()].some((id) => !this.snapshot.conflicts[id])
+        [...this.drafts.keys()].some(
+          (id) => !this.snapshot.conflicts[id] && !this.snapshot.saveErrors[id],
+        )
       )
         this.timer = setTimeout(() => void this.flush(), 300);
     }
@@ -253,7 +359,17 @@ export class GameStore {
   }
   private forgetGame(id: string) {
     this.deletedGames.add(id);
-    this.drafts.delete(id);
+    this.confirmedGames.delete(id);
+    this.removeDraft(id);
+    for (const draft of this.recoveredDrafts.get(id) ?? []) {
+      try {
+        clearDraft(draft);
+      } catch {
+        this.cacheError = true;
+      }
+    }
+    this.recoveredDrafts.delete(id);
+    this.clearSaveError(id);
     const conflicts = { ...this.snapshot.conflicts };
     delete conflicts[id];
     this.snapshot.conflicts = conflicts;
@@ -378,11 +494,10 @@ export class GameStore {
   acceptRemote(id: string) {
     const remote = this.snapshot.conflicts[id];
     if (!remote) return;
-    this.drafts.delete(id);
-    this.replace(remote);
     const conflicts = { ...this.snapshot.conflicts };
     delete conflicts[id];
     this.snapshot.conflicts = conflicts;
+    this.finishDraft(remote);
     this.persist();
     this.emit();
   }
