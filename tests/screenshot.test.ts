@@ -108,9 +108,48 @@ test("Scrabble GO ink detection keeps blue assigned blanks and rejects bonus tex
   );
   assert.deepEqual(result, {
     board: ["v", "I", "", "", "", "", "", "", ""],
-    uncertain: [0, 1],
+    uncertain: [],
     candidates: 2,
   });
+});
+
+test("review marks account for repeat glyphs, conflicting reads and mixed blue ink", async () => {
+  const svg =
+    Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120">
+    <rect width="120" height="120" fill="#f6e7c3"/>
+    <defs><path id="letter" d="M12 29V10H22A5 5 0 0 1 22 20H12" fill="none" stroke-width="4"/></defs>
+    <use href="#letter" stroke="#22170f"/>
+    <use href="#letter" x="40" stroke="#22170f"/>
+    <use href="#letter" x="80" stroke="#22170f"/>
+    <use href="#letter" x="40" y="40" stroke="#22170f"/>
+    <path d="M52 50V69" stroke="#68a8ee" stroke-width="4"/>
+  </svg>`);
+  const { data, info } = await sharp(svg)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const glyphs = extractGlyphs(
+    { data, width: info.width, height: info.height },
+    { left: 0, top: 0, width: 120, height: 120 },
+    3,
+  );
+  assert.deepEqual(
+    glyphs.map((glyph) => glyph.index),
+    [0, 1, 2, 4],
+  );
+  for (const conflicting of [false, true]) {
+    const result = await readGlyphs(
+      glyphs,
+      3,
+      async ({ index }) => ({
+        text: index === 2 && conflicting ? "F" : "P",
+        confidence: index === 0 ? 70 : 94,
+      }),
+      () => {},
+      () => {},
+    );
+    assert.deepEqual(result.uncertain, conflicting ? [0, 4] : [4]);
+  }
 });
 
 test("a low-confidence A reading can recover a Z without changing other letters", async () => {

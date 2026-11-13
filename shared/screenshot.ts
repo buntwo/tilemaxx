@@ -19,6 +19,7 @@ export interface Glyph {
   data: Uint8ClampedArray;
   warmTile: boolean;
   assignedBlank: boolean;
+  blueInkFraction: number;
 }
 export interface Recognition {
   board: Board;
@@ -155,8 +156,16 @@ export function extractGlyphs(
       data[out] = data[out + 1] = data[out + 2] = 0;
       blueInk += blue[p];
     }
-    const assignedBlank = warmTile && blueInk > c.pixels.length * 0.55;
-    glyphs.push({ index, width, height, data, warmTile, assignedBlank });
+    const blueInkFraction = warmTile ? blueInk / c.pixels.length : 0;
+    glyphs.push({
+      index,
+      width,
+      height,
+      data,
+      warmTile,
+      assignedBlank: blueInkFraction > 0.55,
+      blueInkFraction,
+    });
   }
   return glyphs;
 }

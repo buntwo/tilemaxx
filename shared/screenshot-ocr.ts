@@ -102,6 +102,118 @@ function looksLikeZ({ width, height, data }: Glyph): boolean {
   );
 }
 
+function hasInk(glyph: Glyph, x: number, y: number): boolean {
+  return glyph.data[(y * glyph.width + x) * 4] < 128;
+}
+
+function rowRuns(glyph: Glyph, fraction: number): number {
+  const y = Math.floor(glyph.height * fraction);
+  let runs = 0;
+  let previous = false;
+  for (let x = 0; x < glyph.width; x++) {
+    const ink = hasInk(glyph, x, y);
+    if (ink && !previous) runs++;
+    previous = ink;
+  }
+  return runs;
+}
+
+// These checks corroborate a letter OCR already read. They do not infer a
+// letter from the shape alone, since other fonts can use similar shapes.
+function shapeAgrees(glyph: Glyph, letter: string): boolean {
+  const { width, height } = glyph;
+  const aspect = width / height;
+  if (height < 14) return false;
+  switch (letter) {
+    case "I": {
+      if (aspect > 0.3) return false;
+      let ink = 0;
+      for (let i = 0; i < glyph.data.length; i += 4)
+        if (glyph.data[i] < 128) ink++;
+      return ink >= width * height * 0.85;
+    }
+    case "V":
+      return (
+        aspect >= 0.73 &&
+        aspect <= 1.13 &&
+        [0.18, 0.38].every((row) => rowRuns(glyph, row) === 2) &&
+        [0.68, 0.85].every((row) => rowRuns(glyph, row) === 1) &&
+        hasInk(glyph, Math.floor(width / 2), Math.floor(height * 0.85))
+      );
+    case "W":
+      return (
+        aspect >= 1.33 &&
+        [0.18, 0.38].every((row) => rowRuns(glyph, row) === 3) &&
+        [0.72, 0.87].every((row) => rowRuns(glyph, row) === 2)
+      );
+    case "O": {
+      if (
+        aspect < 0.88 ||
+        aspect > 1.16 ||
+        ![0.32, 0.48, 0.64, 0.72].every((row) => rowRuns(glyph, row) === 2)
+      )
+        return false;
+      let asymmetry = 0;
+      for (let y = 0; y < height; y++)
+        for (let x = 0; x < width; x++) {
+          const ink = hasInk(glyph, x, y);
+          if (ink !== hasInk(glyph, width - 1 - x, y)) asymmetry++;
+          if (ink !== hasInk(glyph, x, height - 1 - y)) asymmetry++;
+        }
+      return asymmetry <= width * height * 0.21;
+    }
+    default:
+      return false;
+  }
+}
+
+function normalizedMask(glyph: Glyph): Uint8Array {
+  const side = 16;
+  return Uint8Array.from({ length: side ** 2 }, (_, i) =>
+    Number(
+      hasInk(
+        glyph,
+        Math.floor((((i % side) + 0.5) * glyph.width) / side),
+        Math.floor(((Math.floor(i / side) + 0.5) * glyph.height) / side),
+      ),
+    ),
+  );
+}
+
+interface ReadTile {
+  glyph: Glyph;
+  letter: string;
+  confidence: number;
+}
+
+interface GlyphReference {
+  letter: string;
+  aspect: number;
+  mask: Uint8Array;
+}
+
+// A second copy of the same glyph on this board can corroborate a weak read.
+// Require a close match and rule out similarly close reads of another letter.
+function matchesBoardReference(
+  tile: ReadTile,
+  references: readonly GlyphReference[],
+): boolean {
+  const { glyph, letter } = tile;
+  const mask = normalizedMask(glyph);
+  let same = Infinity;
+  let other = Infinity;
+  for (const reference of references) {
+    if (Math.abs(glyph.width / glyph.height - reference.aspect) > 0.12)
+      continue;
+    let differences = 0;
+    for (let i = 0; i < mask.length; i++)
+      if (mask[i] !== reference.mask[i]) differences++;
+    if (reference.letter === letter) same = Math.min(same, differences);
+    else other = Math.min(other, differences);
+  }
+  return same <= 21 && other >= same + 15;
+}
+
 export async function readGlyphs(
   glyphs: readonly Glyph[],
   size: number,
@@ -111,6 +223,7 @@ export async function readGlyphs(
 ): Promise<Recognition> {
   const board = emptyBoard(size);
   const uncertain: number[] = [];
+  const tiles: ReadTile[] = [];
   for (const [i, glyph] of glyphs.entries()) {
     check();
     progress(i + 1, glyphs.length);
@@ -141,7 +254,7 @@ export async function readGlyphs(
       check();
       if (smaller.confidence >= 60) {
         letter = normalizeCharacter(smaller.text.trim(), glyph);
-        // A reading only visible at this scale still needs a review mark.
+        // A reading only visible at this scale needs corroboration.
         confidence = Math.min(smaller.confidence, 74);
       }
     }
@@ -152,7 +265,32 @@ export async function readGlyphs(
     }
     if (letter)
       board[glyph.index] = glyph.assignedBlank ? letter.toLowerCase() : letter;
-    if (!letter || confidence < 75 || glyph.assignedBlank)
+    tiles.push({ glyph, letter, confidence });
+  }
+  const references = tiles
+    .filter(
+      ({ glyph, letter, confidence }) =>
+        glyph.warmTile && letter && confidence >= 85,
+    )
+    .map(({ glyph, letter }) => ({
+      letter,
+      aspect: glyph.width / glyph.height,
+      mask: normalizedMask(glyph),
+    }));
+  for (const tile of tiles) {
+    const { glyph, letter, confidence } = tile;
+    const mixedInk =
+      glyph.blueInkFraction > 0.15 && glyph.blueInkFraction < 0.85;
+    if (
+      !letter ||
+      mixedInk ||
+      (confidence < 75 &&
+        !(
+          glyph.warmTile &&
+          ((confidence >= 40 && shapeAgrees(glyph, letter)) ||
+            matchesBoardReference(tile, references))
+        ))
+    )
       uncertain.push(glyph.index);
   }
   return { board, uncertain, candidates: glyphs.length };
