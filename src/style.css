@@ -339,14 +339,9 @@ label + label {
 }
 .brand-highlight {
   color: var(--primary);
-  background: var(--soft);
-  border-radius: 3px;
-  box-shadow: 0 0 0 2px var(--soft);
 }
 .brand-highlight.on-fire {
-  color: #fff5dd;
-  background: #af3228;
-  box-shadow: 0 0 0 2px #af3228;
+  color: var(--tile-warning);
 }
 .new-game {
   background: var(--surface);
