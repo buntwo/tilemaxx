@@ -868,6 +868,11 @@ test("rename profile preserves games and stable profile selection", async () => 
 test("custom template creation/editing persists one template and built-ins have no edit action", async () => {
   const user = await start();
   await user.click(screen.getByRole("button", { name: "Board studio" }));
+  expect(location.hash).toBe("#board-studio");
+  expect(screen.getByRole("heading", { name: "Board studio" })).toBeTruthy();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Your rack" })).toBeNull();
+  expect(document.querySelectorAll(".layout-thumbnail")).toHaveLength(3);
   expect(screen.getAllByText("Read-only")).toHaveLength(3);
   expect(screen.queryByRole("button", { name: "Edit Scrabble" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "New custom board" }));
@@ -889,6 +894,8 @@ test("custom template creation/editing persists one template and built-ins have 
   expect(remote.templates[3].bingo).toBe(25);
   expect(remote.templates[3].tileCounts?.Q).toBe(4);
   expect(current().template).toEqual(PRESETS[0]);
+  await user.click(screen.getByRole("button", { name: "Back to games" }));
+  expect(screen.getByRole("heading", { name: "First game" })).toBeTruthy();
 });
 
 test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters", async () => {

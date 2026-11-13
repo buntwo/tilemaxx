@@ -79,7 +79,6 @@ import {
 type Dialog =
   | "screenshot"
   | "new"
-  | "boards"
   | "dictionaries"
   | "profile"
   | "rename-profile"
@@ -89,6 +88,19 @@ type Dialog =
   | "delete"
   | "manage"
   | null;
+const workspaceHashes = {
+  games: "",
+  archive: "#archived-games",
+  studio: "#board-studio",
+} as const;
+type Workspace = keyof typeof workspaceHashes;
+
+function currentWorkspace(): Workspace {
+  if (location.hash === workspaceHashes.archive) return "archive";
+  if (location.hash === workspaceHashes.studio) return "studio";
+  return "games";
+}
+
 function saved(key: string, fallback = "") {
   try {
     return localStorage.getItem(key) || fallback;
@@ -214,9 +226,7 @@ export default function App() {
     [formTemplate, setFormTemplate] = useState("scrabble"),
     [formDictionary, setFormDictionary] = useState(""),
     [formBusy, setFormBusy] = useState(false);
-  const [archiveView, setArchiveView] = useState(
-    () => location.hash === "#archived-games",
-  );
+  const [workspace, setWorkspace] = useState(currentWorkspace);
   const [archiveSort, setArchiveSort] = useState<ArchiveSort>("date");
   const [archiveEditId, setArchiveEditId] = useState<string>();
   const worker = useRef<Worker | null>(null),
@@ -302,7 +312,7 @@ export default function App() {
   }, [gameId]);
   useEffect(() => {
     const changeView = () => {
-      setArchiveView(location.hash === "#archived-games");
+      setWorkspace(currentWorkspace());
       setDialog(null);
       setSidebar(false);
       setPreview(null);
@@ -333,19 +343,19 @@ export default function App() {
   function notify(text: string) {
     setToast(text);
   }
-  function showArchive(open: boolean) {
-    if (archiveView !== open)
+  function showWorkspace(next: Workspace) {
+    if (workspace !== next)
       history.pushState(
         null,
         "",
-        open ? "#archived-games" : location.pathname + location.search,
+        workspaceHashes[next] || location.pathname + location.search,
       );
-    setArchiveView(open);
+    setWorkspace(next);
     setSidebar(false);
     setPreview(null);
   }
   function chooseGame(id: string) {
-    if (archiveView) showArchive(false);
+    if (workspace !== "games") showWorkspace("games");
     setGameId(id);
     setSidebar(false);
   }
@@ -560,21 +570,25 @@ export default function App() {
         <div className="sidebar-divider" />
         <button
           className="nav-link"
-          aria-current={archiveView ? undefined : "page"}
-          onClick={() => showArchive(false)}
+          aria-current={workspace === "games" ? "page" : undefined}
+          onClick={() => showWorkspace("games")}
         >
           <Home size={18} />
           My games
         </button>
         <button
           className="nav-link"
-          aria-current={archiveView ? "page" : undefined}
-          onClick={() => showArchive(true)}
+          aria-current={workspace === "archive" ? "page" : undefined}
+          onClick={() => showWorkspace("archive")}
         >
           <Archive size={18} />
           Archived games
         </button>
-        <button className="nav-link" onClick={() => openDialog("boards")}>
+        <button
+          className="nav-link"
+          aria-current={workspace === "studio" ? "page" : undefined}
+          onClick={() => showWorkspace("studio")}
+        >
           <Grid2X2 size={18} />
           Board studio
         </button>
@@ -643,7 +657,11 @@ export default function App() {
             <span>My games</span>
             <span className="breadcrumb-slash">/</span>
             <span>
-              {archiveView ? "Archived games" : game?.name || "Your workspace"}
+              {workspace === "studio"
+                ? "Board studio"
+                : workspace === "archive"
+                  ? "Archived games"
+                  : game?.name || "Your workspace"}
             </span>
           </div>
           <div className="topbar-actions">
@@ -693,7 +711,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        {!archiveView && (
+        {workspace === "games" && (
           <div className="workspace-heading">
             <div>
               <div className="game-title-row">
@@ -793,7 +811,27 @@ export default function App() {
             </button>
           </div>
         )}
-        {archiveView ? (
+        {workspace === "studio" ? (
+          <BoardStudio
+            onDelete={async (id) => {
+              await store.deleteTemplate(id);
+              notify(
+                "Custom board deleted. Existing games keep their layouts.",
+              );
+            }}
+            templates={data.templates}
+            onBack={() => showWorkspace("games")}
+            onSave={async (template, editing) => {
+              if (editing) await store.updateTemplate(template);
+              else await store.saveTemplate(template);
+              notify(
+                editing
+                  ? "Board updated for future games."
+                  : "Board saved. Choose it when creating a new game.",
+              );
+            }}
+          />
+        ) : workspace === "archive" ? (
           <ArchivedGames
             games={archivedGames}
             sort={archiveSort}
@@ -803,7 +841,7 @@ export default function App() {
               setArchiveEditId(id);
               setDialog("rename");
             }}
-            onBack={() => showArchive(false)}
+            onBack={() => showWorkspace("games")}
           />
         ) : game ? (
           <div className="workspace-grid">
@@ -1055,7 +1093,7 @@ export default function App() {
           <span>Tilemaxx · Local & personal</span>
         </footer>
       </main>
-      {!archiveView && preview && game && (
+      {workspace === "games" && preview && game && (
         <div className="mobile-preview-dock" aria-label="Move preview">
           <div className="dock-board">
             <Board
@@ -1113,25 +1151,6 @@ export default function App() {
             update(importBoard(latest, board));
             setDialog(null);
             notify("Screenshot imported. You can undo this change.");
-          }}
-        />
-      )}
-      {dialog === "boards" && (
-        <BoardStudio
-          onDelete={async (id) => {
-            await store.deleteTemplate(id);
-            notify("Custom board deleted. Existing games keep their layouts.");
-          }}
-          templates={data.templates}
-          onClose={() => setDialog(null)}
-          onSave={async (template, editing) => {
-            if (editing) await store.updateTemplate(template);
-            else await store.saveTemplate(template);
-            notify(
-              editing
-                ? "Board updated for future games."
-                : "Board saved. Choose it when creating a new game.",
-            );
           }}
         />
       )}

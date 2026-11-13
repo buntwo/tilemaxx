@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { Check, RotateCcw } from "lucide-react";
-import Modal from "./Modal";
+import { ArrowLeft, Check, RotateCcw } from "lucide-react";
 import Board from "./Board";
 import {
   type BoardTemplate,
@@ -75,17 +74,20 @@ export default function BoardEditor({
     setDraft({ ...draft, premiums });
   }
   return (
-    <Modal
-      title={initial ? "Edit your board" : "Make it your board"}
-      subtitle={
-        initial
-          ? "Update this template for new games. Existing games keep their current layout."
-          : "Choose a bonus, then paint the squares. Your layout will be ready for future games."
-      }
-      onClose={onClose}
-      wide
+    <section
+      className="studio-view studio-editor"
+      aria-labelledby="studio-editor-heading"
     >
+      <div className="workspace-heading studio-heading">
+        <h1 id="studio-editor-heading">
+          {initial ? "Edit board" : "New custom board"}
+        </h1>
+        <button className="button secondary archive-back" onClick={onClose}>
+          <ArrowLeft size={16} /> Board studio
+        </button>
+      </div>
       <form
+        className="panel studio-panel"
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
@@ -285,6 +287,6 @@ export default function BoardEditor({
           </button>
         </footer>
       </form>
-    </Modal>
+    </section>
   );
 }

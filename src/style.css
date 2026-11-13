@@ -474,8 +474,27 @@ label + label {
   padding: 15px 0;
   border-bottom: 1px solid var(--line);
 }
-.studio-item > svg {
-  color: var(--muted);
+.layout-thumbnail {
+  width: 58px;
+  height: 58px;
+  background: var(--board);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.studio-view {
+  max-width: 760px;
+  margin-inline: auto;
+}
+.studio-editor {
+  max-width: 920px;
+}
+.studio-panel {
+  padding: clamp(12px, 3vw, 24px);
+}
+.studio-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
 }
 .studio-item > div {
   flex: 1;

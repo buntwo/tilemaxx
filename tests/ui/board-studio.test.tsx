@@ -18,7 +18,7 @@ test("custom board deletion requires confirmation, permits cancel and retry, and
       <BoardStudio
         templates={templates}
         onSave={async () => {}}
-        onClose={() => {}}
+        onBack={() => {}}
         onDelete={async (id) => {
           await deleted(id);
           setTemplates((items) => items.filter((t) => t.id !== id));
