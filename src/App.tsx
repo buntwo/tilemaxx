@@ -71,8 +71,8 @@ import {
   treatBoardEditAsCorrection,
 } from "../shared/game-scoring";
 import { defaultDictionary } from "../shared/dictionaries";
-import { type BoardOddsResult, type RackOdds } from "../shared/bingo-odds";
-import { DEFENSE_LIMIT, type DefenseResults } from "../shared/premium-defense";
+import { DEFENSE_LIMIT } from "../shared/premium-defense";
+import { useSolver } from "./useSolver";
 import { store, useStore } from "./store";
 import {
   type BoardTemplate,
@@ -128,17 +128,6 @@ function saved(key: string, fallback = "") {
   }
 }
 
-interface SavedMoveResults {
-  moves: Move[];
-  warnings: string[];
-  elapsed: number;
-  rackOdds?: RackOdds;
-  defense?: DefenseResults;
-  boardOdds?: BoardOddsResult;
-}
-
-const savedMoveResultsLimit = 8;
-
 function positionSignature(game: Game) {
   const { size, start, premiums, rackSize, bingo, rules, tileCounts } =
     game.template;
@@ -172,22 +161,7 @@ export default function App() {
     [toast, setToast] = useState(""),
     [error, setError] = useState("");
   const [theme, setTheme] = useState(saved("tilewise:theme", "system"));
-  const [moves, setMoves] = useState<Move[] | null>(null),
-    [preview, setPreview] = useState<Move | null>(null),
-    [busy, setBusy] = useState(""),
-    [solveError, setSolveError] = useState(""),
-    [elapsed, setElapsed] = useState(0),
-    [warnings, setWarnings] = useState<string[]>([]);
-  const [rackOdds, setRackOdds] = useState<RackOdds>();
-  const [defense, setDefense] = useState<DefenseResults>();
-  const [defenseProgress, setDefenseProgress] = useState<number>();
-  const [rackOddsPending, setRackOddsPending] = useState(false);
-  const [boardOdds, setBoardOdds] = useState<BoardOddsResult>();
-  const [boardOddsProgress, setBoardOddsProgress] = useState<{
-    checked: number;
-    total: number;
-  }>();
-  const [boardOddsError, setBoardOddsError] = useState("");
+  const [preview, setPreview] = useState<Move | null>(null);
   const [formName, setFormName] = useState(""),
     [formTrackScores, setFormTrackScores] = useState(true),
     [formTemplate, setFormTemplate] = useState("scrabble"),
@@ -197,12 +171,7 @@ export default function App() {
   const [workspace, setWorkspace] = useState(currentWorkspace);
   const [archiveSort, setArchiveSort] = useState<ArchiveSort>("date");
   const [archiveEditId, setArchiveEditId] = useState<string>();
-  const worker = useRef<Worker | null>(null),
-    request = useRef(0),
-    solverTask = useRef<"moves" | "rack-odds" | "board-odds" | null>(null),
-    importBase = useRef<Game | null>(null);
-  const savedMoveResults = useRef(new Map<string, SavedMoveResults>());
-  const restoreOnUndo = useRef<string | null>(null);
+  const importBase = useRef<Game | null>(null);
   const game = data?.games.find(
       (g) => g.id === gameId && g.profileId === profileId,
     ),
@@ -214,6 +183,8 @@ export default function App() {
       )
     : game;
   const signature = game ? positionSignature(game) : "";
+  const solver = useSolver(signature);
+  const { busy, warnings } = solver;
   const activeFlight =
     workspace === "games" && flight?.destination === signature
       ? flight
@@ -303,28 +274,7 @@ export default function App() {
       localStorage.setItem("tilewise:theme", theme);
     } catch {}
   }, [theme]);
-  useEffect(() => {
-    if (solverTask.current) stopSolver();
-    const restored =
-      restoreOnUndo.current === signature
-        ? savedMoveResults.current.get(signature)
-        : undefined;
-    restoreOnUndo.current = null;
-    setMoves(restored?.moves ?? null);
-    setPreview(null);
-    setWarnings(restored?.warnings ?? []);
-    setElapsed(restored?.elapsed ?? 0);
-    setSolveError("");
-    setBusy("");
-    setRackOdds(restored?.rackOdds);
-    setDefense(restored?.defense);
-    setDefenseProgress(undefined);
-    setRackOddsPending(false);
-    setBoardOdds(restored?.boardOdds);
-    setBoardOddsProgress(undefined);
-    setBoardOddsError("");
-    request.current++;
-  }, [signature]);
+  useEffect(() => setPreview(null), [signature]);
   useEffect(() => {
     setError("");
   }, [gameId]);
@@ -338,7 +288,6 @@ export default function App() {
     window.addEventListener("hashchange", changeView);
     return () => window.removeEventListener("hashchange", changeView);
   }, []);
-  useEffect(() => () => worker.current?.terminate(), []);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(""), 4000);
@@ -363,7 +312,7 @@ export default function App() {
     const previous = undo(game);
     const previousSignature = positionSignature(previous);
     if (previousSignature !== signature)
-      restoreOnUndo.current = previousSignature;
+      solver.restoreOnUndo(previousSignature);
     update(previous);
   }
   function notify(text: string) {
@@ -426,145 +375,10 @@ export default function App() {
       setFormBusy(false);
     }
   }
-  function stopSolver() {
-    worker.current?.terminate();
-    worker.current = null;
-    solverTask.current = null;
-    request.current++;
-  }
-  function solverWorker() {
-    if (!worker.current) {
-      const active = new Worker(
-        new URL("./solver.worker.ts", import.meta.url),
-        { type: "module" },
-      );
-      worker.current = active;
-      active.onmessage = (e) => {
-        const result = e.data;
-        if (worker.current !== active || result.id !== request.current) return;
-        if ("boardOddsProgress" in result) {
-          setBoardOddsProgress(
-            (previous) =>
-              previous && { ...previous, checked: result.boardOddsProgress },
-          );
-          return;
-        }
-        if ("defense" in result || result.defenseDone) {
-          if ("defense" in result) setDefense(result.defense);
-          if (result.defenseDone) setDefenseProgress(undefined);
-          return;
-        }
-        if ("defenseProgress" in result) {
-          setDefenseProgress(result.defenseProgress);
-          return;
-        }
-        if ("boardOdds" in result || "boardOddsError" in result) {
-          solverTask.current = null;
-          setBoardOddsProgress(undefined);
-          setBoardOdds(result.boardOdds);
-          setBoardOddsError(result.boardOddsError ?? "");
-          return;
-        }
-        if ("rackOdds" in result || "rackOddsError" in result) {
-          solverTask.current = null;
-          setRackOddsPending(false);
-          setRackOdds(
-            result.rackOdds ?? {
-              byLeave: {},
-              exact: false,
-              bagSize: 0,
-              error: result.rackOddsError,
-            },
-          );
-          return;
-        }
-        if (result.status) {
-          setBusy(result.status);
-          return;
-        }
-        solverTask.current = result.rackOddsPending ? "rack-odds" : null;
-        setRackOddsPending(!!result.rackOddsPending);
-        setBusy("");
-        if (result.error) {
-          setSolveError(result.error);
-          return;
-        }
-        setMoves(result.moves);
-        setDefenseProgress(result.moves.length ? 0 : undefined);
-        setWarnings(result.warnings);
-        setElapsed(result.elapsed);
-      };
-      active.onerror = () => {
-        if (worker.current !== active) return;
-        const task = solverTask.current;
-        stopSolver();
-        setBusy("");
-        setRackOddsPending(false);
-        setDefenseProgress(undefined);
-        setBoardOddsProgress(undefined);
-        if (task === "board-odds")
-          setBoardOddsError("The board check stopped unexpectedly. Try again.");
-        else if (task === "rack-odds")
-          setRackOdds({
-            byLeave: {},
-            exact: false,
-            bagSize: 0,
-            error: "Bingo draw odds could not be calculated.",
-          });
-        else setSolveError("The solver stopped unexpectedly. Try again.");
-      };
-    }
-    return worker.current;
-  }
   function solve() {
-    if (busy) {
-      stopSolver();
-      setBusy("");
-      return;
-    }
-    if (!game || !hasPlayableRack) return;
-    if (solverTask.current) stopSolver();
+    if (!game || (!busy && !hasPlayableRack)) return;
     setPreview(null);
-    setSolveError("");
-    setBusy("Finding moves…");
-    setRackOdds(undefined);
-    setDefense(undefined);
-    setDefenseProgress(undefined);
-    setRackOddsPending(false);
-    setBoardOdds(undefined);
-    setBoardOddsProgress(undefined);
-    setBoardOddsError("");
-    solverTask.current = "moves";
-    solverWorker().postMessage({
-      id: ++request.current,
-      dictionaryId: game.dictionaryId,
-      board: game.board,
-      rack: game.rack,
-      excludedRackSlots: game.excludedRackSlots,
-      template: game.template,
-    });
-  }
-  function runBoardOdds(candidates: Move[], bagSize: number) {
-    if (!game || solverTask.current || !candidates.length) return;
-    setBoardOdds(undefined);
-    setBoardOddsError("");
-    setBoardOddsProgress({ checked: 0, total: candidates.length });
-    solverTask.current = "board-odds";
-    solverWorker().postMessage({
-      id: ++request.current,
-      kind: "board-odds",
-      dictionaryId: game.dictionaryId,
-      board: game.board,
-      rack: game.rack,
-      template: game.template,
-      candidates,
-      bagSize,
-    });
-  }
-  function cancelBoardOdds() {
-    if (solverTask.current !== "board-odds") return;
-    stopSolver();
-    setBoardOddsProgress(undefined);
+    solver.solve(game);
   }
   function play(move: Move) {
     if (!game) return;
@@ -576,20 +390,7 @@ export default function App() {
         rackPanel.current,
         boardPanel.current,
       );
-      if (moves) {
-        const cache = savedMoveResults.current;
-        cache.delete(signature);
-        cache.set(signature, {
-          moves,
-          warnings,
-          elapsed,
-          rackOdds,
-          defense,
-          boardOdds,
-        });
-        if (cache.size > savedMoveResultsLimit)
-          cache.delete(cache.keys().next().value!);
-      }
+      solver.rememberResults();
       setFlight(
         motion && {
           ...motion,
@@ -1161,10 +962,12 @@ export default function App() {
             </div>
             <div className="results-column">
               <Results
-                moves={moves}
+                results={solver.results}
+                fetchPage={solver.page}
+                fetchShortlist={solver.shortlist}
                 busy={busy}
-                elapsed={elapsed}
-                error={solveError}
+                elapsed={solver.elapsed}
+                error={solver.error}
                 size={game.template.size}
                 rackSize={game.template.rackSize}
                 bingoBonus={game.template.bingo}
@@ -1175,19 +978,21 @@ export default function App() {
                 hasRack={hasPlayableRack}
                 analysisGame={game}
                 analysisKey={signature}
-                rackOdds={rackOdds}
-                defense={defense}
+                rackOdds={solver.rackOdds}
+                defense={solver.defense}
                 defenseProgress={
-                  defenseProgress === undefined
+                  solver.defenseProgress === undefined
                     ? undefined
-                    : `${defenseProgress}/${Math.min(moves?.length ?? 0, DEFENSE_LIMIT)}`
+                    : `${solver.defenseProgress}/${Math.min(solver.results?.total ?? 0, DEFENSE_LIMIT)}`
                 }
-                rackOddsPending={rackOddsPending}
-                boardOdds={boardOdds}
-                boardOddsProgress={boardOddsProgress}
-                boardOddsError={boardOddsError}
-                onBoardOdds={runBoardOdds}
-                onCancelBoardOdds={cancelBoardOdds}
+                rackOddsPending={solver.rackOddsPending}
+                boardOdds={solver.boardOdds}
+                boardOddsProgress={solver.boardOddsProgress}
+                boardOddsError={solver.boardOddsError}
+                onBoardOdds={(candidates, bagSize) =>
+                  solver.runBoardOdds(game, candidates, bagSize)
+                }
+                onCancelBoardOdds={solver.cancelBoardOdds}
               />
               {warnings.length > 0 && (
                 <div className="board-warnings">

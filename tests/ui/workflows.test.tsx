@@ -15,6 +15,8 @@ import { emptyBoard, type AppState, type Game } from "../../shared/model";
 import { Lexicon } from "../../shared/lexicon";
 import { solve, solvePosition } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
+import { MoveResultIndex } from "../../shared/move-results";
+import type { SolverRequest } from "../../src/solver-messages";
 
 let remote: AppState;
 const game = (): Game => ({
@@ -36,27 +38,64 @@ const current = () =>
 class SolverWorker {
   onmessage: ((e: { data: unknown }) => void) | null = null;
   terminate = vi.fn();
+  results = new Map<number, MoveResultIndex>();
+  private readonly reply: boolean;
   constructor(url?: URL) {
-    if (url?.pathname.endsWith("/reply.worker.ts"))
-      return { onmessage: null, terminate: vi.fn(), postMessage() {} };
+    this.reply = !!url?.pathname.endsWith("/reply.worker.ts");
   }
-  postMessage(request: {
-    id: number;
-    board: string[];
-    rack: string;
-    excludedRackSlots?: number[];
-    template: (typeof PRESETS)[0];
-  }) {
+  protected rackOdds = {};
+  postMessage(request: SolverRequest) {
+    if (this.reply) return;
+    if (request.kind === "discard") {
+      this.results.delete(request.searchId);
+      return;
+    }
+    if (request.kind === "page" || request.kind === "shortlist") {
+      const result = this.results.get(request.searchId);
+      const data =
+        request.kind === "page"
+          ? {
+              kind: request.kind,
+              id: request.id,
+              page: result?.page(request.query),
+            }
+          : {
+              kind: request.kind,
+              id: request.id,
+              shortlist: result?.shortlist(request.options),
+            };
+      queueMicrotask(() => this.onmessage?.({ data }));
+      return;
+    }
+    if (request.kind !== "solve") return;
     const moves = solvePosition(
       new Lexicon(["AT", "CAT", "CATS", "ACT", "DOG", "RAT", "ART", "TAR"]),
       request,
       request.template,
     );
-    queueMicrotask(() =>
+    const result = new MoveResultIndex(moves);
+    this.results.set(request.id, result);
+    queueMicrotask(() => {
       this.onmessage?.({
-        data: { id: request.id, moves, warnings: [], elapsed: 1 },
-      }),
-    );
+        data: {
+          kind: "moves",
+          id: request.id,
+          results: result.summary(request.id),
+          warnings: [],
+          elapsed: 1,
+        },
+      });
+      this.onmessage?.({
+        data: { kind: "defense", id: request.id, done: true },
+      });
+      this.onmessage?.({
+        data: {
+          kind: "rack-odds",
+          id: request.id,
+          odds: { byLeave: this.rackOdds, exact: true, bagSize: 89 },
+        },
+      });
+    });
   }
 }
 
@@ -66,7 +105,7 @@ test("compare mode selects moves without playing and switches model without reru
     postMessage(
       request: Parameters<SolverWorker["postMessage"]>[0] | AnalysisRequest,
     ) {
-      if (!("candidates" in request)) return super.postMessage(request);
+      if ("kind" in request) return super.postMessage(request);
       runs++;
       const result = analyzeMoves(
         new Lexicon(["AT", "CAT", "CATS", "ACT", "DOG", "RAT", "ART", "TAR"]),
@@ -109,7 +148,7 @@ test("analysis counter follows worker progress and disappears on cancel", async 
     postMessage(
       request: Parameters<SolverWorker["postMessage"]>[0] | AnalysisRequest,
     ) {
-      if ("candidates" in request) analysisWorker = this;
+      if (!("kind" in request)) analysisWorker = this;
       else super.postMessage(request);
     }
   }
@@ -167,6 +206,7 @@ test("board check uses the current filtered moves, and cancelled results stay ou
     | undefined;
   type GameMove = ReturnType<typeof solve>[number];
   class OddsWorker extends SolverWorker {
+    protected rackOdds = { "": 0.14 };
     postMessage(request: Search | { id: number; candidates: GameMove[] }) {
       if ("candidates" in request) {
         pending = {
@@ -176,14 +216,6 @@ test("board check uses the current filtered moves, and cancelled results stay ou
         };
       } else {
         super.postMessage(request);
-        queueMicrotask(() =>
-          this.onmessage?.({
-            data: {
-              id: request.id,
-              rackOdds: { byLeave: { "": 0.14 }, bagSize: 89, exact: true },
-            },
-          }),
-        );
       }
     }
   }
@@ -210,7 +242,8 @@ test("board check uses the current filtered moves, and cancelled results stay ou
       worker.onmessage?.({
         data: {
           id,
-          boardOdds: {
+          kind: "board-odds",
+          odds: {
             byMove: { [candidates[0].id]: { chance: 0.5, exact: false } },
             checked: 1,
             total: candidates.length,
@@ -538,17 +571,11 @@ test("board edits stop a running solver and game switching clears the entry curs
 test("rack → real solver → hover preview → play → undo/redo → save", async () => {
   let solves = 0;
   class CountingWorker extends SolverWorker {
+    protected rackOdds = { "": 0.25 };
     postMessage(request: Parameters<SolverWorker["postMessage"]>[0]) {
-      solves++;
       super.postMessage(request);
-      queueMicrotask(() =>
-        this.onmessage?.({
-          data: {
-            id: request.id,
-            rackOdds: { byLeave: { "": 0.25 }, exact: true, bagSize: 89 },
-          },
-        }),
-      );
+      if (request.kind !== "solve") return;
+      solves++;
     }
   }
   vi.stubGlobal("Worker", CountingWorker);
