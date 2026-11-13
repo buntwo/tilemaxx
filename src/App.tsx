@@ -617,7 +617,8 @@ export default function App() {
   const archivedGames = profileGames.filter((g) => g.archived);
   const viewingArchivedGame = workspace === "games" && game?.archived;
   const pending = game && state.pending.includes(game.id),
-    conflict = game && state.conflicts[game.id];
+    conflict = game && state.conflicts[game.id],
+    saveError = game && state.saveErrors[game.id];
   const profileLetter =
     [...(profile?.name.trim() ?? "")][0]?.toLocaleUpperCase() || "?";
   if (!data)
@@ -765,10 +766,12 @@ export default function App() {
           </div>
           <div className="topbar-actions">
             <span
-              className={`sync-status ${!state.online || conflict ? "offline" : ""}`}
-              title={state.error || "Games are saved on your server"}
+              className={`sync-status ${!state.online || conflict || saveError ? "offline" : ""}`}
+              title={
+                saveError || state.error || "Games are saved on your server"
+              }
             >
-              {conflict ? (
+              {conflict || saveError ? (
                 <Info size={14} />
               ) : !state.online ? (
                 <CloudOff size={14} />
@@ -780,11 +783,13 @@ export default function App() {
               <span>
                 {conflict
                   ? "Review changes"
-                  : !state.online
-                    ? "Saved on this device"
-                    : pending
-                      ? "Saving…"
-                      : "All changes saved"}
+                  : saveError
+                    ? "Save rejected"
+                    : !state.online
+                      ? "Saved on this device"
+                      : pending
+                        ? "Saving…"
+                        : "All changes saved"}
               </span>
             </span>
             <div className="theme-switch" aria-label="Color theme">
@@ -919,6 +924,12 @@ export default function App() {
             >
               Save my edits as a copy
             </button>
+          </div>
+        )}
+        {saveError && game && (
+          <div className="banner warning" role="alert">
+            <span>Could not save this game. {saveError}</span>
+            <button onClick={() => store.retrySave(game.id)}>Retry save</button>
           </div>
         )}
         {!state.online && (

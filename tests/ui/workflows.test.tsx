@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../../src/App";
-import { store } from "../../src/store";
+import { GameStore, store } from "../../src/store";
 import { PRESETS } from "../../shared/presets";
 import { emptyBoard, type AppState, type Game } from "../../shared/model";
 import { Lexicon } from "../../shared/lexicon";
@@ -256,18 +256,17 @@ beforeEach(() => {
     ],
   };
   clearTimeout(store.timer);
-  store.drafts.clear();
-  store.deletedGames.clear();
-  store.deletedProfiles.clear();
-  store.deletedTemplates.clear();
-  store.busy = false;
-  store.refreshing = false;
+  const initial = new GameStore();
+  for (const [key, value] of Object.entries(initial)) {
+    if (typeof value !== "function") Object.assign(store, { [key]: value });
+  }
   store.snapshot = {
     data: structuredClone(remote),
     online: true,
     error: "",
     pending: [],
     conflicts: {},
+    saveErrors: {},
     storageError: false,
   };
   vi.stubGlobal("Worker", SolverWorker);
