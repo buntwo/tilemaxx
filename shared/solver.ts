@@ -22,6 +22,18 @@ export const SEARCH_LIMITS = {
 type Limits = Partial<typeof SEARCH_LIMITS>;
 type Options = { bingoOnly?: boolean; unsorted?: boolean };
 
+export interface PremiumReply {
+  word: string;
+  score: number;
+  tiles: Placement[];
+}
+
+interface PremiumSearch {
+  counts: readonly number[];
+  targets: ReadonlySet<number>;
+  replies: Map<number, PremiumReply>;
+}
+
 export class SearchLimitError extends Error {
   constructor() {
     super(
@@ -176,6 +188,7 @@ export function prepareSolver(
     limits: Limits,
     options: Options,
     summaryOnly: boolean,
+    premiumSearch?: PremiumSearch,
   ) {
     const budget = { ...SEARCH_LIMITS, ...limits };
     for (const key of Object.keys(
@@ -198,7 +211,13 @@ export function prepareSolver(
       throw new Error("The rack contains invalid tiles or too many letters.");
     }
     rack = rack.replaceAll(".", "").toUpperCase();
-    const rackLength = rack.length;
+    const rackLength = premiumSearch
+      ? Math.min(
+          3,
+          rackSize,
+          premiumSearch.counts.reduce((a, b) => a + b, 0),
+        )
+      : rack.length;
     const moves: Move[] = [];
     let bestScore = 0,
       hasBingo = false;
@@ -206,7 +225,7 @@ export function prepareSolver(
       return { moves, bestScore, hasBingo };
     if (performance.now() >= deadline) throw new SearchLimitError();
 
-    const counts = new Uint8Array(26);
+    const counts = premiumSearch ? new Uint16Array(26) : new Uint8Array(26);
     let rackMask = 0,
       blankCount = 0;
     for (const letter of rack) {
@@ -216,6 +235,13 @@ export function prepareSolver(
         counts[code]++;
         rackMask |= 1 << code;
       }
+    }
+    if (premiumSearch) {
+      counts.set(premiumSearch.counts.slice(0, 26));
+      for (let code = 0; code < counts.length; code++) {
+        if (counts[code]) rackMask |= 1 << code;
+      }
+      blankCount = premiumSearch.counts[26];
     }
 
     let nodes = 0,
@@ -239,6 +265,20 @@ export function prepareSolver(
     } of directions) {
       let startLine = 0,
         startPosition = 0;
+      // Number of new tiles needed to reach the next target in this direction.
+      const toPremium = premiumSearch && new Uint8Array(board.length);
+      if (toPremium && premiumSearch) {
+        const crossStep = step === 1 ? size : 1;
+        for (let line = 0; line < size; line++) {
+          let distance = size + 1;
+          for (let p = size - 1; p >= 0; p--) {
+            const cell = line * crossStep + p * step;
+            if (!letters[cell])
+              distance = premiumSearch.targets.has(cell) ? 1 : distance + 1;
+            toPremium[cell] = distance;
+          }
+        }
+      }
       function emit(
         length: number,
         used: number,
@@ -252,6 +292,27 @@ export function prepareSolver(
           const key = tileCells[0] * 52 + tileCodes[0];
           if (seenSingles.has(key)) return;
           seenSingles.add(key);
+        }
+        if (premiumSearch) {
+          for (let k = 0; k < used; k++) {
+            const square = tileCells[k];
+            if (
+              !premiumSearch.targets.has(square) ||
+              (premiumSearch.replies.get(square)?.score ?? -1) >= score
+            )
+              continue;
+            let word = "";
+            for (let i = 0; i < length; i++) word += LETTERS[wordCodes[i]];
+            premiumSearch.replies.set(square, {
+              word,
+              score,
+              tiles: Array.from({ length: used }, (_, i) => ({
+                index: tileCells[i],
+                letter: LETTERS[tileCodes[i]],
+              })),
+            });
+          }
+          return;
         }
         if (moveCount >= budget.maxMoves) throw new SearchLimitError();
         moveCount++;
@@ -304,6 +365,7 @@ export function prepareSolver(
         multiplier: number,
         crossTotal: number,
         connected: boolean,
+        hitsPremium = false,
       ) {
         if (
           ++nodes > budget.maxNodes ||
@@ -312,6 +374,12 @@ export function prepareSolver(
           throw new SearchLimitError();
         }
         const atEdge = startPosition + length === size;
+        if (
+          toPremium &&
+          !hitsPremium &&
+          (atEdge || toPremium[cell] > rackLength - used)
+        )
+          return false;
         if (
           bingoOnly &&
           (maxTail[node] < rackSize - used ||
@@ -354,6 +422,7 @@ export function prepareSolver(
             multiplier,
             crossTotal,
             connected,
+            hitsPremium,
           );
         }
         if (used === rackLength) return false;
@@ -363,6 +432,7 @@ export function prepareSolver(
         const hasCross = !!(prefix[cell] || suffix[cell]);
         const baseCross = crossTotal + crossScore[cell] * wm[cell];
         const nextConnected = connected || !!anchors[cell];
+        const nextHitsPremium = hitsPremium || premiumSearch?.targets.has(cell);
         tileCells[used] = cell;
         while (possible) {
           const code = 31 - Math.clz32(possible);
@@ -385,6 +455,7 @@ export function prepareSolver(
               nextMultiplier,
               baseCross + (hasCross ? points * wm[cell] : 0),
               nextConnected,
+              nextHitsPremium,
             );
             counts[code]++;
             if (found) return true;
@@ -403,6 +474,7 @@ export function prepareSolver(
                 nextMultiplier,
                 baseCross,
                 nextConnected,
+                nextHitsPremium,
               )
             )
               return true;
@@ -415,6 +487,7 @@ export function prepareSolver(
         if (performance.now() >= deadline) throw new SearchLimitError();
         if (
           toAnchor[start.cell] > rackLength ||
+          (toPremium && toPremium[start.cell] > rackLength) ||
           (bingoOnly && space[start.cell] < rackSize)
         )
           continue;
@@ -443,6 +516,15 @@ export function prepareSolver(
     summarize: (rack: string, limits: Limits = {}) => {
       const { bestScore, hasBingo } = run(rack, limits, {}, true);
       return { score: bestScore, bingo: hasBingo };
+    },
+    premiumReplies(
+      counts: readonly number[],
+      targets: ReadonlySet<number>,
+      limits: Limits,
+    ) {
+      const replies = new Map<number, PremiumReply>();
+      run("", limits, {}, false, { counts, targets, replies });
+      return replies;
     },
   };
 }

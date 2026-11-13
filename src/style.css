@@ -1811,7 +1811,8 @@ label + label {
   position: absolute;
   width: 100%;
 }
-.result-slot:has(.result-score-action:hover) .result-row {
+.result-slot:has(:is(.result-score-action, .result-defense-action):hover)
+  .result-row {
   background: var(--soft);
 }
 .result-score-action.icon-button {
@@ -1824,6 +1825,62 @@ label + label {
 }
 .result-score-action.icon-button:hover {
   background: var(--soft);
+}
+.with-defense-action .result-score-action.icon-button,
+.result-defense-action.icon-button {
+  top: 0;
+  height: 29px;
+}
+.result-defense-action.icon-button {
+  position: absolute;
+  top: 29px;
+  right: 5px;
+  width: 34px;
+}
+.defense-warning,
+.result-defense-action.defense-warning:hover {
+  color: var(--tile-warning);
+}
+.defense-covered {
+  color: var(--primary);
+}
+.defense-details {
+  display: grid;
+  gap: 12px;
+}
+.defense-detail {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 13px;
+}
+.defense-detail div {
+  display: grid;
+  gap: 3px;
+}
+.defense-detail span,
+.defense-help {
+  color: var(--muted);
+  font-size: 12px;
+}
+.defense-example p,
+.defense-help {
+  margin: 0;
+}
+.defense-example p:first-child {
+  font-size: 13px;
+}
+.defense-example .board-wrap {
+  max-width: 340px;
+  margin: auto;
+}
+.defense-example .ghost::before {
+  animation: none;
+}
+.defense-example .defense-square {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  z-index: 1;
 }
 .result-row:hover,
 .result-row.active {

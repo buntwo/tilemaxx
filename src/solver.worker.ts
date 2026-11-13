@@ -1,6 +1,7 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { solvePosition, inspectBoard } from "../shared/solver";
 import { RackBingoIndex, checkBoardBingo } from "../shared/bingo-odds";
+import { checkPremiumDefense } from "../shared/premium-defense";
 import type { BoardTemplate, Move, Position } from "../shared/model";
 
 type SolverRequest = Position & {
@@ -64,6 +65,19 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       rackOddsPending: moves.length > 0,
     });
     if (moves.length) {
+      try {
+        const defense = checkPremiumDefense(
+          lexicon,
+          request,
+          template,
+          moves,
+          (quick) => self.postMessage({ id, defense: quick }),
+          (checked) => self.postMessage({ id, defenseProgress: checked }),
+        );
+        self.postMessage({ id, defense, defenseDone: true });
+      } catch {
+        self.postMessage({ id, defenseDone: true });
+      }
       try {
         self.postMessage({
           id,

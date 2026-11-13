@@ -67,6 +67,7 @@ import {
 } from "../shared/game-scoring";
 import { defaultDictionary } from "../shared/dictionaries";
 import { type BoardOddsResult, type RackOdds } from "../shared/bingo-odds";
+import { DEFENSE_LIMIT, type DefenseResults } from "../shared/premium-defense";
 import { store, useStore } from "./store";
 import {
   type BoardTemplate,
@@ -122,6 +123,7 @@ interface SavedMoveResults {
   warnings: string[];
   elapsed: number;
   rackOdds?: RackOdds;
+  defense?: DefenseResults;
   boardOdds?: BoardOddsResult;
 }
 
@@ -163,6 +165,8 @@ export default function App() {
     [elapsed, setElapsed] = useState(0),
     [warnings, setWarnings] = useState<string[]>([]);
   const [rackOdds, setRackOdds] = useState<RackOdds>();
+  const [defense, setDefense] = useState<DefenseResults>();
+  const [defenseProgress, setDefenseProgress] = useState<number>();
   const [rackOddsPending, setRackOddsPending] = useState(false);
   const [boardOdds, setBoardOdds] = useState<BoardOddsResult>();
   const [boardOddsProgress, setBoardOddsProgress] = useState<{
@@ -271,6 +275,8 @@ export default function App() {
     setSolveError("");
     setBusy("");
     setRackOdds(restored?.rackOdds);
+    setDefense(restored?.defense);
+    setDefenseProgress(undefined);
     setRackOddsPending(false);
     setBoardOdds(restored?.boardOdds);
     setBoardOddsProgress(undefined);
@@ -401,6 +407,15 @@ export default function App() {
           );
           return;
         }
+        if ("defense" in result || result.defenseDone) {
+          if ("defense" in result) setDefense(result.defense);
+          if (result.defenseDone) setDefenseProgress(undefined);
+          return;
+        }
+        if ("defenseProgress" in result) {
+          setDefenseProgress(result.defenseProgress);
+          return;
+        }
         if ("boardOdds" in result || "boardOddsError" in result) {
           solverTask.current = null;
           setBoardOddsProgress(undefined);
@@ -433,6 +448,7 @@ export default function App() {
           return;
         }
         setMoves(result.moves);
+        setDefenseProgress(result.moves.length ? 0 : undefined);
         setWarnings(result.warnings);
         setElapsed(result.elapsed);
       };
@@ -442,6 +458,7 @@ export default function App() {
         stopSolver();
         setBusy("");
         setRackOddsPending(false);
+        setDefenseProgress(undefined);
         setBoardOddsProgress(undefined);
         if (task === "board-odds")
           setBoardOddsError("The board check stopped unexpectedly. Try again.");
@@ -469,6 +486,8 @@ export default function App() {
     setSolveError("");
     setBusy("Finding moves…");
     setRackOdds(undefined);
+    setDefense(undefined);
+    setDefenseProgress(undefined);
     setRackOddsPending(false);
     setBoardOdds(undefined);
     setBoardOddsProgress(undefined);
@@ -512,7 +531,14 @@ export default function App() {
       if (moves) {
         const cache = savedMoveResults.current;
         cache.delete(signature);
-        cache.set(signature, { moves, warnings, elapsed, rackOdds, boardOdds });
+        cache.set(signature, {
+          moves,
+          warnings,
+          elapsed,
+          rackOdds,
+          defense,
+          boardOdds,
+        });
         if (cache.size > savedMoveResultsLimit)
           cache.delete(cache.keys().next().value!);
       }
@@ -1073,6 +1099,12 @@ export default function App() {
                 analysisGame={game}
                 analysisKey={signature}
                 rackOdds={rackOdds}
+                defense={defense}
+                defenseProgress={
+                  defenseProgress === undefined
+                    ? undefined
+                    : `${defenseProgress}/${Math.min(moves?.length ?? 0, DEFENSE_LIMIT)}`
+                }
                 rackOddsPending={rackOddsPending}
                 boardOdds={boardOdds}
                 boardOddsProgress={boardOddsProgress}

@@ -9,6 +9,8 @@ import {
   Trophy,
   ChartNoAxesCombined,
   Calculator,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 import { type Game, type Move, coordinate } from "../../shared/model";
 import {
@@ -22,6 +24,8 @@ import MoveAnalysis from "./MoveAnalysis";
 import BingoOddsControls from "./BingoOddsControls";
 import Modal from "./Modal";
 import { ScoreBreakdownContent } from "./ScoreBreakdown";
+import PremiumDefense, { defenseLabel } from "./PremiumDefense";
+import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
 
 function formatOdds(chance: number, exact: boolean) {
   const value =
@@ -50,6 +54,8 @@ export default function Results({
   analysisKey,
   rackOdds,
   rackOddsPending,
+  defense,
+  defenseProgress,
   boardOdds,
   boardOddsProgress,
   boardOddsError,
@@ -72,6 +78,8 @@ export default function Results({
   analysisKey?: string;
   rackOdds?: RackOdds;
   rackOddsPending?: boolean;
+  defense?: DefenseResults;
+  defenseProgress?: string;
   boardOdds?: BoardOddsResult;
   boardOddsProgress?: { checked: number; total: number };
   boardOddsError?: string;
@@ -87,6 +95,13 @@ export default function Results({
   const [analyzing, setAnalyzing] = useState(false);
   const [candidates, setCandidates] = useState<Move[]>([]);
   const [inspected, setInspected] = useState<{ move: Move; key?: string }>();
+  const [inspectedDefense, setInspectedDefense] = useState<{
+    move: Move;
+    risk: MoveDefense;
+    key?: string;
+  }>();
+  const defenseDetail =
+    inspectedDefense?.key === analysisKey ? inspectedDefense : undefined;
   const inspectedMove =
     inspected?.key === analysisKey ? inspected?.move : undefined;
   const breakdown =
@@ -345,12 +360,14 @@ export default function Results({
                   boardChance &&
                   formatOdds(boardChance.chance, boardChance.exact);
                 const placed = new Map(m.tiles.map((t) => [t.index, t.letter]));
+                const risk = analysisGame && defense?.[m.id];
+                const RiskIcon = risk?.opened ? ShieldAlert : ShieldCheck;
                 const selected =
                   analyzing &&
                   candidates.some((candidate) => candidate.id === m.id);
                 return (
                   <div
-                    className={`result-slot${analysisGame ? " with-score-action" : ""}`}
+                    className={`result-slot${analysisGame ? " with-score-action" : ""}${risk ? " with-defense-action" : ""}`}
                     key={m.id}
                     style={{ top: (start + offset) * 58 }}
                   >
@@ -498,6 +515,23 @@ export default function Results({
                         <Calculator size={15} aria-hidden="true" />
                       </button>
                     )}
+                    {risk && (
+                      <button
+                        type="button"
+                        className={`result-defense-action icon-button ${risk.opened ? "defense-warning" : "defense-covered"}`}
+                        aria-label={`Reply risk for ${m.word} at ${coordinate(m.row * size + m.col, size)} ${m.direction}. ${defenseLabel(risk, size)}`}
+                        title={defenseLabel(risk, size)}
+                        onClick={() =>
+                          setInspectedDefense({
+                            move: m,
+                            risk,
+                            key: analysisKey,
+                          })
+                        }
+                      >
+                        <RiskIcon size={16} aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -518,12 +552,16 @@ export default function Results({
             </span>
           </>
         )}
-        {moves && (
-          <span>
-            {elapsed < 1000
-              ? `${Math.round(elapsed)} ms`
-              : `${(elapsed / 1000).toFixed(2)} s`}
-          </span>
+        {defenseProgress ? (
+          <span title="Checking premium replies">Risk {defenseProgress}</span>
+        ) : (
+          moves && (
+            <span>
+              {elapsed < 1000
+                ? `${Math.round(elapsed)} ms`
+                : `${(elapsed / 1000).toFixed(2)} s`}
+            </span>
+          )
         )}
       </footer>
       {preview && (
@@ -574,6 +612,14 @@ export default function Results({
             <p>This position changed. Find moves again to check the score.</p>
           )}
         </Modal>
+      )}
+      {analysisGame && defenseDetail && (
+        <PremiumDefense
+          game={analysisGame}
+          move={defenseDetail.move}
+          defense={defense?.[defenseDetail.move.id] ?? defenseDetail.risk}
+          onClose={() => setInspectedDefense(undefined)}
+        />
       )}
     </section>
   );
