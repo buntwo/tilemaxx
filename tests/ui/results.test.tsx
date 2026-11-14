@@ -82,7 +82,7 @@ function setup(
     analysisGame?: Game;
     replyEnabled?: boolean;
     fetchPage?: FetchMovePage;
-    onBoardOdds?: (moves: Move[], bagSize: number) => void;
+    onBoardOdds?: (moves: Move[], bagSize: number) => BoardOddsResult | void;
   } = {},
 ) {
   vi.stubGlobal("matchMedia", () => ({ matches: !mobile }));
@@ -97,6 +97,7 @@ function setup(
   );
   function Harness() {
     const [preview, setPreview] = useState<Move | null>(null);
+    const [boardOdds, setBoardOdds] = useState(options.boardOdds);
     return (
       <Results
         results={results}
@@ -109,7 +110,7 @@ function setup(
         rackSize={options.rackSize ?? 7}
         bingoBonus={options.bingoBonus ?? 50}
         rackOdds={options.rackOdds}
-        boardOdds={options.boardOdds}
+        boardOdds={boardOdds}
         analysisGame={options.analysisGame}
         replyEnabled={options.replyEnabled}
         preview={preview}
@@ -119,7 +120,13 @@ function setup(
         }}
         onPlay={onPlay}
         onSolve={() => {}}
-        onBoardOdds={options.onBoardOdds}
+        onBoardOdds={
+          options.onBoardOdds &&
+          ((moves, bagSize) => {
+            const result = options.onBoardOdds?.(moves, bagSize);
+            if (result) setBoardOdds(result);
+          })
+        }
         onCancelBoardOdds={options.onBoardOdds ? () => {} : undefined}
         hasRack
       />
@@ -531,8 +538,64 @@ test("bingo remains identified during a phone preview and plays the same move", 
   expect(onPlay).toHaveBeenCalledExactlyOnceWith(moves[0]);
 });
 
-test("shortlist bingo check includes alternatives outside the top 20", async () => {
-  const alternative = { ...moves[2], id: "alternate", score: 17, leave: "S" };
+const bingoCheckGame: Game = {
+  id: "g",
+  name: "Test",
+  profileId: "p",
+  board: emptyBoard(15),
+  rack: "CATS",
+  template: PRESETS[0],
+  dictionaryId: "test",
+  past: [],
+  future: [],
+  revision: 0,
+  updatedAt: "",
+  archived: false,
+};
+
+test("bingo check follows the displayed sort, reverse order and filter, up to 20 rows", async () => {
+  const high = Array.from({ length: 21 }, (_, i) => ({
+    ...moves[0],
+    id: `high${i}`,
+    score: 40 - i,
+  }));
+  const onBoardOdds = vi.fn();
+  const { user } = setup(false, {
+    moves: [...high, moves[2]],
+    analysisGame: bingoCheckGame,
+    replyEnabled: false,
+    onBoardOdds,
+  });
+  const check = () =>
+    screen.getByRole("button", { name: "Check bingo after your play" });
+  const sort = () => screen.getByRole("button", { name: "Sort by word" });
+  await user.click(sort());
+  await waitFor(() =>
+    expect(rows()[0].getAttribute("aria-label")).toMatch(/^AT,/),
+  );
+  await user.click(check());
+  expect(onBoardOdds).toHaveBeenLastCalledWith(
+    [moves[2], ...high.slice(0, 19)],
+    89,
+  );
+  await user.click(sort());
+  await waitFor(() =>
+    expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/),
+  );
+  await user.click(check());
+  expect(onBoardOdds).toHaveBeenLastCalledWith(high.slice(0, 20), 89);
+  await user.click(sort());
+  await user.type(
+    screen.getByRole("textbox", { name: "Filter moves" }),
+    "CATS",
+  );
+  await waitFor(() => expect(rows()).toHaveLength(21));
+  await user.click(check());
+  expect(onBoardOdds).toHaveBeenLastCalledWith(high.slice(0, 20), 89);
+});
+
+test("shortlist bingo check keeps the lower-scoring recommendation and respects the filter", async () => {
+  const alternative = { ...moves[2], id: "alternate", score: 17, leave: "X" };
   const many = [
     moves[0],
     ...Array.from({ length: 21 }, (_, i) => ({
@@ -541,37 +604,40 @@ test("shortlist bingo check includes alternatives outside the top 20", async () 
     })),
     alternative,
   ];
-  const onBoardOdds = vi.fn();
+  const onBoardOdds = vi.fn(() => ({
+    byMove: {
+      a: { chance: 0.3, exact: false, samples: 200 },
+      alternate: { chance: 0.25, exact: false, samples: 200 },
+    },
+    checked: 2,
+    total: 2,
+    bagSize: 89,
+  }));
   const { user } = setup(false, {
     moves: many,
-    analysisGame: {
-      id: "g",
-      name: "Test",
-      profileId: "p",
-      board: emptyBoard(15),
-      rack: "CATS",
-      template: PRESETS[0],
-      dictionaryId: "test",
-      past: [],
-      future: [],
-      revision: 0,
-      updatedAt: "",
-      archived: false,
-    },
+    analysisGame: bingoCheckGame,
     replyEnabled: false,
-    rackOdds: { byLeave: { Z: 0.01, S: 0.2 }, exact: true, bagSize: 89 },
+    rackOdds: { byLeave: { Z: 0.01, X: 0.2 }, exact: true, bagSize: 89 },
     onBoardOdds,
   });
   await user.click(await screen.findByRole("button", { name: "Shortlist 2" }));
-  await user.type(
-    screen.getByRole("textbox", { name: "Filter moves" }),
-    "CATS",
-  );
-  await user.click(
-    screen.getByRole("button", { name: "Check bingo after your play" }),
-  );
+  const check = screen.getByRole("button", {
+    name: "Check bingo after your play",
+  });
+  expect(rows()[1].getAttribute("aria-label")).toContain("Better bingo odds");
+  await user.click(check);
   expect(onBoardOdds).toHaveBeenCalledExactlyOnceWith(
     [moves[0], alternative],
     89,
   );
+  expect(rows()[1].getAttribute("aria-label")).toContain(
+    "bingo after your play ≈25%",
+  );
+  expect(rows()[1].getAttribute("aria-label")).toContain("Better bingo odds");
+  await user.type(
+    screen.getByRole("textbox", { name: "Filter moves" }),
+    "CATS",
+  );
+  await user.click(check);
+  expect(onBoardOdds).toHaveBeenLastCalledWith([moves[0]], 89);
 });

@@ -10,7 +10,6 @@ import { unseenTiles } from "../../shared/tile-pool";
 export default function BingoOddsControls({
   game,
   moves,
-  shortlist,
   settings,
   sortControl,
   toolbarStart,
@@ -26,7 +25,6 @@ export default function BingoOddsControls({
 }: {
   game: Game;
   moves: Move[];
-  shortlist?: boolean;
   settings?: ReactNode;
   sortControl?: ReactNode;
   toolbarStart?: ReactNode;
@@ -70,9 +68,7 @@ export default function BingoOddsControls({
             disabled={
               !moves.length || rackOddsPending || !valid || !!excess.length
             }
-            onClick={() =>
-              onCheck(shortlist ? moves : moves.slice(0, BOARD_ODDS_LIMIT), bag)
-            }
+            onClick={() => onCheck(moves.slice(0, BOARD_ODDS_LIMIT), bag)}
           >
             Check bingo after your play
           </button>
@@ -90,11 +86,11 @@ export default function BingoOddsControls({
                 leaves the rest in the bag ({assumedBag} right now).
               </p>
               <p>
-                <strong>Bingo after your play</strong> checks the full shortlist
-                in shortlist view, or up to {BOARD_ODDS_LIMIT} moves from the
-                current sort and filter. It counts refills that allow a bingo on
-                the board before the opponent replies. An ≈ marks an estimate
-                based on 200 refills.
+                <strong>Bingo after your play</strong> checks the first{" "}
+                {BOARD_ODDS_LIMIT} moves in your current list, including the
+                shortlist. It counts refills that allow a bingo on the board
+                before the opponent replies. An ≈ marks an estimate based on up
+                to 200 sampled refills.
               </p>
               <p>
                 <strong>Bingo after opponent reply</strong> in Analyze checks

@@ -161,3 +161,38 @@ test("held tiles stay on the rack for the next bingo without returning to the dr
   assert.equal(odds.byLeave.X, oracle(words, 3, "X", unseen));
   assert.ok(odds.byLeave.X > 0);
 });
+
+test("a slow bingo check can report a partial sample while reserving time for the next move", (t) => {
+  const lexicon = new Lexicon(["AT", "CAT", "ACT", "TAC"]);
+  const template = layout(
+    Object.fromEntries(TILE_SYMBOLS.map((tile) => [tile, 1])),
+    3,
+  );
+  const position = { board: emptyBoard(5), rack: "CAT" };
+  const moves = solvePosition(lexicon, position, template);
+  const cat = moves.find((move) => move.word === "CAT")!;
+  const at = moves.find((move) => move.word === "AT")!;
+  let time = 0;
+  let step = 3;
+  let seed = 123;
+  t.mock.method(performance, "now", () => (time += step));
+  const result = checkBoardBingo(
+    lexicon,
+    position,
+    template,
+    [cat, at],
+    21,
+    () => {
+      step = 0.01;
+    },
+    () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 2 ** 32;
+    },
+  );
+  assert.equal(result.checked, 2);
+  assert.equal(result.byMove[cat.id].exact, false);
+  const samples = result.byMove[cat.id].samples ?? 0;
+  assert.ok(samples >= 20 && samples < 200, `Completed ${samples} samples`);
+  assert.equal(result.byMove[at.id].exact, true);
+});

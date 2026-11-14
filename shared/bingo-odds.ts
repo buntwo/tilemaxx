@@ -6,6 +6,7 @@ import { choose, unseenTiles } from "./tile-pool";
 
 export const BOARD_ODDS_LIMIT = 20;
 const SAMPLES = 200;
+const MIN_BOARD_SAMPLES = 20;
 const INDEX_LIMIT = 350_000;
 const DRAW_TIMEOUT = 350;
 const sortTiles = (letters: string) => [...letters].sort().join("");
@@ -22,6 +23,7 @@ export interface RackOdds {
 export interface BoardOdds {
   chance: number;
   exact: boolean;
+  samples?: number;
 }
 export interface BoardOddsResult {
   byMove: Record<string, BoardOdds>;
@@ -271,31 +273,27 @@ export function checkBoardBingo(
   const deals = Array.from({ length: SAMPLES }, () =>
     sampleTiles(pool, maxDraw, random),
   );
-  const drawsBySize = new Map<number, { draw: string; weight: number }[]>();
+  const drawsBySize = new Map<number, string[]>();
   const deadline = performance.now() + 8_000;
   const byMove: Record<string, BoardOdds> = Object.create(null);
-  function measure(
+  function canBingo(
     prepared: ReturnType<typeof prepareSolver>,
-    leave: string,
-    draws: { draw: string; weight: number }[],
+    rack: string,
     until: number,
   ) {
-    let total = 0,
-      hits = 0;
-    for (const { draw, weight } of draws) {
-      const maxMs = Math.min(SEARCH_LIMITS.maxMs, until - performance.now());
-      if (maxMs <= 0) throw new SearchLimitError();
-      total += weight;
-      if (prepared.solve(leave + draw, { maxMs }, { bingoOnly: true }).length)
-        hits += weight;
-    }
-    return hits / total;
+    const maxMs = Math.min(SEARCH_LIMITS.maxMs, until - performance.now());
+    if (maxMs <= 0) throw new SearchLimitError();
+    return !!prepared.solve(rack, { maxMs }, { bingoOnly: true }).length;
   }
-  for (const move of candidates) {
+  for (const [index, move] of candidates.entries()) {
     const size = template.rackSize - move.leave.length;
     if (size > bagSize) {
       byMove[move.id] = { chance: 0, exact: true };
     } else {
+      // Let unused time carry forward while reserving time for later rows.
+      const now = performance.now();
+      if (now >= deadline) break;
+      const until = now + (deadline - now) / (candidates.length - index);
       const prepared = prepareSolver(
         lexicon,
         placeTiles(position.board, move),
@@ -303,42 +301,46 @@ export function checkBoardBingo(
       );
       if (size <= 2) {
         try {
-          byMove[move.id] = {
-            chance: measure(
-              prepared,
-              move.leave,
-              weightedDraws(pool, size),
-              Math.min(deadline, performance.now() + DRAW_TIMEOUT),
-            ),
-            exact: true,
-          };
+          const start = performance.now();
+          const exactUntil =
+            start + Math.min(DRAW_TIMEOUT, (until - start) / 2);
+          let hits = 0;
+          let total = 0;
+          for (const { draw, weight } of weightedDraws(pool, size)) {
+            if (canBingo(prepared, move.leave + draw, exactUntil))
+              hits += weight;
+            total += weight;
+          }
+          byMove[move.id] = { chance: hits / total, exact: true };
         } catch (error) {
           if (!(error instanceof SearchLimitError)) throw error;
         }
       }
       if (!byMove[move.id]) {
+        let draws = drawsBySize.get(size);
+        if (!draws) {
+          // Preserve sample order so a truncated run uses a prefix of the deals.
+          draws = deals.map((deal) => sortTiles(deal.slice(0, size)));
+          drawsBySize.set(size, draws);
+        }
+        const memo = new Map<string, boolean>();
+        let hits = 0;
+        let samples = 0;
         try {
-          let draws = drawsBySize.get(size);
-          if (!draws) {
-            const multiplicities = new Map<string, number>();
-            for (const deal of deals) {
-              const draw = sortTiles(deal.slice(0, size));
-              multiplicities.set(draw, (multiplicities.get(draw) ?? 0) + 1);
+          for (const draw of draws) {
+            let hit = memo.get(draw);
+            if (hit === undefined) {
+              hit = canBingo(prepared, move.leave + draw, until);
+              memo.set(draw, hit);
             }
-            draws = [...multiplicities].map(([draw, weight]) => ({
-              draw,
-              weight,
-            }));
-            drawsBySize.set(size, draws);
+            if (hit) hits++;
+            samples++;
           }
-          byMove[move.id] = {
-            chance: measure(prepared, move.leave, draws, deadline),
-            exact: false,
-          };
         } catch (error) {
           if (!(error instanceof SearchLimitError)) throw error;
-          if (performance.now() >= deadline) break;
         }
+        if (samples >= MIN_BOARD_SAMPLES)
+          byMove[move.id] = { chance: hits / samples, exact: false, samples };
       }
     }
     progress(Object.keys(byMove).length);

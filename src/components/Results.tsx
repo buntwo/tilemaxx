@@ -234,9 +234,9 @@ export default function Results({
     const settle = (entries: ShortlistEntry[] = []) => {
       if (current) setShortlistResult({ searchId, entries });
     };
+    // Board checks add odds to the selected rows without changing the shortlist.
     void fetchShortlist(searchId, {
       rackOdds,
-      boardOdds,
       defense,
       replies: shortlistReplies,
       endgame,
@@ -249,7 +249,6 @@ export default function Results({
     searchId,
     fetchShortlist,
     rackOdds,
-    boardOdds,
     defense,
     shortlistReplies,
     endgame,
@@ -293,9 +292,6 @@ export default function Results({
       moveComparator({ sort, reversed, rackOdds, boardOdds, replyDeltas }) ??
         (() => 0),
     );
-  const checkedMoves = shortlistActive
-    ? shortlist.map(({ move }) => move)
-    : undefined;
   const page = useMoveResults(
     resultSet,
     {
@@ -518,8 +514,7 @@ export default function Results({
           <BingoOddsControls
             key={analysisKey}
             game={analysisGame}
-            moves={checkedMoves ?? page.head}
-            shortlist={shortlistActive}
+            moves={shortlistActive ? filteredShortlist : page.head}
             settings={
               replyEnabled && <ReplySettings analysis={replyAnalysis} />
             }
@@ -853,10 +848,14 @@ export default function Results({
                             {rackPercent ?? (rackOddsPending ? "…" : "—")}
                           </strong>
                         )}
-                        {boardPercent && (
+                        {boardChance && boardPercent && (
                           <span
                             className="result-board-odds"
-                            title="Chance of a legal bingo before the opponent replies"
+                            title={
+                              boardChance.samples
+                                ? `Chance of a legal bingo before the opponent replies · ${boardChance.samples} sampled refills`
+                                : "Chance of a legal bingo before the opponent replies"
+                            }
                           >
                             After play {boardPercent}
                           </span>
