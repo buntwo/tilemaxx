@@ -14,8 +14,13 @@ function MiniTiles({ tiles }: { tiles: string }) {
   return (
     <span className="rack-exchange-letters">
       {[...tiles].map((tile, i) => (
-        <span key={i} className={tile === "?" ? "blank" : undefined}>
-          {tile === "?" ? "blank" : tile}
+        <span
+          key={i}
+          className={tile === "?" ? "blank" : undefined}
+          role={tile === "?" ? "img" : undefined}
+          aria-label={tile === "?" ? "Blank tile" : undefined}
+        >
+          {tile === "?" ? "" : tile}
         </span>
       ))}
     </span>

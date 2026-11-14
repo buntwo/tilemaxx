@@ -10,7 +10,7 @@ export type ExchangeRequest = Position & {
   bag: number;
   template: BoardTemplate;
 };
-export const EXCHANGE_SAMPLES = 120;
+export const EXCHANGE_SAMPLES = 600;
 
 export function simulateExchange(
   lexicon: Lexicon,

@@ -1569,9 +1569,7 @@ test("exchange simulation starts on open, shows draw scores, and closes when mar
   expect(
     row.getByText("C", { selector: ".rack-exchange-letters span" }),
   ).toBeTruthy();
-  expect(
-    row.getByText("blank", { selector: ".rack-exchange-letters .blank" }),
-  ).toBeTruthy();
+  expect(row.getByRole("img", { name: "Blank tile" }).textContent).toBe("");
   expect(row.getAllByText("10 pts")).toHaveLength(2);
   expect(row.getByText("4 pts")).toBeTruthy();
   expect(within(section).getByText("90 estimated in bag")).toBeTruthy();
