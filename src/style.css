@@ -1921,7 +1921,7 @@ label + label {
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
-.result-word { grid-column: word; }
+.result-word, .result-word-heading { grid-column: word; }
 .result-score, .result-points-heading { grid-column: points; text-align: right; }
 .result-reply-heading, .result-reply-metric, .result-defense-action { grid-column: reply; }
 .result-reply-heading { text-align: center; }

@@ -635,7 +635,9 @@ export default function Results({
             </div>
           )}
           <div className="result-columns">
-            <div className="result-word">{column("WORD", "word", "word")}</div>
+            <div className="result-word-heading">
+              {column("WORD", "word", "word")}
+            </div>
             <div className="result-points-heading">
               {column("PTS", "score", "points")}
             </div>
