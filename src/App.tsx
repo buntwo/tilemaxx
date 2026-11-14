@@ -34,6 +34,7 @@ import {
   Archive,
   Trash2,
 } from "lucide-react";
+import { version } from "../package.json";
 import Board from "./components/Board";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
 import BoardEntry, { BoardEntryHelp } from "./components/BoardEntry";
@@ -591,26 +592,29 @@ export default function App() {
                   : "All changes saved"}
         </span>
       </span>
-      <div className="theme-switch" aria-label="Color theme">
-        {[
-          ["light", Sun],
-          ["dark", Moon],
-          ["system", Monitor],
-        ].map(([value, Icon]) => {
-          const I = Icon as typeof Sun;
-          return (
-            <button
-              key={value as string}
-              aria-label={`${value} theme`}
-              aria-pressed={theme === value}
-              title={`${value} theme`}
-              className={theme === value ? "active" : ""}
-              onClick={() => setTheme(value as string)}
-            >
-              <I size={15} />
-            </button>
-          );
-        })}
+      <div className="theme-settings">
+        <div className="theme-switch" role="group" aria-label="Color theme">
+          {[
+            ["light", Sun],
+            ["dark", Moon],
+            ["system", Monitor],
+          ].map(([value, Icon]) => {
+            const I = Icon as typeof Sun;
+            return (
+              <button
+                key={value as string}
+                aria-label={`${value} theme`}
+                aria-pressed={theme === value}
+                title={`${value} theme`}
+                className={theme === value ? "active" : ""}
+                onClick={() => setTheme(value as string)}
+              >
+                <I size={15} />
+              </button>
+            );
+          })}
+        </div>
+        <span className="app-version">v{version}</span>
       </div>
     </div>
   );
