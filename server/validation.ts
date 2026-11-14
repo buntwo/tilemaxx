@@ -66,6 +66,9 @@ export const templateSchema = z
     start: z.number().int().min(0),
     rackSize: z.number().int().min(1).max(10),
     bingo: z.number().int().min(0).max(200),
+    additionalBonuses: z
+      .record(z.string().regex(/^[1-9]$/), z.number().int().min(1).max(200))
+      .optional(),
     rules: z.enum(Object.keys(RULE_NAMES) as (keyof typeof RULE_NAMES)[]),
     tileCounts: z
       .record(z.enum(TILE_SYMBOLS), z.number().int().min(0).max(MAX_TILE_COUNT))
@@ -75,6 +78,16 @@ export const templateSchema = z
   .refine(
     (t) => t.premiums.length === t.size * t.size && t.start < t.size * t.size,
     "Invalid board dimensions",
+  )
+  .refine(
+    (t) =>
+      Object.keys(t.additionalBonuses ?? {}).every(
+        (count) => Number(count) < t.rackSize,
+      ),
+    {
+      path: ["additionalBonuses"],
+      message: "Additional bonuses must use fewer tiles than the rack size.",
+    },
   );
 const score = z.object({
   points: z.number().int().nonnegative(),

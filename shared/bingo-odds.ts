@@ -1,5 +1,6 @@
 import { popcount, type Lexicon } from "./lexicon";
 import {
+  bingoTileCounts,
   minimumBingoTiles,
   type BoardTemplate,
   type Move,
@@ -7,7 +8,7 @@ import {
 } from "./model";
 import { placeTiles, sampleTiles, weightedDraws } from "./move-analysis";
 import { prepareSolver, SEARCH_LIMITS, SearchLimitError } from "./solver";
-import { choose, unseenTiles } from "./tile-pool";
+import { choose, TILE_SYMBOLS, unseenTiles } from "./tile-pool";
 
 export const BOARD_ODDS_LIMIT = 20;
 const SAMPLES = 200;
@@ -47,24 +48,26 @@ const leaveNode = (): LeaveNode => ({ children: new Map(), weight: 0 });
 export class RackBingoIndex {
   private cached?: {
     size: number;
-    minimum: number;
+    lengths: number;
     blanks: number;
     racks: Set<string> | null;
   };
 
   constructor(private words: readonly string[]) {}
 
-  private winningRacks(size: number, minimum: number, blanks: number) {
+  private winningRacks(size: number, lengths: number, blanks: number) {
     if (
       this.cached?.size === size &&
-      this.cached.minimum === minimum &&
+      this.cached.lengths === lengths &&
       this.cached.blanks === blanks
     )
       return this.cached.racks;
+    // Filling two or more spare slots for every anagram grows too quickly.
+    if (lengths & ((1 << (size - 1)) - 1)) return null;
     const deadline = performance.now() + 500;
     const natural = new Set<string>();
     for (const word of this.words) {
-      if (word.length === size || word.length === minimum)
+      if (word.length <= size && lengths & (1 << word.length))
         natural.add(sortTiles(word));
     }
     const racks = new Set<string>();
@@ -73,7 +76,7 @@ export class RackBingoIndex {
       const rack = "?".repeat(count) + letters;
       if (rack.length === size) racks.add(rack);
       else {
-        for (const tile of "ABCDEFGHIJKLMNOPQRSTUVWXYZ?") {
+        for (const tile of TILE_SYMBOLS) {
           if (tile !== "?" || count < blanks) racks.add(sortTiles(rack + tile));
         }
       }
@@ -97,10 +100,10 @@ export class RackBingoIndex {
         record(letters, 0);
         addBlanks(letters, 0, 1);
       }
-      this.cached = { size, minimum, blanks, racks };
+      this.cached = { size, lengths, blanks, racks };
     } catch (error) {
       if (!(error instanceof SearchLimitError)) throw error;
-      this.cached = { size, minimum, blanks, racks: null };
+      this.cached = { size, lengths, blanks, racks: null };
     }
     return this.cached.racks;
   }
@@ -115,6 +118,10 @@ export class RackBingoIndex {
     const { tiles, total, excess } = unseenTiles(position, template);
     const size = template.rackSize;
     const minimum = minimumBingoTiles(template);
+    const lengths = bingoTileCounts(template).reduce(
+      (mask, count) => mask | (1 << count),
+      0,
+    );
     const bagSize = knownBagSize ?? Math.max(0, total - size);
     const byLeave: Record<string, number> = Object.create(null);
     if (excess.length)
@@ -125,8 +132,9 @@ export class RackBingoIndex {
         error: "Check the starting tile counts to calculate bingo odds.",
       };
     const leaves = [...new Set(moves.map((move) => move.leave))];
+    const drawSize = (leave: string) => Math.min(bagSize, size - leave.length);
     const eligible = leaves.filter((leave) => {
-      if (size - leave.length <= bagSize) return true;
+      if (leave.length + drawSize(leave) >= minimum) return true;
       byLeave[leave] = 0;
       return false;
     });
@@ -136,7 +144,15 @@ export class RackBingoIndex {
       tiles[26].count +
         [...position.rack].filter((letter) => letter === "?").length,
     );
-    const winning = this.winningRacks(size, minimum, blanks);
+    const rackSizes = new Set(
+      eligible.map((leave) => leave.length + drawSize(leave)),
+    );
+    const refillSize = rackSizes.values().next().value!;
+    const refillLengths = lengths & ((1 << (refillSize + 1)) - 1);
+    const winning =
+      rackSizes.size === 1
+        ? this.winningRacks(refillSize, refillLengths, blanks)
+        : null;
     const deadline = performance.now() + 700;
     if (winning) {
       const weights = tiles.map(({ count }) =>
@@ -186,17 +202,16 @@ export class RackBingoIndex {
         eligible.forEach((leave, i) => {
           byLeave[leave] = Math.min(
             1,
-            endings[i].weight / choose(total, size - leave.length),
+            endings[i].weight / choose(total, drawSize(leave)),
           );
         });
         return { byLeave, exact: true, bagSize };
       }
     }
 
-    // Unusually large custom sets can make wildcard expansion impractical.
-    // Keep the whole list sortable with a shared, bounded sample when possible.
+    // Use shared, bounded samples when indexing every winning rack is too large.
     const sampleDeadline = performance.now() + 1_000;
-    const maxDraw = Math.max(...eligible.map((leave) => size - leave.length));
+    const maxDraw = Math.max(...eligible.map(drawSize));
     const pool = tiles.flatMap(({ symbol, count }) =>
       Array<string>(count).fill(symbol),
     );
@@ -209,12 +224,12 @@ export class RackBingoIndex {
         let hits = 0;
         for (const deal of deals) {
           if (performance.now() >= sampleDeadline) throw new SearchLimitError();
-          const rack = sortTiles(leave + deal.slice(0, size - leave.length));
+          const rack = sortTiles(leave + deal.slice(0, drawSize(leave)));
           let hit = memo.get(rack);
           if (hit === undefined) {
             hit = winning
               ? winning.has(rack)
-              : canSpellRack(lexicon, rack, minimum, sampleDeadline);
+              : canSpellRack(lexicon, rack, lengths, minimum, sampleDeadline);
             memo.set(rack, hit);
           }
           if (hit) hits++;
@@ -237,6 +252,7 @@ export class RackBingoIndex {
 function canSpellRack(
   lexicon: Lexicon,
   rack: string,
+  lengths: number,
   minimum: number,
   deadline: number,
 ) {
@@ -256,9 +272,9 @@ function canSpellRack(
   ): boolean {
     if ((++visited & 255) === 0 && performance.now() >= deadline)
       throw new SearchLimitError();
-    const needed = minimum - (rack.length - left);
-    if (needed <= 0 && lexicon.terminal[node]) return true;
-    if (!left || lexicon.maxTail[node] < needed) return false;
+    const played = rack.length - left;
+    if (lexicon.terminal[node] && lengths & (1 << played)) return true;
+    if (!left || lexicon.maxTail[node] < minimum - played) return false;
     const all = lexicon.mask[node];
     for (let possible = all & (blanks ? -1 : letters); possible; ) {
       const code = 31 - Math.clz32(possible),
@@ -288,6 +304,7 @@ export function checkBoardBingo(
   random = Math.random,
 ): BoardOddsResult {
   const { tiles, total, excess } = unseenTiles(position, template);
+  const minimum = minimumBingoTiles(template);
   if (excess.length)
     throw new Error("Check the starting tile counts to calculate board odds.");
   if (
@@ -321,7 +338,7 @@ export function checkBoardBingo(
   }
   for (const [index, move] of candidates.entries()) {
     const size = Math.min(bagSize, template.rackSize - move.leave.length);
-    if (move.leave.length + size < minimumBingoTiles(template)) {
+    if (move.leave.length + size < minimum) {
       byMove[move.id] = { chance: 0, exact: true };
     } else {
       // Let unused time carry forward while reserving time for later rows.

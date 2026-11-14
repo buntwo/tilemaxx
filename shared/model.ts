@@ -17,6 +17,7 @@ export interface BoardTemplate {
   start: number;
   rackSize: number;
   bingo: number;
+  additionalBonuses?: Record<number, number>;
   rules: Rules;
   tileCounts?: Record<string, number>;
   builtin?: boolean;
@@ -243,19 +244,46 @@ export const SCORES: Record<Rules, Record<string, number>> = {
 export const tileScore = (letter: string, rules: Rules) =>
   letter && letter === letter.toUpperCase() ? (SCORES[rules][letter] ?? 0) : 0;
 
-type BingoRules = Pick<BoardTemplate, "rackSize" | "bingo" | "rules">;
+export type BingoRules = Pick<
+  BoardTemplate,
+  "rackSize" | "bingo" | "rules" | "additionalBonuses"
+>;
 
-export function minimumBingoTiles({ rackSize, rules }: BingoRules) {
-  return rules === "lexulous" && rackSize === 8 ? 7 : rackSize;
+const legacyLexulousBonuses = { 7: 40 };
+const noAdditionalBonuses: Readonly<Record<number, number>> = {};
+
+export function additionalPlayBonuses({
+  rackSize,
+  rules,
+  additionalBonuses,
+}: BingoRules): Readonly<Record<number, number>> {
+  // Games and custom boards saved before the editor had an explicit bonus table.
+  return (
+    additionalBonuses ??
+    (rules === "lexulous" && rackSize === 8
+      ? legacyLexulousBonuses
+      : noAdditionalBonuses)
+  );
+}
+
+export function bingoTileCounts(template: BingoRules) {
+  return [
+    ...Object.keys(additionalPlayBonuses(template)).map(Number),
+    template.rackSize,
+  ];
+}
+
+export function minimumBingoTiles(template: BingoRules) {
+  return Math.min(...bingoTileCounts(template));
 }
 
 export function isBingo(template: BingoRules, played: number) {
-  return played >= minimumBingoTiles(template) && played <= template.rackSize;
+  return played === template.rackSize || bingoPoints(template, played) > 0;
 }
 
 export function bingoPoints(template: BingoRules, played: number) {
   if (played === template.rackSize) return template.bingo;
-  return isBingo(template, played) ? 40 : 0;
+  return additionalPlayBonuses(template)[played] ?? 0;
 }
 export const letterBonuses: Partial<Record<Premium, number>> = {
   DL: 2,

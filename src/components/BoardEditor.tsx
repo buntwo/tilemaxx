@@ -6,6 +6,7 @@ import {
   type Premium,
   type Rules,
   RULE_NAMES,
+  additionalPlayBonuses,
   emptyBoard,
 } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
@@ -32,12 +33,19 @@ export default function BoardEditor({
     name: initial?.name || "My custom board",
     builtin: false,
     premiums: [...(initial || PRESETS[0]).premiums],
+    additionalBonuses: additionalPlayBonuses(initial || PRESETS[0]),
   });
   const [brush, setBrush] = useState<Premium | "start">("DW"),
     [symmetry, setSymmetry] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const tileCounts = getTileCounts(draft);
+  const additionalBonuses = Object.fromEntries(
+    Object.entries(additionalPlayBonuses(draft)).filter(
+      ([count, points]) => Number(count) < draft.rackSize && points > 0,
+    ),
+  );
+  const bonusCount = Object.keys(additionalBonuses).length;
   const tileTotal = Object.values(tileCounts).reduce(
     (total, count) => total + count,
     0,
@@ -95,7 +103,7 @@ export default function BoardEditor({
           setBusy(true);
           setError("");
           try {
-            await onSave({ ...draft, tileCounts });
+            await onSave({ ...draft, tileCounts, additionalBonuses });
           } catch (err) {
             setError((err as Error).message);
             setBusy(false);
@@ -126,6 +134,7 @@ export default function BoardEditor({
                       id: "custom",
                       builtin: false,
                       premiums: [...t.premiums],
+                      additionalBonuses: additionalPlayBonuses(t),
                     });
                   }}
                 >
@@ -194,6 +203,46 @@ export default function BoardEditor({
                 onChange={(e) => setDraft({ ...draft, bingo: +e.target.value })}
               />
             </label>
+            {draft.rackSize > 1 && draft.rackSize <= 10 && (
+              <details className="play-bonus-editor">
+                <summary>
+                  Additional play bonuses
+                  {bonusCount > 0 && ` · ${bonusCount} set`}
+                </summary>
+                <p>
+                  Set bonus points for the exact number of new tiles played.
+                </p>
+                <div className="play-bonus-fields">
+                  {Array.from({ length: draft.rackSize - 1 }, (_, i) => {
+                    const count = i + 1;
+                    const label = `${count} ${count === 1 ? "tile" : "tiles"}`;
+                    return (
+                      <label key={count}>
+                        {label}
+                        <input
+                          aria-label={`Bonus for ${label}`}
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={200}
+                          placeholder="0"
+                          value={additionalBonuses[count] ?? ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              additionalBonuses: {
+                                ...draft.additionalBonuses,
+                                [count]: Number(e.target.value),
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              </details>
+            )}
             <span className="field-label">Paint a square</span>
             <div className="paint-palette">
               {(["", "DL", "TL", "QL", "DW", "TW", "QW", "start"] as const).map(
@@ -229,7 +278,7 @@ export default function BoardEditor({
               }
             >
               <RotateCcw size={15} />
-              Clear bonuses
+              Clear premium squares
             </button>
           </div>
           <Board

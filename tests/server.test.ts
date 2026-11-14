@@ -159,6 +159,7 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
       start: 24,
       premiums: Array(49).fill("DL"),
       bingo: 40,
+      additionalBonuses: { 2: 10, 5: 30 },
       tileCounts: { ...template.tileCounts, Q: 3, "?": 0 },
     };
     const editedTemplate = await (
@@ -168,6 +169,22 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
     assert.equal(editedTemplate.name, "Edited custom");
     assert.equal(editedTemplate.size, 7);
     assert.deepEqual(editedTemplate.tileCounts, templateChanges.tileCounts);
+    assert.deepEqual(
+      editedTemplate.additionalBonuses,
+      templateChanges.additionalBonuses,
+    );
+    for (const additionalBonuses of [
+      { 0: 10 },
+      { 7: 10 },
+      { 3: -5 },
+      { 5: 201 },
+    ]) {
+      const response = await req(`/templates/${template.id}`, "PUT", {
+        ...templateChanges,
+        additionalBonuses,
+      });
+      assert.equal(response.status, 400);
+    }
     for (const tileCounts of [
       { A: 1 },
       { ...templateChanges.tileCounts, A: -1 },

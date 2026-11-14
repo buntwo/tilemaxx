@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowLeft, LockKeyhole, Pencil, Plus, Trash2 } from "lucide-react";
-import type { BoardTemplate } from "../../shared/model";
+import { additionalPlayBonuses, type BoardTemplate } from "../../shared/model";
 import BoardEditor from "./BoardEditor";
 import Modal from "./Modal";
 import LayoutThumbnail from "./LayoutThumbnail";
@@ -53,7 +53,13 @@ export default function BoardStudio({
                   <strong>{template.name}</strong>
                   <small>
                     {template.size} × {template.size} · {template.rackSize}{" "}
-                    tiles · {template.bingo}-point bonus
+                    tiles ·{" "}
+                    {[
+                      ...Object.entries(additionalPlayBonuses(template)),
+                      [template.rackSize, template.bingo],
+                    ]
+                      .map(([tiles, points]) => `+${points} for ${tiles}`)
+                      .join(" · ")}
                   </small>
                 </div>
                 <button

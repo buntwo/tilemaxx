@@ -65,9 +65,26 @@ test("starting a custom board from Lexulous copies its bag, rack size, and tile 
     "lexulous",
   );
   expect(screen.getByText("Starting tile counts · 89 tiles")).toBeTruthy();
+  await user.click(screen.getByText(/Additional play bonuses/));
+  const seven = screen.getByLabelText<HTMLInputElement>("Bonus for 7 tiles");
+  const five = screen.getByLabelText<HTMLInputElement>("Bonus for 5 tiles");
+  expect(seven.value).toBe("40");
+  expect(screen.getByLabelText<HTMLInputElement>("Full-rack bonus").value).toBe(
+    "50",
+  );
+  await user.clear(seven);
+  await user.type(seven, "35");
+  await user.type(five, "15");
+  await user.selectOptions(screen.getByLabelText("Tile values"), "scrabble");
   await user.click(screen.getByRole("button", { name: "Save board template" }));
   expect(saved).toHaveBeenCalledWith(
-    expect.objectContaining({ rules: "lexulous", rackSize: 8, builtin: false }),
+    expect.objectContaining({
+      rules: "scrabble",
+      rackSize: 8,
+      bingo: 50,
+      builtin: false,
+      additionalBonuses: { 5: 15, 7: 35 },
+    }),
     false,
   );
 });

@@ -1,5 +1,6 @@
 import { type Lexicon } from "./lexicon";
 import {
+  bingoPoints,
   letterBonuses,
   tileScore,
   wordBonuses,
@@ -124,7 +125,7 @@ export function checkPremiumDefense(
             tileScore(tile, rules) *
             (letterBonuses[premium] ?? 1)) *
           (wordBonuses[premium] ?? 1) +
-        (rackSize === 1 ? template.bingo : 0);
+        bingoPoints(template, 1);
       if (best && best.score >= score) continue;
       const { prefix, suffix } = stems[0];
       best = {

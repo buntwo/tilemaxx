@@ -19,7 +19,7 @@ import {
 import {
   bingoPoints,
   isBingo,
-  type BoardTemplate,
+  type BingoRules,
   type Game,
   type Move,
   coordinate,
@@ -114,7 +114,7 @@ export default function Results({
   elapsed: number;
   error: string;
   size: number;
-  bingoRules: Pick<BoardTemplate, "rackSize" | "bingo" | "rules">;
+  bingoRules: BingoRules;
   preview: Move | null;
   onPreview: (m: Move | null) => void;
   onPlay: (m: Move) => void;

@@ -133,8 +133,16 @@ function saved(key: string, fallback = "") {
 }
 
 function positionSignature(game: Game) {
-  const { size, start, premiums, rackSize, bingo, rules, tileCounts } =
-    game.template;
+  const {
+    size,
+    start,
+    premiums,
+    rackSize,
+    bingo,
+    additionalBonuses,
+    rules,
+    tileCounts,
+  } = game.template;
   return JSON.stringify([
     game.id,
     game.dictionaryId,
@@ -146,6 +154,7 @@ function positionSignature(game: Game) {
     premiums,
     rackSize,
     bingo,
+    additionalBonuses,
     rules,
     tileCounts,
   ]);

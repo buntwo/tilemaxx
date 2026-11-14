@@ -6,6 +6,7 @@ import {
   type Placement,
   type Position,
   bingoPoints,
+  isBingo,
   minimumBingoTiles,
   tileScore,
   SCORES,
@@ -148,6 +149,9 @@ export function prepareSolver(
 ) {
   const { size, rackSize, rules } = template;
   const bingoTiles = minimumBingoTiles(template);
+  const bingoCounts = Array.from({ length: rackSize + 1 }, (_, played) =>
+    isBingo(template, played),
+  );
   const bonuses = Array.from({ length: rackSize + 1 }, (_, played) =>
     bingoPoints(template, played),
   );
@@ -341,7 +345,7 @@ export function prepareSolver(
               })),
             });
           }
-          hasBingo ||= used >= bingoTiles;
+          hasBingo ||= bingoCounts[used];
           return;
         }
         const tiles: Placement[] = [];
@@ -417,7 +421,7 @@ export function prepareSolver(
           used &&
           connected &&
           (atEdge || !letters[cell]) &&
-          (!bingoOnly || used >= bingoTiles)
+          (!bingoOnly || bingoCounts[used])
         ) {
           emit(
             length,

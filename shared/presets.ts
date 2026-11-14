@@ -10,7 +10,10 @@ function board(
     rules = "scrabble",
     rackSize = 7,
     bingo = 50,
-  }: Partial<Pick<BoardTemplate, "rules" | "rackSize" | "bingo">> = {},
+    additionalBonuses,
+  }: Partial<
+    Pick<BoardTemplate, "rules" | "rackSize" | "bingo" | "additionalBonuses">
+  > = {},
 ): BoardTemplate {
   const premiums: Premium[] = Array(size * size).fill("");
   for (const [premium, coordinates] of Object.entries(placements))
@@ -24,6 +27,7 @@ function board(
     start: Math.floor(size / 2) * size + Math.floor(size / 2),
     rackSize,
     bingo,
+    ...(additionalBonuses && { additionalBonuses }),
     rules,
     tileCounts: getTileCounts({ id, rules }),
     builtin: true,
@@ -191,6 +195,6 @@ export const PRESETS: BoardTemplate[] = [
         [5, 6],
       ]),
     },
-    { rules: "lexulous", rackSize: 8 },
+    { rules: "lexulous", rackSize: 8, additionalBonuses: { 7: 40 } },
   ),
 ];

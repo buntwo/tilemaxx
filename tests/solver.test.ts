@@ -65,6 +65,52 @@ test("Lexulous finds and scores seven- and eight-tile bingos", () => {
     assert.equal(breakdown.score, move.score);
   }
 });
+
+test("custom bonuses apply once to exact counts of newly placed tiles", () => {
+  const template = {
+    ...PRESETS[0],
+    rackSize: 5,
+    bingo: 30,
+    additionalBonuses: { 1: 5, 3: 20 },
+  };
+  const base = emptyBoard(template.size);
+  base[template.start] = "A";
+  const solver = prepareSolver(lex("AT TATE LATER"), base, template);
+  const moves = solver.solve("TTELR");
+  for (const [word, tiles, bonus] of [
+    ["AT", 1, 5],
+    ["TATE", 3, 20],
+    ["LATER", 4, 0],
+  ] as const) {
+    const move = moves.find((move) => move.word === word)!;
+    const board = [...base];
+    for (const { index, letter } of move.tiles) board[index] = letter;
+    const breakdown = scorePlacement(base, board, template)!;
+    assert.equal(move.tiles.length, tiles);
+    assert.equal(breakdown.bonus, bonus);
+    assert.equal(breakdown.bingo, bonus > 0);
+    assert.equal(breakdown.score, move.score);
+  }
+  const gap = prepareSolver(lex("LATER"), base, template);
+  assert.equal(gap.summarize("TELR").bingo, false);
+  assert.deepEqual(gap.solve("TELR", {}, { bingoOnly: true }), []);
+});
+
+test("legacy Lexulous snapshots retain their bonus and an explicit empty table removes it", () => {
+  const preset = PRESETS.find(({ id }) => id === "lexulous")!;
+  const board = emptyBoard(preset.size);
+  const dictionary = lex("PAINTER");
+  const solveWith = (template: BoardTemplate) =>
+    prepareSolver(dictionary, board, template).solve("PAINTER")[0].score;
+  assert.equal(
+    solveWith({ ...preset, additionalBonuses: undefined }),
+    solveWith(preset),
+  );
+  assert.equal(
+    solveWith({ ...preset, additionalBonuses: {} }),
+    solveWith(preset) - 40,
+  );
+});
 test("opening moves cover the center, apply DW and do not invent letters", () => {
   const t = PRESETS[0],
     moves = solve(lex("CAT AT ACT TAC DOG"), emptyBoard(15), "CAT", t);

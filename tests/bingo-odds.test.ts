@@ -110,6 +110,27 @@ test("Lexulous counts refills that can play seven out of eight tiles", () => {
   assert.ok(Math.abs(odds.byLeave[move.leave] - expected) < 1e-12);
 });
 
+test("custom bingo draw odds respect gaps between rewarded lengths", () => {
+  const template = {
+    ...layout({ A: 1, B: 1, C: 1, D: 1, E: 8 }, 4),
+    additionalBonuses: { 2: 10 },
+  };
+  const position = { board: emptyBoard(5), rack: "ABCD" };
+  for (const [word, expected] of [
+    ["AB", 1],
+    ["ABC", 0],
+  ] as const) {
+    const words = [word];
+    const odds = new RackBingoIndex(words).calculate(
+      new Lexicon(words),
+      position,
+      template,
+      [{ leave: "ABCD" }],
+    );
+    assert.equal(odds.byLeave.ABCD, expected);
+  }
+});
+
 test("board odds find bingos that use existing board letters and weight exact refills", () => {
   const words = ["AT", "AXE", "TAX"];
   const lexicon = new Lexicon(words);

@@ -1182,6 +1182,9 @@ test("custom template creation/editing persists one template and built-ins have 
   await user.type(screen.getByLabelText("Board name"), "Mini revised");
   await user.clear(screen.getByLabelText("Full-rack bonus"));
   await user.type(screen.getByLabelText("Full-rack bonus"), "25");
+  await user.click(screen.getByText(/Additional play bonuses/));
+  await user.type(screen.getByLabelText("Bonus for 3 tiles"), "12");
+  await user.type(screen.getByLabelText("Bonus for 5 tiles"), "20");
   await user.click(screen.getByText(/^Starting tile counts/));
   await user.clear(screen.getByLabelText("Starting Q count"));
   await user.type(screen.getByLabelText("Starting Q count"), "4");
@@ -1189,6 +1192,7 @@ test("custom template creation/editing persists one template and built-ins have 
   await screen.findByRole("button", { name: "Edit Mini revised" });
   expect(remote.templates).toHaveLength(PRESETS.length + 1);
   expect(remote.templates.at(-1)?.bingo).toBe(25);
+  expect(remote.templates.at(-1)?.additionalBonuses).toEqual({ 3: 12, 5: 20 });
   expect(remote.templates.at(-1)?.tileCounts?.Q).toBe(4);
   expect(current().template).toEqual(PRESETS[0]);
   await user.click(screen.getByRole("button", { name: "Back to games" }));

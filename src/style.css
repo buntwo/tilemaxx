@@ -2576,6 +2576,31 @@ label + label {
 .form-row label + label {
   margin-top: 0;
 }
+.play-bonus-editor {
+  margin-top: 14px;
+}
+.play-bonus-editor summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+.play-bonus-editor p {
+  margin: 6px 0 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.play-bonus-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 8px;
+}
+.editor-controls .play-bonus-fields label + label {
+  margin-top: 0;
+}
+.play-bonus-fields input {
+  min-width: 0;
+  width: 100%;
+}
 .field-label {
   display: block;
   font-size: 11px;
