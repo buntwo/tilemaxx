@@ -22,7 +22,7 @@ previous=$(cat -- "$state")
 git pull --ff-only
 current=$(git rev-parse HEAD)
 
-if [[ ${1:-} == --if-changed && $current == "$previous" ]]; then
+if [[ ${1:-} == --notify-if-changed && $current == "$previous" ]]; then
   rm -- "$state"
   printf '%s\n' 'Tilemaxx is up to date. Skipping Docker Compose.'
   exit 0
@@ -41,3 +41,8 @@ fi
 
 "${compose[@]}" -f compose.yaml up -d --build --remove-orphans
 rm -- "$state"
+
+if [[ ${1:-} == --notify-if-changed ]]; then
+  printf 'Tilemaxx updated successfully to %s. Exit code 10 triggers the DSM email.\n' "$current"
+  exit 10
+fi

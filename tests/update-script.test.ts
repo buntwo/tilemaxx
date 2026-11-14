@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-test("scheduled updates skip Docker on unchanged revisions and retry a failed deployment", (t) => {
+test("scheduled updates notify after deployment and skip Docker on unchanged revisions", (t) => {
   const temp = mkdtempSync(join(tmpdir(), "tilemaxx-update-test-"));
   t.after(() => rmSync(temp, { recursive: true, force: true }));
   const source = join(temp, "source");
@@ -32,7 +32,7 @@ test("scheduled updates skip Docker on unchanged revisions and retry a failed de
     assert.equal(result.status, 0, result.stderr);
   }
 
-  function update(shouldFail = false, script = "update-if-changed.sh") {
+  function update(shouldFail = false, script = "update-if-changed-DSM.sh") {
     return spawnSync("bash", [join(checkout, script)], {
       cwd: temp,
       encoding: "utf8",
@@ -61,7 +61,7 @@ test "$TILEMAXX_TEST_DOCKER_FAIL" = 0
   git(source, "config", "user.email", "tilemaxx@example.com");
   git(source, "commit", "--allow-empty", "-qm", "Initial revision");
   git(temp, "clone", "-q", source, checkout);
-  for (const script of ["update.sh", "update-if-changed.sh"]) {
+  for (const script of ["update.sh", "update-if-changed-DSM.sh"]) {
     copyFileSync(script, join(checkout, script));
   }
   writeFileSync(join(checkout, "compose.yaml"), "services: {}\n");
@@ -78,15 +78,21 @@ test "$TILEMAXX_TEST_DOCKER_FAIL" = 0
   const composeUp = "compose -f compose.yaml up -d --build --remove-orphans";
   assert.equal(update(true).status, 1);
   assert.deepEqual(dockerCalls(), [composeUp]);
-  assert.equal(update().status, 0);
+  const retried = update();
+  assert.equal(retried.status, 10);
+  assert.match(retried.stdout, /Tilemaxx updated successfully to [0-9a-f]+/);
   assert.deepEqual(dockerCalls(), [composeUp, composeUp]);
   assert.equal(update().status, 0);
   assert.deepEqual(dockerCalls(), [composeUp, composeUp]);
 
-  assert.equal(update(false, "update.sh").status, 0);
+  git(source, "commit", "--allow-empty", "-qm", "Another revision");
+  assert.equal(update().status, 10);
   assert.deepEqual(dockerCalls(), [composeUp, composeUp, composeUp]);
+
+  assert.equal(update(false, "update.sh").status, 0);
+  assert.deepEqual(dockerCalls(), [composeUp, composeUp, composeUp, composeUp]);
 
   git(checkout, "remote", "set-url", "origin", join(temp, "missing"));
   assert.notEqual(update().status, 0);
-  assert.deepEqual(dockerCalls(), [composeUp, composeUp, composeUp]);
+  assert.deepEqual(dockerCalls(), [composeUp, composeUp, composeUp, composeUp]);
 });
