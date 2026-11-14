@@ -1270,7 +1270,12 @@ test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters
   ).toBeTruthy();
 });
 
-test("multiple games retain separate racks and theme selection survives remount", async () => {
+test("multiple games retain separate racks and word lists", async () => {
+  remote.dictionaries.push({
+    ...remote.dictionaries[0],
+    id: "other",
+    name: "Other words",
+  });
   const user = await start();
   await typeRack(user, "CAT");
   await user.click(screen.getByRole("button", { name: "New game" }));
@@ -1288,15 +1293,26 @@ test("multiple games retain separate racks and theme selection survives remount"
     store.snapshot.data!.games.find((g) => g.name === "Second game")!.startedOn,
   ).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   await typeRack(user, "DOG");
+  const dictionary = () =>
+    screen.getByRole<HTMLSelectElement>("combobox", { name: "Game dictionary" });
+  await user.selectOptions(dictionary(), "other");
+  await act(() => store.flush());
   await user.click(cell("Switch game"));
   await user.click(screen.getByRole("menuitemradio", { name: /^First game/ }));
   expect(current().rack).toBe("CAT");
+  expect(dictionary().value).toBe("test");
+  expect(remote.games.find((g) => g.name === "Second game")?.dictionaryId).toBe(
+    "other",
+  );
   await user.click(screen.getByRole("button", { name: "dark theme" }));
   expect(localStorage.getItem("tilewise:theme")).toBe("dark");
   expect(
     Object.values(store.snapshot.games).find((g) => g.name === "Second game")!
       .rack,
   ).toBe("DOG");
+  await user.click(cell("Switch game"));
+  await user.click(screen.getByRole("menuitemradio", { name: /^Second game/ }));
+  expect(dictionary().value).toBe("other");
 });
 
 test("dates are editable, the keyboard picker shows active games, and the sidebar opens archived games", async () => {
@@ -1502,7 +1518,7 @@ test("the game picker and archive show the full move history icon on complete ga
 });
 
 test.each(["phone", "tablet", "desktop"])(
-  "game scores and the word list use the expected panel order on the %s layout",
+  "the word list is in the game metadata on the %s layout",
   async (layout) => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches:
@@ -1522,13 +1538,12 @@ test.each(["phone", "tablet", "desktop"])(
         ? Node.DOCUMENT_POSITION_FOLLOWING
         : Node.DOCUMENT_POSITION_PRECEDING,
     );
-    expect(scores.compareDocumentPosition(dictionary)).toBe(
+    expect(dictionary.closest(".game-title-meta")).toBeTruthy();
+    expect(dictionary.compareDocumentPosition(scores)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
     expect(moves.compareDocumentPosition(dictionary)).toBe(
-      layout === "phone"
-        ? Node.DOCUMENT_POSITION_FOLLOWING
-        : Node.DOCUMENT_POSITION_PRECEDING,
+      Node.DOCUMENT_POSITION_PRECEDING,
     );
   },
 );

@@ -537,8 +537,7 @@ export default function App() {
     />
   );
   const dictionarySelector = game && (
-    <div className="dictionary-strip">
-      <BookOpen size={15} />
+    <div className="game-word-list">
       <label>
         Word list
         <select
@@ -554,11 +553,12 @@ export default function App() {
         </select>
       </label>
       <button
+        type="button"
         className="icon-button"
         aria-label="About word lists"
         onClick={() => openDialog("dictionaries")}
       >
-        <Info size={15} />
+        <Info size={13} aria-hidden="true" />
       </button>
     </div>
   );
@@ -894,6 +894,7 @@ export default function App() {
                     <GameMetadata game={selectedGame} />
                   </div>
                   {selectedGame.archived && <span>Archived</span>}
+                  {dictionarySelector}
                 </div>
               )}
               {game?.notes && (
@@ -1062,7 +1063,6 @@ export default function App() {
                 <TilePool key={`tile-pool:${game.id}`} game={game} />
               </section>
               {!phoneLayout && gameScores}
-              {!phoneLayout && dictionarySelector}
             </div>
             <div className="results-column">
               <Results
@@ -1125,7 +1125,6 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {phoneLayout && dictionarySelector}
               {!phoneLayout && (
                 <div className="companion-note">
                   <span className="note-icon">
