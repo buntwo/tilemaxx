@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type ReactNode,
   type Ref,
 } from "react";
 import {
@@ -39,7 +38,6 @@ export default function RackEntry({
   onChange,
   onSolve,
   phoneLayout,
-  solveAction,
   positionKey,
   exchangeAdvice,
   exchangeBag,
@@ -52,7 +50,6 @@ export default function RackEntry({
   onChange: (game: Game) => void;
   onSolve: () => void;
   phoneLayout: boolean;
-  solveAction?: ReactNode;
   positionKey: string;
   exchangeAdvice?: ExchangeAdvice;
   exchangeBag: number;
@@ -517,61 +514,58 @@ export default function RackEntry({
             onOpen={() => openSuggestedExchange(false)}
           />
         )}
-        <div className="rack-entry-controls">
-          {mode === "entry" ? (
-            <details
-              ref={tools}
-              className="rack-tools"
-              onKeyDown={(event) => {
-                if (event.key === "Escape" && tools.current?.open) {
-                  tools.current.open = false;
-                  tools.current.querySelector("summary")?.focus();
-                }
-              }}
-            >
-              <summary className="text-button">
-                <SlidersHorizontal size={13} /> Rack tools
-              </summary>
-              <div className="rack-tools-menu">
-                <button
-                  type="button"
-                  onClick={() => {
-                    chooseMode("entry");
-                    onChange({ ...game, ...sortRack(game) });
-                  }}
-                >
-                  <Shuffle size={14} /> Sort rack
-                </button>
-                <button type="button" onClick={() => chooseMode("exclude")}>
-                  <Ban size={14} /> Exclude tiles
-                </button>
-                <button type="button" onClick={() => chooseMode("exchange")}>
-                  <Repeat2 size={14} /> Mark exchange
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    chooseMode("entry");
-                    setSimulation(undefined);
-                    setOptimalOpen({ key: optimalKey });
-                    tools.current?.querySelector("summary")?.focus();
-                  }}
-                >
-                  <Trophy size={14} /> Optimal Exchange
-                </button>
-              </div>
-            </details>
-          ) : (
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => chooseMode("entry")}
-            >
-              Done
-            </button>
-          )}
-          {solveAction}
-        </div>
+        {mode === "entry" ? (
+          <details
+            ref={tools}
+            className="rack-tools"
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && tools.current?.open) {
+                tools.current.open = false;
+                tools.current.querySelector("summary")?.focus();
+              }
+            }}
+          >
+            <summary className="text-button">
+              <SlidersHorizontal size={13} /> Rack tools
+            </summary>
+            <div className="rack-tools-menu">
+              <button
+                type="button"
+                onClick={() => {
+                  chooseMode("entry");
+                  onChange({ ...game, ...sortRack(game) });
+                }}
+              >
+                <Shuffle size={14} /> Sort rack
+              </button>
+              <button type="button" onClick={() => chooseMode("exclude")}>
+                <Ban size={14} /> Exclude tiles
+              </button>
+              <button type="button" onClick={() => chooseMode("exchange")}>
+                <Repeat2 size={14} /> Mark exchange
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  chooseMode("entry");
+                  setSimulation(undefined);
+                  setOptimalOpen({ key: optimalKey });
+                  tools.current?.querySelector("summary")?.focus();
+                }}
+              >
+                <Trophy size={14} /> Optimal Exchange
+              </button>
+            </div>
+          </details>
+        ) : (
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => chooseMode("entry")}
+          >
+            Done
+          </button>
+        )}
       </div>
       {!!exchangeSlots.length && (
         <div className="rack-exchange-actions">

@@ -238,11 +238,15 @@ export function useSolver(positionKey: string) {
     return active;
   }
 
-  function solve(game: Game) {
-    if (busy) {
-      stopSearch();
-      return;
-    }
+  function solve(game: Game, reload = false) {
+    if (
+      busy ||
+      (solving.current !== undefined &&
+        solving.current !== visibleSearch.current)
+    )
+      return false;
+    if (!reload && !error && snapshotKey === positionKey && snapshot.results)
+      return false;
     stopSearch();
     stopBoardOdds();
     stopExchangeAdvice();
@@ -270,10 +274,12 @@ export function useSolver(positionKey: string) {
         excludedRackSlots,
         template,
       } satisfies SolverRequest);
+      return true;
     } catch {
       stopSearch();
       setBusy("");
       setError("The solver could not start. Try again.");
+      return false;
     }
   }
 
@@ -397,6 +403,7 @@ export function useSolver(positionKey: string) {
     boardOddsProgress,
     boardOddsError,
     solve,
+    cancelSearch: stopSearch,
     page,
     shortlist,
     runBoardOdds,

@@ -1522,13 +1522,10 @@ test("the phone layout keeps settings, the build version, board help and move fi
   expect(help.open).toBe(false);
 
   const rack = within(screen.getByRole("region", { name: "Your rack" }));
-  const findMoves = rack.getByRole("button", { name: "Find moves" });
+  const findMoves = main.getByRole("button", { name: "Find moves" });
   expect(rack.queryByRole("heading", { name: "Your rack" })).toBeNull();
-  expect(
-    findMoves
-      .closest(".rack-entry-controls")
-      ?.contains(rack.getByText("Rack tools")),
-  ).toBe(true);
+  expect(rack.queryByRole("button", { name: "Find moves" })).toBeNull();
+  expect(rack.getByText("Rack tools")).toBeTruthy();
   expect(findMoves.hasAttribute("disabled")).toBe(true);
   await typeRack(user, "CAT");
   await user.click(findMoves);
@@ -1657,11 +1654,60 @@ test("editing the rack terminates an active search and permits new input", async
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   expect(screen.getByRole("button", { name: "Cancel search" })).toBeTruthy();
   await user.click(rackTile(1));
+  await user.keyboard("{Enter}");
+  expect(running!.terminate).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Cancel search" })).toBeTruthy();
+  await user.click(rackTile(1));
   await user.keyboard("{Control>}a{/Control}{Backspace}");
   expect(running!.terminate).toHaveBeenCalledOnce();
   expect(screen.queryByRole("button", { name: "Cancel search" })).toBeNull();
   await typeRack(user, "CAT");
   expect(current().rack).toBe("CAT");
+  await user.click(screen.getByRole("button", { name: "Find moves" }));
+  await user.click(screen.getByRole("button", { name: "Cancel search" }));
+  expect(running!.terminate).toHaveBeenCalledOnce();
+  expect(screen.getByRole("button", { name: "Find moves" })).toBeTruthy();
+});
+
+test("unchanged positions reuse move results and missing pages can be reloaded", async () => {
+  let solves = 0;
+  let dropPages = false;
+  vi.stubGlobal(
+    "Worker",
+    class extends SolverWorker {
+      postMessage(request: SolverRequest) {
+        if (request.kind === "solve") solves++;
+        if (dropPages && request.kind === "page") {
+          queueMicrotask(() =>
+            this.onmessage?.({ data: { kind: "page", id: request.id } }),
+          );
+        } else super.postMessage(request);
+      }
+    },
+  );
+  const user = await start();
+  await typeRack(user, "CAT");
+  await user.click(screen.getByRole("button", { name: "Find moves" }));
+  const move = (await screen.findAllByRole("button", { name: /^CAT, / }))[0];
+  await user.click(rackTile(1));
+  await user.keyboard("{Enter}");
+  expect(solves).toBe(1);
+  expect(screen.getAllByRole("button", { name: /^CAT, / })[0]).toBe(move);
+
+  dropPages = true;
+  await user.click(screen.getByRole("button", { name: "Search possible moves" }));
+  await user.type(screen.getByRole("textbox", { name: "Filter moves" }), "CAT");
+  expect(await screen.findByText(/Move results are unavailable/)).toBeTruthy();
+  dropPages = false;
+  await user.click(screen.getByRole("button", { name: "Find moves" }));
+  await screen.findAllByRole("button", { name: /^CAT, / });
+  expect(solves).toBe(2);
+
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("S");
+  expect(current().rack).toBe("CAT");
+  await user.click(screen.getByRole("button", { name: "Find moves" }));
+  expect(solves).toBe(3);
 });
 
 test("delete game requires confirmation, cancel retains it, deleting last game shows empty workspace", async () => {

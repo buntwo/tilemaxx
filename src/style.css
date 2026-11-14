@@ -4124,17 +4124,8 @@ label + label {
   justify-content: space-between;
   gap: 8px;
 }
-.rack-entry-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.rack-entry-actions > :last-child {
   margin-left: auto;
-}
-.rack-entry-controls .rack-solve {
-  min-height: 32px;
-  padding: 5px 9px;
-  font-size: 11px;
-  white-space: nowrap;
 }
 .rack-entry-actions .rack-exchange-advice {
   min-height: 32px;
@@ -4913,7 +4904,7 @@ label + label {
 .phone-layout .board-panel .direct-entry-status { font-size: 10px; }
 .phone-layout .rack-panel { margin-top: 8px; padding: 6px 10px 5px; }
 .phone-layout .rack-panel .rack-tiles { margin: 4px auto 3px; }
-.phone-layout .rack-entry-controls :is(.rack-solve, .text-button) { min-height: 40px; }
+.phone-layout .rack-entry-actions .text-button { min-height: 40px; }
 .phone-layout .rack-entry-actions :is(.rack-entry-help, .rack-exchange-advice) {
   flex: 1 1 0;
   min-width: 0;
