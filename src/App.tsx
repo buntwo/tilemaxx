@@ -163,24 +163,21 @@ function GameLoadStatus({ id, error }: { id: string; error?: string }) {
   );
 }
 
-const desktopGameQuery = "(min-width: 1000px)";
-
-function useDesktopGameLayout() {
-  const [desktop, setDesktop] = useState(
-    () => matchMedia(desktopGameQuery).matches,
-  );
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() => matchMedia(query).matches);
   useEffect(() => {
-    const query = matchMedia(desktopGameQuery);
-    const update = () => setDesktop(query.matches);
+    const media = matchMedia(query);
+    const update = () => setMatches(media.matches);
     update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-  return desktop;
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, [query]);
+  return matches;
 }
 
 export default function App() {
-  const desktopGame = useDesktopGameLayout();
+  const desktopGame = useMediaQuery("(min-width: 1000px)");
+  const phoneLayout = useMediaQuery("(max-width: 650px)");
   const boardPanel = useRef<HTMLElement>(null);
   const rackPanel = useRef<HTMLElement>(null);
   const [flight, setFlight] = useState<TileFlight>();
@@ -499,6 +496,16 @@ export default function App() {
       </div>
     );
   const compactGame = desktopGame && workspace === "games" && !!game;
+  const gameScores = game && (
+    <GameScores
+      key={game.id}
+      game={game}
+      onToggle={(enabled) => update(setScoreTracking(game, enabled))}
+      onRecord={() => update(recordOpponentPlay(game))}
+      onCorrection={() => update(treatBoardEditAsCorrection(game))}
+      onChange={update}
+    />
+  );
   const saveAndTheme = (
     <div className="topbar-actions">
       <span
@@ -1002,14 +1009,7 @@ export default function App() {
                 />
                 <TilePool key={`tile-pool:${game.id}`} game={game} />
               </section>
-              <GameScores
-                key={game.id}
-                game={game}
-                onToggle={(enabled) => update(setScoreTracking(game, enabled))}
-                onRecord={() => update(recordOpponentPlay(game))}
-                onCorrection={() => update(treatBoardEditAsCorrection(game))}
-                onChange={update}
-              />
+              {!phoneLayout && gameScores}
               <div className="dictionary-strip">
                 <BookOpen size={15} />
                 <label>
@@ -1072,6 +1072,7 @@ export default function App() {
                 }
                 onCancelBoardOdds={solver.cancelBoardOdds}
               />
+              {phoneLayout && gameScores}
               {warnings.length > 0 && (
                 <div className="board-warnings">
                   <Info size={17} />

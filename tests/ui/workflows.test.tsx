@@ -1329,6 +1329,27 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   expect(cell("My games").getAttribute("aria-current")).toBe("page");
 });
 
+test.each(["phone", "tablet", "desktop"])(
+  "game scores use the expected panel order on the %s layout",
+  async (layout) => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches:
+        (query === "(max-width: 650px)" && layout === "phone") ||
+        (query === "(min-width: 1000px)" && layout === "desktop"),
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    await start();
+    const scores = screen.getByRole("region", { name: "Game scores" });
+    const moves = screen.getByRole("heading", { name: "Possible moves" });
+    expect(moves.compareDocumentPosition(scores)).toBe(
+      layout === "phone"
+        ? Node.DOCUMENT_POSITION_FOLLOWING
+        : Node.DOCUMENT_POSITION_PRECEDING,
+    );
+  },
+);
+
 test("score tracking records typed opponent moves and solver plays across undo, redo and saving", async () => {
   const user = await start();
   const scores = () =>
