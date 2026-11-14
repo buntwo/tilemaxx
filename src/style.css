@@ -1592,19 +1592,6 @@ label + label {
   padding: 16px 18px;
   margin-top: 15px;
 }
-.rack-heading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.rack-heading h2 {
-  font-size: 13px;
-}
-.rack-heading .icon-button {
-  margin-left: auto;
-  height: 24px;
-  width: 24px;
-}
 .rack-tiles {
   display: flex;
   gap: 7px;
@@ -1654,11 +1641,6 @@ label + label {
 .rack-input-row input::placeholder {
   letter-spacing: 0;
   font-size: 11px;
-}
-.solve-button {
-  font-size: 12px;
-  padding: 10px 17px;
-  min-height: 41px;
 }
 .dictionary-strip {
   display: flex;
@@ -2974,13 +2956,6 @@ label + label {
   .rack-tile {
     font-size: 21px;
   }
-  .solve-button {
-    padding: 10px 12px;
-    font-size: 11px;
-  }
-  .solve-button svg:last-child {
-    display: none;
-  }
   .results-empty {
     min-height: 355px;
   }
@@ -3320,9 +3295,6 @@ label + label {
     margin-top: 13px;
     padding: 15px;
   }
-  .rack-heading h2 {
-    font-size: 14px;
-  }
   .rack-hint {
     display: inline;
   }
@@ -3346,13 +3318,6 @@ label + label {
   }
   .rack-input-row input::placeholder {
     font-size: 11px;
-  }
-  .solve-button {
-    font-size: 12px;
-    padding: 11px 16px;
-  }
-  .solve-button svg:last-child {
-    display: block;
   }
   .dictionary-strip {
     padding: 14px 3px 0;
@@ -4159,6 +4124,18 @@ label + label {
   justify-content: space-between;
   gap: 8px;
 }
+.rack-entry-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+.rack-entry-controls .rack-solve {
+  min-height: 32px;
+  padding: 5px 9px;
+  font-size: 11px;
+  white-space: nowrap;
+}
 .rack-entry-actions .rack-exchange-advice {
   min-height: 32px;
   color: var(--primary);
@@ -4278,19 +4255,6 @@ label + label {
   margin: 0;
   color: var(--muted);
   font-size: 10px;
-}
-.rack-heading .solve-button {
-  margin-left: auto;
-  min-height: 32px;
-  padding: 7px 10px;
-  font-size: 11px;
-  flex-shrink: 0;
-}
-.rack-heading .solve-button svg:last-child {
-  display: none;
-}
-.rack-heading {
-  flex-wrap: wrap;
 }
 
 .board-entry .square,
@@ -4948,8 +4912,13 @@ label + label {
 .phone-layout .board-panel .direct-entry-actions > button { min-height: 40px; }
 .phone-layout .board-panel .direct-entry-status { font-size: 10px; }
 .phone-layout .rack-panel { margin-top: 8px; padding: 6px 10px 5px; }
-.phone-layout .rack-panel .rack-tiles { margin-block: 4px 3px; }
-.phone-layout .rack-panel .solve-button { min-height: 40px; }
+.phone-layout .rack-panel .rack-tiles { margin: 4px auto 3px; }
+.phone-layout .rack-entry-controls :is(.rack-solve, .text-button) { min-height: 40px; }
+.phone-layout .rack-entry-actions :is(.rack-entry-help, .rack-exchange-advice) {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: normal;
+}
 .phone-layout .rack-panel .tile-pool { margin-top: 4px; }
 .phone-layout .rack-panel .tile-pool summary { padding-top: 2px; }
 .phone-layout .dictionary-strip { padding-top: 6px; }
@@ -4979,13 +4948,17 @@ label + label {
   margin-top: 6px;
   padding: 7px 11px 8px;
 }
-.compact-game .rack-panel .rack-tiles {
+:is(.compact-game, .phone-layout) .rack-panel .rack-tiles {
   width: min(100%, calc(var(--rack-size) * 53px + 7px));
+}
+:is(.compact-game, .phone-layout) .rack-panel .rack-tile {
+  max-width: 46px;
+}
+.compact-game .rack-panel .rack-tiles {
   margin: 0 auto 3px;
   padding-block: 4px 6px;
 }
 .compact-game .rack-panel .rack-tile {
-  max-width: 46px;
   container-type: inline-size;
 }
 .compact-game .rack-panel .rack-face {

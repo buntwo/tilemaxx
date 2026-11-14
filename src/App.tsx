@@ -1044,30 +1044,34 @@ export default function App() {
                   if (activeFlight) setFlight(undefined);
                 }}
               >
-                {!compactGame && (
-                  <div className="rack-heading">
-                    <h2>Your rack</h2>
-                    <button
-                      className="button primary solve-button"
-                      disabled={!hasPlayableRack && !busy}
-                      onClick={solve}
-                    >
-                      {busy ? (
-                        <LoaderCircle className="spin" size={17} />
-                      ) : (
-                        <Sparkles size={17} />
-                      )}{" "}
-                      {busy ? "Cancel" : "Find moves"}
-                      {!busy && <ArrowRight size={17} />}
-                    </button>
-                  </div>
-                )}
                 <RackEntry
                   key={game.id}
                   ref={rackEntry}
                   game={game}
                   onChange={update}
                   onSolve={solve}
+                  phoneLayout={phoneLayout}
+                  solveAction={
+                    !compactGame && (
+                      <button
+                        type="button"
+                        className="button primary rack-solve"
+                        disabled={!hasPlayableRack && !busy}
+                        onClick={solve}
+                      >
+                        {busy ? (
+                          <LoaderCircle
+                            className="spin"
+                            size={15}
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Sparkles size={15} aria-hidden="true" />
+                        )}
+                        {busy ? "Cancel" : "Find moves"}
+                      </button>
+                    )
+                  }
                   positionKey={signature}
                   exchangeAdvice={solver.exchangeAdvice}
                   exchangeBag={replyAnalysis.bagSize}
