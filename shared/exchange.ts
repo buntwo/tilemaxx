@@ -12,6 +12,10 @@ export type ExchangeRequest = Position & {
 };
 export const EXCHANGE_SAMPLES = 600;
 
+export function minimumExchangeBag(template: BoardTemplate, slots: number) {
+  return Math.max(slots, template.rules === "wwf" ? 1 : 7);
+}
+
 export function simulateExchange(
   lexicon: Lexicon,
   request: ExchangeRequest,
@@ -30,7 +34,7 @@ export function simulateExchange(
     throw new Error("Mark at least one occupied rack tile for exchange.");
   const { total, excess, tiles } = unseenTiles(request, template);
   if (excess.length) throw new Error("Check the entered tile counts first.");
-  const minimum = Math.max(slots.length, template.rules === "wwf" ? 1 : 7);
+  const minimum = minimumExchangeBag(template, slots.length);
   if (
     !Number.isInteger(bag) ||
     bag < Math.max(minimum, total - template.rackSize) ||

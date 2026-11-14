@@ -1,6 +1,11 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { simulateExchange, type ExchangeRequest } from "../shared/exchange";
 import {
+  recommendExchange,
+  type ExchangeAdvice,
+  type ExchangeAdviceRequest,
+} from "../shared/exchange-advice";
+import {
   reviewOpportunity,
   reviewReplyRisk,
   reviewTurn,
@@ -11,7 +16,16 @@ import type { BoardTemplate, TrackedMove, TurnPosition } from "../shared/model";
 type ReviewJob = { position: TurnPosition; move: TrackedMove; index: number };
 export type PracticeRequest =
   | { kind: "exchange"; dictionaryId: string; exchange: ExchangeRequest }
+  | {
+      kind: "exchange-advice";
+      dictionaryId: string;
+      exchange: ExchangeAdviceRequest;
+    }
   | { kind: "turn" | "game"; template: BoardTemplate; turns: ReviewJob[] };
+
+export type ExchangeAdviceMessage =
+  | { result: ExchangeAdvice | undefined }
+  | { error: string };
 
 self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
   const dictionaries = new Map<string, Lexicon>();
@@ -28,6 +42,13 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
   const progress = (completed: number, total: number) =>
     self.postMessage({ progress: { completed, total } });
   try {
+    if (data.kind === "exchange-advice") {
+      const lexicon = await dictionary(data.dictionaryId);
+      self.postMessage({
+        result: recommendExchange(lexicon, data.exchange),
+      } satisfies ExchangeAdviceMessage);
+      return;
+    }
     if (data.kind === "exchange") {
       const lexicon = await dictionary(data.dictionaryId);
       self.postMessage({

@@ -3,6 +3,7 @@ import { solvePosition, inspectBoard } from "../shared/solver";
 import { RackBingoIndex, checkBoardBingo } from "../shared/bingo-odds";
 import { checkPremiumDefense } from "../shared/premium-defense";
 import { MOVE_CACHE_LIMIT, MoveResultIndex } from "../shared/move-results";
+import { exchangeAdvicePlays } from "../shared/exchange-advice";
 import type { SolverMessage, SolverRequest } from "./solver-messages";
 
 const results = new Map<number, MoveResultIndex>();
@@ -86,6 +87,9 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     const moves = solvePosition(lexicon, request, template);
     const elapsed = performance.now() - start;
     const result = new MoveResultIndex(moves);
+    const exchangePlays = warnings.length
+      ? undefined
+      : exchangeAdvicePlays(request, template, moves);
     results.set(id, result);
     if (results.size > MOVE_CACHE_LIMIT + 1)
       results.delete(results.keys().next().value!);
@@ -95,6 +99,13 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       results: result.summary(id),
       warnings,
       elapsed,
+      exchange: exchangePlays && {
+        dictionaryId,
+        board,
+        rack: request.rack,
+        template,
+        plays: exchangePlays,
+      },
     });
     if (!moves.length) return;
     await yieldToQueries();

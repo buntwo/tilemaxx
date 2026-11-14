@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Game, Move } from "../shared/model";
 import type { BoardOddsResult, RackOdds } from "../shared/bingo-odds";
 import type { DefenseResults } from "../shared/premium-defense";
+import type { ExchangeAdvice } from "../shared/exchange-advice";
+import type { ExchangeAdviceMessage, PracticeRequest } from "./practice.worker";
 import type {
   MovePage,
   MoveQuery,
@@ -19,6 +21,7 @@ type Snapshot = {
   rackOdds?: RackOdds;
   defense?: DefenseResults;
   boardOdds?: BoardOddsResult;
+  exchangeAdvice?: ExchangeAdvice;
 };
 const emptySnapshot: Snapshot = { results: null, elapsed: 0, warnings: [] };
 type QueryReply = Extract<SolverMessage, { kind: "page" | "shortlist" }>;
@@ -37,12 +40,57 @@ export function useSolver(positionKey: string) {
   const [boardOddsError, setBoardOddsError] = useState("");
   const worker = useRef<Worker | null>(null);
   const oddsWorker = useRef<Worker | null>(null);
+  const exchangeWorker = useRef<Worker | null>(null);
   const nextId = useRef(0);
   const solving = useRef<number | undefined>(undefined);
   const visibleSearch = useRef<number | undefined>(undefined);
   const queries = useRef(new Map<number, (message?: QueryReply) => void>());
   const saved = useRef(new Map<string, Snapshot>());
   const restore = useRef<string | null>(null);
+
+  function stopExchangeAdvice() {
+    exchangeWorker.current?.terminate();
+    exchangeWorker.current = null;
+  }
+
+  function checkExchange(
+    {
+      dictionaryId,
+      ...exchange
+    }: NonNullable<Extract<SolverMessage, { kind: "moves" }>["exchange"]>,
+    searchId: number,
+  ) {
+    try {
+      const active = new Worker(
+        new URL("./practice.worker.ts", import.meta.url),
+        {
+          type: "module",
+        },
+      );
+      exchangeWorker.current = active;
+      active.onmessage = ({ data }: MessageEvent<ExchangeAdviceMessage>) => {
+        if (exchangeWorker.current !== active) return;
+        stopExchangeAdvice();
+        if ("result" in data && data.result) {
+          setSnapshot((current) =>
+            current.results?.searchId === searchId
+              ? { ...current, exchangeAdvice: data.result }
+              : current,
+          );
+        }
+      };
+      active.onerror = () => {
+        if (exchangeWorker.current === active) stopExchangeAdvice();
+      };
+      active.postMessage({
+        kind: "exchange-advice",
+        dictionaryId,
+        exchange,
+      } satisfies PracticeRequest);
+    } catch {
+      stopExchangeAdvice();
+    }
+  }
 
   function stopBoardOdds() {
     oddsWorker.current?.terminate();
@@ -88,6 +136,7 @@ export function useSolver(positionKey: string) {
   useEffect(() => {
     stopSearch();
     stopBoardOdds();
+    stopExchangeAdvice();
     const restored =
       restore.current === positionKey
         ? saved.current.get(positionKey)
@@ -109,6 +158,7 @@ export function useSolver(positionKey: string) {
     () => () => {
       worker.current?.terminate();
       oddsWorker.current?.terminate();
+      stopExchangeAdvice();
       worker.current = oddsWorker.current = null;
       for (const complete of queries.current.values()) complete();
       queries.current.clear();
@@ -143,9 +193,10 @@ export function useSolver(positionKey: string) {
         case "moves": {
           discard(visibleSearch.current);
           visibleSearch.current = message.id;
-          const { results, warnings, elapsed } = message;
+          const { results, warnings, elapsed, exchange } = message;
           setSnapshot({ results, warnings, elapsed });
           setBusy("");
+          if (exchange) checkExchange(exchange, message.id);
           const pending = results.total > 0;
           setRackOddsPending(pending);
           setDefenseProgress(pending ? 0 : undefined);
@@ -194,6 +245,7 @@ export function useSolver(positionKey: string) {
     }
     stopSearch();
     stopBoardOdds();
+    stopExchangeAdvice();
     setError("");
     setBusy("Finding moves…");
     setSnapshot((current) => ({
@@ -201,6 +253,7 @@ export function useSolver(positionKey: string) {
       rackOdds: undefined,
       defense: undefined,
       boardOdds: undefined,
+      exchangeAdvice: undefined,
     }));
     setBoardOddsError("");
     const id = ++nextId.current;

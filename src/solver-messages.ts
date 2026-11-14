@@ -8,6 +8,7 @@ import type {
 } from "../shared/move-results";
 import type { ShortlistEntry } from "../shared/move-shortlist";
 import type { DefenseResults } from "../shared/premium-defense";
+import type { ExchangeAdviceRequest } from "../shared/exchange-advice";
 
 type PositionRequest = Position & {
   id: number;
@@ -37,6 +38,7 @@ type SolverUpdate =
       results: MoveResults;
       warnings: string[];
       elapsed: number;
+      exchange?: ExchangeAdviceRequest & { dictionaryId: string };
     }
   | { kind: "solve-status"; status: string }
   | { kind: "solve-error"; error: string }

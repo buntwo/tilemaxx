@@ -14,6 +14,7 @@ import {
   rackSlotsForMove,
 } from "../../shared/rack-entry";
 import { tileScore, type Game, type Move } from "../../shared/model";
+import type { ExchangeAdvice } from "../../shared/exchange-advice";
 import { Ban, Repeat2, Shuffle, SlidersHorizontal } from "lucide-react";
 import { canAnimateTiles } from "./tile-motion";
 import ExchangeAnalysis from "./ExchangeAnalysis";
@@ -25,6 +26,7 @@ export default function RackEntry({
   onChange,
   onSolve,
   positionKey,
+  exchangeAdvice,
   preview,
   flyingRack,
 }: {
@@ -32,6 +34,7 @@ export default function RackEntry({
   onChange: (game: Game) => void;
   onSolve: () => void;
   positionKey: string;
+  exchangeAdvice?: ExchangeAdvice;
   preview?: Move | null;
   flyingRack?: { before: Game; slots: number[] };
 }) {
@@ -40,9 +43,15 @@ export default function RackEntry({
   const [selectAll, setSelectAll] = useState(false);
   const [mode, setMode] = useState<"entry" | "exclude" | "exchange">("entry");
   const [simulation, setSimulation] = useState<string>();
+  const [acceptedAdvice, setAcceptedAdvice] = useState<{
+    key: string;
+    detail: string;
+  }>();
   const excludeMode = mode === "exclude";
   const exchangeMode = mode === "exchange";
   const tools = useRef<HTMLDetailsElement>(null);
+  const focusExchange = useRef(false);
+  const exchangeButton = useRef<HTMLButtonElement>(null);
   const [exchangeMarks, setExchangeMarks] = useState<Record<number, string>>(
     {},
   );
@@ -62,6 +71,20 @@ export default function RackEntry({
     .map(Number)
     .filter((i) => game.rack[i] === exchangeMarks[i]);
   const exchangeKey = JSON.stringify([positionKey, exchangeSlots]);
+  const advice =
+    mode === "entry" && !exchangeSlots.length && !flyingRack && !focused
+      ? exchangeAdvice
+      : undefined;
+  const suggestedTiles = advice?.slots.map((slot) => game.rack[slot]);
+  const adviceDetail =
+    advice &&
+    `Estimated +${Math.round(advice.edge)} points vs. ${advice.comparedWith ?? "passing"} through your next turn, including the opponent’s reply`;
+  useLayoutEffect(() => {
+    if (focusExchange.current && simulation === exchangeKey) {
+      exchangeButton.current?.focus({ preventScroll: true });
+      focusExchange.current = false;
+    }
+  }, [exchangeKey, simulation]);
   useEffect(() => {
     const close = (event: PointerEvent) => {
       if (!tools.current?.contains(event.target as Node) && tools.current)
@@ -408,7 +431,7 @@ export default function RackEntry({
         }}
       />
       <div className="rack-entry-actions">
-        <p id={helpId} className="rack-entry-help">
+        <p id={helpId} className="rack-entry-help" hidden={!!advice}>
           {exchangeMode
             ? "Tap tiles to mark for exchange"
             : excludeMode
@@ -417,6 +440,31 @@ export default function RackEntry({
                 ? "All tiles selected · type to replace"
                 : "Space = blank · ↓ Hold · ↑ Exchange"}
         </p>
+        {advice && suggestedTiles && adviceDetail && (
+          <button
+            type="button"
+            className="text-button rack-exchange-advice"
+            title={adviceDetail}
+            aria-label={`Swap ${suggestedTiles.join("")} · +${Math.round(advice.edge)} pts`}
+            onClick={() => {
+              chooseMode("entry");
+              focusExchange.current = true;
+              setExchangeMarks(
+                Object.fromEntries(
+                  advice.slots.map((slot) => [slot, game.rack[slot]]),
+                ),
+              );
+              const key = JSON.stringify([positionKey, advice.slots]);
+              setAcceptedAdvice({ key, detail: adviceDetail });
+              setSimulation(key);
+            }}
+          >
+            <Repeat2 size={13} aria-hidden="true" />
+            <span>
+              Swap {suggestedTiles.join("")} · +{Math.round(advice.edge)} pts
+            </span>
+          </button>
+        )}
         {mode === "entry" ? (
           <details
             ref={tools}
@@ -462,6 +510,7 @@ export default function RackEntry({
       {!!exchangeSlots.length && (
         <div className="rack-exchange-actions">
           <button
+            ref={exchangeButton}
             type="button"
             className="button secondary"
             aria-expanded={simulation === exchangeKey}
@@ -483,7 +532,16 @@ export default function RackEntry({
         </div>
       )}
       {simulation === exchangeKey && !!exchangeSlots.length && (
-        <ExchangeAnalysis key={exchangeKey} game={game} slots={exchangeSlots} />
+        <ExchangeAnalysis
+          key={exchangeKey}
+          game={game}
+          slots={exchangeSlots}
+          recommendation={
+            acceptedAdvice?.key === exchangeKey
+              ? acceptedAdvice.detail
+              : undefined
+          }
+        />
       )}
     </div>
   );

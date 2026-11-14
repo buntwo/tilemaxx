@@ -109,6 +109,19 @@ export function leaveValue(leave: string): number {
   return value - 1.4 * Math.max(0, Math.abs(vowels - consonants) - 1);
 }
 
+export function bestStrongReply(moves: Move[], bagSize: number): Move | null {
+  let best: Move | null = null,
+    bestValue = -Infinity;
+  for (const move of moves) {
+    const value = move.score + (bagSize ? leaveValue(move.leave) : 0);
+    if (value > bestValue) {
+      best = move;
+      bestValue = value;
+    }
+  }
+  return best;
+}
+
 export function bestReply(
   moves: Move[],
   model: OpponentModel,
@@ -116,18 +129,7 @@ export function bestReply(
   random: number,
   bagSize: number,
 ): Move | null {
-  if (model === "strong") {
-    let best: Move | null = null,
-      bestValue = -Infinity;
-    for (const move of moves) {
-      const value = move.score + (bagSize ? leaveValue(move.leave) : 0);
-      if (value > bestValue) {
-        best = move;
-        bestValue = value;
-      }
-    }
-    return best;
-  }
+  if (model === "strong") return bestStrongReply(moves, bagSize);
 
   // A casual player favors familiar words and chooses among a few strong
   // candidates. Keep one placement per word in that shortlist.

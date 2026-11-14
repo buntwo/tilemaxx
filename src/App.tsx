@@ -996,6 +996,7 @@ export default function App() {
                   onChange={update}
                   onSolve={solve}
                   positionKey={signature}
+                  exchangeAdvice={solver.exchangeAdvice}
                   preview={preview}
                   flyingRack={activeFlight}
                 />

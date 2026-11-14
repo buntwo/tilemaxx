@@ -4096,6 +4096,14 @@ kbd {
   justify-content: space-between;
   gap: 8px;
 }
+.rack-entry-actions .rack-exchange-advice {
+  min-height: 32px;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.rack-exchange-advice:hover span { text-decoration: underline; }
 .rack-tools { position: relative; flex: none; }
 .rack-tools summary {
   list-style: none;
@@ -4774,6 +4782,7 @@ kbd {
 }
 .compact-game .rack-panel .rack-tile { max-width: 37px; }
 .compact-game .rack-panel .rack-tools summary { min-height: 25px; }
+.compact-game .rack-panel .rack-exchange-advice { min-height: 25px; }
 .compact-game .rack-panel .tile-pool { margin-top: 5px; }
 .compact-game .rack-panel .tile-pool summary { padding-top: 5px; }
 

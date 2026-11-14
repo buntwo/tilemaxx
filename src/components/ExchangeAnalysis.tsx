@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
 import type { Game } from "../../shared/model";
-import type { ExchangeResult } from "../../shared/exchange";
+import { minimumExchangeBag, type ExchangeResult } from "../../shared/exchange";
 import { unseenTiles } from "../../shared/tile-pool";
 import { usePractice } from "./usePractice";
 
@@ -51,14 +51,16 @@ function DrawOptions({
 export default function ExchangeAnalysis({
   game,
   slots,
+  recommendation,
 }: {
   game: Game;
   slots: number[];
+  recommendation?: string;
 }) {
   const { total, excess } = unseenTiles(game, game.template);
   const bag = Math.max(0, total - game.template.rackSize);
   const { result, progress, error, run, reset } = usePractice<ExchangeResult>();
-  const minimum = Math.max(slots.length, game.template.rules === "wwf" ? 1 : 7);
+  const minimum = minimumExchangeBag(game.template, slots.length);
   const valid = !excess.length && bag >= minimum;
   const { board, dictionaryId, rack, template } = game;
   // RackEntry keys this panel by the position and marked slots.
@@ -87,6 +89,7 @@ export default function ExchangeAnalysis({
           {bag} estimated in bag
         </span>
       </div>
+      {recommendation && <p className="small muted">{recommendation}.</p>}
       {!!excess.length && (
         <p className="error">Check the board and rack tile counts first.</p>
       )}

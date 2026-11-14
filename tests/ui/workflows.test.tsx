@@ -17,7 +17,7 @@ import { Lexicon } from "../../shared/lexicon";
 import { solve, solvePosition } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
 import { MoveResultIndex } from "../../shared/move-results";
-import type { SolverRequest } from "../../src/solver-messages";
+import type { SolverMessage, SolverRequest } from "../../src/solver-messages";
 import type { PracticeRequest } from "../../src/practice.worker";
 import { simulateExchange } from "../../shared/exchange";
 
@@ -46,6 +46,11 @@ class SolverWorker {
     this.reply = !!url?.pathname.endsWith("/reply.worker.ts");
   }
   protected rackOdds = {};
+  protected exchangeRequest(
+    _request: Extract<SolverRequest, { kind: "solve" }>,
+  ): Extract<SolverMessage, { kind: "moves" }>["exchange"] {
+    return undefined;
+  }
   postMessage(request: SolverRequest) {
     if (this.reply) return;
     if (request.kind === "discard") {
@@ -85,6 +90,7 @@ class SolverWorker {
           results: result.summary(request.id),
           warnings: [],
           elapsed: 1,
+          exchange: this.exchangeRequest(request),
         },
       });
       this.onmessage?.({
@@ -1615,6 +1621,61 @@ test("exchange simulation starts on open, shows draw scores, and closes when mar
   expect(
     screen.queryByRole("region", { name: "Simulate exchange" }),
   ).toBeNull();
+});
+
+test("an exchange suggestion marks tiles and opens the inline panel", async () => {
+  let pending: SolverWorker | undefined;
+  vi.stubGlobal(
+    "Worker",
+    class extends SolverWorker {
+      override exchangeRequest(request: Extract<SolverRequest, { kind: "solve" }>) {
+        return { ...request, plays: [] };
+      }
+      override postMessage(
+        request: SolverRequest | Extract<PracticeRequest, { kind: "exchange" | "exchange-advice" }>,
+      ) {
+        if (request.kind === "exchange-advice") pending = this;
+        else if (request.kind !== "exchange") super.postMessage(request);
+      }
+    },
+  );
+  const user = await start();
+  await typeRack(user, "CATSUVW");
+  const solve = screen.getAllByRole("button", { name: "Find moves" })[0];
+  await user.click(solve);
+  await screen.findAllByRole("button", { name: /^CATS, / });
+  expect(screen.queryByRole("button", { name: /^Swap .* pts/ })).toBeNull();
+  expect(pending).toBeTruthy();
+  await act(() => pending?.onmessage?.({
+    data: { result: { slots: [4, 5], edge: 8, comparedWith: "CATS" } },
+  }));
+  await user.click(screen.getByRole("button", { name: "Swap UV · +8 pts" }));
+  const panel = screen.getByRole("region", { name: "Simulate exchange" });
+  expect(panel.closest(".rack-panel")).toBeTruthy();
+  expect(within(panel).getByText(/Estimated \+8 points vs. CATS/)).toBeTruthy();
+  expect(screen.getByLabelText("Rack tile 5: U, marked for exchange")).toBeTruthy();
+  expect(screen.getByLabelText("Rack tile 6: V, marked for exchange")).toBeTruthy();
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "Simulate exchange (2)" }),
+  );
+  expect(current().rack).toBe("CATSUVW");
+
+  await user.click(rackTile(1));
+  await user.keyboard("R");
+  expect(screen.queryByRole("region", { name: "Simulate exchange" })).toBeNull();
+  expect(screen.queryByRole("button", { name: /^Swap .* pts/ })).toBeNull();
+
+  const completed = pending;
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  await waitFor(() => expect(pending).not.toBe(completed));
+  const stale = pending!;
+  await user.click(rackTile(1));
+  await user.keyboard("C");
+  expect(stale.terminate).toHaveBeenCalled();
+  await act(() => stale.onmessage?.({
+    data: { result: { slots: [4, 5], edge: 8 } },
+  }));
+  expect(screen.queryByRole("button", { name: /^Swap .* pts/ })).toBeNull();
 });
 
 test("a new search after playing starts with highest points", async () => {
