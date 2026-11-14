@@ -538,6 +538,32 @@ export default function App() {
       onChange={update}
     />
   );
+  const dictionarySelector = game && (
+    <div className="dictionary-strip">
+      <BookOpen size={15} />
+      <label>
+        Word list
+        <select
+          aria-label="Game dictionary"
+          value={game.dictionaryId}
+          onChange={(e) => update({ ...game, dictionaryId: e.target.value })}
+        >
+          {data.dictionaries.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        className="icon-button"
+        aria-label="About word lists"
+        onClick={() => openDialog("dictionaries")}
+      >
+        <Info size={15} />
+      </button>
+    </div>
+  );
   const saveAndTheme = (
     <div className="topbar-actions">
       <span
@@ -1052,32 +1078,7 @@ export default function App() {
                 <TilePool key={`tile-pool:${game.id}`} game={game} />
               </section>
               {!phoneLayout && gameScores}
-              <div className="dictionary-strip">
-                <BookOpen size={15} />
-                <label>
-                  Word list
-                  <select
-                    aria-label="Game dictionary"
-                    value={game.dictionaryId}
-                    onChange={(e) =>
-                      update({ ...game, dictionaryId: e.target.value })
-                    }
-                  >
-                    {data.dictionaries.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  className="icon-button"
-                  aria-label="About word lists"
-                  onClick={() => openDialog("dictionaries")}
-                >
-                  <Info size={15} />
-                </button>
-              </div>
+              {!phoneLayout && dictionarySelector}
             </div>
             <div className="results-column">
               <Results
@@ -1139,6 +1140,7 @@ export default function App() {
                   </div>
                 </div>
               )}
+              {phoneLayout && dictionarySelector}
               {!phoneLayout && (
                 <div className="companion-note">
                   <span className="note-icon">

@@ -1460,7 +1460,7 @@ test("the game picker and archive show the full move history icon on complete ga
 });
 
 test.each(["phone", "tablet", "desktop"])(
-  "game scores use the expected panel order on the %s layout",
+  "game scores and the word list use the expected panel order on the %s layout",
   async (layout) => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches:
@@ -1472,7 +1472,18 @@ test.each(["phone", "tablet", "desktop"])(
     await start();
     const scores = screen.getByRole("region", { name: "Game scores" });
     const moves = screen.getByRole("heading", { name: "Possible moves" });
+    const dictionary = screen.getByRole("combobox", {
+      name: "Game dictionary",
+    });
     expect(moves.compareDocumentPosition(scores)).toBe(
+      layout === "phone"
+        ? Node.DOCUMENT_POSITION_FOLLOWING
+        : Node.DOCUMENT_POSITION_PRECEDING,
+    );
+    expect(scores.compareDocumentPosition(dictionary)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(moves.compareDocumentPosition(dictionary)).toBe(
       layout === "phone"
         ? Node.DOCUMENT_POSITION_FOLLOWING
         : Node.DOCUMENT_POSITION_PRECEDING,
