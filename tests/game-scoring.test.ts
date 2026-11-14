@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { gameSchema } from "../server/validation";
 import { BoardEditHistory } from "../shared/board-entry";
 import {
+  boardWordsAt,
   correctTrackedMove,
   pendingOpponentPlay,
   playTrackedMove,
@@ -42,6 +43,53 @@ function fixture(): Game {
     archived: false,
   };
 }
+
+test("board hover scores each crossing word with its original premiums when available", () => {
+  const game = fixture();
+  const history = new BoardEditHistory();
+  const opening = [...game.board];
+  opening[111] = "C";
+  opening[112] = "A";
+  opening[113] = "T";
+  const first = recordOpponentPlay(history.apply(game, opening, "enter"));
+  const crossing = [...first.board];
+  crossing[83] = "a";
+  crossing[98] = "R";
+  const pending = history.apply(first, crossing, "enter");
+  for (const position of [pending, recordOpponentPlay(pending)]) {
+    assert.deepEqual(boardWordsAt(position, 113), [
+      {
+        word: "CAT",
+        direction: "across",
+        cells: [111, 112, 113],
+        score: 10,
+        fromPlay: true,
+      },
+      {
+        word: "ART",
+        direction: "down",
+        cells: [83, 98, 113],
+        score: 3,
+        fromPlay: true,
+      },
+    ]);
+  }
+  const imported = importBoard(first, crossing);
+  assert.deepEqual(
+    boardWordsAt(imported, 113).map(({ score, fromPlay }) => [score, fromPlay]),
+    [
+      [5, false],
+      [2, false],
+    ],
+  );
+});
+
+test("board hover does not join the end of one row to the start of another", () => {
+  const game = fixture();
+  game.board[14] = "A";
+  game.board[15] = "T";
+  assert.deepEqual(boardWordsAt(game, 14), []);
+});
 
 test("inferred plays match solver scoring for crosses, premiums, blanks and a bingo", () => {
   const game = fixture();

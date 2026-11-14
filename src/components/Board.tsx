@@ -1,5 +1,6 @@
-import { Fragment, useRef, type CSSProperties } from "react";
+import { Fragment, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ArrowDown, ArrowRight, Star } from "lucide-react";
+import type { boardWordsAt } from "../../shared/game-scoring";
 import {
   type Board as BoardState,
   type BoardTemplate,
@@ -22,6 +23,7 @@ export default function Board({
   uncertain,
   highlight,
   cellOverlay,
+  wordScores,
 }: {
   template: BoardTemplate;
   board: BoardState;
@@ -39,6 +41,7 @@ export default function Board({
   cellOverlay?: (
     index: number,
   ) => { style: CSSProperties; label: string } | undefined;
+  wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
 }) {
   const touch = useRef<{
     index: number;
@@ -47,6 +50,12 @@ export default function Board({
     repeat: boolean;
   } | null>(null);
   const canceledTap = useRef(false);
+  const [hoveredTile, setHoveredTile] = useState<number | null>(null);
+  const words = useMemo(
+    () => (hoveredTile === null ? undefined : wordScores?.(hoveredTile)),
+    [hoveredTile, wordScores],
+  );
+  const wordTiles = new Set(words?.flatMap(({ cells }) => cells));
   const n = template.size,
     placed = new Map(preview?.tiles.map((t) => [t.index, t.letter]) || []);
   return (
@@ -55,6 +64,23 @@ export default function Board({
         className={`board-grid ${paint ? "paint-board" : ""} ${placed.size ? "has-move-preview" : ""}`}
         style={{ "--size": n } as CSSProperties}
         aria-label={`${template.name} board`}
+        onPointerOver={
+          wordScores &&
+          ((event) => {
+            if (
+              event.pointerType !== "mouse" ||
+              !(event.target instanceof Element)
+            )
+              return;
+            const index = event.target
+              .closest("button[data-cell]")
+              ?.getAttribute("data-cell");
+            // Keep the last tile active in the gap between squares.
+            if (index != null)
+              setHoveredTile(board[Number(index)] ? Number(index) : null);
+          })
+        }
+        onPointerLeave={wordScores && (() => setHoveredTile(null))}
       >
         <span className="axis corner" />
         {Array.from({ length: n }, (_, c) => (
@@ -80,7 +106,7 @@ export default function Board({
                   key={i}
                   data-cell={i}
                   tabIndex={compact && !overlay ? -1 : undefined}
-                  className={`square ${bonus.toLowerCase()} ${tile ? "occupied" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}`}
+                  className={`square ${bonus.toLowerCase()} ${tile ? "occupied" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}${wordTiles.has(i) ? " word-hover" : ""}`}
                   aria-label={`${coordinate(i, n)}${tile ? `: ${tile.toUpperCase()}${tile === tile.toLowerCase() ? " blank" : ""}` : bonus ? `: ${bonus}` : ": empty"}${i === template.start ? ", start" : ""}${archiveEdit ? ", edited after archiving" : ""}${overlay ? `, ${overlay.label}` : ""}`}
                   aria-pressed={
                     cellOverlay
@@ -192,6 +218,17 @@ export default function Board({
                   ) : bonus ? (
                     <span className="premium-label">{bonus}</span>
                   ) : null}
+                  {words
+                    ?.filter(({ cells }) => cells.at(-1) === i)
+                    .map((word) => (
+                      <span
+                        key={word.direction}
+                        className={`board-word-score ${word.direction}`}
+                        aria-label={`${word.word} ${word.direction}, ${word.score} ${word.fromPlay ? "points" : "face-value points"}`}
+                      >
+                        {word.score}
+                      </span>
+                    ))}
                 </button>
               );
             })}

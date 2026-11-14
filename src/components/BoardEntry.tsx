@@ -1,7 +1,8 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ArrowDown, ArrowRight, Trash2 } from "lucide-react";
 import Board from "./Board";
 import { BoardEditHistory } from "../../shared/board-entry";
+import { boardWordsAt } from "../../shared/game-scoring";
 import {
   coordinate,
   type Board as BoardState,
@@ -32,6 +33,10 @@ export default function BoardEntry({
   onSelect: () => void;
 }) {
   const history = useRef(new BoardEditHistory());
+  const wordScores = useCallback(
+    (index: number) => boardWordsAt(game, index),
+    [game],
+  );
   return (
     <BoardInput
       board={displayBoard ?? game.board}
@@ -39,6 +44,7 @@ export default function BoardEntry({
       archivedBoard={game.archived ? game.archivedBoard : undefined}
       template={game.template}
       preview={preview}
+      wordScores={displayBoard ? undefined : wordScores}
       onSelect={onSelect}
       onBreak={() => history.current.reset()}
       onChange={(board, kind) => {
@@ -63,6 +69,7 @@ export function BoardInput({
   uncertain,
   inputLabel = "Type on board",
   hideHelp = false,
+  wordScores,
 }: {
   board: BoardState;
   archivedBoard?: BoardState;
@@ -76,6 +83,7 @@ export function BoardInput({
   uncertain?: ReadonlySet<number>;
   inputLabel?: string;
   hideHelp?: boolean;
+  wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [focused, setFocused] = useState(false);
@@ -231,6 +239,7 @@ export function BoardInput({
         entryDirection={direction}
         pendingBlank={pendingBlank}
         uncertain={uncertain}
+        wordScores={wordScores}
         keepInputFocus
       />
       <input

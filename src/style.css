@@ -3919,6 +3919,52 @@ kbd {
 .square.occupied.archive-edit.blank .tile-letter {
   color: var(--archive-blank-ink);
 }
+.square.occupied.word-hover {
+  --hover-base: var(--tile);
+  background-color: color-mix(in srgb, var(--hover-base) 81%, #826238);
+}
+.square.word-hover.blank {
+  --hover-base: var(--blank-tile);
+  background-color: color-mix(in srgb, var(--hover-base) 88%, black);
+}
+.square.word-hover.archive-edit {
+  --hover-base: var(--archive-tile);
+  background-color: color-mix(in srgb, var(--hover-base) 88%, black);
+}
+.board-word-score {
+  --badge-size: clamp(13px, calc(68cqw / var(--size)), 24px);
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  min-width: var(--badge-size);
+  height: var(--badge-size);
+  padding-inline: 2px;
+  border: 1px solid var(--surface);
+  border-radius: 999px;
+  background: light-dark(#2d5b73, #abd4e7);
+  color: light-dark(#fff, #213e4d);
+  font-size: clamp(8px, calc(35cqw / var(--size)), 12px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.board-word-score.across {
+  left: calc(100% - 3px);
+  top: 50%;
+}
+.board-word-score.down {
+  left: 50%;
+  top: calc(100% - 3px);
+}
+.square:has(.board-word-score.down) .board-word-score.across {
+  top: min(50%, calc(100% - var(--badge-size) - 3px));
+}
+.square:has(.board-word-score.across) .board-word-score.down {
+  left: min(50%, calc(100% - var(--badge-size) - 3px));
+}
 .square.pending-blank {
   background: #d1e5f2;
 }

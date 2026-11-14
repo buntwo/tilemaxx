@@ -410,6 +410,40 @@ const selectedCell = () =>
     .querySelector(".board-entry .square.selected")
     ?.getAttribute("data-cell");
 
+test("board hover shows both word scores on a shared ending and keeps them across tile gaps", async () => {
+  const user = await start();
+  await user.click(cell("G8: empty"));
+  await user.keyboard("CAT");
+  await user.click(cell("Record opponent move"));
+  await user.click(cell("I6: empty"));
+  await user.keyboard("{ArrowDown}AR");
+  const end = cell("I8: T");
+  const grid = end.closest(".board-grid")!;
+  const mouseOver = (element: Element) => {
+    const event = new MouseEvent("pointerover", { bubbles: true });
+    Object.defineProperty(event, "pointerType", { value: "mouse" });
+    fireEvent(element, event);
+  };
+  mouseOver(end);
+  expect(
+    [...end.querySelectorAll(".board-word-score")].map(
+      (score) => score.textContent,
+    ),
+  ).toEqual(["10", "4"]);
+  expect(
+    end.querySelector(".board-word-score.across")?.getAttribute("aria-label"),
+  ).toMatch(/^CAT across/);
+  expect(
+    end.querySelector(".board-word-score.down")?.getAttribute("aria-label"),
+  ).toMatch(/^ART down/);
+  expect(grid.querySelectorAll(".word-hover")).toHaveLength(5);
+  mouseOver(grid);
+  expect(grid.querySelectorAll(".word-hover")).toHaveLength(5);
+  mouseOver(cell("J8: empty"));
+  expect(grid.querySelector(".board-word-score")).toBeNull();
+  expect(grid.querySelector(".word-hover")).toBeNull();
+});
+
 test("direct entry, skip existing letters, blanks, erase, undo/redo and persistence", async () => {
   const user = await start();
   await user.click(cell("H8: DW, start"));

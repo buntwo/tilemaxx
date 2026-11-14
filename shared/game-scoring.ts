@@ -66,6 +66,21 @@ export function treatBoardEditAsCorrection(game: Game): Game {
 
 type ScoredPlay = { word: string; score: number; bingo: boolean };
 
+function wordCells(board: Board, size: number, index: number, step: number) {
+  const along = (i: number, by: number) =>
+    i + by >= 0 &&
+    i + by < board.length &&
+    (step === size || Math.floor(i / size) === Math.floor((i + by) / size));
+  let start = index;
+  while (along(start, -step) && board[start - step]) start -= step;
+  const cells = [];
+  for (let i = start; ; i += step) {
+    cells.push(i);
+    if (!along(i, step) || !board[i + step]) break;
+  }
+  return cells;
+}
+
 export function scorePlacement(
   base: Board,
   board: Board,
@@ -88,20 +103,15 @@ export function scorePlacement(
     : placed.every((i) => row(i) === row(first));
   if (!across && !placed.every((i) => i % size === first % size)) return null;
   const step = across ? 1 : size;
-  const along = (i: number, by: number) =>
-    i + by >= 0 &&
-    i + by < board.length &&
-    (Math.abs(by) === size || row(i) === row(i + by));
   function wordAt(index: number, stride: number) {
-    let start = index;
-    while (along(start, -stride) && board[start - stride]) start -= stride;
+    const cells = wordCells(board, size, index, stride);
     let word = "",
       sum = 0,
       multiplier = 1,
       newTiles = 0,
       touchesExisting = false;
     const tiles = [];
-    for (let i = start; ; i += stride) {
+    for (const i of cells) {
       word += board[i].toUpperCase();
       const points = tileScore(board[i], rules);
       const premium = base[i] ? "" : premiums[i];
@@ -122,7 +132,6 @@ export function scorePlacement(
         multiplier *= wordBonuses[premiums[i]] ?? 1;
         newTiles++;
       }
-      if (!along(i, stride) || !board[i + stride]) break;
     }
     return {
       word,
@@ -132,6 +141,8 @@ export function scorePlacement(
       tiles,
       sum,
       multiplier,
+      cells,
+      direction: stride === 1 ? ("across" as const) : ("down" as const),
     };
   }
   const main = wordAt(first, step);
@@ -156,6 +167,90 @@ export function scorePlacement(
     words,
     bonus: bingo ? template.bingo : 0,
   };
+}
+
+export function boardWordsAt(game: Game, index: number) {
+  const { board, template, past, scoring } = game;
+  if (!board[index]) return [];
+  const words = (["across", "down"] as const).flatMap((direction) => {
+    const step = direction === "across" ? 1 : template.size;
+    const cells = wordCells(board, template.size, index, step);
+    if (cells.length < 2) return [];
+    return [
+      {
+        direction,
+        cells,
+        word: cells.map((i) => board[i].toUpperCase()).join(""),
+        score: cells.reduce(
+          (sum, i) => sum + tileScore(board[i], template.rules),
+          0,
+        ),
+        fromPlay: false,
+      },
+    ];
+  });
+  const unresolved = new Set(words);
+  function fillScores(
+    base: Board,
+    after: Board,
+    direction?: Move["direction"],
+  ) {
+    const play = scorePlacement(base, after, template, direction);
+    for (const word of unresolved) {
+      const match = play?.words.find(
+        (scored) =>
+          scored.direction === word.direction &&
+          scored.cells[0] === word.cells[0] &&
+          scored.cells.length === word.cells.length &&
+          word.cells.every((i) => after[i] === board[i]),
+      );
+      if (!match) continue;
+      word.score = match.score;
+      word.fromPlay = true;
+      unresolved.delete(word);
+    }
+  }
+  if (unresolved.size && scoring?.pendingBase)
+    fillScores(scoring.pendingBase, board);
+  for (let i = past.length - 1; i >= 0 && unresolved.size; i--) {
+    const entry = past[i];
+    if (
+      entry.label === "Imported screenshot" ||
+      entry.label === "Cleared board and rack"
+    )
+      break;
+    const after = past[i + 1]?.board ?? board;
+    if (entry.review) {
+      const { board: base, tiles, direction } = entry.review;
+      if (
+        [...unresolved].some(({ cells }) =>
+          tiles.some(({ index }) => cells.includes(index)),
+        )
+      ) {
+        const played = [...base];
+        for (const tile of tiles) played[tile.index] = tile.letter;
+        fillScores(base, played, direction);
+      }
+    } else if (entry.score !== undefined) {
+      fillScores(
+        entry.player === "opponent"
+          ? (entry.scoring?.pendingBase ?? entry.board)
+          : entry.board,
+        entry.player === "opponent" ? entry.board : after,
+      );
+    }
+    // A replacement or removal breaks the link to any older play.
+    for (const word of unresolved) {
+      const step = word.direction === "across" ? 1 : template.size;
+      if (
+        word.cells.some((cell) => entry.board[cell] !== board[cell]) ||
+        wordCells(entry.board, template.size, index, step).length !==
+          word.cells.length
+      )
+        unresolved.delete(word);
+    }
+  }
+  return words;
 }
 
 export function pendingOpponentPlay(game: Game) {
