@@ -1941,7 +1941,8 @@ label + label {
   line-height: 19px;
 }
 .result-stack .result-letters,
-.result-stack small {
+.result-stack .result-word-note,
+.result-stack .result-score-delta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1952,6 +1953,16 @@ label + label {
   font-weight: 500;
   line-height: 15px;
   color: var(--muted);
+}
+.result-row .result-word-detail {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 16px;
+}
+.result-word-detail .bingo-badge {
+  flex: none;
+  line-height: 10px;
 }
 .result-row .result-score-delta[data-loss="low"] { color: var(--point-loss-low); }
 .result-row .result-score-delta[data-loss="mid"] { color: var(--point-loss-mid); }
@@ -3957,10 +3968,10 @@ kbd {
   width: min(100%, calc(var(--rack-size) * 59px + 7px));
   padding: 5px 6px 7px;
   margin-bottom: 7px;
-  border: 1px solid #ae8054;
+  border: 1px solid #684029;
   border-radius: 7px;
-  background: linear-gradient(180deg, #cfab7d, #b28255);
-  box-shadow: inset 0 -3px #98683e;
+  background: linear-gradient(180deg, #966342, #74492f);
+  box-shadow: inset 0 1px #b4845e, inset 0 -3px #563522;
 }
 .rack-entry .rack-tile {
   flex: 1 1 0;
@@ -3968,14 +3979,14 @@ kbd {
   min-height: 0;
   padding: 0;
   cursor: text;
-  border: 1px solid #a2754c;
-  background: #8f6646;
+  border: 1px solid #6d482f;
+  background: #61432f;
   box-shadow: none;
 }
 .rack-entry .rack-tile.empty {
   border-style: dashed;
-  border-color: #ab815d;
-  background: #a8805e;
+  border-color: #a57956;
+  background: #714e37;
 }
 .rack-slot-window,
 .rack-face {
@@ -4029,12 +4040,7 @@ kbd {
   color: var(--blank-ink);
   box-shadow: inset 0 -2px #9fbccc, 0 4px 9px #172b2533;
 }
-.flying-tile small {
-  position: absolute;
-  right: 4px;
-  bottom: 3px;
-  font-size: 0.4em;
-}
+.flying-tile small { position: absolute; }
 .rack-tile.selected {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
@@ -4048,6 +4054,11 @@ kbd {
   border-style: dashed;
   background: var(--surface);
   color: var(--muted);
+}
+.rack-tile.excluded .rack-face {
+  background: var(--surface);
+  color: var(--muted);
+  box-shadow: none;
 }
 .rack-excluded-icon {
   position: absolute;
@@ -4097,15 +4108,39 @@ kbd {
 .rack-tools-menu button:hover,
 .rack-tools-menu button:focus-visible { background: var(--soft); }
 .rack-simulation {
-  margin-top: 9px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--bg);
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
   font-size: 12px;
 }
-.rack-simulation label { display: flex; align-items: center; gap: 8px; }
-.rack-simulation input { width: 65px; }
+.rack-simulation-heading, .rack-simulation-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  width: 100%;
+}
+.rack-simulation-heading h3 { margin: 0; font-size: 12px; }
+.rack-simulation-bag { margin-left: auto; color: var(--muted); font-size: 11px; }
+.rack-exchange-letters { display: flex; gap: 3px; }
+.rack-exchange-letters span {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--tile);
+  color: #364238;
+  font-size: 10px;
+  font-weight: 700;
+}
+.rack-simulation-actions .button { min-height: 30px; padding: 5px 9px; font-size: 11px; }
+.rack-simulation [aria-label="Exchange results"] { width: 100%; }
+.rack-simulation-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 1px 0 6px; }
+.rack-simulation-stats > div { background: var(--bg); border-radius: 5px; padding: 6px; }
+.rack-simulation-stats dt { color: var(--muted); font-size: 10px; }
+.rack-simulation-stats dd { color: var(--primary); margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
 .rack-entry-help {
   margin: 0;
   color: var(--muted);
@@ -4147,6 +4182,7 @@ kbd {
 }
 .tile-pool summary::-webkit-details-marker { display: none; }
 .tile-pool summary > strong { grid-column: 1; grid-row: 1; }
+.tile-pool-count { color: var(--primary); }
 .tile-pool-chevron { grid-column: 2; grid-row: 1; }
 .tile-pool summary > .tile-pool-alert {
   display: flex;

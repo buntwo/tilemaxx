@@ -29,6 +29,7 @@ export interface MoveResults {
 export interface MoveQuery {
   filter: string;
   sort: MoveSort;
+  reversed?: boolean;
   offset: number;
   rackOdds?: RackOdds;
   boardOdds?: BoardOddsResult;
@@ -47,50 +48,70 @@ export type ShortlistOptions = Parameters<typeof shortlistMoves>[1];
 const collator = new Intl.Collator();
 const comparators: Partial<Record<MoveSort, (a: Move, b: Move) => number>> = {
   position: (a, b) =>
-    a.col - b.col ||
-    a.row - b.row ||
-    a.direction.localeCompare(b.direction) ||
-    b.score - a.score,
+    a.col - b.col || a.row - b.row || a.direction.localeCompare(b.direction),
   score: (a, b) => b.score - a.score,
-  word: (a, b) => collator.compare(a.word, b.word) || b.score - a.score,
-  length: (a, b) => b.word.length - a.word.length || b.score - a.score,
-  tiles: (a, b) => b.tiles.length - a.tiles.length || b.score - a.score,
-  leave: (a, b) => collator.compare(a.leave, b.leave) || b.score - a.score,
-  blanks: (a, b) => a.blanks - b.blanks || b.score - a.score,
+  word: (a, b) => collator.compare(a.word, b.word),
+  length: (a, b) => b.word.length - a.word.length,
+  tiles: (a, b) => b.tiles.length - a.tiles.length,
+  leave: (a, b) => collator.compare(a.leave, b.leave),
+  blanks: (a, b) => a.blanks - b.blanks,
 };
+
+export function defaultSortDescending(sort: MoveSort) {
+  return [
+    "score",
+    "equity",
+    "length",
+    "tiles",
+    "bingo-draw",
+    "board-bingo",
+  ].includes(sort);
+}
 
 export function moveComparator({
   sort,
+  reversed,
   rackOdds,
   boardOdds,
   replyDeltas,
 }: Omit<MoveQuery, "filter" | "offset">) {
-  if (sort === "equity") {
-    const values = new Map<string, number>();
-    const value = (leave: string) => {
-      let score = values.get(leave);
-      if (score === undefined) {
-        score = leaveValue(leave);
-        values.set(leave, score);
-      }
-      return score;
+  const order = reversed ? -1 : 1;
+  if (sort === "shortlist") return undefined;
+  const values = new Map<string, number>();
+  const equity = (move: Move) => {
+    let score = values.get(move.leave);
+    if (score === undefined) {
+      score = leaveValue(move.leave);
+      values.set(move.leave, score);
+    }
+    return move.score + score;
+  };
+  const metrics: Partial<Record<MoveSort, (move: Move) => number | undefined>> =
+    {
+      equity,
+      "bingo-draw": (move) => rackOdds?.byLeave[move.leave],
+      "board-bingo": (move) => boardOdds?.byMove[move.id]?.chance,
+      reply: (move) => replyDeltas?.[move.id],
     };
-    return (a: Move, b: Move) =>
-      b.score + value(b.leave) - a.score - value(a.leave) || b.score - a.score;
-  }
-  if (sort === "bingo-draw" || sort === "board-bingo")
+  const metric = metrics[sort];
+  if (metric) {
+    const direction = defaultSortDescending(sort) ? -order : order;
     return (a: Move, b: Move) => {
-      const odds = (move: Move) =>
-        sort === "bingo-draw"
-          ? rackOdds?.byLeave[move.leave]
-          : boardOdds?.byMove[move.id]?.chance;
-      return (odds(b) ?? -1) - (odds(a) ?? -1) || b.score - a.score;
+      const first = metric(a);
+      const second = metric(b);
+      if (first === undefined || second === undefined)
+        return (
+          Number(first === undefined) - Number(second === undefined) ||
+          b.score - a.score
+        );
+      return direction * (first - second) || b.score - a.score;
     };
-  if (sort === "reply")
-    return (a: Move, b: Move) =>
-      (replyDeltas?.[a.id] ?? Infinity) - (replyDeltas?.[b.id] ?? Infinity) ||
-      b.score - a.score;
-  return comparators[sort];
+  }
+  const compare = comparators[sort];
+  return (
+    compare &&
+    ((a: Move, b: Move) => order * compare(a, b) || b.score - a.score)
+  );
 }
 
 export class MoveResultIndex {
@@ -118,7 +139,9 @@ export class MoveResultIndex {
         ? this.moves.filter((move) => move.word.includes(word))
         : this.moves;
       const compare =
-        order.sort === "score" ? undefined : moveComparator(order);
+        order.sort === "score" && !order.reversed
+          ? undefined
+          : moveComparator(order);
       this.ordered = {
         key,
         moves: compare ? [...matches].sort(compare) : matches,

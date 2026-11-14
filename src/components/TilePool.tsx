@@ -24,7 +24,8 @@ export default function TilePool({ game }: { game: Game }) {
     <details className="tile-pool">
       <summary>
         <strong>
-          {total} unseen {total === 1 ? "tile" : "tiles"}
+          <span className="tile-pool-count">{total}</span> unseen{" "}
+          {total === 1 ? "tile" : "tiles"}
         </strong>
         {!!excess.length && (
           <span className="tile-pool-alert">

@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import {
   ArrowDownWideNarrow,
   ChevronDown,
+  ChevronUp,
   Search,
   Sparkles,
   LoaderCircle,
@@ -29,6 +30,7 @@ import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
 import { useReplyAnalysis } from "../useReplyAnalysis";
 import type { ShortlistEntry } from "../../shared/move-shortlist";
 import {
+  defaultSortDescending,
   moveComparator,
   type MoveResults,
   type MoveSort,
@@ -116,7 +118,6 @@ export default function Results({
   onCancelBoardOdds?: () => void;
 }) {
   const [filter, setFilter] = useState(""),
-    [sort, setSort] = useState<MoveSort>("score"),
     [scroll, setScroll] = useState(0),
     [locked, setLocked] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null),
@@ -197,6 +198,17 @@ export default function Results({
     entries: ShortlistEntry[];
   }>();
   const searchId = resultSet?.searchId;
+  const [ordering, setOrdering] = useState<{
+    searchId?: number;
+    sort: MoveSort;
+    reversed: boolean;
+  }>();
+  const activeOrder = ordering?.searchId === searchId ? ordering : undefined;
+  const sort = activeOrder?.sort ?? "score";
+  const reversed = activeOrder?.reversed ?? false;
+  function setSort(sort: MoveSort, reversed = false) {
+    setOrdering({ searchId, sort, reversed });
+  }
   const endgame = replyAnalysis.bagSize === 0;
   const canShortlist = !!analysisGame && !busy && !error;
   useEffect(() => {
@@ -261,7 +273,8 @@ export default function Results({
     .map(({ move }) => move)
     .filter((move) => move.word.includes(filter.trim().toUpperCase()))
     .sort(
-      moveComparator({ sort, rackOdds, boardOdds, replyDeltas }) ?? (() => 0),
+      moveComparator({ sort, reversed, rackOdds, boardOdds, replyDeltas }) ??
+        (() => 0),
     );
   const checkedMoves = shortlistActive
     ? shortlist.map(({ move }) => move)
@@ -271,6 +284,7 @@ export default function Results({
     {
       filter,
       sort: shortlistActive || sort === "shortlist" ? "score" : sort,
+      reversed: !shortlistActive && reversed,
       offset: shortlistActive
         ? 0
         : Math.max(0, Math.floor(scroll / moveRowHeight) - 5),
@@ -287,7 +301,6 @@ export default function Results({
   useEffect(() => {
     setAnalyzing(false);
     setCandidates([]);
-    setSort((current) => (current === "board-bingo" ? "score" : current));
   }, [resultSet]);
   function toggleCandidate(move: Move) {
     setCandidates((current) =>
@@ -302,25 +315,36 @@ export default function Results({
     setScroll(0);
     if (scroller.current) scroller.current.scrollTop = 0;
     setLocked(null);
-  }, [resultSet, filter, sort, shortlistOnly]);
+  }, [resultSet, filter, sort, reversed, shortlistOnly]);
   function column(
     label: string,
     value: MoveSort,
     title: string,
     disabled = false,
   ) {
+    const active = sort === value;
+    const descending = defaultSortDescending(value) !== reversed;
     return (
       <button
         className="result-column-sort"
         type="button"
-        onClick={() => setSort(value)}
+        onClick={() => setSort(value, active && !reversed)}
         aria-label={`Sort by ${title}`}
-        aria-pressed={sort === value}
-        title={title}
+        aria-pressed={active}
+        title={
+          active
+            ? `${title} (${descending ? "descending" : "ascending"})`
+            : title
+        }
         disabled={disabled}
       >
         {label}
-        {sort === value && <ChevronDown size={9} aria-hidden="true" />}
+        {active &&
+          (descending ? (
+            <ChevronDown size={9} aria-hidden="true" />
+          ) : (
+            <ChevronUp size={9} aria-hidden="true" />
+          ))}
       </button>
     );
   }
@@ -731,7 +755,10 @@ export default function Results({
                             );
                           })}
                         </span>
-                        <small title={short?.detail}>
+                        <small
+                          className="result-word-detail"
+                          title={short?.detail}
+                        >
                           {bingo && (
                             <span
                               className="bingo-badge"
@@ -741,15 +768,17 @@ export default function Results({
                               BINGO
                             </span>
                           )}
-                          {short
-                            ? `${short.reason}${short.detail ? ` · ${short.detail}` : ""}`
-                            : `${m.tiles.length} tile${m.tiles.length !== 1 ? "s" : ""}`}
-                          {!short && m.blanks
-                            ? ` · ${m.blanks} blank${m.blanks > 1 ? "s" : ""}`
-                            : ""}
-                          {!short && m.crosses.length
-                            ? ` · +${m.crosses.length} cross`
-                            : ""}
+                          <span className="result-word-note">
+                            {short
+                              ? `${short.reason}${short.detail ? ` · ${short.detail}` : ""}`
+                              : `${m.tiles.length} tile${m.tiles.length !== 1 ? "s" : ""}`}
+                            {!short && m.blanks
+                              ? ` · ${m.blanks} blank${m.blanks > 1 ? "s" : ""}`
+                              : ""}
+                            {!short && m.crosses.length
+                              ? ` · +${m.crosses.length} cross`
+                              : ""}
+                          </span>
                         </small>
                       </span>
                       <span className="result-coordinate">

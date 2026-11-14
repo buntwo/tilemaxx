@@ -623,7 +623,11 @@ test("rack → real solver → hover preview → play → undo/redo → save", a
   vi.stubGlobal("Worker", CountingWorker);
   const user = await start();
   await typeRack(user, "CATS");
-  await user.click(screen.getByText(/^[0-9]+ unseen tiles?$/));
+  await user.click(
+    screen.getByText(/unseen tiles?$/, {
+      selector: ".tile-pool summary strong",
+    }),
+  );
   const pool = within(screen.getByRole("list", { name: "Unseen tile counts" }));
   const countA = () => pool.getByRole("listitem", { name: "A: 8 unseen" });
   expect(countA()).toBeTruthy();
@@ -1102,7 +1106,11 @@ test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters
   await typeRack(user, "A ");
   await user.click(cell("H8: DW, start"));
   await user.keyboard(" Q");
-  await user.click(screen.getByText(/^[0-9]+ unseen tiles?$/));
+  await user.click(
+    screen.getByText(/unseen tiles?$/, {
+      selector: ".tile-pool summary strong",
+    }),
+  );
   const pool = () =>
     within(screen.getByRole("list", { name: "Unseen tile counts" }));
   expect(
@@ -1487,7 +1495,11 @@ test("overdrawn tiles show negative counts while other counts stay visible", asy
   ).toBe(true);
   expect(screen.getByText("Consonants 56")).toBeTruthy();
   expect(screen.getByText("Blanks 2")).toBeTruthy();
-  await user.click(screen.getByText(/^[0-9]+ unseen tiles?$/));
+  await user.click(
+    screen.getByText(/unseen tiles?$/, {
+      selector: ".tile-pool summary strong",
+    }),
+  );
   const pool = within(screen.getByRole("list", { name: "Unseen tile counts" }));
   expect(pool.getByRole("listitem", { name: "U: 2 extra" }).textContent).toBe(
     "U-2",
@@ -1537,8 +1549,29 @@ test("exchange simulation expands inside the rack and closes when marks change",
   expect(
     within(section).getByRole("button", { name: "Run simulation" }),
   ).toBeTruthy();
+  expect(within(section).getByText("90 estimated in bag")).toBeTruthy();
+  expect(within(section).queryByRole("spinbutton")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Clear marks" }));
   expect(
     screen.queryByRole("region", { name: "Simulate exchange" }),
   ).toBeNull();
+});
+
+test("a new search after playing starts with highest points", async () => {
+  const user = await start();
+  await typeRack(user, "CATS");
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  await user.click(await screen.findByRole("button", { name: "Sort by word" }));
+  expect(screen.getByRole("combobox", { name: "Sort moves" })).toHaveProperty(
+    "value",
+    "word",
+  );
+  await user.click(
+    (await screen.findAllByRole("button", { name: /^AT, / }))[0],
+  );
+  await typeRack(user, "CATS");
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  const points = await screen.findByRole("button", { name: "Sort by points" });
+  expect(points.getAttribute("aria-pressed")).toBe("true");
+  expect(points.getAttribute("title")).toBe("points (descending)");
 });

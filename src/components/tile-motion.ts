@@ -137,7 +137,7 @@ export function flyTiles(
           width: source.width,
           height: source.height,
         };
-    return [{ source: start, end, letter }];
+    return [{ source: start, target, end, letter }];
   });
   if (!flights.length) return;
 
@@ -146,34 +146,49 @@ export function flyTiles(
   layer.setAttribute("aria-hidden", "true");
   document.body.append(layer);
   let cancelled = false;
-  const animations = flights.map(({ source, end, letter }, i) => {
+  const animations = flights.map(({ source, target, end, letter }, i) => {
     const blank = letter !== letter.toUpperCase();
     const tile = document.createElement("span");
     tile.className = `flying-tile${blank ? " blank" : ""}`;
-    tile.textContent = letter.toUpperCase();
+    const glyph = document.createElement("span");
+    glyph.className = "flying-letter";
+    glyph.textContent = letter.toUpperCase();
     const points = document.createElement("small");
     points.textContent = String(tileScore(letter, rules));
-    tile.append(points);
+    const boardGlyph = getComputedStyle(target.querySelector(".tile-letter")!);
+    const boardPoints = getComputedStyle(target.querySelector(".tile-points")!);
+    Object.assign(glyph.style, {
+      fontSize: boardGlyph.fontSize,
+      fontWeight: boardGlyph.fontWeight,
+      marginTop: boardGlyph.marginTop,
+    });
+    Object.assign(points.style, {
+      fontSize: boardPoints.fontSize,
+      fontWeight: boardPoints.fontWeight,
+      right: boardPoints.right,
+      bottom: boardPoints.bottom,
+    });
+    tile.append(glyph, points);
     Object.assign(tile.style, {
-      left: `${source.left}px`,
-      top: `${source.top}px`,
-      width: `${source.width}px`,
-      height: `${source.height}px`,
-      fontSize: `${Math.min(23, source.width * 0.56)}px`,
+      left: `${end.left}px`,
+      top: `${end.top}px`,
+      width: `${end.width}px`,
+      height: `${end.height}px`,
+      borderRadius: getComputedStyle(target).borderRadius,
     });
     layer.append(tile);
-    const dx = end.left - source.left;
-    const dy = end.top - source.top;
+    const dx = source.left - end.left;
+    const dy = source.top - end.top;
+    const scaleX = source.width / end.width;
+    const scaleY = source.height / end.height;
     const animation = tile.animate(
       [
-        { transform: "translate(0,0) scale(1)" },
+        { transform: `translate(${dx}px,${dy}px) scale(${scaleX},${scaleY})` },
         {
-          transform: `translate(${dx * 0.46}px,${dy * 0.55 - 13}px) rotate(-4deg) scale(.88)`,
+          transform: `translate(${dx * 0.54}px,${dy * 0.45 - 13}px) rotate(-4deg) scale(${(scaleX + 1) * 0.44},${(scaleY + 1) * 0.44})`,
           offset: 0.52,
         },
-        {
-          transform: `translate(${dx}px,${dy}px) scale(${end.width / source.width},${end.height / source.height})`,
-        },
+        { transform: "translate(0,0) scale(1)" },
       ],
       {
         duration: 460,

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { Game } from "../../shared/model";
 import type { ExchangeResult } from "../../shared/exchange";
 import { unseenTiles } from "../../shared/tile-pool";
@@ -12,76 +11,66 @@ export default function ExchangeAnalysis({
   slots: number[];
 }) {
   const { total, excess } = unseenTiles(game, game.template);
-  const estimated = Math.max(0, total - game.template.rackSize);
-  const [bag, setBag] = useState(String(estimated));
+  const bag = Math.max(0, total - game.template.rackSize);
   const { result, progress, error, run, reset } = usePractice<ExchangeResult>();
-  const minimum = Math.max(
-    estimated,
-    slots.length,
-    game.template.rules === "wwf" ? 1 : 7,
-  );
-  const valid =
-    !excess.length &&
-    bag !== "" &&
-    Number.isInteger(Number(bag)) &&
-    Number(bag) >= minimum &&
-    Number(bag) <= total;
+  const minimum = Math.max(slots.length, game.template.rules === "wwf" ? 1 : 7);
+  const valid = !excess.length && bag >= minimum;
   return (
     <section
       className="rack-simulation practice-body"
       aria-label="Simulate exchange"
     >
-      <p>
-        Exchange <strong>{slots.map((i) => game.rack[i]).join(" ")}</strong>
-      </p>
-      <label>
-        Tiles in bag
-        <input
-          type="number"
-          min={estimated}
-          max={total}
-          value={bag}
-          disabled={!!progress}
-          onChange={(event) => {
-            setBag(event.target.value);
-            reset();
-          }}
-        />
-      </label>
+      <div className="rack-simulation-heading">
+        <h3>
+          Exchange {slots.length} {slots.length === 1 ? "tile" : "tiles"}
+        </h3>
+        <span className="rack-exchange-letters">
+          {slots.map((i) => (
+            <span key={i}>{game.rack[i]}</span>
+          ))}
+        </span>
+        <span
+          className="rack-simulation-bag"
+          title="Assumes one opponent has up to a full rack"
+        >
+          {bag} estimated in bag
+        </span>
+      </div>
       {!!excess.length && (
         <p className="error">Check the board and rack tile counts first.</p>
       )}
       {!excess.length && !valid && (
         <p className="small muted">
-          This exchange requires at least {minimum} tiles in the bag for this
-          position.
+          This exchange needs at least {minimum} tiles in the bag.
         </p>
       )}
-      {progress ? (
-        <button className="button secondary" onClick={reset}>
-          Cancel simulation
-        </button>
-      ) : (
-        <button
-          className="button primary"
-          disabled={!valid}
-          onClick={() =>
-            run({
-              kind: "exchange",
-              dictionaryId: game.dictionaryId,
-              exchange: {
-                board: game.board,
-                rack: game.rack,
-                slots,
-                bag: Number(bag),
-                template: game.template,
-              },
-            })
-          }
-        >
-          Run simulation
-        </button>
-      )}
+      <div className="rack-simulation-actions">
+        {progress ? (
+          <button className="button secondary" onClick={reset}>
+            Cancel simulation
+          </button>
+        ) : (
+          <button
+            className="button primary"
+            disabled={!valid}
+            onClick={() =>
+              run({
+                kind: "exchange",
+                dictionaryId: game.dictionaryId,
+                exchange: {
+                  board: game.board,
+                  rack: game.rack,
+                  slots,
+                  bag,
+                  template: game.template,
+                },
+              })
+            }
+          >
+            {result ? "Run again" : "Run simulation"}
+          </button>
+        )}
+      </div>
       {progress && (
         <p role="status">
           {progress.total
@@ -96,12 +85,20 @@ export default function ExchangeAnalysis({
       )}
       {result && (
         <div aria-label="Exchange results">
-          <p>
-            <strong>{result.score.toFixed(1)} pts</strong> expected best score ·{" "}
-            <strong>{Math.round(result.bingo * 100)}%</strong> bingo chance ·{" "}
-            <strong>{Math.round(result.playable * 100)}%</strong> chance of a
-            play
-          </p>
+          <dl className="rack-simulation-stats">
+            <div>
+              <dt>Expected best score</dt>
+              <dd>{result.score.toFixed(1)} pts</dd>
+            </div>
+            <div>
+              <dt>Bingo chance</dt>
+              <dd>{Math.round(result.bingo * 100)}%</dd>
+            </div>
+            <div>
+              <dt>Chance of a play</dt>
+              <dd>{Math.round(result.playable * 100)}%</dd>
+            </div>
+          </dl>
           <p className="small muted">
             {result.exact
               ? "Exact weighted draws"

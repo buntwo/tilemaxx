@@ -19,7 +19,8 @@ export function useMoveResults(
   fetchPage: FetchMovePage,
   enabled: boolean,
 ) {
-  const { filter, sort, offset, rackOdds, boardOdds, replyDeltas } = query;
+  const { filter, sort, reversed, offset, rackOdds, boardOdds, replyDeltas } =
+    query;
   const searchId = results?.searchId;
   const key = useMemo(
     () =>
@@ -27,16 +28,17 @@ export function useMoveResults(
         searchId,
         filter,
         sort,
+        reversed,
         rackOdds,
         boardOdds,
         replyDeltas,
       ]),
-    [searchId, filter, sort, rackOdds, boardOdds, replyDeltas],
+    [searchId, filter, sort, reversed, rackOdds, boardOdds, replyDeltas],
   );
   const [received, setReceived] = useState<{ key: string; page?: MovePage }>();
   const response = received?.key === key ? received : undefined;
   const page = response?.page;
-  const initial = !!results && !filter.trim() && sort === "score";
+  const initial = !!results && !filter.trim() && sort === "score" && !reversed;
   const head = page?.head ?? (initial ? results.head : []);
   const total = page?.total ?? (initial ? results.total : 0);
   const start = Math.min(offset, Math.max(0, total - visibleMoveRows));
@@ -67,6 +69,7 @@ export function useMoveResults(
     void fetchPage(searchId, {
       filter,
       sort,
+      reversed,
       offset: target,
       rackOdds,
       boardOdds,
@@ -83,6 +86,7 @@ export function useMoveResults(
     fetchPage,
     filter,
     sort,
+    reversed,
     rackOdds,
     boardOdds,
     replyDeltas,
