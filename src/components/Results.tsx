@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useId, useMemo, useRef, useState, useEffect } from "react";
 import {
   ArrowDownWideNarrow,
   ChevronDown,
@@ -123,6 +123,7 @@ export default function Results({
   const scroller = useRef<HTMLDivElement>(null),
     pointer = useRef("mouse");
   const [analyzing, setAnalyzing] = useState(false);
+  const replyMetricId = useId();
   const [candidates, setCandidates] = useState<Move[]>([]);
   const [shortlistOnly, setShortlistOnly] = useState(false);
   const shortlistActive = shortlistOnly && !!analysisGame;
@@ -143,7 +144,6 @@ export default function Results({
     searchId: number;
   }>();
   const [heatmap, setHeatmap] = useState<{ id: string; searchId: number }>();
-  const inlineReply = useRef<HTMLElement>(null);
   const replyMove =
     preview ??
     (inspectedReply?.searchId === resultSet?.searchId
@@ -643,6 +643,10 @@ export default function Results({
                   ? blockedReplyPoints(risk.closed)
                   : undefined;
                 const reply = replyAnalysis.results?.[m.id];
+                const metricId =
+                  reply && analysisGame
+                    ? `${replyMetricId}-${start + offset}`
+                    : undefined;
                 const replyPending =
                   targetIds.has(m.id) &&
                   replyAnalysis.pending &&
@@ -663,6 +667,7 @@ export default function Results({
                     <button
                       className={`result-row ${bingo ? "bingo" : ""} ${preview?.id === m.id || selected ? "active" : ""}`}
                       aria-pressed={analyzing ? selected : undefined}
+                      aria-describedby={metricId}
                       disabled={
                         analyzing &&
                         !selected &&
@@ -821,36 +826,16 @@ export default function Results({
                           {signedPoints(-sacrifice)}
                         </small>
                       </span>
-                    </button>
-                    {reply && analysisGame && (
-                      <button
-                        type="button"
-                        className="result-defense-action result-reply-action icon-button"
-                        onClick={() => {
-                          if (searchId === undefined) return;
-                          setLocked(null);
-                          setInspectedReply({ id: m.id, searchId });
-                          onPreview(null);
-                          if (window.matchMedia("(max-width:650px)").matches)
-                            requestAnimationFrame(() =>
-                              inlineReply.current?.scrollIntoView?.({
-                                block: "nearest",
-                              }),
-                            );
-                        }}
-                      >
-                        <span className="reply-sr-only">
-                          Reply analysis for {m.word} at{" "}
-                          {coordinate(m.row * size + m.col, size)} {m.direction}
-                          .{" "}
+                      {reply && analysisGame && (
+                        <span className="result-reply-metric" id={metricId}>
+                          <ReplyCell
+                            move={m}
+                            result={reply}
+                            scores={replyScores}
+                          />
                         </span>
-                        <ReplyCell
-                          move={m}
-                          result={reply}
-                          scores={replyScores}
-                        />
-                      </button>
-                    )}
+                      )}
+                    </button>
                     {analysisGame && (
                       <button
                         type="button"
@@ -941,7 +926,6 @@ export default function Results({
       {analysisGame && replyMove && replyDetail && (
         <section
           className="inline-reply"
-          ref={inlineReply}
           aria-label={`Reply after ${replyMove.word}`}
         >
           <h3>Reply after {replyMove.word}</h3>

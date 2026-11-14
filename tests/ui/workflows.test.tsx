@@ -655,9 +655,8 @@ test("rack → real solver → hover preview → play → undo/redo → save", a
   expect(current().board.some(Boolean)).toBe(false);
   expect(moveRows()).toEqual(originalRows);
   expect(
-    within(screen.getByLabelText("Suggested moves")).getAllByRole("button", {
-      name: /^Reply analysis for/,
-    }).length,
+    screen.getByLabelText("Suggested moves").querySelectorAll(".reply-mini")
+      .length,
   ).toBeGreaterThan(0);
   expect(replies).toBe(1);
   expect(

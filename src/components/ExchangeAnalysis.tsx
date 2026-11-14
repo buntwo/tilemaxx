@@ -1,3 +1,4 @@
+import { Trophy } from "lucide-react";
 import type { Game } from "../../shared/model";
 import type { ExchangeResult } from "../../shared/exchange";
 import { unseenTiles } from "../../shared/tile-pool";
@@ -105,11 +106,27 @@ export default function ExchangeAnalysis({
               : `${result.completed} of ${result.total} sampled refills`}
           </p>
           {!!result.examples.length && (
-            <ul className="practice-results">
+            <ul className="practice-results exchange-examples">
               {result.examples.map((example) => (
                 <li key={`${example.word}:${example.bingo}`}>
-                  <strong>{example.word}</strong>
-                  {example.bingo && " · Bingo"} · {example.score} pts{" "}
+                  <div className="exchange-example-play">
+                    <strong
+                      className={
+                        example.bingo ? "exchange-bingo-word" : undefined
+                      }
+                    >
+                      {example.word}
+                    </strong>
+                    {example.bingo && (
+                      <span className="bingo-badge">
+                        <Trophy size={10} aria-hidden="true" />
+                        BINGO
+                      </span>
+                    )}
+                    <span className="exchange-example-score">
+                      {example.score} pts
+                    </span>
+                  </div>
                   <small>with {example.rack}</small>
                 </li>
               ))}

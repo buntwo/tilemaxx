@@ -146,6 +146,7 @@ export function flyTiles(
   layer.setAttribute("aria-hidden", "true");
   document.body.append(layer);
   let cancelled = false;
+  let finished = false;
   const animations = flights.map(({ source, target, end, letter }, i) => {
     const blank = letter !== letter.toUpperCase();
     const tile = document.createElement("span");
@@ -188,7 +189,10 @@ export function flyTiles(
           transform: `translate(${dx * 0.54}px,${dy * 0.45 - 13}px) rotate(-4deg) scale(${(scaleX + 1) * 0.44},${(scaleY + 1) * 0.44})`,
           offset: 0.52,
         },
-        { transform: "translate(0,0) scale(1)" },
+        {
+          transform: "translate(0,0) scale(1)",
+          boxShadow: `inset 0 -2px ${blank ? "#9fbccc" : "var(--tile-edge)"}, 0 1px 2px #0001`,
+        },
       ],
       {
         duration: 460,
@@ -210,8 +214,9 @@ export function flyTiles(
     viewport?.removeEventListener("resize", finish);
   }
   function finish() {
-    if (cancelled) return;
-    stop();
+    if (cancelled || finished) return;
+    finished = true;
+    // The layout effect removes the overlay when the committed tiles render.
     onFinish();
   }
   window.addEventListener("resize", finish);

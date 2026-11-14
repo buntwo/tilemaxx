@@ -250,9 +250,10 @@ test("reply rows resolve individually and compare against the highest score afte
     element.getAttribute("aria-label")?.startsWith("CAT,"),
   )!;
   expect(row.querySelector(".result-score-delta")?.textContent).toBe("−10");
-  await user.click(
-    screen.getByRole("button", { name: /^Reply analysis for CAT at/ }),
-  );
+  const mini = row.querySelector(".reply-mini")!;
+  const enter = new MouseEvent("pointerover", { bubbles: true });
+  Object.defineProperty(enter, "pointerType", { value: "mouse" });
+  fireEvent(mini, enter);
   expect(screen.queryByRole("dialog")).toBeNull();
   const inline = screen.getByRole("region", { name: "Reply after CAT" });
   expect(within(inline).getByText("35.0 → 31.0 pts")).toBeTruthy();
@@ -299,6 +300,8 @@ test("reply rows resolve individually and compare against the highest score afte
   });
   expect(within(inline).getByText("35.0 → 31.0 pts")).toBeTruthy();
   expect(onPlay).not.toHaveBeenCalled();
+  await user.click(mini);
+  expect(onPlay).toHaveBeenCalledExactlyOnceWith(moves[1]);
 });
 
 test("empty-bag replies start automatically and can be overridden", async () => {
