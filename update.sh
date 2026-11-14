@@ -3,6 +3,16 @@
 set -e
 export GIT_TERMINAL_PROMPT=0
 
+# Reserve exit 10 for the explicit DSM notification after a successful update.
+if [[ ${1:-} == --notify-if-changed ]]; then
+  trap '
+    if [[ $? == 10 ]]; then
+      printf "%s\n" "Tilemaxx update failed (command exited with 10)." >&2
+      exit 1
+    fi
+  ' ERR
+fi
+
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 state=$(git rev-parse --git-path tilemaxx-update)
@@ -11,7 +21,7 @@ if ! mkdir -- "$lock"; then
   printf '%s\n' "Cannot acquire $lock. Check for another Tilemaxx update." >&2
   exit 1
 fi
-trap 'rmdir -- "$lock"' EXIT
+trap 'rmdir -- "$lock" || exit 1' EXIT
 trap 'exit 1' HUP INT TERM
 
 # Keep the starting revision until deployment succeeds so scheduled runs can retry.

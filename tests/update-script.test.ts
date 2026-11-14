@@ -32,11 +32,11 @@ test("scheduled updates notify after deployment and skip Docker on unchanged rev
     assert.equal(result.status, 0, result.stderr);
   }
 
-  function update(shouldFail = false, script = "update-if-changed-DSM.sh") {
+  function update(dockerStatus = 0, script = "update-if-changed-DSM.sh") {
     return spawnSync("bash", [join(checkout, script)], {
       cwd: temp,
       encoding: "utf8",
-      env: { ...env, TILEMAXX_TEST_DOCKER_FAIL: shouldFail ? "1" : "0" },
+      env: { ...env, TILEMAXX_TEST_DOCKER_STATUS: String(dockerStatus) },
     });
   }
 
@@ -52,7 +52,7 @@ test("scheduled updates notify after deployment and skip Docker on unchanged rev
     `#!/bin/sh
 if [ "$*" = 'compose version' ]; then exit 0; fi
 printf '%s\n' "$*" >> "$TILEMAXX_TEST_DOCKER_LOG"
-test "$TILEMAXX_TEST_DOCKER_FAIL" = 0
+exit "$TILEMAXX_TEST_DOCKER_STATUS"
 `,
     { mode: 0o755 },
   );
@@ -76,7 +76,13 @@ test "$TILEMAXX_TEST_DOCKER_FAIL" = 0
   rmSync(join(checkout, ".git", "tilemaxx-update.lock"), { recursive: true });
 
   const composeUp = "compose -f compose.yaml up -d --build --remove-orphans";
-  assert.equal(update(true).status, 1);
+  const failed = update(10);
+  assert.equal(failed.status, 1);
+  assert.match(
+    failed.stderr,
+    /Tilemaxx update failed \(command exited with 10\)/,
+  );
+  assert.doesNotMatch(failed.stdout, /Tilemaxx updated successfully/);
   assert.deepEqual(dockerCalls(), [composeUp]);
   const retried = update();
   assert.equal(retried.status, 10);
@@ -89,10 +95,11 @@ test "$TILEMAXX_TEST_DOCKER_FAIL" = 0
   assert.equal(update().status, 10);
   assert.deepEqual(dockerCalls(), [composeUp, composeUp, composeUp]);
 
-  assert.equal(update(false, "update.sh").status, 0);
+  assert.equal(update(0, "update.sh").status, 0);
   assert.deepEqual(dockerCalls(), [composeUp, composeUp, composeUp, composeUp]);
 
   git(checkout, "remote", "set-url", "origin", join(temp, "missing"));
-  assert.notEqual(update().status, 0);
+  const pullStatus = update().status;
+  assert.ok(pullStatus && pullStatus !== 10);
   assert.deepEqual(dockerCalls(), [composeUp, composeUp, composeUp, composeUp]);
 });
