@@ -4223,8 +4223,13 @@ label + label {
 .optimal-exchange-options small { display: block; color: var(--muted); }
 .optimal-exchange-options td:last-child { text-align: right; }
 .optimal-exchange-options .best-swap { background: var(--soft); color: var(--primary); }
-.optimal-exchange-swap { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.optimal-exchange-swap .rack-exchange-letters { flex-wrap: wrap; }
+.optimal-exchange-options .rack-exchange-letters { flex-wrap: wrap; vertical-align: middle; }
+.optimal-exchange-simulate { min-height: 32px; gap: 4px; color: var(--primary); }
+@media (max-width: 650px) {
+  .optimal-exchange-options .rack-exchange-letters { gap: 2px; }
+  .optimal-exchange-options .rack-exchange-letters span { min-width: 15px; height: 16px; padding-inline: 2px; }
+  .optimal-exchange-simulate { font-size: 11px; }
+}
 .rack-simulation-bag { margin-left: auto; color: var(--muted); font-size: 11px; }
 .rack-exchange-letters { display: inline-flex; gap: 3px; }
 .rack-exchange-letters span {
