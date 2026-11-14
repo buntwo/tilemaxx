@@ -111,7 +111,7 @@ Run `./update.sh` once on the NAS to deploy the current checkout and get the sch
 /bin/bash /volume1/docker/tilemaxx/update-if-changed-DSM.sh
 ```
 
-Use the NAS account that can pull from GitHub and run Docker. Select **Run** once in Task Scheduler to confirm that account can find Git and Docker and access the checkout. In **Task Settings**, enable **Send run details by email** and **Send run details only when the script terminates abnormally**. The script exits with `0` when there is nothing to deploy and deliberately exits with `10` after a successful deployment to trigger the email. The email output identifies the deployed revision. Failed runs also send an email with the error output.
+Use the NAS account that can pull from GitHub and run Docker. Select **Run** once in Task Scheduler to confirm that account can find Git and Docker and access the checkout. In **Task Settings**, enable **Send run details by email** and **Send run details only when the script terminates abnormally**. The script exits with `0` when there is nothing to deploy and reserves `10` for a successful deployment. The email output identifies the deployed revision. Failed runs also send an email with the error output and a different nonzero status. If a command fails with `10`, the script reports it as `1`.
 
 The scheduled script skips Docker entirely when the checkout is current. If a pull advances the checkout and Compose fails, the next run retries that deployment. A lock prevents overlapping updates. If an interrupted update leaves `.git/tilemaxx-update.lock` behind, remove that empty directory only after confirming no update is running. Use `./update.sh` when you want to rebuild manually, including after editing your local Compose settings.
 
