@@ -58,46 +58,56 @@ export function detectBoard(image: Pixels, size: number): Crop | null {
     return hits >= (size - 1) * 0.7 ? (edge - middle) / (size - 1) : 0;
   }
   const { vx, hy } = projections(0, 0, w, h);
-  let best: { left: number; top: number; side: number; score: number } | null =
-    null;
-  for (
-    let side = Math.min(w, h);
-    side >= Math.max(size * 8, Math.min(w, h) * 0.35);
-    side -= 1
-  ) {
-    let xs = 0,
-      ys = 0,
-      left = 0,
-      top = 0;
-    for (let x = 0; x <= w - side; x++) {
-      const score = axis(vx, x, side);
-      if (score > xs) {
-        xs = score;
-        left = x;
+  const shorter = Math.min(w, h);
+  const minSpan = Math.ceil(Math.max(size * 8, shorter * 0.35));
+  // Find possible stretches in each direction, then pair results of
+  // similar size. Keep the prior preference for a grid that fills the image.
+  function axisFits(values: Float64Array) {
+    const fits: { start: number; span: number; score: number }[] = [];
+    const maxSpan = Math.min(values.length, Math.floor(shorter / 0.8));
+    for (let span = maxSpan; span >= minSpan; span--) {
+      let start = 0;
+      let bestScore = 0;
+      for (let offset = 0; offset <= values.length - span; offset++) {
+        const score = axis(values, offset, span);
+        if (score > bestScore) {
+          start = offset;
+          bestScore = score;
+        }
       }
+      if (bestScore >= 2) fits.push({ start, span, score: bestScore });
     }
-    if (xs < 2) continue;
-    for (let y = 0; y <= h - side; y++) {
-      const score = axis(hy, y, side);
-      if (score > ys) {
-        ys = score;
-        top = y;
-      }
+    return fits;
+  }
+  const xs = axisFits(vx),
+    ys = axisFits(hy);
+  let best: (Crop & { score: number }) | null = null;
+  for (const x of xs) {
+    for (const y of ys) {
+      const smaller = Math.min(x.span, y.span);
+      if (smaller < Math.max(x.span, y.span) * 0.8) continue;
+      const score =
+        Math.sqrt(x.score * y.score) * (1 + (0.1 * smaller) / shorter);
+      if (!best || score > best.score)
+        best = {
+          left: x.start,
+          top: y.start,
+          width: x.span,
+          height: y.span,
+          score,
+        };
     }
-    const score = Math.sqrt(xs * ys) * (1 + (0.1 * side) / Math.min(w, h));
-    if (ys >= 2 && (!best || score > best.score))
-      best = { left, top, side, score };
   }
   if (!best || best.score < 4) return null;
   const local = projections(
     best.left,
     best.top,
-    best.left + best.side,
-    best.top + best.side,
+    best.left + best.width,
+    best.top + best.height,
   );
   if (
-    axis(local.vx, best.left, best.side) < 4 ||
-    axis(local.hy, best.top, best.side) < 4
+    axis(local.vx, best.left, best.width) < 4 ||
+    axis(local.hy, best.top, best.height) < 4
   )
     return null;
   return {
@@ -105,11 +115,11 @@ export function detectBoard(image: Pixels, size: number): Crop | null {
     top: Math.round(best.top / scale),
     width: Math.min(
       image.width - Math.round(best.left / scale),
-      Math.round(best.side / scale),
+      Math.round(best.width / scale),
     ),
     height: Math.min(
       image.height - Math.round(best.top / scale),
-      Math.round(best.side / scale),
+      Math.round(best.height / scale),
     ),
   };
 }

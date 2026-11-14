@@ -17,14 +17,16 @@ const positions = premiumTypes.map((_, type) =>
 interface Anchor {
   x: number;
   y: number;
-  span: number;
+  width: number;
+  height: number;
   type: number;
 }
 
 interface Fit {
   left: number;
   top: number;
-  step: number;
+  stepX: number;
+  stepY: number;
 }
 
 // Classify broad HSV ranges so compression, display color, and theme changes
@@ -53,7 +55,8 @@ function findAnchors({ width, height, data }: Pixels): Anchor[] {
   for (let i = 0; i < labels.length; i++)
     labels[i] = premiumColor(data[i * 4], data[i * 4 + 1], data[i * 4 + 2]);
   const anchors: Anchor[] = [];
-  const max = Math.ceil(Math.min(width, height) / SIZE);
+  const maxWidth = Math.ceil(width / SIZE);
+  const maxHeight = Math.ceil(height / SIZE);
   const stack: number[] = [];
   for (let i = 0; i < labels.length; i++) {
     const type = labels[i];
@@ -95,14 +98,16 @@ function findAnchors({ width, height, data }: Pixels): Anchor[] {
       h = bottom - top + 1;
     if (
       Math.min(w, h) >= 6 &&
-      Math.max(w, h) <= max &&
+      w <= maxWidth &&
+      h <= maxHeight &&
       Math.min(w, h) >= Math.max(w, h) * 0.75 &&
       count >= w * h * 0.58
     )
       anchors.push({
         x: (left + right + 1) / 2,
         y: (top + bottom + 1) / 2,
-        span: (w + h) / 2,
+        width: w,
+        height: h,
         type,
       });
     // Bound the template search for unrelated or unusually busy images.
@@ -111,17 +116,26 @@ function findAnchors({ width, height, data }: Pixels): Anchor[] {
   return anchors;
 }
 
-function inBounds({ left, top, step }: Fit, { width, height }: Pixels) {
-  const inset = step * 0.15;
+function inBounds({ left, top, stepX, stepY }: Fit, { width, height }: Pixels) {
   return (
-    left >= -inset &&
-    top >= -inset &&
-    left + SIZE * step <= width + inset &&
-    top + SIZE * step <= height + inset
+    Math.min(stepX, stepY) >= Math.max(stepX, stepY) * 0.8 &&
+    left >= -stepX * 0.15 &&
+    top >= -stepY * 0.15 &&
+    left + SIZE * stepX <= width + stepX * 0.15 &&
+    top + SIZE * stepY <= height + stepY * 0.15
   );
 }
 
-function match(anchors: Anchor[], { left, top, step }: Fit) {
+function fitsCell(anchor: Anchor, stepX: number, stepY: number) {
+  return (
+    anchor.width >= stepX * 0.72 &&
+    anchor.width <= stepX * 1.07 &&
+    anchor.height >= stepY * 0.72 &&
+    anchor.height <= stepY * 1.07
+  );
+}
+
+function match(anchors: Anchor[], { left, top, stepX, stepY }: Fit) {
   let minX = SIZE,
     minY = SIZE,
     maxX = 0,
@@ -132,9 +146,9 @@ function match(anchors: Anchor[], { left, top, step }: Fit) {
   const inliers: { anchor: Anchor; x: number; y: number }[] = [];
   const cells = new Set<number>();
   for (const anchor of anchors) {
-    if (anchor.span < step * 0.72 || anchor.span > step * 1.07) continue;
-    const x = (anchor.x - left) / step,
-      y = (anchor.y - top) / step;
+    if (!fitsCell(anchor, stepX, stepY)) continue;
+    const x = (anchor.x - left) / stepX,
+      y = (anchor.y - top) / stepY;
     const col = Math.floor(x),
       row = Math.floor(y);
     const dx = x - col - 0.5,
@@ -177,7 +191,8 @@ function match(anchors: Anchor[], { left, top, step }: Fit) {
   };
 }
 
-// Least-squares grid fit using all matching centers, with one scale for both axes.
+// Fit the spacing of each axis from all matching centers. A screenshot can
+// stretch a grid slightly, so one scale for both axes can drift across rows.
 function refine(
   inliers: NonNullable<ReturnType<typeof match>>["inliers"],
 ): Fit {
@@ -196,16 +211,26 @@ function refine(
   meanY /= n;
   meanCol /= n;
   meanRow /= n;
-  let covariance = 0,
-    variance = 0;
+  let covarianceX = 0,
+    covarianceY = 0,
+    varianceX = 0,
+    varianceY = 0;
   for (const { anchor, x, y } of inliers) {
     const dc = x - meanCol,
       dr = y - meanRow;
-    covariance += dc * (anchor.x - meanX) + dr * (anchor.y - meanY);
-    variance += dc * dc + dr * dr;
+    covarianceX += dc * (anchor.x - meanX);
+    covarianceY += dr * (anchor.y - meanY);
+    varianceX += dc * dc;
+    varianceY += dr * dr;
   }
-  const step = covariance / variance;
-  return { left: meanX - meanCol * step, top: meanY - meanRow * step, step };
+  const stepX = covarianceX / varianceX;
+  const stepY = covarianceY / varianceY;
+  return {
+    left: meanX - meanCol * stepX,
+    top: meanY - meanRow * stepY,
+    stepX,
+    stepY,
+  };
 }
 
 // Propose alignments from pairs of landmarks and score them against the Scrabble
@@ -220,26 +245,33 @@ export function detectScrabbleGoBoard(image: Pixels): Crop | null {
       const b = anchors[j];
       const dx = b.x - a.x,
         dy = b.y - a.y;
-      if (Math.hypot(dx, dy) < Math.max(a.span, b.span) * 5) continue;
+      if (
+        Math.hypot(dx, dy) <
+        Math.max(a.width, a.height, b.width, b.height) * 5
+      )
+        continue;
       for (const start of positions[a.type - 1]) {
         for (const end of positions[b.type - 1]) {
           const dc = end.x - start.x,
             dr = end.y - start.y;
           if (!dc && !dr) continue;
           const step = (dx * dc + dy * dr) / (dc * dc + dr * dr);
+          // Over short distances rounding can strongly bias the slope. Use
+          // the shared estimate as a seed on that axis until refinement.
+          const stepX = Math.abs(dc) >= 3 ? dx / dc : step;
+          const stepY = Math.abs(dr) >= 3 ? dy / dr : step;
           if (
-            a.span < step * 0.72 ||
-            a.span > step * 1.07 ||
-            b.span < step * 0.72 ||
-            b.span > step * 1.07 ||
-            Math.abs(dx - dc * step) > step * 0.2 ||
-            Math.abs(dy - dr * step) > step * 0.2
+            !fitsCell(a, stepX, stepY) ||
+            !fitsCell(b, stepX, stepY) ||
+            Math.abs(dx - dc * stepX) > stepX * 0.2 ||
+            Math.abs(dy - dr * stepY) > stepY * 0.2
           )
             continue;
           const fit = {
-            left: (a.x + b.x - (start.x + end.x) * step) / 2,
-            top: (a.y + b.y - (start.y + end.y) * step) / 2,
-            step,
+            left: (a.x + b.x - (start.x + end.x) * stepX) / 2,
+            top: (a.y + b.y - (start.y + end.y) * stepY) / 2,
+            stepX,
+            stepY,
           };
           if (!inBounds(fit, image)) continue;
           const supported = match(anchors, fit);
@@ -256,13 +288,12 @@ export function detectScrabbleGoBoard(image: Pixels): Crop | null {
     }
   }
   if (!best) return null;
-  const side = SIZE * best.step;
   const left = Math.max(0, best.left),
     top = Math.max(0, best.top);
   return {
     left,
     top,
-    width: Math.min(image.width, best.left + side) - left,
-    height: Math.min(image.height, best.top + side) - top,
+    width: Math.min(image.width, best.left + SIZE * best.stepX) - left,
+    height: Math.min(image.height, best.top + SIZE * best.stepY) - top,
   };
 }
