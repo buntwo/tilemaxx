@@ -5097,3 +5097,26 @@ label + label {
   .compact-game .bingo-odds-actions > .button { font-size: 10px; }
   .compact-game .bingo-odds-actions .sort-select select { max-width: 62px; }
 }
+
+.import-review-modes {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0;
+}
+.import-review-modes button[aria-pressed="true"] {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.import-premium-tools .paint-palette {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.import-inference {
+  margin-top: 14px;
+}
+.import-inference summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.import-inference .button {
+  margin-top: 10px;
+}

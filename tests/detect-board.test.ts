@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { detectBoard } from "../shared/detect-board";
 import { detectScrabbleGoBoard } from "../shared/detect-scrabble-go";
 import { PRESETS } from "../shared/presets";
+import { readScreenshotPremiums } from "../shared/screenshot-premiums";
 for (const [width, height, left, top, side] of [
   [900, 1600, 75, 340, 750],
   [1200, 900, 210, 60, 750],
@@ -103,10 +104,12 @@ test("Scrabble GO finds a late game through JPEG compression with no visible tri
     top = 432,
     cell = 38;
   const colors = { DW: "#ff8b71", TL: "#1775b3", DL: "#90ccff" };
+  const occupied = new Set<number>();
   const squares = PRESETS[0].premiums.map((premium, i) => {
     const col = i % 15,
       row = Math.floor(i / 15);
     const visible = premium !== "TW" && (col * 13 + row * 7) % 11 < 6;
+    if (!visible) occupied.add(i);
     const color = visible
       ? (colors[premium as keyof typeof colors] ?? "#e7e9f0")
       : "#f1dfb6";
@@ -140,7 +143,8 @@ test("Scrabble GO finds a late game through JPEG compression with no visible tri
     return { width: info.width, height: info.height, data };
   };
   assert.equal(detectScrabbleGoBoard(await pixels(chrome)), null);
-  const found = detectScrabbleGoBoard(await pixels(chrome + squares.join("")));
+  const screenshot = await pixels(chrome + squares.join(""));
+  const found = detectScrabbleGoBoard(screenshot);
   assert.ok(found);
   for (const [key, expected] of Object.entries({
     left,
@@ -153,4 +157,10 @@ test("Scrabble GO finds a late game through JPEG compression with no visible tri
       JSON.stringify(found),
     );
   }
+  const recognized = readScreenshotPremiums(screenshot, found, 15, occupied);
+  assert.equal(recognized?.style, "scrabble-go");
+  assert.deepEqual(recognized?.fixed, PRESETS[0].premiums);
+  assert.equal(recognized?.squares[0], null);
+  assert.ok(recognized?.squares.includes("TL"));
+  assert.ok(recognized?.squares.includes("DL"));
 });

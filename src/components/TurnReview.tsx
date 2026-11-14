@@ -24,6 +24,9 @@ export default function TurnReview({
   >();
   const turn = selected === null ? undefined : turns[selected];
   const position = turn?.position;
+  const template = position?.premiums
+    ? { ...game.template, premiums: position.premiums }
+    : game.template;
   const eligible = turns.flatMap(({ position, move, index }) =>
     position?.rack && move.player === "you" ? [{ position, move, index }] : [],
   );
@@ -37,10 +40,10 @@ export default function TurnReview({
     return scorePlacement(
       position.board,
       after,
-      game.template,
+      template,
       preview?.direction ?? position.direction,
     );
-  }, [position, tiles, game.template, preview]);
+  }, [position, tiles, template, preview]);
   function choose(index: number | null) {
     reset();
     setPreview(undefined);
@@ -72,7 +75,7 @@ export default function TurnReview({
                 <div className="turn-review-board">
                   <Board
                     board={position.board}
-                    template={game.template}
+                    template={template}
                     preview={{ tiles: tiles ?? [] }}
                     compact
                   />
@@ -96,7 +99,7 @@ export default function TurnReview({
                     onClick={() =>
                       run({
                         kind: "turn",
-                        template: game.template,
+                        template,
                         turns: [{ ...turn, position }],
                       })
                     }

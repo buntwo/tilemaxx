@@ -191,6 +191,14 @@ export function scorePlacement(
 
 export function reviewTurns(game: Game) {
   const used = new Set<number>();
+  let premiums = game.template.premiums;
+  const historicalPremiums = [...game.past]
+    .reverse()
+    .map((entry) => {
+      premiums = entry.premiums ?? premiums;
+      return premiums;
+    })
+    .reverse();
   return trackedMoveHistory(game).map((move, index) => {
     const snapshot = move.review;
     if (snapshot && (move.player === "opponent" || snapshot.excludedRackSlots))
@@ -223,7 +231,10 @@ export function reviewTurns(game: Game) {
       move.player === "opponent"
         ? entry.board
         : (game.past[pastIndex + 1]?.board ?? game.board);
-    const breakdown = scorePlacement(before, after, game.template);
+    const breakdown = scorePlacement(before, after, {
+      ...game.template,
+      premiums: historicalPremiums[pastIndex],
+    });
     if (
       !breakdown ||
       breakdown.score !== move.score ||
@@ -236,6 +247,7 @@ export function reviewTurns(game: Game) {
       excludedRackSlots:
         move.player === "you" ? entry.excludedRackSlots : undefined,
       dictionaryId: game.dictionaryId,
+      premiums: historicalPremiums[pastIndex],
       tiles: after.flatMap((letter, i) =>
         letter && !before[i] ? [{ index: i, letter }] : [],
       ),
@@ -315,18 +327,16 @@ function rescoreBoardCorrections(game: Game, board: Board, base: Board) {
     const after = original.map((letter, index) =>
       changes.has(index) ? board[index] : letter,
     );
+    const template = position.premiums
+      ? { ...game.template, premiums: position.premiums }
+      : game.template;
     const oldPlay = scorePlacement(
       position.board,
       original,
-      game.template,
+      template,
       position.direction,
     );
-    const play = scorePlacement(
-      before,
-      after,
-      game.template,
-      position.direction,
-    );
+    const play = scorePlacement(before, after, template, position.direction);
     if (!oldPlay || !play) continue;
     const review: TurnPosition = {
       ...position,
@@ -400,6 +410,7 @@ export function boardWordsAt(game: Game, index: number) {
     board: base,
     tiles,
     direction,
+    premiums,
   }: NonNullable<TrackedMove["review"]>) {
     if (
       ![...unresolved].some(({ cells }) =>
@@ -409,14 +420,20 @@ export function boardWordsAt(game: Game, index: number) {
       return;
     const played = [...base];
     for (const tile of tiles) played[tile.index] = tile.letter;
-    fillScores(base, played, direction);
+    fillScores(base, played, direction, premiums);
   }
   function fillScores(
     base: Board,
     after: Board,
     direction?: Move["direction"],
+    premiums = template.premiums,
   ) {
-    const play = scorePlacement(base, after, template, direction);
+    const play = scorePlacement(
+      base,
+      after,
+      { ...template, premiums },
+      direction,
+    );
     if (!play) return;
     for (const word of unresolved) {
       const match = play.words.find(
@@ -523,6 +540,7 @@ export function recordOpponentPlay(game: Game): Game {
     ...remember(game, play.word, play.score, "opponent", play.bingo, {
       board: base.map((tile, index) => (tile ? game.board[index] : "")),
       dictionaryId: game.dictionaryId,
+      premiums: game.template.premiums,
       tiles: game.board.flatMap((letter, index) =>
         letter && !base[index] ? [{ index, letter }] : [],
       ),

@@ -1,6 +1,10 @@
 import type { Worker } from "tesseract.js";
 import { emptyBoard } from "../shared/model";
 import {
+  readScreenshotPremiums,
+  wordfeudBlank,
+} from "../shared/screenshot-premiums";
+import {
   OCR_TILE_SIZE,
   readGlyphs,
   renderGlyph,
@@ -28,13 +32,22 @@ export async function recognizeBoard(
   canvas.height = image.naturalHeight;
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
   ctx.drawImage(image, 0, 0);
-  const glyphs = extractGlyphs(
-    ctx.getImageData(0, 0, canvas.width, canvas.height),
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const glyphs = extractGlyphs(pixels, crop, size);
+  const premiums = readScreenshotPremiums(
+    pixels,
     crop,
     size,
+    new Set(glyphs.map(({ index }) => index)),
   );
+  if (premiums?.style === "wordfeud") {
+    for (const glyph of glyphs) {
+      glyph.wordfeud = true;
+      glyph.assignedBlank = wordfeudBlank(pixels, crop, size, glyph.index);
+    }
+  }
   if (!glyphs.length)
-    return { board: emptyBoard(size), uncertain: [], candidates: 0 };
+    return { board: emptyBoard(size), uncertain: [], candidates: 0, premiums };
   progress("Loading letter recognition…");
   const { createWorker, PSM } = await import("tesseract.js");
   check();
@@ -58,7 +71,7 @@ export async function recognizeBoard(
     const tile = document.createElement("canvas");
     tile.width = tile.height = OCR_TILE_SIZE;
     const tc = tile.getContext("2d")!;
-    return await readGlyphs(
+    const result = await readGlyphs(
       glyphs,
       size,
       async (g, pass) => {
@@ -84,6 +97,7 @@ export async function recognizeBoard(
       (completed, total) => progress(`Reading tile ${completed} of ${total}…`),
       check,
     );
+    return { ...result, premiums };
   } finally {
     signal.removeEventListener("abort", cancel);
     await worker?.terminate();

@@ -1,5 +1,6 @@
-import { type Board, type Game, remember } from "./model";
+import { type Board, type Game, type Premium, remember } from "./model";
 import { emptyScoring } from "./game-scoring";
+import type { ReadPremiums } from "./screenshot-premiums";
 
 export interface Crop {
   left: number;
@@ -20,11 +21,13 @@ export interface Glyph {
   warmTile: boolean;
   assignedBlank: boolean;
   blueInkFraction: number;
+  wordfeud?: boolean;
 }
 export interface Recognition {
   board: Board;
   uncertain: number[];
   candidates: number;
+  premiums?: ReadPremiums;
 }
 
 export function validateCrop(
@@ -170,15 +173,42 @@ export function extractGlyphs(
   return glyphs;
 }
 
-export function importBoard(game: Game, board: Board): Game {
+export function importBoard(
+  game: Game,
+  board: Board,
+  premiums?: Premium[],
+): Game {
   if (
     board.length !== game.template.size ** 2 ||
-    board.some((tile) => !/^[A-Za-z]?$/.test(tile))
+    board.some((tile) => !/^[A-Za-z]?$/.test(tile)) ||
+    (premiums &&
+      (premiums.length !== board.length ||
+        premiums.some(
+          (p) => !["", "DL", "TL", "QL", "DW", "TW", "QW"].includes(p),
+        )))
   )
     throw new Error("The imported board does not match this game.");
+  const history = remember(game, "Imported screenshot");
+  const changed = premiums?.some(
+    (premium, i) => premium !== game.template.premiums[i],
+  );
+  if (changed) {
+    // Preserve the previous layout for existing review entries and the undo step.
+    const previous = game.template.premiums;
+    const last = history.past.length - 1;
+    history.past[last] = { ...history.past[last], premiums: previous };
+    history.trackedMoves = history.trackedMoves?.map((move) =>
+      move.review && !move.review.premiums
+        ? { ...move, review: { ...move.review, premiums: previous } }
+        : move,
+    );
+  }
   return {
     ...game,
-    ...remember(game, "Imported screenshot"),
+    ...history,
+    template: changed
+      ? { ...game.template, premiums: [...premiums!] }
+      : game.template,
     board: [...board],
     scoring: emptyScoring(true),
   };

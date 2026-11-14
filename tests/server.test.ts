@@ -51,7 +51,20 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
         .status,
       400,
     );
-    const savedExample = await req("/screenshot-examples", "POST", example);
+    const correctedPremiums = [...game.template.premiums];
+    correctedPremiums[0] = "TL";
+    const savedExample = await req("/screenshot-examples", "POST", {
+      ...example,
+      recognized: {
+        ...example.recognized,
+        premiums: {
+          style: "scrabble-go",
+          squares: game.template.premiums,
+          fixed: game.template.premiums,
+        },
+      },
+      correctedPremiums,
+    });
     assert.equal(savedExample.status, 201);
     const { id: exampleId } = await savedExample.json();
     const exampleDir = join(dir, "screenshot-examples", exampleId);
@@ -60,6 +73,11 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
       JSON.parse(readFileSync(join(exampleDir, "labels.json"), "utf8"))
         .corrected[112],
       "c",
+    );
+    assert.deepEqual(
+      JSON.parse(readFileSync(join(exampleDir, "labels.json"), "utf8"))
+        .correctedPremiums,
+      correctedPremiums,
     );
     assert.deepEqual(store.getGame(game.id), game);
     const profile = await (

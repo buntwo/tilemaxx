@@ -10,7 +10,14 @@ import {
   renderGlyph,
 } from "../shared/screenshot-ocr";
 import { PRESETS } from "../shared/presets";
-import { emptyBoard, undo, redo, type Game } from "../shared/model";
+import {
+  archiveGame,
+  emptyBoard,
+  restoreArchivedGame,
+  undo,
+  redo,
+  type Game,
+} from "../shared/model";
 
 const require = createRequire(import.meta.url);
 test("crop bounds reject undersized or off-image boards", () => {
@@ -56,6 +63,18 @@ test("screenshot replacement keeps rack and blank identities, supports undo/redo
   assert.deepEqual(redo(undo(imported)).board, board);
   assert.equal(importBoard(undo(imported), board).future.length, 0);
   assert.equal(game.board[112], "D");
+  const premiums = [...game.template.premiums];
+  premiums[4] = "TL";
+  const withLayout = importBoard(game, board, premiums);
+  assert.equal(withLayout.template.premiums[4], "TL");
+  assert.deepEqual(undo(withLayout).template.premiums, game.template.premiums);
+  assert.deepEqual(redo(undo(withLayout)).template.premiums, premiums);
+  const archived = importBoard(archiveGame(game), board, premiums);
+  assert.deepEqual(
+    restoreArchivedGame(archived).template.premiums,
+    game.template.premiums,
+  );
+  assert.deepEqual(restoreArchivedGame(archived).board, game.board);
   assert.throws(() => importBoard(game, ["C"]));
   assert.throws(() =>
     importBoard(

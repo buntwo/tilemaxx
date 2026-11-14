@@ -1,4 +1,4 @@
-import { type Board } from "../shared/model";
+import { type Board, type Premium } from "../shared/model";
 import { type Crop, type Recognition } from "../shared/screenshot";
 
 export async function saveScreenshotExample(
@@ -7,6 +7,7 @@ export async function saveScreenshotExample(
   size: number,
   recognized: Recognition,
   corrected: Board,
+  correctedPremiums?: (Premium | null)[],
 ): Promise<{ id: string }> {
   const canvas = document.createElement("canvas");
   const scale = Math.min(1, 1500 / Math.max(crop.width, crop.height));
@@ -35,6 +36,7 @@ export async function saveScreenshotExample(
       sourceHeight: image.naturalHeight,
       recognized,
       corrected,
+      correctedPremiums,
       croppedPng: canvas
         .toDataURL("image/png")
         .slice("data:image/png;base64,".length),

@@ -1243,14 +1243,18 @@ export default function App() {
         <ScreenshotImport
           template={importBase.current.template}
           onClose={() => setDialog(null)}
-          onApply={(board) => {
+          onApply={(board, premiums) => {
             const base = importBase.current!;
             const latest = store.getSnapshot().games[base.id];
-            if (!latest || latest.board.join(".") !== base.board.join("."))
+            if (
+              !latest ||
+              latest.board.join(".") !== base.board.join(".") ||
+              latest.template.premiums.join(".") !== base.template.premiums.join(".")
+            )
               throw new Error(
                 "The board changed while you were reviewing. Close this import and try again with the latest game.",
               );
-            update(importBoard(latest, board));
+            update(importBoard(latest, board, premiums));
             setDialog(null);
             notify("Screenshot imported. You can undo this change.");
           }}

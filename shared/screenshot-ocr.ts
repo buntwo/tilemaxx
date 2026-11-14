@@ -58,7 +58,12 @@ export function renderGlyph(
 function normalizeCharacter(text: string, glyph: Glyph): string {
   if (/^[a-z]$/i.test(text)) return text.toUpperCase();
   if (/^(?:1|\|)$/.test(text) && glyph.width / glyph.height < 0.3) return "I";
-  if (text === "0" && glyph.width / glyph.height >= 0.75) return "O";
+  if (
+    text === "0" &&
+    (glyph.width / glyph.height >= 0.75 ||
+      (glyph.wordfeud && glyph.width / glyph.height >= 0.65))
+  )
+    return "O";
   // OCR can split a wide uppercase letter into repeated cases of itself.
   if (/^([a-z])\1{1,2}$/i.test(text)) return text[0].toUpperCase();
   return "";

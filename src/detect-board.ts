@@ -1,5 +1,6 @@
 import { detectBoard } from "../shared/detect-board";
 import { detectScrabbleGoBoard } from "../shared/detect-scrabble-go";
+import { detectWordfeudBoard } from "../shared/screenshot-premiums";
 
 export function findBoard(image: HTMLImageElement, size: number) {
   const canvas = document.createElement("canvas");
@@ -37,7 +38,9 @@ export function findBoard(image: HTMLImageElement, size: number) {
     };
   }
   return (
-    (size === 15 ? search(1200, detectScrabbleGoBoard) : null) ??
-    search(600, detectBoard)
+    (size === 15
+      ? (search(1200, detectScrabbleGoBoard) ??
+        search(1200, detectWordfeudBoard))
+      : null) ?? search(600, detectBoard)
   );
 }

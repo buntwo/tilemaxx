@@ -29,7 +29,11 @@ interface Fit {
 
 // Classify broad HSV ranges so compression, display color, and theme changes
 // do not require every premium to match one RGB swatch.
-function premiumColor(r: number, g: number, b: number): number {
+export function scrabbleGoPremiumColor(
+  r: number,
+  g: number,
+  b: number,
+): number {
   const max = Math.max(r, g, b),
     min = Math.min(r, g, b),
     delta = max - min;
@@ -51,7 +55,11 @@ function premiumColor(r: number, g: number, b: number): number {
 function findAnchors({ width, height, data }: Pixels): Anchor[] {
   const labels = new Uint8Array(width * height);
   for (let i = 0; i < labels.length; i++)
-    labels[i] = premiumColor(data[i * 4], data[i * 4 + 1], data[i * 4 + 2]);
+    labels[i] = scrabbleGoPremiumColor(
+      data[i * 4],
+      data[i * 4 + 1],
+      data[i * 4 + 2],
+    );
   const anchors: Anchor[] = [];
   const max = Math.ceil(Math.min(width, height) / SIZE);
   const stack: number[] = [];

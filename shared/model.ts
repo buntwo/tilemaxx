@@ -44,6 +44,7 @@ export interface TurnPosition {
   rack?: string;
   excludedRackSlots?: number[];
   dictionaryId: string;
+  premiums?: Premium[];
   tiles: Placement[];
   direction?: Move["direction"];
 }
@@ -60,6 +61,8 @@ export interface GameScoring {
   imported?: boolean;
 }
 export interface HistoryEntry extends Position {
+  // Present on the undo boundary of a layout change.
+  premiums?: Premium[];
   label: string;
   score?: number;
   bingo?: boolean;
@@ -99,7 +102,7 @@ export type ArchiveState = Pick<
   | "trackedMoves"
   | "past"
   | "future"
->;
+> & { premiums?: Premium[] };
 
 export function archiveGame(game: Game): Game {
   const {
@@ -116,6 +119,7 @@ export function archiveGame(game: Game): Game {
     archived: true,
     archivedBoard: game.board,
     archivedState: {
+      premiums: game.template.premiums,
       rack,
       excludedRackSlots,
       scoring,
@@ -142,6 +146,7 @@ export function restoreArchivedGame(game: Game): Game {
     };
   }
   const {
+    premiums,
     rack,
     excludedRackSlots,
     scoring,
@@ -153,6 +158,7 @@ export function restoreArchivedGame(game: Game): Game {
   return {
     ...game,
     board: game.archivedBoard,
+    template: premiums ? { ...game.template, premiums } : game.template,
     rack,
     excludedRackSlots,
     scoring,
@@ -409,6 +415,7 @@ export function applyMove(game: Game, move: Move, player?: Player): Game {
             rack: game.rack,
             excludedRackSlots: game.excludedRackSlots ?? [],
             dictionaryId: game.dictionaryId,
+            premiums: game.template.premiums,
             tiles: move.tiles,
             direction: move.direction,
           }
@@ -424,6 +431,9 @@ export function undo(game: Game): Game {
   return {
     ...game,
     board: step.board,
+    template: step.premiums
+      ? { ...game.template, premiums: step.premiums }
+      : game.template,
     rack: step.rack,
     excludedRackSlots: step.excludedRackSlots,
     scoring: step.scoring,
@@ -437,6 +447,7 @@ export function undo(game: Game): Game {
       ...game.future,
       {
         board: game.board,
+        ...(step.premiums && { premiums: game.template.premiums }),
         rack: game.rack,
         excludedRackSlots: game.excludedRackSlots,
         label: step.label,
@@ -458,6 +469,9 @@ export function redo(game: Game): Game {
   return {
     ...game,
     board: step.board,
+    template: step.premiums
+      ? { ...game.template, premiums: step.premiums }
+      : game.template,
     rack: step.rack,
     excludedRackSlots: step.excludedRackSlots,
     scoring: step.scoring,
@@ -468,6 +482,7 @@ export function redo(game: Game): Game {
       ...game.past,
       {
         board: game.board,
+        ...(step.premiums && { premiums: game.template.premiums }),
         rack: game.rack,
         excludedRackSlots: game.excludedRackSlots,
         label: step.label,

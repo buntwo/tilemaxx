@@ -6,7 +6,7 @@ import { findBoard } from "../../src/detect-board";
 import { convertHeif } from "../../src/heif";
 import { recognizeBoard } from "../../src/recognize";
 import { saveScreenshotExample } from "../../src/screenshot-example";
-import { emptyBoard } from "../../shared/model";
+import { emptyBoard, type Premium } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
 vi.mock("../../src/detect-board", () => ({ findBoard: vi.fn(() => null) }));
 vi.mock("../../src/heif", () => ({ convertHeif: vi.fn() }));
@@ -31,13 +31,14 @@ beforeEach(() => {
 });
 async function setup(
   file = new File(["fixture"], "board.png", { type: "image/png" }),
+  template = PRESETS[0],
 ) {
   const onApply = vi.fn(),
     onClose = vi.fn(),
     user = userEvent.setup();
   render(
     <ScreenshotImport
-      template={PRESETS[0]}
+      template={template}
       onApply={onApply}
       onClose={onClose}
     />,
@@ -202,4 +203,60 @@ test("manual review accepts a missed tile and can clear a false positive", async
   await user.keyboard("{Delete}");
   await user.click(screen.getByRole("button", { name: "Use this board" }));
   expect(onApply.mock.calls[0][0].slice(112, 115)).toEqual(["C", "A", ""]);
+});
+
+test("premium review infers covered squares, accepts corrections, and applies the layout", async () => {
+  const template = PRESETS.find(({ id }) => id === "wordfeud")!;
+  const board = emptyBoard(15);
+  board[111] = "A";
+  board[112] = "T";
+  const squares: (Premium | null)[] = [...template.premiums];
+  squares[111] = squares[112] = null;
+  squares[0] = "DW";
+  vi.mocked(recognizeBoard).mockResolvedValue({
+    board,
+    uncertain: [],
+    candidates: 2,
+    premiums: { style: "wordfeud", squares },
+  });
+  const worker = {
+    onmessage: undefined as ((event: unknown) => void) | undefined,
+    postMessage: vi.fn(),
+    terminate: vi.fn(),
+  };
+  vi.stubGlobal(
+    "Worker",
+    class {
+      constructor() {
+        return worker;
+      }
+    },
+  );
+  const { user, onApply } = await setup(undefined, template);
+  await user.click(screen.getByRole("button", { name: "Read board" }));
+  await user.click(
+    await screen.findByRole("button", { name: "Premium squares" }),
+  );
+  expect(
+    screen.getByRole("button", { name: "G8: empty, unknown premium" }),
+  ).toBeTruthy();
+  await user.click(screen.getByText("Use opening play scores"));
+  await user.type(
+    screen.getByRole("spinbutton", { name: "First play points · AT" }),
+    "3",
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Infer covered squares" }),
+  );
+  expect(worker.postMessage.mock.calls[0][0][3]).toEqual([3]);
+  worker.onmessage?.({ data: { matches: 1, certain: [[111, "DL"]] } });
+  expect(await screen.findByRole("button", { name: "G8: DL" })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "TW" }));
+  await user.click(screen.getByRole("button", { name: "A1: DW" }));
+  await user.click(screen.getByRole("button", { name: "Use this board" }));
+  const [appliedBoard, appliedPremiums] = onApply.mock.calls[0];
+  expect(appliedBoard).toEqual(board);
+  expect(appliedPremiums[0]).toBe("TW");
+  expect(appliedPremiums[111]).toBe("DL");
+  expect(appliedPremiums[112]).toBe("");
 });

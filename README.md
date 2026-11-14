@@ -11,7 +11,7 @@ Tilemaxx runs on your own computer or home server. Open it in a browser on your 
 ## Try your first position
 
 1. Open **First game** or choose **New game** to select a layout and word list.
-2. Select a board square and type the letters already in play. For a Scrabble GO screenshot, use the image button above the board and check the recognized tiles before accepting them.
+2. Select a board square and type the letters already in play. For a Scrabble GO or Wordfeud screenshot, use the image button above the board and review the letters and premium squares. For an early randomized Wordfeud board, you can enter the first one or two play totals to check premiums hidden under tiles.
 3. Enter your rack letters and select **Find moves**. On desktop, hover to preview a move and click to play it. On your phone, tap to preview and then tap **Play**.
 
 After making the move in your actual game, enter the tiles you drew and your opponent’s next move to keep Tilemaxx up to date.

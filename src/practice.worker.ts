@@ -94,13 +94,16 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
     const deadline = performance.now() + 10000;
     let defensiveChecks = 0;
     for (const [i, turn] of data.turns.entries()) {
+      const template = turn.position.premiums
+        ? { ...data.template, premiums: turn.position.premiums }
+        : data.template;
       if (data.kind === "game" && performance.now() >= deadline) break;
       try {
         const lexicon = await dictionary(turn.position.dictionaryId);
         const moves = reviewTurn(
           lexicon,
           turn.position,
-          data.template,
+          template,
           data.kind === "game"
             ? Math.min(450, Math.max(1, deadline - performance.now()))
             : undefined,
@@ -113,7 +116,7 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
         const opportunity = reviewOpportunity(
           moves,
           turn.move,
-          data.template,
+          template,
           turn.position.tiles.length,
         );
         const id = turn.position.tiles
@@ -136,7 +139,7 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
             replyRisk = reviewReplyRisk(
               lexicon,
               turn.position,
-              data.template,
+              template,
               played,
               alternative,
             );

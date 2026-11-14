@@ -3,6 +3,7 @@ import { ImagePlus, LoaderCircle, ScanLine } from "lucide-react";
 import {
   type Board as BoardState,
   type BoardTemplate,
+  type Premium,
   coordinate,
   emptyBoard,
 } from "../../shared/model";
@@ -18,6 +19,7 @@ import { BoardInput } from "./BoardEntry";
 import { saveScreenshotExample } from "../screenshot-example";
 import { findBoard } from "../detect-board";
 import Modal from "./Modal";
+import ScreenshotPremiumReview from "./ScreenshotPremiumReview";
 
 export default function ScreenshotImport({
   template,
@@ -25,7 +27,7 @@ export default function ScreenshotImport({
   onClose,
 }: {
   template: BoardTemplate;
-  onApply: (board: BoardState) => void;
+  onApply: (board: BoardState, premiums?: Premium[]) => void;
   onClose: () => void;
 }) {
   const [detected, setDetected] = useState(false);
@@ -40,6 +42,10 @@ export default function ScreenshotImport({
   const [corner, setCorner] = useState<{ x: number; y: number } | null>(null);
   const [result, setResult] = useState<Recognition | null>(null),
     [selected, setSelected] = useState<number | null>(null);
+  const [premiumMode, setPremiumMode] = useState(false);
+  const [includePremiums, setIncludePremiums] = useState(false);
+  const [squares, setSquares] = useState<(Premium | null)[]>([]);
+  const [layout, setLayout] = useState<"fixed" | "visible">("visible");
   const [selection, setSelection] = useState<{ index: number }>();
   const [exampleStatus, setExampleStatus] = useState("");
   const [savingExample, setSavingExample] = useState(false);
@@ -161,9 +167,26 @@ export default function ScreenshotImport({
       setBusy("");
     }
   }
+  function premiumSquares(recognized: Recognition, fixed: boolean) {
+    const detection = recognized.premiums;
+    if (!detection) return [...template.premiums];
+    if (fixed && detection.fixed) return [...detection.fixed];
+    return detection.squares.map((square, index) =>
+      detection.style === "wordfeud" && index === template.start
+        ? ""
+        : recognized.board[index]
+          ? null
+          : square,
+    );
+  }
   function startReview(recognized: Recognition) {
     original.current = recognized;
     setResult(recognized);
+    setPremiumMode(false);
+    const detected = recognized.premiums;
+    setIncludePremiums(!!detected);
+    setLayout(detected?.fixed ? "fixed" : "visible");
+    setSquares(premiumSquares(recognized, !!detected?.fixed));
     setSelection({ index: recognized.uncertain[0] ?? template.start });
     setExampleStatus("");
   }
@@ -202,6 +225,7 @@ export default function ScreenshotImport({
         template.size,
         original.current,
         result.board,
+        includePremiums ? squares : undefined,
       );
       setExampleStatus(`Corrected example saved · ${id.slice(0, 8)}`);
     } catch (err) {
@@ -225,7 +249,7 @@ export default function ScreenshotImport({
   return (
     <Modal
       title="Import a screenshot"
-      subtitle="Choose a screenshot. We’ll look for the board, then you can review the letters."
+      subtitle="Choose a screenshot, then review the letters and premium squares."
       wide
       className="screenshot-modal"
       onClose={close}
@@ -396,9 +420,79 @@ export default function ScreenshotImport({
       ) : (
         <>
           <p className="import-note">
-            Tap a square on the review board and type. Check amber marks and
-            compare the whole board with the screenshot before saving.
+            Compare the review board with the screenshot before saving. Check
+            amber squares for letters or premiums that need review.
           </p>
+          <label className="checkbox import-premiums-toggle">
+            <input
+              type="checkbox"
+              checked={includePremiums}
+              onChange={(e) => {
+                setIncludePremiums(e.target.checked);
+                if (!e.target.checked) setPremiumMode(false);
+              }}
+            />
+            Import premium squares
+          </label>
+          {includePremiums &&
+            result.premiums?.style === "wordfeud" &&
+            template.rules !== "wordfeud" && (
+              <p className="import-note">
+                For Wordfeud tile values and play bonuses, import into a
+                Wordfeud game.
+              </p>
+            )}
+          {includePremiums &&
+            result.premiums?.style === "scrabble-go" &&
+            template.rules !== "scrabble" && (
+              <p className="import-note">
+                For Scrabble GO tile values and play bonuses, import into a
+                Scrabble game.
+              </p>
+            )}
+          {includePremiums && result.premiums?.fixed && (
+            <label className="import-layout-choice">
+              Layout source
+              <select
+                value={layout}
+                onChange={(e) => {
+                  const fixed = e.target.value === "fixed";
+                  setLayout(fixed ? "fixed" : "visible");
+                  setSquares(premiumSquares(result, fixed));
+                }}
+              >
+                <option value="fixed">
+                  {result.premiums.style === "wordfeud"
+                    ? "Fixed Wordfeud layout"
+                    : "Classic Scrabble layout"}
+                </option>
+                <option value="visible">Visible squares only</option>
+              </select>
+            </label>
+          )}
+          {includePremiums && (
+            <div className="import-review-modes" aria-label="Review mode">
+              <button
+                type="button"
+                className="button secondary"
+                aria-pressed={!premiumMode}
+                onClick={() => {
+                  setPremiumMode(false);
+                  if (selected !== null) setSelection({ index: selected });
+                }}
+              >
+                Letters
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                aria-pressed={premiumMode}
+                onClick={() => setPremiumMode(true)}
+              >
+                Premium squares
+              </button>
+            </div>
+          )}
           <div className="import-review">
             <div className="import-original">
               <span className="field-label">Screenshot</span>
@@ -441,53 +535,91 @@ export default function ScreenshotImport({
                   </div>
                 )}
               </div>
-              <BoardInput
-                template={template}
-                board={result.board}
-                selection={selection}
-                uncertain={new Set(result.uncertain)}
-                onCursorChange={setSelected}
-                inputLabel="Correct letters on review board"
-                onChange={(board) => {
-                  setResult({
-                    ...result,
-                    board,
-                    uncertain: result.uncertain.filter(
-                      (i) => board[i] === result.board[i],
-                    ),
-                  });
-                  setExampleStatus("");
-                }}
-              />
-              <div className="uncertain-squares">
-                {!!result.uncertain.length && (
-                  <>
-                    <button
-                      className="button secondary"
-                      onClick={() => selectNextMarked(result.uncertain)}
-                    >
-                      Next marked square
-                    </button>
-                    <button
-                      className="button secondary"
-                      disabled={
-                        selected === null ||
-                        !result.uncertain.includes(selected)
-                      }
-                      onClick={() => {
-                        const uncertain = result.uncertain.filter(
-                          (i) => i !== selected,
+              {premiumMode ? (
+                <ScreenshotPremiumReview
+                  key={layout}
+                  template={template}
+                  board={result.board}
+                  squares={squares}
+                  style={result.premiums?.style}
+                  onChange={(next) => {
+                    setSquares(next);
+                    setExampleStatus("");
+                  }}
+                  onSelect={setSelected}
+                />
+              ) : (
+                <>
+                  <BoardInput
+                    template={
+                      includePremiums
+                        ? {
+                            ...template,
+                            premiums: squares.map((square) => square ?? ""),
+                          }
+                        : template
+                    }
+                    board={result.board}
+                    selection={selection}
+                    uncertain={new Set(result.uncertain)}
+                    onCursorChange={setSelected}
+                    inputLabel="Correct letters on review board"
+                    onChange={(board) => {
+                      if (result.premiums && layout === "visible") {
+                        setSquares(
+                          squares.map((premium, i) =>
+                            Boolean(board[i]) !== Boolean(result.board[i]) &&
+                            i !== template.start
+                              ? board[i]
+                                ? null
+                                : result.premiums!.squares[i]
+                              : premium,
+                          ),
                         );
-                        setResult({ ...result, uncertain });
-                        selectNextMarked(uncertain);
-                      }}
-                    >
-                      Confirm square
-                    </button>
-                    <span role="status">{result.uncertain.length} marked</span>
-                  </>
-                )}
-              </div>
+                      }
+                      setResult({
+                        ...result,
+                        board,
+                        uncertain: result.uncertain.filter(
+                          (i) => board[i] === result.board[i],
+                        ),
+                      });
+                      setExampleStatus("");
+                    }}
+                  />
+                  <div className="uncertain-squares">
+                    {!!result.uncertain.length && (
+                      <>
+                        <button
+                          className="button secondary"
+                          onClick={() => selectNextMarked(result.uncertain)}
+                        >
+                          Next marked square
+                        </button>
+                        <button
+                          className="button secondary"
+                          disabled={
+                            selected === null ||
+                            !result.uncertain.includes(selected)
+                          }
+                          onClick={() => {
+                            const uncertain = result.uncertain.filter(
+                              (i) => i !== selected,
+                            );
+                            setResult({ ...result, uncertain });
+                            selectNextMarked(uncertain);
+                          }}
+                        >
+                          Confirm square
+                        </button>
+                        <span role="status">
+                          {result.uncertain.length} marked
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
           <div className="import-example">
@@ -499,14 +631,15 @@ export default function ScreenshotImport({
               {savingExample ? "Saving example…" : "Save corrected example"}
             </button>
             <p className="import-note">
-              Saves the cropped screenshot and reviewed letters on your Tilemaxx
+              Saves the cropped screenshot and your review on your Tilemaxx
               server for improving recognition.
             </p>
             {exampleStatus && <p role="status">{exampleStatus}</p>}
           </div>
           <p className="import-note">
-            Replace the current board with this reviewed layout. Your rack stays
-            as it is. You can undo the import.
+            {includePremiums && squares.includes(null)
+              ? "Unknown squares use plain scoring. You can undo the import."
+              : "You can undo the import."}
           </p>
           <footer className="modal-footer">
             <button
@@ -522,7 +655,12 @@ export default function ScreenshotImport({
               className="button primary"
               onClick={() => {
                 try {
-                  onApply(result.board);
+                  if (includePremiums)
+                    onApply(
+                      result.board,
+                      squares.map((square) => square ?? ""),
+                    );
+                  else onApply(result.board);
                 } catch (err) {
                   setError((err as Error).message);
                 }

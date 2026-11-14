@@ -4,6 +4,8 @@ import { MAX_TILE_COUNT, TILE_SYMBOLS } from "../shared/tile-pool";
 import { MAX_GAME_NOTES, RULE_NAMES } from "../shared/model";
 export const nameSchema = z.string().trim().min(1).max(80);
 const cell = z.string().regex(/^[a-zA-Z]?$/);
+const premium = z.enum(["", "DL", "TL", "QL", "DW", "TW", "QW"]);
+const premiums = z.array(premium).max(625);
 export const screenshotExampleSchema = z
   .object({
     size: z.number().int().min(5).max(25),
@@ -19,8 +21,16 @@ export const screenshotExampleSchema = z
       board: z.array(cell).max(625),
       uncertain: z.array(z.number().int().min(0).max(624)).max(625),
       candidates: z.number().int().min(0).max(625),
+      premiums: z
+        .object({
+          style: z.enum(["wordfeud", "scrabble-go"]),
+          squares: z.array(premium.nullable()).max(625),
+          fixed: premiums.optional(),
+        })
+        .optional(),
     }),
     corrected: z.array(cell).max(625),
+    correctedPremiums: z.array(premium.nullable()).max(625).optional(),
     croppedPng: z
       .string()
       .min(32)
@@ -43,6 +53,12 @@ export const screenshotExampleSchema = z
       example.sourceWidth * example.sourceHeight <= 32_000_000 &&
       example.recognized.board.length === cells &&
       example.corrected.length === cells &&
+      (!example.correctedPremiums ||
+        example.correctedPremiums.length === cells) &&
+      (!example.recognized.premiums ||
+        (example.recognized.premiums.squares.length === cells &&
+          (!example.recognized.premiums.fixed ||
+            example.recognized.premiums.fixed.length === cells))) &&
       example.recognized.candidates <= cells &&
       example.recognized.uncertain.every((index) => index < cells)
     );
@@ -60,9 +76,7 @@ export const templateSchema = z
     id: z.string().max(100),
     name: nameSchema,
     size: z.number().int().min(5).max(25),
-    premiums: z
-      .array(z.enum(["", "DL", "TL", "QL", "DW", "TW", "QW"]))
-      .max(625),
+    premiums,
     start: z.number().int().min(0),
     rackSize: z.number().int().min(1).max(10),
     bingo: z.number().int().min(0).max(200),
@@ -107,6 +121,7 @@ const review = z
     rack: rack.optional(),
     excludedRackSlots,
     dictionaryId: z.string().max(100),
+    premiums: premiums.optional(),
     tiles: z
       .array(
         z.object({
@@ -132,6 +147,7 @@ const trackedMoves = z
   )
   .optional();
 const historySchema = z.object({
+  premiums: premiums.optional(),
   board: z.array(cell).max(625),
   rack,
   excludedRackSlots,
@@ -168,7 +184,9 @@ export const gameSchema = gameProgress
     updatedAt: z.string().max(50),
     archived: z.boolean(),
     archivedBoard: z.array(cell).max(625).optional(),
-    archivedState: gameProgress.optional(),
+    archivedState: gameProgress
+      .extend({ premiums: premiums.optional() })
+      .optional(),
   })
   .refine((g) => {
     const size = g.template.size ** 2;
@@ -179,6 +197,7 @@ export const gameSchema = gameProgress
     const validReview = (position: z.infer<typeof review>) =>
       !position ||
       (position.board.length === size &&
+        (!position.premiums || position.premiums.length === size) &&
         validRack(position.rack ?? "", position.excludedRackSlots) &&
         position.tiles.every(
           (tile) => tile.index < size && !position.board[tile.index],
@@ -197,6 +216,7 @@ export const gameSchema = gameProgress
       [...progress.past, ...progress.future].every(
         (entry) =>
           entry.board.length === size &&
+          (!entry.premiums || entry.premiums.length === size) &&
           validReview(entry.review) &&
           (entry.trackedMoves?.every((move) => validReview(move.review)) ??
             true),
@@ -206,6 +226,10 @@ export const gameSchema = gameProgress
       (!g.archivedBoard || g.archivedBoard.length === size) &&
       validProgress(g) &&
       (!g.archivedState ||
-        (g.archived && !!g.archivedBoard && validProgress(g.archivedState)))
+        (g.archived &&
+          !!g.archivedBoard &&
+          (!g.archivedState.premiums ||
+            g.archivedState.premiums.length === size) &&
+          validProgress(g.archivedState)))
     );
   }, "Invalid position dimensions");
