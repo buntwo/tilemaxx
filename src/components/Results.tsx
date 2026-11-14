@@ -333,6 +333,10 @@ export default function Results({
     if (scroller.current) scroller.current.scrollTop = 0;
     setLocked(null);
   }, [resultSet, filter, sort, reversed, shortlistOnly]);
+  function togglePin(move: Move) {
+    setLocked((current) => (current === move.id ? null : move.id));
+    onPreview(move);
+  }
   function column(
     label: string,
     value: MoveSort,
@@ -755,15 +759,13 @@ export default function Results({
                       onContextMenu={(event) => {
                         if (analyzing) return;
                         event.preventDefault();
-                        setLocked(m.id);
-                        onPreview(m);
+                        togglePin(m);
                       }}
                       onKeyDown={(event) => {
                         if (analyzing || event.key.toLowerCase() !== "p")
                           return;
                         event.preventDefault();
-                        setLocked(m.id);
-                        onPreview(m);
+                        if (!event.repeat) togglePin(m);
                       }}
                       onClick={(e) => {
                         if (analyzing) {
@@ -950,7 +952,7 @@ export default function Results({
         ) : (
           <>
             <span className="desktop-hint">
-              Hover to preview · right-click or P to pin · click to play
+              Hover to preview · right-click or P to pin/unpin · click to play
             </span>
             <span className="mobile-hint">
               Tap to preview · tap again to play

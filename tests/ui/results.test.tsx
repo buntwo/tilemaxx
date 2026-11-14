@@ -428,6 +428,30 @@ test("desktop hover previews and one click plays", async () => {
   await user.click(rows()[0]);
   expect(onPlay).toHaveBeenCalledOnce();
 });
+
+test.each(["right-click", "P"])("%s toggles a move pin", async (input) => {
+  const { user, onPlay, onPreview } = setup();
+  const [first, second] = rows();
+  const toggle = () =>
+    input === "P"
+      ? fireEvent.keyDown(first, { key: "p" })
+      : fireEvent.contextMenu(first);
+
+  await user.hover(first);
+  toggle();
+  await user.hover(second);
+  expect(onPreview).toHaveBeenLastCalledWith(moves[0]);
+
+  await user.hover(first);
+  toggle();
+  expect(first.classList.contains("active")).toBe(true);
+  await user.hover(second);
+  expect(onPreview).toHaveBeenLastCalledWith(moves[1]);
+  await user.unhover(second);
+  expect(onPreview).toHaveBeenLastCalledWith(null);
+  expect(onPlay).not.toHaveBeenCalled();
+});
+
 test("phone first tap previews, a different tap switches preview, second tap plays", async () => {
   const { user, onPlay, onPreview } = setup(true);
   await user.click(rows()[0]);
