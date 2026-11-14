@@ -159,7 +159,7 @@ export function simulateExchange(
       weight: 1,
     })),
     false,
-    3800,
+    2000,
   )!;
 }
 export type ExchangeResult = ReturnType<typeof simulateExchange>;
