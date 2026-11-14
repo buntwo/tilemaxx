@@ -61,6 +61,7 @@ function formatOdds(chance: number, exact: boolean) {
 
 export default function Results({
   results: resultSet,
+  compact = false,
   fetchPage,
   fetchShortlist,
   busy,
@@ -88,6 +89,7 @@ export default function Results({
   onCancelBoardOdds,
 }: {
   results: MoveResults | null;
+  compact?: boolean;
   fetchPage: FetchMovePage;
   fetchShortlist: (
     searchId: number,
@@ -122,6 +124,19 @@ export default function Results({
     [locked, setLocked] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null),
     pointer = useRef("mouse");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const searchButton = useRef<HTMLButtonElement>(null);
+  const filterInputId = useId();
+  useEffect(() => {
+    if (compact && searchOpen)
+      searchInput.current?.focus({ preventScroll: true });
+  }, [compact, searchOpen]);
+  function closeSearch() {
+    setSearchOpen(false);
+    setFilter("");
+    searchButton.current?.focus();
+  }
   const [analyzing, setAnalyzing] = useState(false);
   const replyMetricId = useId();
   const [candidates, setCandidates] = useState<Move[]>([]);
@@ -377,6 +392,71 @@ export default function Results({
       </select>
     </label>
   );
+  const showFilters = !!totalMoves && !busy && !error;
+  const viewPicker = analysisGame && (
+    <div
+      className="result-view-picker"
+      role="group"
+      aria-label="Move list view"
+    >
+      <button
+        type="button"
+        aria-pressed={!shortlistOnly}
+        onClick={() => {
+          setShortlistOnly(false);
+          setSort("score");
+        }}
+      >
+        All moves
+      </button>
+      <button
+        type="button"
+        aria-pressed={shortlistOnly}
+        onClick={() => {
+          setShortlistOnly(true);
+          setSort("shortlist");
+        }}
+      >
+        Shortlist <span>{shortlist.length}</span>
+      </button>
+    </div>
+  );
+  const searchField = (
+    <div className="search-input" hidden={compact && !searchOpen && !filter}>
+      <Search size={16} />
+      <input
+        id={filterInputId}
+        ref={searchInput}
+        aria-label="Filter moves"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder="Find a word…"
+        onKeyDown={(event) => {
+          if (compact && event.key === "Escape") {
+            event.preventDefault();
+            closeSearch();
+          }
+        }}
+      />
+    </div>
+  );
+  const searchToggle = (
+    <button
+      className="icon-button move-search-toggle"
+      type="button"
+      aria-label="Search possible moves"
+      aria-expanded={searchOpen || !!filter}
+      aria-controls={filterInputId}
+      title="Search possible moves"
+      ref={searchButton}
+      onClick={() => {
+        if (searchOpen || filter) closeSearch();
+        else setSearchOpen(true);
+      }}
+    >
+      <Search size={16} aria-hidden="true" />
+    </button>
+  );
   return (
     <section
       className={`results-panel panel ${analysisGame || rackOdds ? "with-bingo-odds" : ""}`}
@@ -415,46 +495,12 @@ export default function Results({
           </button>
         )}
       </header>
-      {!!totalMoves && !busy && !error && (
+      {showFilters && (!compact || !hasBingoControls) && (
         <div className="result-filters">
-          {analysisGame && (
-            <div
-              className="result-view-picker"
-              role="group"
-              aria-label="Move list view"
-            >
-              <button
-                type="button"
-                aria-pressed={!shortlistOnly}
-                onClick={() => {
-                  setShortlistOnly(false);
-                  setSort("score");
-                }}
-              >
-                All moves
-              </button>
-              <button
-                type="button"
-                aria-pressed={shortlistOnly}
-                onClick={() => {
-                  setShortlistOnly(true);
-                  setSort("shortlist");
-                }}
-              >
-                Shortlist <span>{shortlist.length}</span>
-              </button>
-            </div>
-          )}
-          <div className="search-input">
-            <Search size={16} />
-            <input
-              aria-label="Filter moves"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Find a word…"
-            />
-          </div>
+          {viewPicker}
+          {searchField}
           {!hasBingoControls && sortControl}
+          {compact && searchToggle}
         </div>
       )}
       {!busy &&
@@ -472,6 +518,9 @@ export default function Results({
               replyEnabled && <ReplySettings analysis={replyAnalysis} />
             }
             sortControl={sortControl}
+            toolbarStart={compact && viewPicker}
+            toolbarEnd={compact && searchToggle}
+            searchField={compact && searchField}
             rackOdds={rackOdds}
             rackOddsPending={rackOddsPending}
             boardOdds={boardOdds}

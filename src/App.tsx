@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ImagePlus,
+  CircleHelp,
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
@@ -35,7 +36,7 @@ import {
 } from "lucide-react";
 import Board from "./components/Board";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
-import BoardEntry from "./components/BoardEntry";
+import BoardEntry, { BoardEntryHelp } from "./components/BoardEntry";
 import RackEntry from "./components/RackEntry";
 import {
   flyTiles,
@@ -162,7 +163,24 @@ function GameLoadStatus({ id, error }: { id: string; error?: string }) {
   );
 }
 
+const desktopGameQuery = "(min-width: 1000px)";
+
+function useDesktopGameLayout() {
+  const [desktop, setDesktop] = useState(
+    () => matchMedia(desktopGameQuery).matches,
+  );
+  useEffect(() => {
+    const query = matchMedia(desktopGameQuery);
+    const update = () => setDesktop(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return desktop;
+}
+
 export default function App() {
+  const desktopGame = useDesktopGameLayout();
   const boardPanel = useRef<HTMLElement>(null);
   const rackPanel = useRef<HTMLElement>(null);
   const [flight, setFlight] = useState<TileFlight>();
@@ -480,8 +498,161 @@ export default function App() {
         )}
       </div>
     );
+  const compactGame = desktopGame && workspace === "games" && !!game;
+  const saveAndTheme = (
+    <div className="topbar-actions">
+      <span
+        className={`sync-status ${!state.online || hasConflict || hasSaveError ? "offline" : ""}`}
+        title={saveError || state.error || "Games are saved on your server"}
+      >
+        {hasConflict || hasSaveError ? (
+          <Info size={14} />
+        ) : !state.online ? (
+          <CloudOff size={14} />
+        ) : pending ? (
+          <LoaderCircle className="spin" size={14} />
+        ) : (
+          <CheckCheck size={15} />
+        )}
+        <span>
+          {hasConflict
+            ? "Review changes"
+            : hasSaveError
+              ? "Save rejected"
+              : !state.online
+                ? "Saved on this device"
+                : pending
+                  ? "Saving…"
+                  : "All changes saved"}
+        </span>
+      </span>
+      <div className="theme-switch" aria-label="Color theme">
+        {[
+          ["light", Sun],
+          ["dark", Moon],
+          ["system", Monitor],
+        ].map(([value, Icon]) => {
+          const I = Icon as typeof Sun;
+          return (
+            <button
+              key={value as string}
+              aria-label={`${value} theme`}
+              aria-pressed={theme === value}
+              title={`${value} theme`}
+              className={theme === value ? "active" : ""}
+              onClick={() => setTheme(value as string)}
+            >
+              <I size={15} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+  const boardLegend = game && (
+    <div className="board-legend">
+      {game.archivedBoard &&
+        game.archived &&
+        game.board.some(
+          (tile, i) => tile && tile !== game.archivedBoard![i],
+        ) && (
+          <span>
+            <i className="archive-edit" />
+            Edited after archiving
+          </span>
+        )}
+      {[
+        "TW",
+        "DW",
+        "TL",
+        "DL",
+        ...(game.template.premiums.some((p) => p === "QW" || p === "QL")
+          ? ["QW", "QL"]
+          : []),
+      ].map((p) => (
+        <span key={p}>
+          <i className={p.toLowerCase()} />
+          {p[0] === "T" ? "Triple" : p[0] === "Q" ? "Quadruple" : "Double"}{" "}
+          {p[1] === "W" ? "word" : "letter"}
+        </span>
+      ))}
+    </div>
+  );
+  const boardToolbar = game && (
+    <div className="board-toolbar">
+      <div>
+        <span className="board-name">
+          <Grid2X2 size={16} />
+          {game.template.name}
+        </span>
+        <span className="board-size">
+          {game.template.size} × {game.template.size}
+        </span>
+        {compactGame && (
+          <details
+            className="board-help"
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && event.currentTarget.open) {
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector("summary")?.focus();
+              }
+            }}
+          >
+            <summary
+              className="icon-button"
+              aria-label="Board help"
+              title="Board help"
+            >
+              <CircleHelp size={16} />
+            </summary>
+            <div className="board-help-content">
+              <BoardEntryHelp />
+              {boardLegend}
+            </div>
+          </details>
+        )}
+      </div>
+      <div className="board-actions">
+        <button
+          className="icon-button"
+          aria-label="Import screenshot"
+          title="Import screenshot"
+          onClick={() => openDialog("screenshot")}
+        >
+          <ImagePlus size={17} />
+        </button>
+        <button
+          className="icon-button"
+          disabled={!game.past.length}
+          aria-label="Undo"
+          title="Undo"
+          onClick={undoGame}
+        >
+          <Undo2 size={17} />
+        </button>
+        <button
+          className="icon-button"
+          disabled={!game.future.length}
+          aria-label="Redo"
+          title="Redo"
+          onClick={() => update(redo(game))}
+        >
+          <Redo2 size={17} />
+        </button>
+        <span className="toolbar-divider" />
+        <button
+          className="icon-button"
+          aria-label="Move history"
+          title="Move history"
+          onClick={() => openDialog("history")}
+        >
+          <History size={17} />
+        </button>
+      </div>
+    </div>
+  );
   return (
-    <div className="app-shell">
+    <div className={`app-shell${compactGame ? " compact-game" : ""}`}>
       {sidebar && (
         <div className="sidebar-scrim" onClick={() => setSidebar(false)} />
       )}
@@ -532,10 +703,14 @@ export default function App() {
           Use on another device
         </button>
         <div className="sidebar-bottom">
-          <div className="local-note">
-            <span className="status-dot" />
-            Your games. Your home server.
-          </div>
+          {compactGame ? (
+            saveAndTheme
+          ) : (
+            <div className="local-note">
+              <span className="status-dot" />
+              Your games. Your home server.
+            </div>
+          )}
           <div className="profile-picker">
             {profile && (
               <button
@@ -580,77 +755,30 @@ export default function App() {
         </div>
       </aside>
       <main className="main-content">
-        <header className="topbar">
-          <div className="breadcrumb">
-            <button
-              className="icon-button menu-button"
-              aria-label="Open workspace menu"
-              onClick={() => setSidebar(true)}
-            >
-              <Menu size={20} />
-            </button>
-            <Home size={15} />
-            <span>My games</span>
-            <span className="breadcrumb-slash">/</span>
-            <span>
-              {workspace === "studio"
-                ? "Board studio"
-                : workspace === "archive"
-                  ? "Archived games"
-                  : selectedGame?.name || "Your workspace"}
-            </span>
-          </div>
-          <div className="topbar-actions">
-            <span
-              className={`sync-status ${!state.online || hasConflict || hasSaveError ? "offline" : ""}`}
-              title={
-                saveError || state.error || "Games are saved on your server"
-              }
-            >
-              {hasConflict || hasSaveError ? (
-                <Info size={14} />
-              ) : !state.online ? (
-                <CloudOff size={14} />
-              ) : pending ? (
-                <LoaderCircle className="spin" size={14} />
-              ) : (
-                <CheckCheck size={15} />
-              )}
+        {!compactGame && (
+          <header className="topbar">
+            <div className="breadcrumb">
+              <button
+                className="icon-button menu-button"
+                aria-label="Open workspace menu"
+                onClick={() => setSidebar(true)}
+              >
+                <Menu size={20} />
+              </button>
+              <Home size={15} />
+              <span>My games</span>
+              <span className="breadcrumb-slash">/</span>
               <span>
-                {hasConflict
-                  ? "Review changes"
-                  : hasSaveError
-                    ? "Save rejected"
-                    : !state.online
-                      ? "Saved on this device"
-                      : pending
-                        ? "Saving…"
-                        : "All changes saved"}
+                {workspace === "studio"
+                  ? "Board studio"
+                  : workspace === "archive"
+                    ? "Archived games"
+                    : selectedGame?.name || "Your workspace"}
               </span>
-            </span>
-            <div className="theme-switch" aria-label="Color theme">
-              {[
-                ["light", Sun],
-                ["dark", Moon],
-                ["system", Monitor],
-              ].map(([value, Icon]) => {
-                const I = Icon as typeof Sun;
-                return (
-                  <button
-                    key={value as string}
-                    aria-label={`${value} theme`}
-                    aria-pressed={theme === value}
-                    title={`${value} theme`}
-                    className={theme === value ? "active" : ""}
-                    onClick={() => setTheme(value as string)}
-                  >
-                    <I size={15} />
-                  </button>
-                );
-              })}
             </div>
-          </div>
-        </header>
+            {saveAndTheme}
+          </header>
+        )}
         {viewingArchivedGame && (
           <button
             className="button secondary archive-back archived-game-back"
@@ -661,8 +789,8 @@ export default function App() {
           </button>
         )}
         {workspace === "games" && (
-          <div className="workspace-heading">
-            <div>
+          <div className="workspace-heading game-heading">
+            <div className="game-heading-details">
               <div className="game-title-row">
                 {selectedGame?.archived ? (
                   <h1>{selectedGame.name}</h1>
@@ -706,6 +834,7 @@ export default function App() {
                 </details>
               )}
             </div>
+            {compactGame && boardToolbar}
             {game && (
               <div className="game-actions">
                 {game.archived && (
@@ -823,119 +952,44 @@ export default function App() {
           <div className="workspace-grid">
             <div className="board-column">
               <section ref={boardPanel} className="board-panel panel">
-                <div className="board-toolbar">
-                  <div>
-                    <span className="board-name">
-                      <Grid2X2 size={16} />
-                      {game.template.name}
-                    </span>
-                    <span className="board-size">
-                      {game.template.size} × {game.template.size}
-                    </span>
-                  </div>
-                  <div className="board-actions">
-                    <button
-                      className="icon-button"
-                      aria-label="Import screenshot"
-                      title="Import screenshot"
-                      onClick={() => openDialog("screenshot")}
-                    >
-                      <ImagePlus size={17} />
-                    </button>
-                    <button
-                      className="icon-button"
-                      disabled={!game.past.length}
-                      aria-label="Undo"
-                      title="Undo"
-                      onClick={undoGame}
-                    >
-                      <Undo2 size={17} />
-                    </button>
-                    <button
-                      className="icon-button"
-                      disabled={!game.future.length}
-                      aria-label="Redo"
-                      title="Redo"
-                      onClick={() => update(redo(game))}
-                    >
-                      <Redo2 size={17} />
-                    </button>
-                    <span className="toolbar-divider" />
-                    <button
-                      className="icon-button"
-                      aria-label="Move history"
-                      title="Move history"
-                      onClick={() => openDialog("history")}
-                    >
-                      <History size={17} />
-                    </button>
-                  </div>
-                </div>
+                {!compactGame && boardToolbar}
                 <BoardEntry
                   key={game.id}
                   game={game}
+                  hideHelp={compactGame}
                   preview={activeFlight?.move ?? preview}
                   displayBoard={activeFlight?.before.board}
                   onChange={update}
                   onSelect={() => setPreview(null)}
                 />
-                <div className="board-legend">
-                  {game.archivedBoard &&
-                    game.archived &&
-                    game.board.some(
-                      (tile, i) => tile && tile !== game.archivedBoard![i],
-                    ) && (
-                      <span>
-                        <i className="archive-edit" />
-                        Edited after archiving
-                      </span>
-                    )}
-                  {[
-                    "TW",
-                    "DW",
-                    "TL",
-                    "DL",
-                    ...(game.template.premiums.some(
-                      (p) => p === "QW" || p === "QL",
-                    )
-                      ? ["QW", "QL"]
-                      : []),
-                  ].map((p) => (
-                    <span key={p}>
-                      <i className={p.toLowerCase()} />
-                      {p[0] === "T"
-                        ? "Triple"
-                        : p[0] === "Q"
-                          ? "Quadruple"
-                          : "Double"}{" "}
-                      {p[1] === "W" ? "word" : "letter"}
-                    </span>
-                  ))}
-                </div>
+                {!compactGame && boardLegend}
               </section>
               <section
                 ref={rackPanel}
+                aria-label="Your rack"
                 className="rack-panel panel"
                 onFocusCapture={() => {
                   if (activeFlight) setFlight(undefined);
                 }}
               >
-                <div className="rack-heading">
-                  <h2>Your rack</h2>
-                  <button
-                    className="button primary solve-button"
-                    disabled={!hasPlayableRack && !busy}
-                    onClick={solve}
-                  >
-                    {busy ? (
-                      <LoaderCircle className="spin" size={17} />
-                    ) : (
-                      <Sparkles size={17} />
-                    )}{" "}
-                    {busy ? "Cancel" : "Find moves"}
-                    {!busy && <ArrowRight size={17} />}
-                  </button>
-                </div>
+                {!compactGame && (
+                  <div className="rack-heading">
+                    <h2>Your rack</h2>
+                    <button
+                      className="button primary solve-button"
+                      disabled={!hasPlayableRack && !busy}
+                      onClick={solve}
+                    >
+                      {busy ? (
+                        <LoaderCircle className="spin" size={17} />
+                      ) : (
+                        <Sparkles size={17} />
+                      )}{" "}
+                      {busy ? "Cancel" : "Find moves"}
+                      {!busy && <ArrowRight size={17} />}
+                    </button>
+                  </div>
+                )}
                 <RackEntry
                   key={game.id}
                   game={game}
@@ -983,6 +1037,7 @@ export default function App() {
             </div>
             <div className="results-column">
               <Results
+                compact={compactGame}
                 results={solver.results}
                 fetchPage={solver.page}
                 fetchShortlist={solver.shortlist}

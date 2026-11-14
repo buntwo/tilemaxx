@@ -4667,3 +4667,126 @@ kbd {
   }
   :is(.result-filters, .bingo-odds-actions) .sort-select svg { display: none; }
 }
+
+/* Keep the board, rack and first move rows in view in a desktop game. */
+.compact-game .main-content {
+  padding-inline: clamp(14px, 1.6vw, 28px);
+}
+.compact-game .sidebar .topbar-actions {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 4px 12px;
+}
+.compact-game .sidebar .profile-picker { padding-top: 12px; }
+.compact-game .game-heading {
+  flex-wrap: wrap;
+  padding: 12px 0 10px;
+}
+.compact-game .game-heading-details {
+  display: flex;
+  align-items: center;
+  gap: 5px 10px;
+  flex-wrap: wrap;
+}
+.compact-game .game-heading .game-title-meta { margin: 0; }
+.compact-game .game-heading .game-actions { margin-left: auto; }
+.compact-game .game-heading .board-toolbar {
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 0;
+  border: 0;
+}
+.compact-game .game-heading .board-actions {
+  padding-left: 7px;
+  border-left: 1px solid var(--line);
+}
+.compact-game .game-heading .board-actions .icon-button {
+  width: 30px;
+  height: 32px;
+}
+.board-help { position: relative; }
+.board-help > summary { list-style: none; }
+.board-help > summary::-webkit-details-marker { display: none; }
+.board-help-content {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 14;
+  width: min(330px, 38vw);
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 22px #0003;
+}
+.board-help-content .board-legend {
+  justify-content: flex-start;
+  padding: 6px 0 0;
+  margin: 0;
+}
+.board-help-content .direct-entry-help { font-size: 11px; }
+
+.compact-game .workspace-grid {
+  --board-lane-width: max(320px, calc(100svh - 188px));
+  grid-template-columns: min(54%, var(--board-lane-width)) minmax(0, 1fr);
+  gap: 14px;
+}
+.compact-game .board-panel { padding: 5px 9px 3px; }
+.compact-game .board-panel .board-wrap { padding: 1px 0 2px; }
+.compact-game .board-panel .direct-entry-tools {
+  margin-block: 3px 0;
+  padding-block: 0;
+}
+.compact-game .board-panel .direct-entry-tools .icon-button {
+  width: 27px;
+  height: 27px;
+}
+.compact-game .rack-panel {
+  margin-top: 6px;
+  padding: 7px 11px 8px;
+}
+.compact-game .rack-panel .rack-tiles {
+  width: min(100%, calc(var(--rack-size) * 44px + 7px));
+  margin: 0 auto 3px;
+  padding-block: 4px 6px;
+}
+.compact-game .rack-panel .rack-tile { max-width: 37px; }
+.compact-game .rack-panel .rack-tools summary { min-height: 25px; }
+.compact-game .rack-panel .tile-pool { margin-top: 5px; }
+.compact-game .rack-panel .tile-pool summary { padding-top: 5px; }
+
+.compact-game .bingo-odds-actions {
+  gap: 5px 6px;
+}
+.compact-game .bingo-odds-actions .sort-select { padding-inline: 4px 2px; }
+.compact-game .bingo-odds-actions .sort-select svg { display: none; }
+.compact-game .bingo-odds-actions .sort-select select {
+  field-sizing: content;
+  max-width: 85px;
+}
+.compact-game .bingo-odds-actions .result-view-picker {
+  padding: 0;
+  flex-wrap: nowrap;
+}
+.compact-game .bingo-odds-actions .result-view-picker button {
+  font-size: 11px;
+  padding-inline: 6px;
+  min-height: 30px;
+  white-space: nowrap;
+}
+.compact-game .results-panel .move-search-toggle {
+  margin-left: auto;
+  width: 30px;
+  height: 30px;
+  border-left: 1px solid var(--line);
+}
+.compact-game .results-panel .search-input[hidden] { display: none; }
+.compact-game .bingo-odds-controls > .search-input { margin-top: 5px; }
+.compact-game .result-filters > .search-input { flex: 1 0 100%; order: 1; }
+.compact-game .result-scroll:not(.is-shortlist) {
+  height: clamp(185px, calc(100svh - 248px), 520px);
+}
+.compact-game .results-panel:has(.search-input:not([hidden])) .result-scroll:not(.is-shortlist) {
+  height: clamp(148px, calc(100svh - 283px), 485px);
+}

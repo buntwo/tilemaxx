@@ -228,6 +228,12 @@ test("board check uses the current filtered moves, and cancelled results stay ou
   expect(
     await screen.findAllByRole("button", { name: /^CATS,.*bingo draw 14%/ }),
   ).not.toHaveLength(0);
+  const search = screen.getByRole("button", { name: "Search possible moves" });
+  expect(screen.queryByRole("textbox", { name: "Filter moves" })).toBeNull();
+  await user.click(search);
+  expect(document.activeElement).toBe(
+    screen.getByRole("textbox", { name: "Filter moves" }),
+  );
   await user.type(
     screen.getByRole("textbox", { name: "Filter moves" }),
     "CATS",

@@ -13,6 +13,9 @@ export default function BingoOddsControls({
   shortlist,
   settings,
   sortControl,
+  toolbarStart,
+  toolbarEnd,
+  searchField,
   rackOdds,
   rackOddsPending,
   boardOdds,
@@ -26,6 +29,9 @@ export default function BingoOddsControls({
   shortlist?: boolean;
   settings?: ReactNode;
   sortControl?: ReactNode;
+  toolbarStart?: ReactNode;
+  toolbarEnd?: ReactNode;
+  searchField?: ReactNode;
   rackOdds?: RackOdds;
   rackOddsPending?: boolean;
   boardOdds?: BoardOddsResult;
@@ -43,6 +49,7 @@ export default function BingoOddsControls({
   return (
     <div className="bingo-odds-controls">
       <div className="bingo-odds-actions">
+        {toolbarStart}
         {progress ? (
           <>
             <button
@@ -116,7 +123,9 @@ export default function BingoOddsControls({
             {settings}
           </div>
         </details>
+        {toolbarEnd}
       </div>
+      {searchField}
       {boardOdds && !progress && (
         <span className="bingo-odds-status" role="status">
           Bingo after your play · {boardOdds.checked} / {boardOdds.total} moves

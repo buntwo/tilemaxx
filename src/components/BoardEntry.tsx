@@ -18,12 +18,14 @@ type EditKind = "enter" | "erase" | "blank";
 
 export default function BoardEntry({
   game,
+  hideHelp,
   displayBoard,
   preview,
   onChange,
   onSelect,
 }: {
   game: Game;
+  hideHelp?: boolean;
   displayBoard?: BoardState;
   preview: Move | null;
   onChange: (game: Game) => void;
@@ -33,6 +35,7 @@ export default function BoardEntry({
   return (
     <BoardInput
       board={displayBoard ?? game.board}
+      hideHelp={hideHelp}
       archivedBoard={game.archived ? game.archivedBoard : undefined}
       template={game.template}
       preview={preview}
@@ -59,6 +62,7 @@ export function BoardInput({
   selection,
   uncertain,
   inputLabel = "Type on board",
+  hideHelp = false,
 }: {
   board: BoardState;
   archivedBoard?: BoardState;
@@ -71,6 +75,7 @@ export function BoardInput({
   selection?: { index: number };
   uncertain?: ReadonlySet<number>;
   inputLabel?: string;
+  hideHelp?: boolean;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [focused, setFocused] = useState(false);
@@ -362,10 +367,22 @@ export function BoardInput({
             <Trash2 size={15} />
           </button>
         </div>
-        <p id={helpId} className="direct-entry-help">
-          Tap again to turn · Space then letter = blank · . skips a square
-        </p>
+        <BoardEntryHelp id={helpId} hidden={hideHelp} />
       </div>
     </div>
+  );
+}
+
+export function BoardEntryHelp({
+  id,
+  hidden,
+}: {
+  id?: string;
+  hidden?: boolean;
+}) {
+  return (
+    <p id={id} className="direct-entry-help" hidden={hidden}>
+      Tap again to turn · Space then letter = blank · . skips a square
+    </p>
   );
 }
