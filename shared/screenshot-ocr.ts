@@ -263,6 +263,14 @@ export async function readGlyphs(
       // Keep the review mark for shape-based readings.
       confidence = Math.min(confidence, 74);
     }
+    // A slightly clipped V can produce a zero-confidence J. A real J
+    // has just one stroke across the upper rows.
+    const correctedV =
+      glyph.warmTile &&
+      letter === "J" &&
+      confidence < 40 &&
+      shapeAgrees(glyph, "V");
+    if (correctedV) letter = "V";
     if (letter)
       board[glyph.index] = glyph.assignedBlank ? letter.toLowerCase() : letter;
     tiles.push({ glyph, letter, confidence });

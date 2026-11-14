@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { ImagePlus, LoaderCircle, ScanLine } from "lucide-react";
 import {
   type Board as BoardState,
@@ -304,14 +304,30 @@ export default function ScreenshotImport({
                   />
                   <div
                     className="crop-grid"
+                    aria-hidden="true"
                     style={{
                       left: `${(crop.left / image.naturalWidth) * 100}%`,
                       top: `${(crop.top / image.naturalHeight) * 100}%`,
                       width: `${(crop.width / image.naturalWidth) * 100}%`,
                       height: `${(crop.height / image.naturalHeight) * 100}%`,
-                      backgroundSize: `${100 / template.size}% ${100 / template.size}%`,
                     }}
-                  />
+                  >
+                    {Array.from({ length: template.size - 1 }, (_, index) => {
+                      const position = `${((index + 1) * 100) / template.size}%`;
+                      return (
+                        <Fragment key={index}>
+                          <span
+                            className="crop-grid-column"
+                            style={{ left: position }}
+                          />
+                          <span
+                            className="crop-grid-row"
+                            style={{ top: position }}
+                          />
+                        </Fragment>
+                      );
+                    })}
+                  </div>
                   {corner && (
                     <span
                       className="crop-corner"

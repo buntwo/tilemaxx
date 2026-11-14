@@ -11,19 +11,29 @@ export function findBoard(image: HTMLImageElement, size: number) {
     );
     canvas.width = Math.round(image.naturalWidth * scale);
     canvas.height = Math.round(image.naturalHeight * scale);
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    // Keep the same pixel scale on both axes despite rounding the canvas size.
+    ctx.drawImage(
+      image,
+      0,
+      0,
+      image.naturalWidth * scale,
+      image.naturalHeight * scale,
+    );
     const crop = detect(
       ctx.getImageData(0, 0, canvas.width, canvas.height),
       size,
     );
     if (!crop) return null;
-    const xScale = image.naturalWidth / canvas.width;
-    const yScale = image.naturalHeight / canvas.height;
+    const side = Math.min(
+      crop.width / scale,
+      image.naturalWidth,
+      image.naturalHeight,
+    );
     return {
-      left: crop.left * xScale,
-      top: crop.top * yScale,
-      width: crop.width * xScale,
-      height: crop.height * yScale,
+      left: Math.min(crop.left / scale, image.naturalWidth - side),
+      top: Math.min(crop.top / scale, image.naturalHeight - side),
+      width: side,
+      height: side,
     };
   }
   return (

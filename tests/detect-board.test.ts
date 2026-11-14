@@ -4,17 +4,15 @@ import sharp from "sharp";
 import { detectBoard } from "../shared/detect-board";
 import { detectScrabbleGoBoard } from "../shared/detect-scrabble-go";
 import { PRESETS } from "../shared/presets";
-for (const [width, height, left, top, boardWidth, boardHeight] of [
-  [900, 1600, 75, 340, 750, 750],
-  [1200, 900, 210, 60, 750, 750],
-  [390, 844, 15, 230, 360, 360],
-  [750, 750, 0, 0, 750, 750],
-  [480, 840, 15, 218, 360, 390],
-  [840, 480, 218, 15, 390, 360],
+for (const [width, height, left, top, side] of [
+  [900, 1600, 75, 340, 750],
+  [1200, 900, 210, 60, 750],
+  [390, 844, 15, 230, 360],
+  [750, 750, 0, 0, 750],
 ]) {
-  test(`detect ${boardWidth}×${boardHeight} grid in ${width}×${height} image`, async () => {
+  test(`detect board in ${width}×${height} image`, async () => {
     const board = await sharp("tests/fixtures/board.png")
-      .resize(boardWidth, boardHeight, { fit: "fill" })
+      .resize(side, side)
       .png()
       .toBuffer();
     const { data, info } = await sharp({
@@ -31,8 +29,8 @@ for (const [width, height, left, top, boardWidth, boardHeight] of [
     for (const [key, expected] of Object.entries({
       left,
       top,
-      width: boardWidth,
-      height: boardHeight,
+      width: side,
+      height: side,
     }))
       assert.ok(
         Math.abs(found[key as keyof typeof found] - expected) < 7,
@@ -98,13 +96,12 @@ test("Scrabble GO detector locates the board even when most triple words are cov
   );
 });
 
-test("Scrabble GO finds a stretched late-game grid through JPEG compression", async () => {
+test("Scrabble GO finds a late game through JPEG compression with no visible triple words", async () => {
   const width = 588,
     height = 1200,
     left = 8,
     top = 432,
-    cellWidth = 38,
-    cellHeight = 40;
+    cell = 38;
   const colors = { DW: "#ff8b71", TL: "#1775b3", DL: "#90ccff" };
   const squares = PRESETS[0].premiums.map((premium, i) => {
     const col = i % 15,
@@ -113,21 +110,21 @@ test("Scrabble GO finds a stretched late-game grid through JPEG compression", as
     const color = visible
       ? (colors[premium as keyof typeof colors] ?? "#e7e9f0")
       : "#f1dfb6";
-    const x = left + col * cellWidth,
-      y = top + row * cellHeight;
-    return `<rect x="${x + 2}" y="${y + 2}" width="${cellWidth - 4}" height="${cellHeight - 4}" rx="3" fill="${color}"/>
+    const x = left + col * cell,
+      y = top + row * cell;
+    return `<rect x="${x + 2}" y="${y + 2}" width="34" height="34" rx="3" fill="${color}"/>
       ${visible && premium ? `<path d="M${x + 16} ${y + 15}h7v8h-7z" fill="white"/>` : ""}`;
   });
   const decoys = Array.from(
     { length: 7 },
     (_, i) =>
-      `<rect x="${8 + i * 77}" y="1060" width="70" height="70" rx="5" fill="#f1c48a"/>
+      `<rect x="${8 + i * 77}" y="1035" width="70" height="70" rx="5" fill="#f1c48a"/>
      <rect x="${20 + i * 77}" y="280" width="34" height="34" rx="4" fill="${["#ef207a", ...Object.values(colors)][i % 4]}"/>`,
   );
   const chrome = `<rect width="100%" height="100%" fill="#fafafa"/>
      <rect width="100%" height="370" fill="#c56f57"/>
      <rect y="370" width="100%" height="62" fill="#d2edf4"/>
-     <rect y="1045" width="100%" height="155" fill="#c56f57"/>${decoys.join("")}`;
+     <rect y="1020" width="100%" height="180" fill="#c56f57"/>${decoys.join("")}`;
   const pixels = async (content: string) => {
     const { data, info } = await sharp(
       Buffer.from(
@@ -148,8 +145,8 @@ test("Scrabble GO finds a stretched late-game grid through JPEG compression", as
   for (const [key, expected] of Object.entries({
     left,
     top,
-    width: cellWidth * 15,
-    height: cellHeight * 15,
+    width: cell * 15,
+    height: cell * 15,
   })) {
     assert.ok(
       Math.abs(found[key as keyof typeof found] - expected * 0.75) < 1.5,

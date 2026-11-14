@@ -188,6 +188,33 @@ test("a low-confidence A reading can recover a Z without changing other letters"
   });
 });
 
+test("a weak J read can recover a V while a real J stays put", async () => {
+  const svg =
+    Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">
+    <rect width="80" height="80" fill="#f6e7c3"/>
+    <path d="M9 8H15L20 21L25 8H31L24 30H16Z" fill="#22170f"/>
+    <path d="M66 8H71V22C71 34 56 35 53 24L58 22C59 28 66 28 66 22Z" fill="#22170f"/>
+  </svg>`);
+  const { data, info } = await sharp(svg)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const glyphs = extractGlyphs(
+    { data, width: info.width, height: info.height },
+    { left: 0, top: 0, width: 80, height: 80 },
+    2,
+  );
+  const result = await readGlyphs(
+    glyphs,
+    2,
+    async () => ({ text: "J", confidence: 0 }),
+    () => {},
+    () => {},
+  );
+  assert.deepEqual(result.board, ["V", "J", "", ""]);
+  assert.deepEqual(result.uncertain, [0, 1]);
+});
+
 test(
   "local OCR recognizes a fixture and rejects premium labels and point values",
   { timeout: 60000 },

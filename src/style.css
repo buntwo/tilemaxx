@@ -3664,13 +3664,25 @@ kbd {
 .crop-grid {
   position: absolute;
   pointer-events: none;
-  border: 2px solid #eea834;
+  outline: 2px solid #eea834;
+  outline-offset: -1px;
   box-shadow: 0 0 0 999px #0004;
   clip-path: inset(-450px);
-  background-origin: border-box;
-  background-image:
-    linear-gradient(to right, #eea834a0 1px, transparent 1px),
-    linear-gradient(to bottom, #eea834a0 1px, transparent 1px);
+}
+.crop-grid-column,
+.crop-grid-row {
+  position: absolute;
+  background: #eea834a0;
+}
+.crop-grid-column {
+  inset-block: 0;
+  width: 1px;
+  transform: translateX(-50%);
+}
+.crop-grid-row {
+  inset-inline: 0;
+  height: 1px;
+  transform: translateY(-50%);
 }
 .crop-stage {
   overflow: hidden;
