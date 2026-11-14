@@ -31,8 +31,8 @@ test("exchange uses exact physical weights and cannot redraw the only exchanged 
   assert.deepEqual(
     result.examples.map(({ word, chance, draws }) => ({ word, chance, draws })),
     [
-      { word: "AZ", chance: 5 / 9, draws: ["Z"] },
-      { word: "AT", chance: 3 / 9, draws: ["T"] },
+      { word: "AZ", chance: 5 / 9, draws: [{ tiles: "Z", score: 72 }] },
+      { word: "AT", chance: 3 / 9, draws: [{ tiles: "T", score: 54 }] },
     ],
   );
   assert.throws(
@@ -68,7 +68,10 @@ test("exchange examples aggregate alternative draws and show only tiles used", (
       score: 4,
       bingo: false,
       chance: 1 - 10 / 36,
-      draws: ["T", "?"],
+      draws: [
+        { tiles: "T", score: 4 },
+        { tiles: "?", score: 2 },
+      ],
     },
   ]);
   const kept = simulateExchange(lexicon, {
@@ -79,7 +82,7 @@ test("exchange examples aggregate alternative draws and show only tiles used", (
     template,
   });
   assert.equal(kept.examples[0].chance, 1);
-  assert.deepEqual(kept.examples[0].draws, [""]);
+  assert.deepEqual(kept.examples[0].draws, [{ tiles: "", score: 4 }]);
 });
 
 test("review snapshots survive storage and distinguish a missed bingo from the chosen score", () => {

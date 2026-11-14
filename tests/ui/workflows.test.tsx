@@ -18,6 +18,8 @@ import { solve, solvePosition } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
 import { MoveResultIndex } from "../../shared/move-results";
 import type { SolverRequest } from "../../src/solver-messages";
+import type { PracticeRequest } from "../../src/practice.worker";
+import { simulateExchange } from "../../shared/exchange";
 
 let remote: AppState;
 const game = (): Game => ({
@@ -1532,7 +1534,23 @@ test("a move's score button opens its own breakdown without playing it", async (
   expect(current().rack).toBe("CAT");
 });
 
-test("exchange simulation expands inside the rack and closes when marks change", async () => {
+test("exchange simulation starts on open, shows draw scores, and closes when marks change", async () => {
+  const requests: PracticeRequest[] = [];
+  vi.stubGlobal(
+    "Worker",
+    class extends SolverWorker {
+      postMessage(request: SolverRequest | PracticeRequest) {
+        if (request.kind === "exchange") {
+          requests.push(request);
+          const result = simulateExchange(
+            new Lexicon(["CAT"]),
+            request.exchange,
+          );
+          queueMicrotask(() => this.onmessage?.({ data: { result } }));
+        }
+      }
+    },
+  );
   const user = await start();
   await typeRack(user, "CAT");
   await user.click(screen.getByText("Rack tools"));
@@ -1545,9 +1563,17 @@ test("exchange simulation expands inside the rack and closes when marks change",
   expect(screen.queryByRole("dialog")).toBeNull();
   const section = screen.getByRole("region", { name: "Simulate exchange" });
   expect(section.closest(".rack-panel")).toBeTruthy();
+  const cat = await within(section).findByText("CAT");
+  const row = within(cat.closest("li")!);
+  expect(requests).toHaveLength(1);
   expect(
-    within(section).getByRole("button", { name: "Run simulation" }),
+    row.getByText("C", { selector: ".rack-exchange-letters span" }),
   ).toBeTruthy();
+  expect(
+    row.getByText("blank", { selector: ".rack-exchange-letters .blank" }),
+  ).toBeTruthy();
+  expect(row.getAllByText("10 pts")).toHaveLength(2);
+  expect(row.getByText("4 pts")).toBeTruthy();
   expect(within(section).getByText("90 estimated in bag")).toBeTruthy();
   expect(within(section).queryByRole("spinbutton")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Clear marks" }));

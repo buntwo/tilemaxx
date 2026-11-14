@@ -145,7 +145,7 @@ export function simulateExchange(
           chance: occurrences / weight,
           draws: [...draws]
             .sort(([, a], [, b]) => b.score - a.score || b.weight - a.weight)
-            .map(([tiles]) => tiles),
+            .map(([tiles, { score }]) => ({ tiles, score })),
         })),
     };
   }

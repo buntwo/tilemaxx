@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
 import type { Game } from "../../shared/model";
 import type { ExchangeResult } from "../../shared/exchange";
@@ -9,17 +10,37 @@ const exchangePercent = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 1,
 });
 
-function drawDescription(draws: string[]) {
-  const combinations = draws
-    .filter(Boolean)
-    .map((draw) =>
-      [...draw].map((tile) => (tile === "?" ? "blank" : tile)).join(" + "),
-    );
-  if (!combinations.length) return "Uses kept tiles";
-  const tiles = combinations.join(" or ");
-  return draws.includes("")
-    ? `Uses kept tiles, or draw ${tiles}`
-    : `Draw ${tiles}`;
+function MiniTiles({ tiles }: { tiles: string }) {
+  return (
+    <span className="rack-exchange-letters">
+      {[...tiles].map((tile, i) => (
+        <span key={i} className={tile === "?" ? "blank" : undefined}>
+          {tile === "?" ? "blank" : tile}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function DrawOptions({
+  draws,
+}: {
+  draws: ExchangeResult["examples"][number]["draws"];
+}) {
+  const showScores = draws.some(({ score }) => score !== draws[0].score);
+  return (
+    <div className="exchange-draw-options">
+      {draws.map(({ tiles, score }, i) => (
+        <span className="exchange-draw-option" key={tiles}>
+          {i > 0 && <span>or</span>}
+          {tiles ? <MiniTiles tiles={tiles} /> : <span>Uses kept tiles</span>}
+          {showScores && (
+            <span className="exchange-example-score">{score} pts</span>
+          )}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 export default function ExchangeAnalysis({
@@ -34,6 +55,16 @@ export default function ExchangeAnalysis({
   const { result, progress, error, run, reset } = usePractice<ExchangeResult>();
   const minimum = Math.max(slots.length, game.template.rules === "wwf" ? 1 : 7);
   const valid = !excess.length && bag >= minimum;
+  const { board, dictionaryId, rack, template } = game;
+  // RackEntry keys this panel by the position and marked slots.
+  const [request] = useState(() => ({
+    kind: "exchange" as const,
+    dictionaryId,
+    exchange: { board, rack, slots, bag, template },
+  }));
+  useEffect(() => {
+    if (valid) run(request);
+  }, [valid, request, run]);
   return (
     <section
       className="rack-simulation practice-body"
@@ -43,11 +74,7 @@ export default function ExchangeAnalysis({
         <h3>
           Exchange {slots.length} {slots.length === 1 ? "tile" : "tiles"}
         </h3>
-        <span className="rack-exchange-letters">
-          {slots.map((i) => (
-            <span key={i}>{game.rack[i]}</span>
-          ))}
-        </span>
+        <MiniTiles tiles={slots.map((i) => rack[i]).join("")} />
         <span
           className="rack-simulation-bag"
           title="Assumes one opponent has up to a full rack"
@@ -72,19 +99,7 @@ export default function ExchangeAnalysis({
           <button
             className="button primary"
             disabled={!valid}
-            onClick={() =>
-              run({
-                kind: "exchange",
-                dictionaryId: game.dictionaryId,
-                exchange: {
-                  board: game.board,
-                  rack: game.rack,
-                  slots,
-                  bag,
-                  template: game.template,
-                },
-              })
-            }
+            onClick={() => run(request)}
           >
             {result ? "Run again" : "Run simulation"}
           </button>
@@ -156,7 +171,7 @@ export default function ExchangeAnalysis({
                           : exchangePercent.format(example.chance)}
                       </span>
                     </div>
-                    <small>{drawDescription(example.draws)}</small>
+                    <DrawOptions draws={example.draws} />
                   </li>
                 ))}
               </ul>

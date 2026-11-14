@@ -4127,7 +4127,7 @@ kbd {
 }
 .rack-simulation-heading h3 { margin: 0; font-size: 12px; }
 .rack-simulation-bag { margin-left: auto; color: var(--muted); font-size: 11px; }
-.rack-exchange-letters { display: flex; gap: 3px; }
+.rack-exchange-letters { display: inline-flex; gap: 3px; }
 .rack-exchange-letters span {
   display: grid;
   place-items: center;
@@ -4140,6 +4140,7 @@ kbd {
   font-size: 10px;
   font-weight: 700;
 }
+.rack-exchange-letters .blank { background: var(--blank-tile); color: var(--blank-ink); }
 .rack-simulation-actions .button { min-height: 30px; padding: 5px 9px; font-size: 11px; }
 .rack-simulation [aria-label="Exchange results"] { width: 100%; }
 .rack-simulation-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 1px 0 6px; }
@@ -4151,6 +4152,8 @@ kbd {
 .exchange-example-play .bingo-badge { margin-right: 0; line-height: 10px; }
 .exchange-example-score, .exchange-example-chance { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .exchange-example-chance { color: var(--primary); font-weight: 650; }
+.exchange-draw-options { display: flex; flex-wrap: wrap; gap: 3px 6px; margin-top: 3px; color: var(--muted); font-size: 11px; }
+.exchange-draw-option { display: inline-flex; align-items: center; gap: 5px; }
 .exchange-bingo-word { color: #8a6418; }
 :root[data-theme="dark"] .exchange-bingo-word { color: #f5df9e; }
 @media (prefers-color-scheme: dark) {
