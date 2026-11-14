@@ -951,6 +951,50 @@ test("scroll gestures and canceled board touches do not select or turn a square"
   expect(selectedCell()).toBeUndefined();
 });
 
+test("holding a played tile reveals its word score without editing and a tap still edits", async () => {
+  const user = await start();
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT");
+  await user.click(rackTile(1));
+  const played = cell("I8: A");
+  const scores = () => document.querySelectorAll(".board-word-score");
+
+  vi.useFakeTimers();
+  try {
+    const waitForHold = () => act(() => vi.advanceTimersByTime(500));
+    touch(played, "pointerdown");
+    touch(played, "pointermove", { clientY: 65 });
+    touch(played, "pointercancel");
+    waitForHold();
+    expect(scores()).toHaveLength(0);
+
+    touch(played, "pointerdown");
+    const context = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(played, context);
+    expect(context.defaultPrevented).toBe(true);
+    waitForHold();
+    expect(scores()[0]?.textContent).toBe("10");
+    touch(played, "pointerup");
+    fireEvent.click(played);
+    expect(document.activeElement).not.toBe(entry());
+    expect(selectedCell()).toBeUndefined();
+    expect(scores()).toHaveLength(1);
+
+    touch(played, "pointerdown");
+    touch(played, "pointerup");
+    fireEvent.click(played);
+    waitForHold();
+    expect(scores()).toHaveLength(0);
+    expect(selectedCell()).toBe("113");
+    expect(document.activeElement).toBe(entry());
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 test("rack typo correction and persisted gaps keep subsequent tiles fixed and still solve", async () => {
   const user = await start();
   await typeRack(user, "COT");

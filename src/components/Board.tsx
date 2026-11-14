@@ -1,4 +1,11 @@
-import { Fragment, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { ArrowDown, ArrowRight, Star } from "lucide-react";
 import type { boardWordsAt } from "../../shared/game-scoring";
 import {
@@ -8,6 +15,9 @@ import {
   coordinate,
   tileScore,
 } from "../../shared/model";
+
+const WORD_SCORE_HOLD_MS = 450;
+
 export default function Board({
   template,
   board,
@@ -50,10 +60,27 @@ export default function Board({
     repeat: boolean;
   } | null>(null);
   const canceledTap = useRef(false);
+  const holdTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [hoveredTile, setHoveredTile] = useState<number | null>(null);
+  const [pressedTile, setPressedTile] = useState<number | null>(null);
+  const scoreTile = hoveredTile ?? pressedTile;
+  useEffect(() => () => clearTimeout(holdTimer.current), []);
+  useEffect(() => {
+    if (pressedTile === null) return;
+    const dismiss = () => setPressedTile(null);
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") dismiss();
+    };
+    document.addEventListener("pointerdown", dismiss, true);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss, true);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [pressedTile]);
   const words = useMemo(
-    () => (hoveredTile === null ? undefined : wordScores?.(hoveredTile)),
-    [hoveredTile, wordScores],
+    () => (scoreTile === null ? undefined : wordScores?.(scoreTile)),
+    [scoreTile, wordScores],
   );
   const wordTiles = new Set(words?.flatMap(({ cells }) => cells));
   const n = template.size,
@@ -61,7 +88,7 @@ export default function Board({
   return (
     <div className={`board-wrap ${compact ? "compact" : ""}`}>
       <div
-        className={`board-grid ${paint ? "paint-board" : ""} ${placed.size ? "has-move-preview" : ""}`}
+        className={`board-grid ${paint ? "paint-board" : ""} ${placed.size ? "has-move-preview" : ""}${wordScores ? " with-word-scores" : ""}`}
         style={{ "--size": n } as CSSProperties}
         aria-label={`${template.name} board`}
         onPointerOver={
@@ -116,52 +143,74 @@ export default function Board({
                       : selected === i
                   }
                   onPointerDown={(e) => {
+                    if (e.isPrimary === false) return;
+                    clearTimeout(holdTimer.current);
                     canceledTap.current = false;
                     touch.current = null;
                     // Keep the current input focused on desktop. Touch waits
                     // for click, after the browser finishes its focus handling.
-                    if (
-                      keepInputFocus &&
-                      e.pointerType !== "touch" &&
-                      e.isPrimary !== false
-                    )
+                    if (keepInputFocus && e.pointerType !== "touch")
                       e.preventDefault();
-                    if (
-                      keepInputFocus &&
-                      e.pointerType === "touch" &&
-                      e.isPrimary !== false
-                    )
+                    if (keepInputFocus && e.pointerType === "touch") {
                       touch.current = {
                         index: i,
                         x: e.clientX,
                         y: e.clientY,
                         repeat: selected === i,
                       };
+                      if (wordScores) {
+                        setHoveredTile(null);
+                        if (board[i]) {
+                          holdTimer.current = setTimeout(() => {
+                            canceledTap.current = true;
+                            setPressedTile(i);
+                          }, WORD_SCORE_HOLD_MS);
+                        }
+                      }
+                    }
                   }}
                   onPointerMove={(e) => {
                     if (
+                      e.isPrimary !== false &&
                       touch.current &&
                       Math.hypot(
                         e.clientX - touch.current.x,
                         e.clientY - touch.current.y,
                       ) > 10
                     ) {
+                      clearTimeout(holdTimer.current);
+                      setPressedTile(null);
                       touch.current = null;
                       canceledTap.current = true;
                     }
                   }}
-                  onPointerCancel={() => {
+                  onPointerUp={(e) => {
+                    if (e.isPrimary !== false) clearTimeout(holdTimer.current);
+                  }}
+                  onPointerCancel={(e) => {
+                    if (e.isPrimary === false) return;
+                    clearTimeout(holdTimer.current);
+                    setPressedTile(null);
                     touch.current = null;
                     canceledTap.current = true;
                   }}
+                  onContextMenu={
+                    wordScores && board[i]
+                      ? (e) => {
+                          if (touch.current?.index === i) e.preventDefault();
+                        }
+                      : undefined
+                  }
                   onMouseDown={(e) => {
                     if (keepInputFocus) e.preventDefault();
                   }}
                   onKeyDown={() => {
+                    clearTimeout(holdTimer.current);
                     touch.current = null;
                     canceledTap.current = false;
                   }}
                   onClick={(e) => {
+                    clearTimeout(holdTimer.current);
                     const tap = touch.current;
                     touch.current = null;
                     if (canceledTap.current) {

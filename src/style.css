@@ -3923,6 +3923,9 @@ kbd {
   --hover-base: var(--tile);
   background-color: color-mix(in srgb, var(--hover-base) 81%, #826238);
 }
+.board-grid.with-word-scores .square.occupied:not(.ghost) {
+  -webkit-touch-callout: none;
+}
 .square.word-hover.blank {
   --hover-base: var(--blank-tile);
   background-color: color-mix(in srgb, var(--hover-base) 88%, black);
