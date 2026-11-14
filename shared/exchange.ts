@@ -1,7 +1,7 @@
 import type { BoardTemplate, Move, Position } from "./model";
 import { Lexicon } from "./lexicon";
 import { sampleTiles, weightedDraws } from "./move-analysis";
-import { rackSlotsForMove } from "./rack-entry";
+import { rackSlotsForMove, splitRack } from "./rack-entry";
 import { prepareSolver, SEARCH_LIMITS, SearchLimitError } from "./solver";
 import { unseenTiles } from "./tile-pool";
 
@@ -22,7 +22,7 @@ export function simulateExchange(
   progress: (completed: number, total: number) => void = () => {},
   random = Math.random,
 ) {
-  const { slots, bag, template, rack, board } = request;
+  const { slots, bag, template, rack, board, excludedRackSlots = [] } = request;
   const chosen = new Set(slots);
   if (
     !slots.length ||
@@ -43,9 +43,10 @@ export function simulateExchange(
     throw new Error(
       "The bag count must allow this exchange and leave at most one opponent rack.",
     );
-  const keep = [...rack]
-    .filter((tile, i) => tile !== "." && !chosen.has(i))
-    .join("");
+  const { available: keep } = splitRack({
+    rack,
+    excludedRackSlots: [...excludedRackSlots, ...slots],
+  });
   const pool = tiles.flatMap(({ symbol, count }) =>
     Array<string>(count).fill(symbol),
   );

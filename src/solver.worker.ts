@@ -103,6 +103,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
         dictionaryId,
         board,
         rack: request.rack,
+        excludedRackSlots: request.excludedRackSlots,
         template,
         plays: exchangePlays,
       },

@@ -9,7 +9,7 @@ import {
   randomGenerator,
   sampleTiles,
 } from "./move-analysis";
-import { rackLetters } from "./rack-entry";
+import { splitRack } from "./rack-entry";
 import { prepareSolver, SEARCH_LIMITS, SearchLimitError } from "./solver";
 import { unseenTiles } from "./tile-pool";
 
@@ -29,15 +29,19 @@ const MIN_TRIALS = 48;
 const MAX_TRIALS = 300;
 const STRONG_PLAY_EQUITY = 24;
 
+// Find Moves includes held tiles in each physical leave.
+function playableLeave(leave: string, held: string) {
+  for (const tile of held) leave = leave.replace(tile, "");
+  return leave;
+}
+
 export function exchangeAdvicePlays(
   position: Position,
   template: BoardTemplate,
   moves: Move[],
 ): Move[] | undefined {
-  if (
-    rackLetters(position.rack).length !== template.rackSize ||
-    position.excludedRackSlots?.length
-  )
+  const { available, held } = splitRack(position);
+  if (!available || available.length + held.length !== template.rackSize)
     return;
   const { total, excess } = unseenTiles(position, template);
   if (
@@ -50,7 +54,7 @@ export function exchangeAdvicePlays(
   for (const move of moves) {
     // Find Moves supplies score order, so the first move for each leave scores highest.
     if (!bestByLeave.has(move.leave)) {
-      const equity = move.score + leaveValue(move.leave);
+      const equity = move.score + leaveValue(playableLeave(move.leave, held));
       if (equity > STRONG_PLAY_EQUITY) return;
       bestByLeave.set(move.leave, { move, equity });
     }
@@ -65,9 +69,14 @@ export function exchangeAdvicePlays(
   return [highest, ...others];
 }
 
-function exchangeCandidates(rack: string, maxSwap: number) {
+function exchangeCandidates(
+  { rack, excludedRackSlots = [] }: Position,
+  maxSwap: number,
+) {
   const letters = [...rack].flatMap((letter, slot) =>
-    letter === "." ? [] : [{ letter, slot }],
+    letter === "." || excludedRackSlots.includes(slot)
+      ? []
+      : [{ letter, slot }],
   );
   const seen = new Set<string>();
   const bySize = new Map<
@@ -96,15 +105,17 @@ function exchangeCandidates(rack: string, maxSwap: number) {
 
 export function recommendExchange(
   lexicon: Lexicon,
-  { board, rack, template, plays }: ExchangeAdviceRequest,
+  request: ExchangeAdviceRequest,
   { maxMs = 2_000, seed = 0x36efd9 } = {},
 ): ExchangeAdvice | undefined {
-  const { total, tiles } = unseenTiles({ board, rack }, template);
+  const { board, template, plays } = request;
+  const { available, held } = splitRack(request);
+  const { total, tiles } = unseenTiles(request, template);
   const bagSize = total - template.rackSize;
   const pool = tiles.flatMap(({ symbol, count }) =>
     Array<string>(count).fill(symbol),
   );
-  const choices = exchangeCandidates(rack, bagSize);
+  const choices = exchangeCandidates(request, bagSize);
   if (!choices.length) return;
   const start = performance.now();
   const deadline = start + maxMs;
@@ -155,7 +166,7 @@ export function recommendExchange(
     .slice(0, 3);
 
   const comparisons = [...plays, undefined];
-  const passingRack = rackLetters(rack);
+  const playLeaves = plays.map((move) => playableLeave(move.leave, held));
   const playBoards = comparisons.map((move) =>
     move ? placeTiles(board, move) : board,
   );
@@ -194,7 +205,7 @@ export function recommendExchange(
   function netScore(reply: ReturnType<typeof forecast>, refill: string) {
     const nextScore = reply.next
       ? reply.next.summarize(refill, limits(deadline)).score
-      : -2 * rackPoints(refill, template.rules);
+      : -2 * rackPoints(refill + held, template.rules);
     return nextScore - reply.score;
   }
 
@@ -209,10 +220,12 @@ export function recommendExchange(
       const { opponent, draws } = nextWorld();
       const exchangeReply = forecast(board, opponent, bagSize);
       const playScores = comparisons.map((move, i) => {
-        if (!move) return netScore(exchangeReply, passingRack);
+        if (!move) return netScore(exchangeReply, available);
         const count = Math.min(bagSize, move.tiles.length);
         const reply = forecast(playBoards[i], opponent, bagSize - count);
-        return move.score + netScore(reply, move.leave + draws.slice(0, count));
+        return (
+          move.score + netScore(reply, playLeaves[i] + draws.slice(0, count))
+        );
       });
       const exchangeScores = finalists.map(({ slots, keep }) =>
         netScore(exchangeReply, keep + draws.slice(0, slots.length)),

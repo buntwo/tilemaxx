@@ -1644,8 +1644,10 @@ test("exchange simulation starts on open, shows draw scores, and closes when mar
   ).toBeNull();
 });
 
-test("an exchange suggestion marks tiles and opens the inline panel", async () => {
+test("an exchange suggestion preserves holds and opens the inline panel", async () => {
   let pending: SolverWorker | undefined;
+  let adviceRequest: Extract<PracticeRequest, { kind: "exchange-advice" }> | undefined;
+  let simulation: Extract<PracticeRequest, { kind: "exchange" }> | undefined;
   vi.stubGlobal(
     "Worker",
     class extends SolverWorker {
@@ -1655,18 +1657,24 @@ test("an exchange suggestion marks tiles and opens the inline panel", async () =
       override postMessage(
         request: SolverRequest | Extract<PracticeRequest, { kind: "exchange" | "exchange-advice" }>,
       ) {
-        if (request.kind === "exchange-advice") pending = this;
-        else if (request.kind !== "exchange") super.postMessage(request);
+        if (request.kind === "exchange-advice") {
+          pending = this;
+          adviceRequest = request;
+        } else if (request.kind === "exchange") simulation = request;
+        else super.postMessage(request);
       }
     },
   );
   const user = await start();
   await typeRack(user, "CATSUVW");
+  await user.click(rackTile(7));
+  await user.keyboard("{ArrowDown}");
   const solve = screen.getAllByRole("button", { name: "Find moves" })[0];
   await user.click(solve);
   await screen.findAllByRole("button", { name: /^CATS, / });
   expect(screen.queryByRole("button", { name: /^Swap .* pts/ })).toBeNull();
   expect(pending).toBeTruthy();
+  expect(adviceRequest?.exchange.excludedRackSlots).toEqual([6]);
   await act(() => pending?.onmessage?.({
     data: { result: { slots: [4, 5], edge: 8, comparedWith: "CATS" } },
   }));
@@ -1676,6 +1684,9 @@ test("an exchange suggestion marks tiles and opens the inline panel", async () =
   expect(within(panel).getByText(/Estimated \+8 points vs. CATS/)).toBeTruthy();
   expect(screen.getByLabelText("Rack tile 5: U, marked for exchange")).toBeTruthy();
   expect(screen.getByLabelText("Rack tile 6: V, marked for exchange")).toBeTruthy();
+  expect(screen.getByLabelText("Rack tile 7: W, held out of solver")).toBeTruthy();
+  expect(simulation?.exchange.slots).toEqual([4, 5]);
+  expect(simulation?.exchange.excludedRackSlots).toEqual([6]);
   expect(document.activeElement).toBe(
     screen.getByRole("button", { name: "Simulate exchange (2)" }),
   );

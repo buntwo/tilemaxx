@@ -34,7 +34,7 @@ test("recommends the occupied slots of an unplayable rack when exchanging beats 
   assert.equal(result.comparedWith, undefined);
 });
 
-test("withholds suggestions for ties, strong plays, held tiles and an ineligible bag", () => {
+test("withholds suggestions for ties, strong plays and an ineligible bag", () => {
   const tie = new Lexicon(["AN"]);
   assert.equal(
     recommendExchange(tie, {
@@ -50,10 +50,6 @@ test("withholds suggestions for ties, strong plays, held tiles and an ineligible
   assert.ok(moves[0].score > 24);
   assert.equal(exchangeAdvicePlays(position, template, moves), undefined);
   assert.equal(
-    exchangeAdvicePlays({ ...position, excludedRackSlots: [0] }, template, []),
-    undefined,
-  );
-  assert.equal(
     exchangeAdvicePlays({ ...position, rack: "V" }, template, []),
     undefined,
   );
@@ -66,6 +62,64 @@ test("withholds suggestions for ties, strong plays, held tiles and an ineligible
     tileCounts: { ...template.tileCounts, A: 4, T: 4 },
   };
   assert.equal(exchangeAdvicePlays(position, fewRemaining, []), undefined);
+});
+
+test("exchange advice preserves a held slot and honors the hold on both turns", () => {
+  const rules = {
+    ...template,
+    rackSize: 3,
+    tileCounts: { ...template.tileCounts, A: 1, T: 12, R: 12 },
+  };
+  const heldPosition = { ...position, rack: "A.VW", excludedRackSlots: [0] };
+  const lexicon = new Lexicon(["AVW", "TR", "RT"]);
+  const moves = solvePosition(lexicon, heldPosition, rules);
+  const plays = exchangeAdvicePlays(heldPosition, rules, moves);
+  assert.deepEqual(plays, []);
+  const advice = recommendExchange(lexicon, {
+    ...heldPosition,
+    template: rules,
+    plays: [],
+  });
+  assert.deepEqual(advice?.slots, [2, 3]);
+  assert.ok(advice.edge > 3);
+
+  // All legal refills still lack a playable A. The only A belongs to the hold.
+  const needsHeldTile = new Lexicon(["AT", "AR"]);
+  assert.equal(
+    recommendExchange(needsHeldTile, {
+      ...heldPosition,
+      template: rules,
+      plays: [],
+    }),
+    undefined,
+  );
+  assert.equal(
+    exchangeAdvicePlays(
+      { ...heldPosition, excludedRackSlots: [0, 2, 3] },
+      rules,
+      [],
+    ),
+    undefined,
+  );
+
+  const playable = new Lexicon(["AVW", "VW", "TR", "RT"]);
+  const allowed = exchangeAdvicePlays(
+    heldPosition,
+    rules,
+    solvePosition(playable, heldPosition, rules),
+  );
+  assert.deepEqual(
+    allowed?.map(({ word, leave }) => ({ word, leave })),
+    [{ word: "VW", leave: "A" }],
+  );
+  assert.equal(
+    recommendExchange(playable, {
+      ...heldPosition,
+      template: rules,
+      plays: allowed!,
+    }),
+    undefined,
+  );
 });
 
 test("a playable weak rack can still beat a swap by taking points now", () => {

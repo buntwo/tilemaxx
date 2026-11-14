@@ -4776,11 +4776,26 @@ kbd {
   padding: 7px 11px 8px;
 }
 .compact-game .rack-panel .rack-tiles {
-  width: min(100%, calc(var(--rack-size) * 44px + 7px));
+  width: min(100%, calc(var(--rack-size) * 53px + 7px));
   margin: 0 auto 3px;
   padding-block: 4px 6px;
 }
-.compact-game .rack-panel .rack-tile { max-width: 37px; }
+.compact-game .rack-panel .rack-tile {
+  max-width: 46px;
+  container-type: inline-size;
+}
+.compact-game .rack-panel .rack-face {
+  font-size: min(24px, 54cqi);
+  line-height: 1;
+}
+.compact-game .rack-panel .rack-face.empty { font-size: min(18px, 40cqi); }
+.compact-game .rack-panel :is(.rack-excluded-icon, .rack-exchange-icon) {
+  width: min(11px, 23cqi);
+  height: min(11px, 23cqi);
+  top: 2px;
+}
+.compact-game .rack-panel .rack-excluded-icon { left: 2px; }
+.compact-game .rack-panel .rack-exchange-icon { right: 2px; }
 .compact-game .rack-panel .rack-tools summary { min-height: 25px; }
 .compact-game .rack-panel .rack-exchange-advice { min-height: 25px; }
 .compact-game .rack-panel .tile-pool { margin-top: 5px; }

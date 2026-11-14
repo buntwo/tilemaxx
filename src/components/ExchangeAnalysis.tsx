@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
 import type { Game } from "../../shared/model";
 import { minimumExchangeBag, type ExchangeResult } from "../../shared/exchange";
+import { splitRack } from "../../shared/rack-entry";
 import { unseenTiles } from "../../shared/tile-pool";
 import { usePractice } from "./usePractice";
 
@@ -62,12 +63,18 @@ export default function ExchangeAnalysis({
   const { result, progress, error, run, reset } = usePractice<ExchangeResult>();
   const minimum = minimumExchangeBag(game.template, slots.length);
   const valid = !excess.length && bag >= minimum;
-  const { board, dictionaryId, rack, template } = game;
+  const { board, dictionaryId, rack, excludedRackSlots, template } = game;
+  const { held } = splitRack({
+    rack,
+    excludedRackSlots: excludedRackSlots?.filter(
+      (slot) => !slots.includes(slot),
+    ),
+  });
   // RackEntry keys this panel by the position and marked slots.
   const [request] = useState(() => ({
     kind: "exchange" as const,
     dictionaryId,
-    exchange: { board, rack, slots, bag, template },
+    exchange: { board, rack, excludedRackSlots, slots, bag, template },
   }));
   useEffect(() => {
     if (valid) run(request);
@@ -90,6 +97,12 @@ export default function ExchangeAnalysis({
         </span>
       </div>
       {recommendation && <p className="small muted">{recommendation}.</p>}
+      {held && (
+        <p className="small muted">
+          {held.length} {held.length === 1 ? "tile stays" : "tiles stay"} held
+          during the simulation.
+        </p>
+      )}
       {!!excess.length && (
         <p className="error">Check the board and rack tile counts first.</p>
       )}

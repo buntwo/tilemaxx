@@ -85,6 +85,24 @@ test("exchange examples aggregate alternative draws and show only tiles used", (
   assert.deepEqual(kept.examples[0].draws, [{ tiles: "", score: 4 }]);
 });
 
+test("exchange simulation keeps held copies out of draws and follow-up plays", () => {
+  const tileCounts = Object.fromEntries(TILE_SYMBOLS.map((tile) => [tile, 0]));
+  Object.assign(tileCounts, { A: 1, E: 1, R: 4, T: 8 });
+  const template = { ...PRESETS[0], rackSize: 3, tileCounts };
+  const result = simulateExchange(new Lexicon(["AT", "RT"]), {
+    board: emptyBoard(15),
+    rack: "ATE",
+    excludedRackSlots: [0],
+    slots: [2],
+    bag: 8,
+    template,
+  });
+  assert.equal(result.playable, 4 / 11);
+  assert.deepEqual(result.examples.map(({ word, draws }) => ({ word, draws })), [
+    { word: "RT", draws: [{ tiles: "R", score: 4 }] },
+  ]);
+});
+
 test("review snapshots survive storage and distinguish a missed bingo from the chosen score", () => {
   const template = { ...PRESETS[0], rackSize: 3 };
   const game: Game = {
