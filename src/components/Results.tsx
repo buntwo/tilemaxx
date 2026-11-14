@@ -165,6 +165,8 @@ export default function Results({
       ? replyAnalysis.target.find(({ id }) => id === inspectedReply?.id)
       : undefined);
   const replyDetail = replyMove && replyAnalysis.results?.[replyMove.id];
+  const reserveReplySpace =
+    compact && !analyzing && replyEnabled && replyAnalysis.bagSize > 0;
   const heatmapMove =
     heatmap?.searchId === resultSet?.searchId
       ? replyAnalysis.target.find(({ id }) => id === heatmap?.id)
@@ -459,7 +461,7 @@ export default function Results({
   );
   return (
     <section
-      className={`results-panel panel ${analysisGame || rackOdds ? "with-bingo-odds" : ""}`}
+      className={`results-panel panel ${analysisGame || rackOdds ? "with-bingo-odds" : ""}${reserveReplySpace ? " with-reply-preview" : ""}`}
     >
       <header className="results-title">
         <div className="heading-with-icon">
@@ -974,7 +976,7 @@ export default function Results({
       </footer>
       {analysisGame && replyMove && replyDetail && (
         <section
-          className="inline-reply"
+          className={`inline-reply${compact && replyDetail.kind === "distribution" ? " compact-reply" : ""}`}
           aria-label={`Reply after ${replyMove.word}`}
         >
           <h3>Reply after {replyMove.word}</h3>

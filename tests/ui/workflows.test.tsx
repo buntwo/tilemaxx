@@ -1458,6 +1458,37 @@ test("exclude rack tiles with Down or taps, keep the unseen count, and retain he
   expect(current().excludedRackSlots).toBeUndefined();
 });
 
+test("hovering a move highlights the first available copy of each rack tile it uses", async () => {
+  const user = await start();
+  await typeRack(user, "CAAAT?");
+  await user.click(rackTile(2));
+  await user.keyboard("{ArrowDown}");
+  await user.click(screen.getByRole("button", { name: "Find moves" }));
+  const moves = await screen.findAllByRole("button", { name: /^CAT, / });
+  const move = moves.find(
+    (row) =>
+      row.querySelectorAll(".result-letter.played:not(.assigned-blank)")
+        .length === 3,
+  )!;
+  const highlighted = () =>
+    [1, 2, 3, 4, 5, 6].filter((index) =>
+      rackTile(index).classList.contains("move-preview"),
+    );
+  await user.hover(move);
+  expect(highlighted()).toEqual([1, 3, 5]);
+  await user.unhover(move);
+  expect(highlighted()).toEqual([]);
+
+  await user.click(rackTile(1));
+  await user.keyboard("{Meta>}a{/Meta}C?T{Enter}");
+  const blankMove = (
+    await screen.findAllByRole("button", { name: /^CAT, / })
+  )[0];
+  expect(blankMove.querySelector(".assigned-blank")?.textContent).toBe("A");
+  await user.hover(blankMove);
+  expect(highlighted()).toEqual([1, 2, 3]);
+});
+
 test("reordering My games saves the profile order without switching games", async () => {
   remote.games.push({ ...game(), id: "second", name: "Second game" });
   await store.refresh();

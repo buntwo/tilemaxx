@@ -253,26 +253,28 @@ function DistributionChart({
           </div>
         ))}
       </div>
-      <p className="reply-chart-key">
-        {compare && (
+      <div className="reply-chart-meta">
+        <p className="reply-chart-key">
+          {compare && (
+            <span>
+              <i />
+              Reference · After {reference.word}
+            </span>
+          )}
           <span>
-            <i />
-            Reference · After {reference.word}
+            {result.count.toLocaleString()}{" "}
+            {result.exact ? "possible" : "sampled"} racks
           </span>
-        )}
-        <span>
-          {result.count.toLocaleString()}{" "}
-          {result.exact ? "possible" : "sampled"} racks
-        </span>
-      </p>
-      <details className="reply-bin-values">
-        <summary>Bucket percentages</summary>
-        <ul>
-          {groups.map((group) => (
-            <li key={group}>{group}</li>
-          ))}
-        </ul>
-      </details>
+        </p>
+        <details className="reply-bin-values">
+          <summary>Bucket percentages</summary>
+          <ul>
+            {groups.map((group) => (
+              <li key={group}>{group}</li>
+            ))}
+          </ul>
+        </details>
+      </div>
     </>
   );
 }
@@ -488,13 +490,6 @@ export function ReplyPreview({
         move={move}
         reference={analysis.reference}
       />
-      {defense && (
-        <PremiumReplyNote
-          game={game}
-          defense={defense}
-          opponentRackSize={analysis.unseen - analysis.bagSize}
-        />
-      )}
       <div className="inline-reply-actions">
         <button
           type="button"
@@ -520,6 +515,13 @@ export function ReplyPreview({
           </button>
         )}
       </div>
+      {defense && (
+        <PremiumReplyNote
+          game={game}
+          defense={defense}
+          opponentRackSize={analysis.unseen - analysis.bagSize}
+        />
+      )}
       {detail?.error && <p role="status">{detail.error}</p>}
     </>
   );

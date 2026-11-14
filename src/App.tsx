@@ -996,6 +996,7 @@ export default function App() {
                   onChange={update}
                   onSolve={solve}
                   positionKey={signature}
+                  preview={preview}
                   flyingRack={activeFlight}
                 />
                 <TilePool key={`tile-pool:${game.id}`} game={game} />

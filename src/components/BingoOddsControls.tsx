@@ -78,52 +78,54 @@ export default function BingoOddsControls({
           </button>
         )}
         {sortControl}
-        <details className="bingo-odds-settings">
-          <summary>Options</summary>
-          <div className="bingo-odds-options">
-            <p>
-              <strong>Bingo draw %</strong> is the chance your refilled rack
-              spells a {game.template.rackSize}-letter dictionary word. The bag
-              estimate updates with the board and rack. It sets aside up to{" "}
-              {game.template.rackSize} unseen tiles for one opponent and leaves
-              the rest in the bag ({assumedBag} right now).
-            </p>
-            <p>
-              <strong>Bingo after your play</strong> checks the full shortlist
-              in shortlist view, or up to {BOARD_ODDS_LIMIT} moves from the
-              current sort and filter. It counts refills that allow a bingo on
-              the board before the opponent replies. An ≈ marks an estimate
-              based on 200 refills.
-            </p>
-            <p>
-              <strong>Bingo after opponent reply</strong> in Analyze checks
-              again after simulating the opponent’s move.
-            </p>
-            <label>
-              Tiles in bag for this check
-              <input
-                type="number"
-                min={assumedBag}
-                max={total}
-                inputMode="numeric"
-                placeholder={String(assumedBag)}
-                value={override}
-                disabled={!!progress}
-                onChange={(event) => setOverride(event.target.value)}
-              />
-            </label>
-            {!valid && (
-              <p className="error">
-                Enter a count from {assumedBag} to {total}.
+        <div className="bingo-odds-utilities">
+          <details className="bingo-odds-settings">
+            <summary>Options</summary>
+            <div className="bingo-odds-options">
+              <p>
+                <strong>Bingo draw %</strong> is the chance your refilled rack
+                spells a {game.template.rackSize}-letter dictionary word. The
+                bag estimate updates with the board and rack. It sets aside up
+                to {game.template.rackSize} unseen tiles for one opponent and
+                leaves the rest in the bag ({assumedBag} right now).
               </p>
-            )}
-            {boardOdds && (
-              <p>This check used {boardOdds.bagSize} tiles in the bag.</p>
-            )}
-            {settings}
-          </div>
-        </details>
-        {toolbarEnd}
+              <p>
+                <strong>Bingo after your play</strong> checks the full shortlist
+                in shortlist view, or up to {BOARD_ODDS_LIMIT} moves from the
+                current sort and filter. It counts refills that allow a bingo on
+                the board before the opponent replies. An ≈ marks an estimate
+                based on 200 refills.
+              </p>
+              <p>
+                <strong>Bingo after opponent reply</strong> in Analyze checks
+                again after simulating the opponent’s move.
+              </p>
+              <label>
+                Tiles in bag for this check
+                <input
+                  type="number"
+                  min={assumedBag}
+                  max={total}
+                  inputMode="numeric"
+                  placeholder={String(assumedBag)}
+                  value={override}
+                  disabled={!!progress}
+                  onChange={(event) => setOverride(event.target.value)}
+                />
+              </label>
+              {!valid && (
+                <p className="error">
+                  Enter a count from {assumedBag} to {total}.
+                </p>
+              )}
+              {boardOdds && (
+                <p>This check used {boardOdds.bagSize} tiles in the bag.</p>
+              )}
+              {settings}
+            </div>
+          </details>
+          {toolbarEnd}
+        </div>
       </div>
       {searchField}
       {boardOdds && !progress && (

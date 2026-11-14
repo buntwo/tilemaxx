@@ -4019,6 +4019,14 @@ kbd {
   color: #fff1de;
   box-shadow: none;
 }
+.rack-entry .rack-tile.move-preview .rack-face {
+  background: color-mix(in srgb, #86c292 45%, var(--tile));
+  box-shadow: inset 0 0 0 2px #46815a;
+}
+.rack-entry .rack-tile.move-preview .rack-face.blank {
+  background: color-mix(in srgb, #78a9d7 35%, var(--blank-tile));
+  box-shadow: inset 0 0 0 2px #4b80a8;
+}
 .rack-tile[data-rack-sliding] > :not(.rack-slot-window) {
   visibility: hidden;
 }
@@ -4568,6 +4576,7 @@ kbd {
   padding: 5px 8px;
   font-size: 11px;
 }
+.bingo-odds-utilities { display: contents; }
 .bingo-odds-settings[open] { width: 100%; }
 .bingo-odds-options { padding: 6px 0; }
 .bingo-odds-controls summary {
@@ -4789,4 +4798,78 @@ kbd {
 }
 .compact-game .results-panel:has(.search-input:not([hidden])) .result-scroll:not(.is-shortlist) {
   height: clamp(148px, calc(100svh - 283px), 485px);
+}
+
+.compact-game .bingo-odds-actions {
+  position: relative;
+  padding-right: 88px;
+}
+.compact-game .bingo-odds-utilities {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+}
+.compact-game .bingo-odds-settings[open] { width: auto; }
+.compact-game .bingo-odds-options {
+  position: absolute;
+  z-index: 5;
+  top: 100%;
+  right: 0;
+  width: min(355px, 75cqi);
+  max-height: 48svh;
+  overflow: auto;
+  padding: 9px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  box-shadow: 0 6px 16px #0002;
+}
+/* Reserve room before hover so the move under the pointer stays put. */
+.compact-game .results-panel.with-reply-preview .result-scroll {
+  height: clamp(116px, calc(100svh - 449px), 480px);
+}
+.compact-game .results-panel.with-reply-preview .result-scroll.is-shortlist {
+  height: auto;
+  max-height: clamp(116px, calc(100svh - 449px), 480px);
+}
+.compact-game .results-panel.with-reply-preview:has(.search-input:not([hidden])) .result-scroll {
+  max-height: clamp(116px, calc(100svh - 483px), 446px);
+}
+.compact-game .with-reply-preview .results-foot {
+  padding: 5px 12px;
+}
+.compact-reply {
+  padding: 7px 12px 9px;
+}
+.compact-reply h3 { margin-bottom: 3px; }
+.compact-reply .reply-stats { gap: 3px 12px; }
+.compact-reply .reply-axis-label { margin-top: 3px; }
+.compact-reply .reply-chart {
+  grid-template-rows: 48px auto;
+  gap: 4px 0;
+  margin-top: 5px;
+}
+.compact-reply .reply-chart-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 12px;
+}
+.compact-reply .reply-chart-key {
+  margin-top: 3px;
+  font-size: 11px;
+}
+.compact-reply .reply-bin-values,
+.compact-reply .reply-example { margin-top: 3px; }
+.compact-reply .inline-reply-actions { margin-top: 4px; }
+.compact-reply .reply-refine { margin-top: 0; }
+@container (max-width: 485px) {
+  .compact-game .bingo-odds-actions .result-view-picker button,
+  .compact-game .bingo-odds-actions > .button { padding-inline: 4px; }
+  .compact-game .bingo-odds-actions > .button { font-size: 10px; }
+  .compact-game .bingo-odds-actions .sort-select select { max-width: 62px; }
 }

@@ -11,8 +11,9 @@ import {
   eraseRack,
   rackLetters,
   sortRack,
+  rackSlotsForMove,
 } from "../../shared/rack-entry";
-import { tileScore, type Game } from "../../shared/model";
+import { tileScore, type Game, type Move } from "../../shared/model";
 import { Ban, Repeat2, Shuffle, SlidersHorizontal } from "lucide-react";
 import { canAnimateTiles } from "./tile-motion";
 import ExchangeAnalysis from "./ExchangeAnalysis";
@@ -24,12 +25,14 @@ export default function RackEntry({
   onChange,
   onSolve,
   positionKey,
+  preview,
   flyingRack,
 }: {
   game: Game;
   onChange: (game: Game) => void;
   onSolve: () => void;
   positionKey: string;
+  preview?: Move | null;
   flyingRack?: { before: Game; slots: number[] };
 }) {
   const [cursor, setCursor] = useState(game.rack.length);
@@ -227,6 +230,8 @@ export default function RackEntry({
     if (tools.current) tools.current.open = false;
     setMode(next);
   }
+  const previewSlots =
+    preview && !flyingRack ? rackSlotsForMove(game, preview.tiles) : null;
   return (
     <div className="rack-entry">
       <div
@@ -247,6 +252,7 @@ export default function RackEntry({
             flyingRack?.before.excludedRackSlots ?? excludedSlots
           ).includes(i);
           const exchanging = !flyingRack && exchangeSlots.includes(i);
+          const previewed = previewSlots?.includes(i);
           const active =
             focused && (selectAll || i === Math.min(position, capacity - 1));
           return (
@@ -254,8 +260,8 @@ export default function RackEntry({
               type="button"
               key={i}
               data-rack-slot={i}
-              className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""}`}
-              aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${exchanging ? ", marked for exchange" : ""}`}
+              className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""} ${previewed ? "move-preview" : ""}`}
+              aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${exchanging ? ", marked for exchange" : ""}${previewed ? ", used by preview" : ""}`}
               aria-pressed={
                 exchangeMode ? exchanging : excludeMode ? excluded : active
               }
