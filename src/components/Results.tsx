@@ -720,7 +720,7 @@ export default function Results({
                     style={{ top: (start + offset) * moveRowHeight }}
                   >
                     <button
-                      className={`result-row ${bingo ? "bingo" : ""} ${preview?.id === m.id || selected ? "active" : ""}`}
+                      className={`result-row${bingo ? " bingo" : ""}${preview?.id === m.id || selected ? " active" : ""}${locked === m.id ? " pinned" : ""}`}
                       aria-pressed={analyzing ? selected : undefined}
                       aria-describedby={metricId}
                       disabled={

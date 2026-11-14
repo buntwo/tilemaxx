@@ -438,12 +438,15 @@ test.each(["right-click", "P"])("%s toggles a move pin", async (input) => {
       : fireEvent.contextMenu(first);
 
   await user.hover(first);
+  expect(first.classList.contains("pinned")).toBe(false);
   toggle();
+  expect(first.classList.contains("pinned")).toBe(true);
   await user.hover(second);
   expect(onPreview).toHaveBeenLastCalledWith(moves[0]);
 
   await user.hover(first);
   toggle();
+  expect(first.classList.contains("pinned")).toBe(false);
   expect(first.classList.contains("active")).toBe(true);
   await user.hover(second);
   expect(onPreview).toHaveBeenLastCalledWith(moves[1]);
