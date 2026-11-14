@@ -16,14 +16,17 @@ type Swap = { slots: number[]; leave: string; hits: number };
 type Estimate = { slots: number[]; chance: number; close: boolean };
 export type OptimalExchangeResult = {
   keepBingo: boolean;
-  bestBySize: Estimate[];
+  bestSwaps: Estimate[];
   checked: number;
+  finalists: number;
   screeningDraws: number;
   refinementDraws: number;
 };
 
-const SCREEN_DRAWS = 64;
-const REFINE_DRAWS = 600;
+const SCREEN_DRAWS = 128;
+const FINALIST_LIMIT = 20;
+const REFINE_DRAWS = 1200;
+const DISPLAY_LIMIT = 7;
 const MIN_DRAWS = 12;
 const canonical = (rack: string) => [...rack].sort().join("");
 
@@ -31,7 +34,7 @@ function swapOptions({ rack, excludedRackSlots = [] }: Position, max: number) {
   const available = [...rack].flatMap((letter, index) =>
     letter !== "." && !excludedRackSlots.includes(index) ? [index] : [],
   );
-  const bySize = new Map<number, Swap[]>();
+  const options: Swap[] = [];
   const seen = new Set<string>();
   for (let mask = 1; mask < 1 << available.length; mask++) {
     const slots = available.filter((_, bit) => mask & (1 << bit));
@@ -44,13 +47,9 @@ function swapOptions({ rack, excludedRackSlots = [] }: Position, max: number) {
     );
     if (seen.has(leave)) continue;
     seen.add(leave);
-    const group = bySize.get(slots.length) ?? [];
-    group.push({ slots, leave, hits: 0 });
-    bySize.set(slots.length, group);
+    options.push({ slots, leave, hits: 0 });
   }
-  return [...bySize.values()].sort(
-    (a, b) => a[0].slots.length - b[0].slots.length,
-  );
+  return options;
 }
 
 function interval(hits: number, samples: number) {
@@ -86,9 +85,8 @@ export function optimizeExchange(
   )
     throw new Error("The bag does not have enough tiles for an exchange.");
   if (!available) throw new Error("Enter at least one tile that is not held.");
-  const groups = swapOptions(request, bag);
-  const options = groups.flat();
-  const maxDraw = groups[groups.length - 1][0].slots.length;
+  const options = swapOptions(request, bag);
+  const maxDraw = Math.min(bag, available.length);
   const pool = tiles.flatMap(({ symbol, count }) =>
     Array<string>(count).fill(symbol),
   );
@@ -133,54 +131,41 @@ export function optimizeExchange(
   if (screeningDraws < MIN_DRAWS)
     throw new Error("This position exceeded the exchange search limit.");
   progress(screeningDraws, SCREEN_DRAWS + REFINE_DRAWS);
-  // A dictionary-only leave signal can keep a rare candidate in contention.
-  // The final estimates still come from legal placements on the current board.
+  // Break screening ties with dictionary-only bingo odds.
   const drawOdds =
     available.length === template.rackSize && screeningDraws === SCREEN_DRAWS
       ? rackIndex.calculate(lexicon, request, template, options, bag).byLeave
       : {};
   const drawChance = (choice: Swap) => drawOdds[choice.leave] ?? 0;
-  const finalists = groups.map((group) => {
-    const [first, second, ...others] = group.sort(
-      (a, b) => b.hits - a.hits || drawChance(b) - drawChance(a),
-    );
-    const low = interval(first.hits, screeningDraws).low;
-    const promising = others
-      .filter(({ hits }) => interval(hits, screeningDraws).high >= low)
-      .sort((a, b) => drawChance(b) - drawChance(a))[0];
-    return [first, second, promising]
-      .filter((choice): choice is Swap => !!choice)
-      .map((choice) => ({ ...choice, hits: 0 }));
-  });
+  options.sort((a, b) => b.hits - a.hits || drawChance(b) - drawChance(a));
+  const finalists = options
+    .slice(0, FINALIST_LIMIT)
+    .map((choice) => ({ ...choice, hits: 0 }));
   const refinementDraws = sample(
-    finalists.flat(),
+    finalists,
     REFINE_DRAWS,
     deadline,
     screeningDraws,
   );
   const refined = refinementDraws >= MIN_DRAWS;
   const samples = refined ? refinementDraws : screeningDraws;
-  const ranked = (refined ? finalists : groups).map((group) =>
-    group.sort((a, b) => b.hits - a.hits),
-  );
-  const best = ranked.reduce(
-    (leader, [swap]) => (swap.hits > leader.hits ? swap : leader),
-    ranked[0][0],
-  );
+  // Stable sorting preserves the screening order when refined estimates tie.
+  const ranked = refined ? finalists.sort((a, b) => b.hits - a.hits) : options;
+  const [best, runnerUp] = ranked;
   const bestLow = interval(best.hits, samples).low;
   return {
     keepBingo,
     checked: options.length,
+    finalists: refined ? finalists.length : 0,
     screeningDraws,
     refinementDraws: refined ? refinementDraws : 0,
-    bestBySize: ranked.map(([swap, runnerUp]) => ({
+    bestSwaps: ranked.slice(0, DISPLAY_LIMIT).map((swap) => ({
       slots: swap.slots,
       chance: swap.hits / samples,
       close:
-        (swap !== best && interval(swap.hits, samples).high >= bestLow) ||
-        (!!runnerUp &&
-          interval(runnerUp.hits, samples).high >=
-            interval(swap.hits, samples).low),
+        swap === best
+          ? !!runnerUp && interval(runnerUp.hits, samples).high >= bestLow
+          : interval(swap.hits, samples).high >= bestLow,
     })),
   };
 }

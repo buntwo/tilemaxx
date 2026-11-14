@@ -41,9 +41,6 @@ export default function OptimalExchange({
   useEffect(() => {
     if (!unavailable) run(request);
   }, [request, run, unavailable]);
-  const best = result?.bestBySize.reduce((leader, option) =>
-    option.chance > leader.chance ? option : leader,
-  );
   return (
     <section
       className="rack-simulation practice-body"
@@ -88,46 +85,49 @@ export default function OptimalExchange({
                 <td>{result.keepBingo ? "100%" : "0%"}</td>
                 <td />
               </tr>
-              {result.bestBySize.map((option) => (
-                <tr
-                  key={option.slots.length}
-                  className={
-                    option === best && option.chance > Number(result.keepBingo)
-                      ? "best-swap"
-                      : undefined
-                  }
-                >
-                  <th scope="row">
-                    <span className="optimal-exchange-swap">
-                      {option.slots.length}
-                      <MiniTiles
-                        tiles={option.slots.map((slot) => rack[slot]).join("")}
-                      />
-                    </span>
-                  </th>
-                  <td>
-                    ≈{exchangePercent.format(option.chance)}
-                    {option.close && <small>Close estimate</small>}
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="text-button"
-                      aria-label={`Mark ${option.slots.length} ${option.slots.length === 1 ? "tile" : "tiles"} for exchange`}
-                      onClick={() => onUse(option.slots)}
-                    >
-                      Mark
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {result.bestSwaps.map((option, index) => {
+                const tiles = option.slots.map((slot) => rack[slot]);
+                return (
+                  <tr
+                    key={option.slots.join(",")}
+                    className={
+                      index === 0 && option.chance > Number(result.keepBingo)
+                        ? "best-swap"
+                        : undefined
+                    }
+                  >
+                    <th scope="row">
+                      <span className="optimal-exchange-swap">
+                        {tiles.length}
+                        <MiniTiles tiles={tiles.join("")} />
+                      </span>
+                    </th>
+                    <td>
+                      ≈{exchangePercent.format(option.chance)}
+                      {option.close && <small>Close estimate</small>}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="text-button"
+                        aria-label={`Mark ${tiles
+                          .map((tile) => (tile === "?" ? "blank" : tile))
+                          .join(", ")} for exchange`}
+                        onClick={() => onUse(option.slots)}
+                      >
+                        Mark
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           <p className="small muted">
             {result.checked} swaps screened with {result.screeningDraws} shared
             draws.
             {result.refinementDraws > 0 &&
-              ` Finalists compared on ${result.refinementDraws} fresh draws.`}
+              ` ${result.finalists} finalists compared on ${result.refinementDraws} fresh draws.`}
           </p>
         </>
       )}

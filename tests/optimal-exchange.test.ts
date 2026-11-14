@@ -23,9 +23,11 @@ test("optimal exchange finds the useful swap size and deduplicates equivalent co
   const result = optimizeExchange(lexicon, new RackBingoIndex(words), request);
   assert.equal(result.checked, 5);
   assert.equal(result.keepBingo, false);
-  assert.deepEqual(result.bestBySize, [
-    { slots: [0], chance: 0, close: true },
+  assert.deepEqual(result.bestSwaps, [
     { slots: [1, 2], chance: 1, close: false },
+    { slots: [0], chance: 0, close: false },
+    { slots: [1], chance: 0, close: false },
+    { slots: [0, 1], chance: 0, close: false },
     { slots: [0, 1, 2], chance: 0, close: false },
   ]);
   const held = optimizeExchange(lexicon, new RackBingoIndex(words), {
@@ -33,7 +35,7 @@ test("optimal exchange finds the useful swap size and deduplicates equivalent co
     excludedRackSlots: [2],
   });
   assert.ok(
-    held.bestBySize.every(
+    held.bestSwaps.every(
       ({ slots, chance }) => !slots.includes(2) && chance === 0,
     ),
   );
@@ -45,6 +47,42 @@ test("optimal exchange finds the useful swap size and deduplicates equivalent co
       }),
     /not have enough tiles/,
   );
+});
+
+test("optimal exchange refines 20 global finalists and can rank two swaps of the same size first", () => {
+  const rack = "ABCDEFG";
+  const words = ["ABCDETT", "ABCEFTT"];
+  const progress: [number, number][] = [];
+  const result = optimizeExchange(
+    new Lexicon(words),
+    new RackBingoIndex(words),
+    {
+      board: emptyBoard(15),
+      rack,
+      bag: 10,
+      template: {
+        ...PRESETS[0],
+        tileCounts: Object.fromEntries(
+          TILE_SYMBOLS.map((tile) => [
+            tile,
+            tile === "T" ? 17 : Number(rack.includes(tile)),
+          ]),
+        ),
+      },
+    },
+    (completed, total) => progress.push([completed, total]),
+  );
+  assert.equal(result.checked, 127);
+  assert.equal(result.finalists, 20);
+  assert.equal(result.screeningDraws, 128);
+  assert.equal(result.refinementDraws, 1200);
+  assert.deepEqual(progress.at(-1), [1328, 1328]);
+  assert.equal(result.bestSwaps.length, 7);
+  assert.deepEqual(result.bestSwaps.slice(0, 2), [
+    { slots: [3, 6], chance: 1, close: true },
+    { slots: [5, 6], chance: 1, close: true },
+  ]);
+  assert.ok(result.bestSwaps.slice(2).every(({ chance }) => chance === 0));
 });
 
 test("the same exchange odds depend on placement and cross words on the board", () => {
@@ -60,7 +98,7 @@ test("the same exchange odds depend on placement and cross words on the board", 
     template: { ...template, tileCounts: { ...template.tileCounts, Z: 1 } },
   };
   const result = optimizeExchange(lexicon, rackIndex, request);
-  assert.ok(result.bestBySize.every(({ chance }) => chance === 0));
+  assert.ok(result.bestSwaps.every(({ chance }) => chance === 0));
   assert.equal(result.keepBingo, false);
   const keep = optimizeExchange(lexicon, rackIndex, {
     ...request,
