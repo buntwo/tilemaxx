@@ -1521,8 +1521,17 @@ test("the phone layout keeps settings, the build version, board help and move fi
   await user.click(main.getByLabelText("Board help"));
   expect(help.open).toBe(false);
 
+  const rack = within(screen.getByRole("region", { name: "Your rack" }));
+  const findMoves = rack.getByRole("button", { name: "Find moves" });
+  expect(rack.queryByRole("heading", { name: "Your rack" })).toBeNull();
+  expect(
+    findMoves
+      .closest(".rack-entry-controls")
+      ?.contains(rack.getByText("Rack tools")),
+  ).toBe(true);
+  expect(findMoves.hasAttribute("disabled")).toBe(true);
   await typeRack(user, "CAT");
-  await user.click(within(screen.getByRole("region", { name: "Your rack" })).getByRole("button", { name: "Find moves" }));
+  await user.click(findMoves);
   await screen.findAllByRole("button", { name: /^CAT, / });
   expect(main.queryByRole("textbox", { name: "Filter moves" })).toBeNull();
   await user.click(main.getByRole("button", { name: "Search possible moves" }));
