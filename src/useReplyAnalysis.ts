@@ -9,6 +9,7 @@ import {
 } from "../shared/reply-analysis";
 import type { EndgameLine } from "../shared/endgame";
 import type { Game, Move } from "../shared/model";
+import { MOVE_CACHE_LIMIT } from "../shared/move-results";
 import { unseenTiles } from "../shared/tile-pool";
 
 type WorkerMessage = {
@@ -20,6 +21,14 @@ type WorkerMessage = {
   done?: boolean;
   error?: string;
 };
+type Summary = {
+  moveList: Move[];
+  runKey: string;
+  results: Record<string, ReplyResult | undefined>;
+  done: boolean;
+  error?: string;
+};
+
 type Detail = {
   key: string;
   runKey: string;
@@ -35,18 +44,12 @@ export function useReplyAnalysis(
   moves: Move[] | null,
   enabled: boolean,
 ) {
-  const [settings, setSettings] = useState<{
-    key?: string;
-    bagSize?: number;
-    scorelessTurns?: number;
-  }>();
-  const [summary, setSummary] = useState<{
-    moveList: Move[];
-    runKey: string;
-    results: Record<string, ReplyResult | undefined>;
-    done: boolean;
-    error?: string;
-  }>();
+  const [settings, setSettings] = useState<
+    Record<string, { bagSize: number; scorelessTurns: number }>
+  >({});
+  const [summary, setSummary] = useState<Summary>();
+  const cache = useRef(new Map<Move[], Summary>());
+  const details = useRef(new WeakMap<Move[], Detail>());
   const [detail, setDetail] = useState<Detail>();
   const worker = useRef<Worker | null>(null);
   const activeDetail = useRef<{ id: number; key: string } | undefined>(
@@ -59,17 +62,19 @@ export function useReplyAnalysis(
   );
   const minimumBag =
     pool && game ? Math.max(0, pool.total - game.template.rackSize) : 0;
-  const confirmed =
-    settings?.key === positionKey && settings?.bagSize !== undefined;
-  const bagSize = confirmed ? settings.bagSize! : minimumBag;
-  const scorelessTurns =
-    (settings?.key === positionKey ? settings?.scorelessTurns : undefined) ?? 0;
+  const options = settings[positionKey ?? ""];
+  const confirmed = !!options;
+  const bagSize = options?.bagSize ?? minimumBag;
+  const scorelessTurns = options?.scorelessTurns ?? 0;
   const moveList = enabled && moves?.length ? moves : undefined;
   const runKey = JSON.stringify([positionKey, bagSize, scorelessTurns]);
+  const cached = moveList && cache.current.get(moveList);
   const current =
     summary?.moveList === moveList && summary?.runKey === runKey
       ? summary
-      : undefined;
+      : cached?.runKey === runKey
+        ? cached
+        : undefined;
   // Solve results arrive in score order. Keep that order when the view is filtered or sorted.
   const target = useMemo(
     () => moveList?.slice(0, REPLY_LIMIT) ?? [],
@@ -97,26 +102,31 @@ export function useReplyAnalysis(
     });
     worker.current = active;
     const id = ++requestId.current;
+    function publish(next: Summary) {
+      cache.current.delete(moveList!);
+      cache.current.set(moveList!, next);
+      if (cache.current.size > MOVE_CACHE_LIMIT + 1)
+        cache.current.delete(cache.current.keys().next().value!);
+      setSummary(next);
+    }
+    let previous = cache.current.get(moveList);
+    if (previous?.runKey !== runKey) previous = undefined;
     active.onmessage = (event: MessageEvent<WorkerMessage>) => {
       if (worker.current !== active) return;
       const message = event.data;
       if (message.kind === "reply-summary") {
         if (message.id !== id) return;
-        setSummary((current) => {
-          const results =
-            current?.moveList === moveList && current.runKey === runKey
-              ? current.results
-              : {};
-          return {
-            moveList,
-            runKey,
-            results: message.moveId
-              ? { ...results, [message.moveId]: message.result }
-              : results,
-            done: !!message.done,
-            error: message.error,
-          };
-        });
+        const results = previous?.results ?? {};
+        previous = {
+          moveList,
+          runKey,
+          results: message.moveId
+            ? { ...results, [message.moveId]: message.result }
+            : results,
+          done: !!message.done,
+          error: message.error,
+        };
+        publish(previous);
       } else if (message.id === activeDetail.current?.id) {
         const next = {
           key: activeDetail.current.key,
@@ -126,10 +136,15 @@ export function useReplyAnalysis(
           line: message.line,
           error: message.error,
         };
-        setDetail((previous) => ({
-          ...next,
-          result: next.result ?? previous?.result,
-        }));
+        const saved = details.current.get(moveList);
+        const result =
+          next.result ??
+          (saved?.key === next.key && saved.runKey === runKey
+            ? saved.result
+            : undefined);
+        const resolved = { ...next, result };
+        if (!resolved.error) details.current.set(moveList, resolved);
+        setDetail(resolved);
       }
     };
     active.onerror = () => {
@@ -156,7 +171,12 @@ export function useReplyAnalysis(
       kind: "reply-summary",
       candidates: target,
     };
-    active.postMessage(request);
+    if (!previous?.done || previous.error) {
+      const remaining = target.filter(
+        ({ id }) => !(id in (previous?.results ?? {})),
+      );
+      active.postMessage({ ...request, candidates: remaining });
+    }
     return () => {
       if (worker.current === active) worker.current = null;
       active.terminate();
@@ -199,13 +219,27 @@ export function useReplyAnalysis(
     maxScorelessTurns: game ? replyScorelessLimit(game.template) - 1 : 5,
     scorelessTurns,
     setOptions: (bagSize: number, scorelessTurns: number) =>
-      setSettings({ key: positionKey, bagSize, scorelessTurns }),
+      setSettings((current) =>
+        Object.fromEntries(
+          [
+            ...Object.entries(current).filter(
+              ([key]) => key !== (positionKey ?? ""),
+            ),
+            [positionKey ?? "", { bagSize, scorelessTurns }],
+          ].slice(-(MOVE_CACHE_LIMIT + 1)),
+        ),
+      ),
     target,
     results: current?.results,
     pending: !!moveList && !invalid && !current?.done,
     error: current?.error,
     reference,
-    detail: detail?.runKey === runKey ? detail : undefined,
+    detail:
+      detail?.runKey === runKey
+        ? detail
+        : moveList && details.current.get(moveList)?.runKey === runKey
+          ? details.current.get(moveList)
+          : undefined,
     requestDetail,
   };
 }

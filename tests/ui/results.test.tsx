@@ -82,6 +82,7 @@ function setup(
     analysisGame?: Game;
     replyEnabled?: boolean;
     fetchPage?: FetchMovePage;
+    onBoardOdds?: (moves: Move[], bagSize: number) => void;
   } = {},
 ) {
   vi.stubGlobal("matchMedia", () => ({ matches: !mobile }));
@@ -118,6 +119,8 @@ function setup(
         }}
         onPlay={onPlay}
         onSolve={() => {}}
+        onBoardOdds={options.onBoardOdds}
+        onCancelBoardOdds={options.onBoardOdds ? () => {} : undefined}
         hasRack
       />
     );
@@ -250,11 +253,13 @@ test("reply rows resolve individually and compare against the highest score afte
   await user.click(
     screen.getByRole("button", { name: /^Reply analysis for CAT at/ }),
   );
-  const dialog = screen.getByRole("dialog");
-  expect(within(dialog).getByText("35.0 → 31.0 pts")).toBeTruthy();
-  expect(within(dialog).getByText("Reference · After CATS")).toBeTruthy();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  const inline = screen.getByRole("region", { name: "Reply after CAT" });
+  expect(within(inline).getByText("35.0 → 31.0 pts")).toBeTruthy();
+  expect(within(inline).getByText("Reference · After CATS")).toBeTruthy();
   expect(worker!.request?.kind).toBe("reply-summary");
-  await user.click(within(dialog).getByRole("button", { name: "Heatmap" }));
+  await user.click(within(inline).getByRole("button", { name: "Heatmap" }));
+  const dialog = screen.getByRole("dialog");
   const heatmapRequest = worker!.request!;
   expect(heatmapRequest).toMatchObject({
     kind: "reply-detail",
@@ -281,7 +286,10 @@ test("reply rows resolve individually and compare against the highest score afte
   await user.click(within(dialog).getByRole("button", { name: /^B1$/ }));
   expect(within(dialog).getByText("16% → 0% of checked racks")).toBeTruthy();
   await user.click(
-    within(dialog).getByRole("button", { name: "Refine to 5,000 racks" }),
+    within(dialog).getByRole("button", { name: "Close dialog" }),
+  );
+  await user.click(
+    within(inline).getByRole("button", { name: "Refine to 5,000 racks" }),
   );
   expect(worker!.request).toMatchObject({
     kind: "reply-detail",
@@ -289,7 +297,7 @@ test("reply rows resolve individually and compare against the highest score afte
     samples: 5_000,
     captureHeatmap: true,
   });
-  expect(within(dialog).getByText("16% → 0% of checked racks")).toBeTruthy();
+  expect(within(inline).getByText("35.0 → 31.0 pts")).toBeTruthy();
   expect(onPlay).not.toHaveBeenCalled();
 });
 
@@ -372,8 +380,9 @@ test("rack odds sort every move and board odds rank checked moves separately", a
 test("sort by word, length, tiles, leave and blanks; filter without losing original results", async () => {
   const { user } = setup();
   const sort = screen.getByRole("combobox", { name: "Sort moves" });
-  await user.selectOptions(sort, "word");
+  await user.click(screen.getByRole("button", { name: "Sort by word" }));
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^AT,/);
+  expect(sort).toHaveProperty("value", "word");
   for (const by of ["length", "tiles", "score"]) {
     await user.selectOptions(sort, by);
     expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
@@ -468,8 +477,56 @@ test("bingo uses tiles placed and the template rack size, not word length or an 
 test("bingo remains identified during a phone preview and plays the same move", async () => {
   const { user, onPlay } = setup(true, { rackSize: 4, bingoBonus: 35 });
   await user.click(rows()[0]);
-  expect(screen.getByText(/Bingo! \+35 bonus included/)).toBeTruthy();
+  expect(rows()[0].getAttribute("aria-label")).toContain(
+    "bingo, 35-point bonus included",
+  );
+  expect(rows()[0].classList.contains("active")).toBe(true);
   expect(onPlay).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "Play" }));
+  await user.click(rows()[0]);
   expect(onPlay).toHaveBeenCalledExactlyOnceWith(moves[0]);
+});
+
+test("shortlist bingo check includes alternatives outside the top 20", async () => {
+  const alternative = { ...moves[2], id: "alternate", score: 17, leave: "S" };
+  const many = [
+    moves[0],
+    ...Array.from({ length: 21 }, (_, i) => ({
+      ...moves[0],
+      id: `duplicate${i}`,
+    })),
+    alternative,
+  ];
+  const onBoardOdds = vi.fn();
+  const { user } = setup(false, {
+    moves: many,
+    analysisGame: {
+      id: "g",
+      name: "Test",
+      profileId: "p",
+      board: emptyBoard(15),
+      rack: "CATS",
+      template: PRESETS[0],
+      dictionaryId: "test",
+      past: [],
+      future: [],
+      revision: 0,
+      updatedAt: "",
+      archived: false,
+    },
+    replyEnabled: false,
+    rackOdds: { byLeave: { Z: 0.01, S: 0.2 }, exact: true, bagSize: 89 },
+    onBoardOdds,
+  });
+  await user.click(await screen.findByRole("button", { name: "Shortlist 2" }));
+  await user.type(
+    screen.getByRole("textbox", { name: "Filter moves" }),
+    "CATS",
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Check bingo after your play" }),
+  );
+  expect(onBoardOdds).toHaveBeenCalledExactlyOnceWith(
+    [moves[0], alternative],
+    89,
+  );
 });

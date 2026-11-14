@@ -1,8 +1,21 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { enterRack, eraseRack, rackLetters } from "../../shared/rack-entry";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import {
+  enterRack,
+  eraseRack,
+  rackLetters,
+  sortRack,
+} from "../../shared/rack-entry";
 import { tileScore, type Game } from "../../shared/model";
-import { Ban, Repeat2 } from "lucide-react";
+import { Ban, Repeat2, Shuffle, SlidersHorizontal } from "lucide-react";
 import { canAnimateTiles } from "./tile-motion";
+import ExchangeAnalysis from "./ExchangeAnalysis";
 
 const SENTINEL = "\u200b";
 
@@ -10,20 +23,23 @@ export default function RackEntry({
   game,
   onChange,
   onSolve,
-  onExchange,
+  positionKey,
   flyingRack,
 }: {
   game: Game;
   onChange: (game: Game) => void;
   onSolve: () => void;
-  onExchange: (slots: number[]) => void;
+  positionKey: string;
   flyingRack?: { before: Game; slots: number[] };
 }) {
   const [cursor, setCursor] = useState(game.rack.length);
   const [focused, setFocused] = useState(false);
   const [selectAll, setSelectAll] = useState(false);
-  const [excludeMode, setExcludeMode] = useState(false);
-  const [exchangeMode, setExchangeMode] = useState(false);
+  const [mode, setMode] = useState<"entry" | "exclude" | "exchange">("entry");
+  const [simulation, setSimulation] = useState<string>();
+  const excludeMode = mode === "exclude";
+  const exchangeMode = mode === "exchange";
+  const tools = useRef<HTMLDetailsElement>(null);
   const [exchangeMarks, setExchangeMarks] = useState<Record<number, string>>(
     {},
   );
@@ -42,6 +58,15 @@ export default function RackEntry({
   const exchangeSlots = Object.keys(exchangeMarks)
     .map(Number)
     .filter((i) => game.rack[i] === exchangeMarks[i]);
+  const exchangeKey = JSON.stringify([positionKey, exchangeSlots]);
+  useEffect(() => {
+    const close = (event: PointerEvent) => {
+      if (!tools.current?.contains(event.target as Node) && tools.current)
+        tools.current.open = false;
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, []);
   useEffect(() => {
     const blur = () => {
       setFocused(false);
@@ -106,22 +131,24 @@ export default function RackEntry({
       if (!slot) continue;
       const mask = slot.querySelector(".rack-slot-window");
       if (!mask) continue;
-      const current = mask.querySelector(".rack-slide");
+      const current = mask.querySelector(".rack-slide:last-child");
       const transform = current ? getComputedStyle(current).transform : "none";
       slides.current.get(i)?.stop();
-      const letter = after === "." ? before : after;
-      const face = document.createElement("span");
-      face.className = `rack-slide${letter === "?" ? " blank" : ""}`;
-      face.textContent = letter === "?" ? "" : letter;
-      const score = document.createElement("small");
-      score.textContent = String(
-        letter === "?" ? 0 : tileScore(letter, game.template.rules),
-      );
-      face.append(score);
-      mask.append(face);
-      slot.dataset.rackSliding = "";
+      function face(letter: string) {
+        const tile = document.createElement("span");
+        tile.className = `rack-face rack-slide${letter === "?" ? " blank" : ""}`;
+        tile.textContent = letter === "?" ? "" : letter;
+        const score = document.createElement("small");
+        score.textContent = String(tileScore(letter, game.template.rules));
+        tile.append(score);
+        mask!.append(tile);
+        return tile;
+      }
       const removing = after === ".";
-      const animation = face.animate(
+      const outgoing = !removing && before !== "." ? face(before) : undefined;
+      const moving = face(removing ? before : after);
+      slot.dataset.rackSliding = "";
+      const animation = moving.animate(
         removing
           ? [
               { transform: transform === "none" ? "translateY(0)" : transform },
@@ -142,9 +169,10 @@ export default function RackEntry({
       const stop = () => {
         if (slides.current.get(i)?.stop !== stop) return;
         slides.current.delete(i);
-        animation.cancel();
-        face.remove();
+        moving.remove();
+        outgoing?.remove();
         delete slot.dataset.rackSliding;
+        animation.cancel();
       };
       slides.current.set(i, { letter: after, stop });
       animation.finished.then(stop, stop);
@@ -194,11 +222,17 @@ export default function RackEntry({
     else marks[slot] = game.rack[slot];
     setExchangeMarks(marks);
   }
+  function chooseMode(next: typeof mode) {
+    input.current?.blur();
+    if (tools.current) tools.current.open = false;
+    setMode(next);
+  }
   return (
     <div className="rack-entry">
       <div
         ref={rack}
         className="rack-tiles"
+        style={{ "--rack-size": capacity } as CSSProperties}
         role="group"
         aria-label="Your rack tiles"
       >
@@ -238,8 +272,11 @@ export default function RackEntry({
               }
             >
               <span className="rack-slot-window" aria-hidden="true" />
-              <span className="rack-slot-letter">
+              <span
+                className={`rack-face${tile === "?" ? " blank" : ""}${!tile ? " empty" : ""}`}
+              >
                 {tile === "?" ? "" : tile || "·"}
+                {tile && <small>{tileScore(tile, game.template.rules)}</small>}
               </span>
               {exchanging && (
                 <Repeat2
@@ -254,11 +291,6 @@ export default function RackEntry({
                   size={12}
                   aria-hidden="true"
                 />
-              )}
-              {tile && (
-                <small>
-                  {tile === "?" ? 0 : tileScore(tile, game.template.rules)}
-                </small>
               )}
             </button>
           );
@@ -379,37 +411,59 @@ export default function RackEntry({
                 ? "All tiles selected · type to replace"
                 : "Space = blank · ↓ Hold · ↑ Exchange"}
         </p>
-        <button
-          type="button"
-          className="button secondary rack-exclude-button"
-          aria-pressed={excludeMode}
-          onClick={() => {
-            input.current?.blur();
-            setExchangeMode(false);
-            setExcludeMode(!excludeMode);
-          }}
-        >
-          {excludeMode ? "Done" : "Exclude tiles"}
-        </button>
-        <button
-          type="button"
-          className="button secondary rack-exclude-button"
-          aria-pressed={exchangeMode}
-          onClick={() => {
-            input.current?.blur();
-            setExcludeMode(false);
-            setExchangeMode(!exchangeMode);
-          }}
-        >
-          {exchangeMode ? "Done marking" : "Mark exchange"}
-        </button>
+        {mode === "entry" ? (
+          <details
+            ref={tools}
+            className="rack-tools"
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && tools.current?.open) {
+                tools.current.open = false;
+                tools.current.querySelector("summary")?.focus();
+              }
+            }}
+          >
+            <summary className="text-button">
+              <SlidersHorizontal size={13} /> Rack tools
+            </summary>
+            <div className="rack-tools-menu">
+              <button
+                type="button"
+                onClick={() => {
+                  chooseMode("entry");
+                  onChange({ ...game, ...sortRack(game) });
+                }}
+              >
+                <Shuffle size={14} /> Sort rack
+              </button>
+              <button type="button" onClick={() => chooseMode("exclude")}>
+                <Ban size={14} /> Exclude tiles
+              </button>
+              <button type="button" onClick={() => chooseMode("exchange")}>
+                <Repeat2 size={14} /> Mark exchange
+              </button>
+            </div>
+          </details>
+        ) : (
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => chooseMode("entry")}
+          >
+            Done
+          </button>
+        )}
       </div>
       {!!exchangeSlots.length && (
         <div className="rack-exchange-actions">
           <button
             type="button"
             className="button secondary"
-            onClick={() => onExchange(exchangeSlots)}
+            aria-expanded={simulation === exchangeKey}
+            onClick={() =>
+              setSimulation(
+                simulation === exchangeKey ? undefined : exchangeKey,
+              )
+            }
           >
             Simulate exchange ({exchangeSlots.length})
           </button>
@@ -421,6 +475,9 @@ export default function RackEntry({
             Clear marks
           </button>
         </div>
+      )}
+      {simulation === exchangeKey && !!exchangeSlots.length && (
+        <ExchangeAnalysis key={exchangeKey} game={game} slots={exchangeSlots} />
       )}
     </div>
   );

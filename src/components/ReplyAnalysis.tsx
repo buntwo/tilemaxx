@@ -450,146 +450,118 @@ function ExactReplyDetails({
   );
 }
 
-export default function ReplyAnalysis({
+export function ReplyPreview({
   game,
   move,
   result,
   defense,
   analysis,
-  onClose,
+  onHeatmap,
 }: {
   game: Game;
   move: Move;
   result: ReplyResult;
   defense?: MoveDefense;
   analysis: Analysis;
-  onClose: () => void;
+  onHeatmap: () => void;
 }) {
-  const [view, setView] = useState<"scores" | "heatmap">("scores");
+  if (result.kind === "empty-bag")
+    return (
+      <ExactReplyDetails
+        game={game}
+        move={move}
+        result={result}
+        analysis={analysis}
+      />
+    );
   const detail =
     analysis.detail?.key === `reply-detail:${move.id}`
       ? analysis.detail
       : undefined;
   const distribution =
-    detail?.result?.kind === "distribution"
-      ? detail.result
-      : result.kind === "distribution"
-        ? result
-        : undefined;
+    detail?.result?.kind === "distribution" ? detail.result : result;
+  if (!analysis.reference) return null;
   return (
-    <Modal
-      title={`Reply after ${move.word}`}
-      subtitle={
-        result.kind === "empty-bag"
-          ? analysis.bagAssumedEmpty
-            ? "Bag assumed empty · Opponent rack from unseen tiles"
-            : "Empty bag · Known opponent rack"
-          : undefined
-      }
-      onClose={onClose}
-    >
-      {result.kind === "empty-bag" ? (
-        <ExactReplyDetails
+    <>
+      <DistributionChart
+        result={distribution}
+        move={move}
+        reference={analysis.reference}
+      />
+      {defense && (
+        <PremiumReplyNote
+          game={game}
+          defense={defense}
+          opponentRackSize={analysis.unseen - analysis.bagSize}
+        />
+      )}
+      <div className="inline-reply-actions">
+        <button
+          type="button"
+          className="button secondary reply-refine"
+          onClick={onHeatmap}
+        >
+          Heatmap
+        </button>
+        {!distribution.exact && distribution.count < REPLY_REFINED_SAMPLES && (
+          <button
+            type="button"
+            className="button secondary reply-refine"
+            disabled={detail?.pending}
+            onClick={() =>
+              analysis.requestDetail(move, {
+                kind: "reply-detail",
+                samples: REPLY_REFINED_SAMPLES,
+                captureHeatmap: !!distribution.heatmap,
+              })
+            }
+          >
+            {detail?.pending ? "Refining replies…" : "Refine to 5,000 racks"}
+          </button>
+        )}
+      </div>
+      {detail?.error && <p role="status">{detail.error}</p>}
+    </>
+  );
+}
+
+export default function ReplyHeatmapDialog({
+  game,
+  move,
+  result,
+  reference,
+  pending,
+  error,
+  onClose,
+  onRetry,
+}: {
+  game: Game;
+  move: Move;
+  result: ReplyDistribution;
+  reference: Move;
+  pending?: boolean;
+  error?: string;
+  onClose: () => void;
+  onRetry: () => void;
+}) {
+  return (
+    <Modal title={`Reply heatmap after ${move.word}`} onClose={onClose}>
+      {result.heatmap ? (
+        <ReplyHeatmap
           game={game}
           move={move}
           result={result}
-          analysis={analysis}
+          reference={reference}
         />
+      ) : pending ? (
+        <p role="status">Checking heatmap squares…</p>
       ) : (
-        distribution &&
-        analysis.reference && (
-          <>
-            <div
-              className="reply-view-switch"
-              role="group"
-              aria-label="Reply detail view"
-            >
-              <button
-                type="button"
-                aria-pressed={view === "scores"}
-                onClick={() => setView("scores")}
-              >
-                Scores
-              </button>
-              <button
-                type="button"
-                aria-pressed={view === "heatmap"}
-                disabled={
-                  view === "scores" && detail?.pending && !distribution.heatmap
-                }
-                onClick={() => {
-                  setView("heatmap");
-                  if (!distribution.heatmap && !detail?.pending) {
-                    analysis.requestDetail(move, {
-                      kind: "reply-detail",
-                      samples:
-                        distribution.count >= REPLY_REFINED_SAMPLES
-                          ? REPLY_REFINED_SAMPLES
-                          : REPLY_SAMPLES,
-                      captureHeatmap: true,
-                    });
-                  }
-                }}
-              >
-                Heatmap
-              </button>
-            </div>
-            {view === "scores" ? (
-              <DistributionChart
-                result={distribution}
-                move={move}
-                reference={analysis.reference}
-              />
-            ) : distribution.heatmap ? (
-              <ReplyHeatmap
-                game={game}
-                move={move}
-                result={distribution}
-                reference={analysis.reference}
-              />
-            ) : detail?.pending ? (
-              <p role="status">Checking heatmap squares…</p>
-            ) : null}
-            {view === "scores" && defense && (
-              <PremiumReplyNote
-                game={game}
-                defense={defense}
-                opponentRackSize={analysis.unseen - analysis.bagSize}
-              />
-            )}
-            {view === "scores" && (
-              <p className="defense-help">
-                Each rack uses its highest-scoring legal reply.
-              </p>
-            )}
-            {!distribution.exact &&
-              distribution.count < REPLY_REFINED_SAMPLES &&
-              (view === "scores" || !!distribution.heatmap) && (
-                <button
-                  type="button"
-                  className="button secondary reply-refine"
-                  disabled={detail?.pending}
-                  onClick={() =>
-                    analysis.requestDetail(move, {
-                      kind: "reply-detail",
-                      samples: REPLY_REFINED_SAMPLES,
-                      captureHeatmap: !!distribution.heatmap,
-                    })
-                  }
-                >
-                  {detail?.pending ? (
-                    <>
-                      <LoaderCircle className="spin" size={14} /> Refining
-                      replies…
-                    </>
-                  ) : (
-                    "Refine to 5,000 racks"
-                  )}
-                </button>
-              )}
-            {detail?.error && <p role="status">{detail.error}</p>}
-          </>
-        )
+        <>
+          {error && <p role="status">{error}</p>}
+          <button type="button" className="button secondary" onClick={onRetry}>
+            Retry heatmap
+          </button>
+        </>
       )}
     </Modal>
   );

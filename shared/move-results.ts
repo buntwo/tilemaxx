@@ -9,6 +9,9 @@ export const MOVE_CACHE_LIMIT = 8;
 export type MoveSort =
   | "score"
   | "word"
+  | "position"
+  | "reply"
+  | "shortlist"
   | "length"
   | "tiles"
   | "leave"
@@ -29,6 +32,7 @@ export interface MoveQuery {
   offset: number;
   rackOdds?: RackOdds;
   boardOdds?: BoardOddsResult;
+  replyDeltas?: Record<string, number>;
 }
 
 export interface MovePage {
@@ -42,12 +46,52 @@ export type ShortlistOptions = Parameters<typeof shortlistMoves>[1];
 
 const collator = new Intl.Collator();
 const comparators: Partial<Record<MoveSort, (a: Move, b: Move) => number>> = {
+  position: (a, b) =>
+    a.col - b.col ||
+    a.row - b.row ||
+    a.direction.localeCompare(b.direction) ||
+    b.score - a.score,
+  score: (a, b) => b.score - a.score,
   word: (a, b) => collator.compare(a.word, b.word) || b.score - a.score,
   length: (a, b) => b.word.length - a.word.length || b.score - a.score,
   tiles: (a, b) => b.tiles.length - a.tiles.length || b.score - a.score,
   leave: (a, b) => collator.compare(a.leave, b.leave) || b.score - a.score,
   blanks: (a, b) => a.blanks - b.blanks || b.score - a.score,
 };
+
+export function moveComparator({
+  sort,
+  rackOdds,
+  boardOdds,
+  replyDeltas,
+}: Omit<MoveQuery, "filter" | "offset">) {
+  if (sort === "equity") {
+    const values = new Map<string, number>();
+    const value = (leave: string) => {
+      let score = values.get(leave);
+      if (score === undefined) {
+        score = leaveValue(leave);
+        values.set(leave, score);
+      }
+      return score;
+    };
+    return (a: Move, b: Move) =>
+      b.score + value(b.leave) - a.score - value(a.leave) || b.score - a.score;
+  }
+  if (sort === "bingo-draw" || sort === "board-bingo")
+    return (a: Move, b: Move) => {
+      const odds = (move: Move) =>
+        sort === "bingo-draw"
+          ? rackOdds?.byLeave[move.leave]
+          : boardOdds?.byMove[move.id]?.chance;
+      return (odds(b) ?? -1) - (odds(a) ?? -1) || b.score - a.score;
+    };
+  if (sort === "reply")
+    return (a: Move, b: Move) =>
+      (replyDeltas?.[a.id] ?? Infinity) - (replyDeltas?.[b.id] ?? Infinity) ||
+      b.score - a.score;
+  return comparators[sort];
+}
 
 export class MoveResultIndex {
   private ordered?: { key: string; moves: readonly Move[] };
@@ -66,33 +110,15 @@ export class MoveResultIndex {
     return shortlistMoves(this.moves, options);
   }
 
-  page({ filter, sort, offset, rackOdds, boardOdds }: MoveQuery): MovePage {
+  page({ filter, offset, ...order }: MoveQuery): MovePage {
     const word = filter.trim().toUpperCase();
-    const byLeave = sort === "bingo-draw" ? rackOdds?.byLeave : undefined;
-    const byMove = sort === "board-bingo" ? boardOdds?.byMove : undefined;
-    const key = JSON.stringify([word, sort, byLeave, byMove]);
+    const key = JSON.stringify([word, order]);
     if (this.ordered?.key !== key) {
       const matches = word
         ? this.moves.filter((move) => move.word.includes(word))
         : this.moves;
-      let compare = comparators[sort];
-      if (sort === "equity") {
-        const values = new Map<string, number>();
-        for (const move of matches)
-          if (!values.has(move.leave))
-            values.set(move.leave, leaveValue(move.leave));
-        compare = (a, b) =>
-          b.score + values.get(b.leave)! - a.score - values.get(a.leave)! ||
-          b.score - a.score;
-      } else if (byLeave) {
-        compare = (a, b) =>
-          (byLeave[b.leave] ?? -1) - (byLeave[a.leave] ?? -1) ||
-          b.score - a.score;
-      } else if (byMove) {
-        compare = (a, b) =>
-          (byMove[b.id]?.chance ?? -1) - (byMove[a.id]?.chance ?? -1) ||
-          b.score - a.score;
-      }
+      const compare =
+        order.sort === "score" ? undefined : moveComparator(order);
       this.ordered = {
         key,
         moves: compare ? [...matches].sort(compare) : matches,

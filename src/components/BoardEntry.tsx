@@ -18,11 +18,13 @@ type EditKind = "enter" | "erase" | "blank";
 
 export default function BoardEntry({
   game,
+  displayBoard,
   preview,
   onChange,
   onSelect,
 }: {
   game: Game;
+  displayBoard?: BoardState;
   preview: Move | null;
   onChange: (game: Game) => void;
   onSelect: () => void;
@@ -30,13 +32,14 @@ export default function BoardEntry({
   const history = useRef(new BoardEditHistory());
   return (
     <BoardInput
-      board={game.board}
+      board={displayBoard ?? game.board}
       archivedBoard={game.archived ? game.archivedBoard : undefined}
       template={game.template}
       preview={preview}
       onSelect={onSelect}
       onBreak={() => history.current.reset()}
       onChange={(board, kind) => {
+        if (displayBoard) return;
         const next = history.current.apply(game, board, kind);
         if (next !== game) onChange(next);
       }}

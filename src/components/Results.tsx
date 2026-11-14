@@ -1,16 +1,19 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import {
   ArrowDownWideNarrow,
-  ArrowRight,
+  ChevronDown,
   Search,
   Sparkles,
-  X,
   LoaderCircle,
   Trophy,
   ChartNoAxesCombined,
   Calculator,
 } from "lucide-react";
 import { type Game, type Move, coordinate } from "../../shared/model";
+import {
+  REPLY_REFINED_SAMPLES,
+  REPLY_SAMPLES,
+} from "../../shared/reply-analysis";
 import { ANALYSIS_LIMIT, placeTiles } from "../../shared/move-analysis";
 import { scorePlacement } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
@@ -25,18 +28,20 @@ import PremiumDefense, {
 import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
 import { useReplyAnalysis } from "../useReplyAnalysis";
 import type { ShortlistEntry } from "../../shared/move-shortlist";
-import type {
-  MoveResults,
-  MoveSort,
-  ShortlistOptions,
+import {
+  moveComparator,
+  type MoveResults,
+  type MoveSort,
+  type ShortlistOptions,
 } from "../../shared/move-results";
 import {
   moveRowHeight,
   useMoveResults,
   type FetchMovePage,
 } from "../useMoveResults";
-import ReplyAnalysis, {
+import ReplyHeatmapDialog, {
   ReplyCell,
+  ReplyPreview,
   replyScoreTotals,
   ReplySettings,
   signedPoints,
@@ -136,11 +141,54 @@ export default function Results({
     id: string;
     searchId: number;
   }>();
+  const [heatmap, setHeatmap] = useState<{ id: string; searchId: number }>();
+  const inlineReply = useRef<HTMLElement>(null);
   const replyMove =
-    inspectedReply?.searchId === resultSet?.searchId
+    preview ??
+    (inspectedReply?.searchId === resultSet?.searchId
       ? replyAnalysis.target.find(({ id }) => id === inspectedReply?.id)
-      : undefined;
+      : undefined);
   const replyDetail = replyMove && replyAnalysis.results?.[replyMove.id];
+  const heatmapMove =
+    heatmap?.searchId === resultSet?.searchId
+      ? replyAnalysis.target.find(({ id }) => id === heatmap?.id)
+      : undefined;
+  const originalHeatmap =
+    heatmapMove && replyAnalysis.results?.[heatmapMove.id];
+  const heatmapDetail =
+    heatmapMove &&
+    replyAnalysis.detail?.key === `reply-detail:${heatmapMove.id}`
+      ? replyAnalysis.detail
+      : undefined;
+  const heatmapResult = heatmapDetail?.result ?? originalHeatmap;
+  function openHeatmap(move: Move) {
+    if (resultSet === null) return;
+    const detail =
+      replyAnalysis.detail?.key === `reply-detail:${move.id}`
+        ? replyAnalysis.detail
+        : undefined;
+    const result = detail?.result ?? replyAnalysis.results?.[move.id];
+    if (result?.kind !== "distribution") return;
+    setHeatmap({ id: move.id, searchId: resultSet.searchId });
+    if (!result.heatmap)
+      replyAnalysis.requestDetail(move, {
+        kind: "reply-detail",
+        samples:
+          result.count >= REPLY_REFINED_SAMPLES
+            ? REPLY_REFINED_SAMPLES
+            : REPLY_SAMPLES,
+        captureHeatmap: true,
+      });
+  }
+  const replyDeltas = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(replyAnalysis.results ?? {}).flatMap(([id, reply]) =>
+          reply?.difference == null ? [] : [[id, reply.difference]],
+        ),
+      ),
+    [replyAnalysis.results],
+  );
   const shortlistReplies = replyAnalysis.pending
     ? undefined
     : replyAnalysis.results;
@@ -211,17 +259,24 @@ export default function Results({
     );
   const filteredShortlist = shortlist
     .map(({ move }) => move)
-    .filter((move) => move.word.includes(filter.trim().toUpperCase()));
+    .filter((move) => move.word.includes(filter.trim().toUpperCase()))
+    .sort(
+      moveComparator({ sort, rackOdds, boardOdds, replyDeltas }) ?? (() => 0),
+    );
+  const checkedMoves = shortlistActive
+    ? shortlist.map(({ move }) => move)
+    : undefined;
   const page = useMoveResults(
     resultSet,
     {
       filter,
-      sort,
+      sort: shortlistActive || sort === "shortlist" ? "score" : sort,
       offset: shortlistActive
         ? 0
         : Math.max(0, Math.floor(scroll / moveRowHeight) - 5),
       rackOdds: sort === "bingo-draw" ? rackOdds : undefined,
       boardOdds: sort === "board-bingo" ? boardOdds : undefined,
+      replyDeltas: sort === "reply" ? replyDeltas : undefined,
     },
     fetchPage,
     !busy && !error,
@@ -248,6 +303,56 @@ export default function Results({
     if (scroller.current) scroller.current.scrollTop = 0;
     setLocked(null);
   }, [resultSet, filter, sort, shortlistOnly]);
+  function column(
+    label: string,
+    value: MoveSort,
+    title: string,
+    disabled = false,
+  ) {
+    return (
+      <button
+        className="result-column-sort"
+        type="button"
+        onClick={() => setSort(value)}
+        aria-label={`Sort by ${title}`}
+        aria-pressed={sort === value}
+        title={title}
+        disabled={disabled}
+      >
+        {label}
+        {sort === value && <ChevronDown size={9} aria-hidden="true" />}
+      </button>
+    );
+  }
+  const hasBingoControls = !!(analysisGame && onBoardOdds && onCancelBoardOdds);
+  const sortControl = !shortlistOnly && (
+    <label className="sort-select">
+      <ArrowDownWideNarrow size={16} />
+      <select
+        aria-label="Sort moves"
+        value={sort}
+        onChange={(e) => setSort(e.target.value as MoveSort)}
+      >
+        <option value="score">Score</option>
+        <option value="equity">Score + leave</option>
+        <option value="word">A–Z</option>
+        <option value="position">Position</option>
+        <option value="reply" disabled={!Object.keys(replyDeltas).length}>
+          Reply change
+        </option>
+        <option value="length">Word length</option>
+        <option value="tiles">Tiles used</option>
+        <option value="leave">Rack leave A–Z</option>
+        <option value="bingo-draw" disabled={!rackOdds || !!rackOdds.error}>
+          Bingo draw %
+        </option>
+        {(!!boardOdds?.checked || sort === "board-bingo") && (
+          <option value="board-bingo">Bingo after play %</option>
+        )}
+        <option value="blanks">Fewest blanks</option>
+      </select>
+    </label>
+  );
   return (
     <section
       className={`results-panel panel ${analysisGame || rackOdds ? "with-bingo-odds" : ""}`}
@@ -286,66 +391,48 @@ export default function Results({
           </button>
         )}
       </header>
-      {analysisGame && !!totalMoves && !busy && !error && (
-        <div
-          className="result-view-picker"
-          role="group"
-          aria-label="Move list view"
-        >
-          <button
-            type="button"
-            aria-pressed={!shortlistOnly}
-            onClick={() => setShortlistOnly(false)}
-          >
-            All moves
-          </button>
-          <button
-            type="button"
-            aria-pressed={shortlistOnly}
-            onClick={() => setShortlistOnly(true)}
-          >
-            Shortlist <span>{shortlist.length}</span>
-          </button>
+      {!!totalMoves && !busy && !error && (
+        <div className="result-filters">
+          {analysisGame && (
+            <div
+              className="result-view-picker"
+              role="group"
+              aria-label="Move list view"
+            >
+              <button
+                type="button"
+                aria-pressed={!shortlistOnly}
+                onClick={() => {
+                  setShortlistOnly(false);
+                  setSort("score");
+                }}
+              >
+                All moves
+              </button>
+              <button
+                type="button"
+                aria-pressed={shortlistOnly}
+                onClick={() => {
+                  setShortlistOnly(true);
+                  setSort("shortlist");
+                }}
+              >
+                Shortlist <span>{shortlist.length}</span>
+              </button>
+            </div>
+          )}
+          <div className="search-input">
+            <Search size={16} />
+            <input
+              aria-label="Filter moves"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Find a word…"
+            />
+          </div>
+          {!hasBingoControls && sortControl}
         </div>
       )}
-      <div className="result-filters">
-        <div className="search-input">
-          <Search size={16} />
-          <input
-            aria-label="Filter moves"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Find a word…"
-          />
-        </div>
-        {!shortlistOnly && (
-          <label className="sort-select">
-            <ArrowDownWideNarrow size={16} />
-            <select
-              aria-label="Sort moves"
-              value={sort}
-              onChange={(e) => setSort(e.target.value as MoveSort)}
-            >
-              <option value="score">Score</option>
-              <option value="equity">Score + leave</option>
-              <option value="word">A–Z</option>
-              <option value="length">Word length</option>
-              <option value="tiles">Tiles used</option>
-              <option value="leave">Rack leave A–Z</option>
-              <option
-                value="bingo-draw"
-                disabled={!rackOdds || !!rackOdds.error}
-              >
-                Bingo draw %
-              </option>
-              {(!!boardOdds?.checked || sort === "board-bingo") && (
-                <option value="board-bingo">Bingo after play %</option>
-              )}
-              <option value="blanks">Fewest blanks</option>
-            </select>
-          </label>
-        )}
-      </div>
       {!busy &&
         !error &&
         !!totalMoves &&
@@ -355,7 +442,12 @@ export default function Results({
           <BingoOddsControls
             key={analysisKey}
             game={analysisGame}
-            moves={page.head}
+            moves={checkedMoves ?? page.head}
+            shortlist={shortlistActive}
+            settings={
+              replyEnabled && <ReplySettings analysis={replyAnalysis} />
+            }
+            sortControl={sortControl}
             rackOdds={rackOdds}
             rackOddsPending={rackOddsPending}
             boardOdds={boardOdds}
@@ -412,7 +504,7 @@ export default function Results({
             We’ll find the possibilities.
           </p>
           <button
-            className="button secondary"
+            className="button primary"
             onClick={onSolve}
             disabled={!hasRack}
           >
@@ -425,7 +517,7 @@ export default function Results({
           <p role="status">
             Move results are unavailable. Find moves again to reload them.
           </p>
-          <button className="button secondary" onClick={onSolve}>
+          <button className="button primary" onClick={onSolve}>
             Find moves
           </button>
         </div>
@@ -450,55 +542,54 @@ export default function Results({
         </div>
       ) : (
         <>
-          {replyEnabled && analysisGame && (
-            <div className="reply-controls" key={analysisKey}>
-              <ReplySettings analysis={replyAnalysis} />
-              {replyAnalysis.invalid && (
-                <span>Check tile counts for reply analysis.</span>
-              )}
-              {replyAnalysis.error && (
-                <span role="status">{replyAnalysis.error}</span>
-              )}
-              {!replyAnalysis.invalid && replyAnalysis.bagSize === 0 && (
-                <span>
-                  {replyAnalysis.bagAssumedEmpty
-                    ? "Bag assumed empty"
-                    : "Empty bag"}
-                </span>
-              )}
+          {replyEnabled && (replyAnalysis.invalid || replyAnalysis.error) && (
+            <div className="reply-controls" role="status">
+              {replyAnalysis.error ?? "Check tile counts for reply analysis."}
             </div>
           )}
-          <div className="result-legend" aria-label="Move letter colors">
-            <span className="result-letter played">New tiles</span>
-            <span className="result-letter existing">On board</span>
-            <span className="result-letter assigned-blank">Blank</span>
-          </div>
+          {replyEnabled &&
+            replyAnalysis.bagSize === 0 &&
+            !replyAnalysis.invalid && (
+              <div className="reply-controls">
+                {replyAnalysis.bagAssumedEmpty
+                  ? "Bag assumed empty"
+                  : "Empty bag"}
+              </div>
+            )}
+          {replyEnabled && analysisGame && !onBoardOdds && (
+            <div className="reply-controls">
+              <ReplySettings analysis={replyAnalysis} />
+            </div>
+          )}
           <div
             className={`result-columns${analysisGame ? " with-score-action" : ""}`}
           >
-            <span>WORD</span>
-            <span title="Position">POS</span>
-            <span className="result-leave">
-              LEAVE
-              {(analysisGame || rackOdds) && (
-                <span title="Chance the refilled rack spells a full-length word">
-                  BINGO DRAW %
-                </span>
-              )}
-            </span>
-            <span
-              className="result-points-heading"
-              title="Score and points below the highest-scoring play"
-            >
-              PTS
-            </span>
+            <div>{column("WORD", "word", "word")}</div>
+            <div>{column("POS", "position", "position")}</div>
+            <div className="result-leave">
+              {column("LEAVE", "leave", "rack leave")}
+              {(analysisGame || rackOdds) &&
+                column(
+                  "BINGO DRAW %",
+                  "bingo-draw",
+                  "bingo draw odds",
+                  !rackOdds || !!rackOdds.error,
+                )}
+              {!!boardOdds?.checked &&
+                column("AFTER PLAY", "board-bingo", "bingo odds after play")}
+            </div>
+            <div className="result-points-heading">
+              {column("PTS", "score", "points")}
+            </div>
             {replyEnabled && analysisGame && (
-              <span
-                className="result-reply-heading"
-                title="Reply score compared with the highest-scoring play. A standalone badge flags a premium-square opening or block."
-              >
-                Δ REPLY
-              </span>
+              <div className="result-reply-heading">
+                {column(
+                  "Δ REPLY",
+                  "reply",
+                  "reply change",
+                  !Object.keys(replyDeltas).length,
+                )}
+              </div>
             )}
           </div>
           <div
@@ -565,6 +656,14 @@ export default function Results({
                           matchMedia("(min-width:651px)").matches
                         )
                           onPreview(m);
+                        if (
+                          searchId !== undefined &&
+                          reply &&
+                          e.pointerType === "mouse" &&
+                          !analyzing &&
+                          !locked
+                        )
+                          setInspectedReply({ id: m.id, searchId });
                       }}
                       onPointerLeave={(e) => {
                         if (e.pointerType === "mouse" && !locked)
@@ -699,8 +798,16 @@ export default function Results({
                         type="button"
                         className="result-defense-action result-reply-action icon-button"
                         onClick={() => {
-                          if (searchId !== undefined)
-                            setInspectedReply({ id: m.id, searchId });
+                          if (searchId === undefined) return;
+                          setLocked(null);
+                          setInspectedReply({ id: m.id, searchId });
+                          onPreview(null);
+                          if (window.matchMedia("(max-width:650px)").matches)
+                            requestAnimationFrame(() =>
+                              inlineReply.current?.scrollIntoView?.({
+                                block: "nearest",
+                              }),
+                            );
                         }}
                       >
                         <span className="reply-sr-only">
@@ -802,44 +909,22 @@ export default function Results({
           )
         )}
       </footer>
-      {preview && (
-        <div className="preview-summary">
-          <div>
-            <strong>{preview.word}</strong>
-            <span>
-              {preview.score} points
-              {preview.tiles.length === rackSize
-                ? ` · Bingo! +${bingoBonus} bonus included`
-                : ""}
-              {preview.crosses.length
-                ? ` · also ${preview.crosses.join(", ")}`
-                : ""}
-            </span>
-            {shortlistOnly && shortlistById.get(preview.id)?.detail && (
-              <span>{shortlistById.get(preview.id)?.detail}</span>
-            )}
-          </div>
-          <button
-            className="button primary"
-            onClick={() => {
-              setLocked(null);
-              onPlay(preview);
-            }}
-          >
-            Play
-            <ArrowRight size={16} />
-          </button>
-          <button
-            className="icon-button"
-            aria-label="Dismiss preview"
-            onClick={() => {
-              setLocked(null);
-              onPreview(null);
-            }}
-          >
-            <X size={16} />
-          </button>
-        </div>
+      {analysisGame && replyMove && replyDetail && (
+        <section
+          className="inline-reply"
+          ref={inlineReply}
+          aria-label={`Reply after ${replyMove.word}`}
+        >
+          <h3>Reply after {replyMove.word}</h3>
+          <ReplyPreview
+            game={analysisGame}
+            move={replyMove}
+            result={replyDetail}
+            defense={defense?.[replyMove.id]}
+            analysis={replyAnalysis}
+            onHeatmap={() => openHeatmap(replyMove)}
+          />
+        </section>
       )}
       {inspectedMove && (
         <Modal
@@ -862,16 +947,21 @@ export default function Results({
           onClose={() => setInspectedDefense(undefined)}
         />
       )}
-      {analysisGame && replyMove && replyDetail && (
-        <ReplyAnalysis
-          game={analysisGame}
-          move={replyMove}
-          result={replyDetail}
-          defense={defense?.[replyMove.id]}
-          analysis={replyAnalysis}
-          onClose={() => setInspectedReply(undefined)}
-        />
-      )}
+      {analysisGame &&
+        heatmapMove &&
+        heatmapResult?.kind === "distribution" &&
+        replyAnalysis.reference && (
+          <ReplyHeatmapDialog
+            game={analysisGame}
+            move={heatmapMove}
+            result={heatmapResult}
+            reference={replyAnalysis.reference}
+            pending={heatmapDetail?.pending}
+            error={heatmapDetail?.error}
+            onClose={() => setHeatmap(undefined)}
+            onRetry={() => openHeatmap(heatmapMove)}
+          />
+        )}
     </section>
   );
 }

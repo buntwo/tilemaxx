@@ -578,18 +578,52 @@ test("board edits stop a running solver and game switching clears the entry curs
 
 test("rack → real solver → hover preview → play → undo/redo → save", async () => {
   let solves = 0;
+  let replies = 0;
   class CountingWorker extends SolverWorker {
     protected rackOdds = { "": 0.25 };
-    postMessage(request: Parameters<SolverWorker["postMessage"]>[0]) {
+    postMessage(
+      request:
+        | Parameters<SolverWorker["postMessage"]>[0]
+        | import("../../shared/reply-analysis").ReplyRequest,
+    ) {
+      if (request.kind === "reply-summary") {
+        replies++;
+        queueMicrotask(() => {
+          for (const move of request.candidates) {
+            this.onmessage?.({
+              data: {
+                kind: request.kind,
+                id: request.id,
+                moveId: move.id,
+                result: {
+                  kind: "distribution",
+                  mean: 21,
+                  difference: 0,
+                  count: 500,
+                  exact: false,
+                  buckets: [100, 400, 0, 0, 0],
+                  discordant: [0, 0, 0, 0, 0],
+                  reference: { mean: 21, buckets: [100, 400, 0, 0, 0] },
+                },
+              },
+            });
+          }
+          this.onmessage?.({
+            data: { kind: request.kind, id: request.id, done: true },
+          });
+        });
+        return;
+      }
+      if (request.kind === "reply-detail" || request.kind === "reply-line")
+        return;
       super.postMessage(request);
-      if (request.kind !== "solve") return;
-      solves++;
+      if (request.kind === "solve") solves++;
     }
   }
   vi.stubGlobal("Worker", CountingWorker);
   const user = await start();
   await typeRack(user, "CATS");
-  await user.click(screen.getByText("Unseen tiles"));
+  await user.click(screen.getByText(/^[0-9]+ unseen tiles?$/));
   const pool = within(screen.getByRole("list", { name: "Unseen tile counts" }));
   const countA = () => pool.getByRole("listitem", { name: "A: 8 unseen" });
   expect(countA()).toBeTruthy();
@@ -616,6 +650,12 @@ test("rack → real solver → hover preview → play → undo/redo → save", a
   expect(countA()).toBeTruthy();
   expect(current().board.some(Boolean)).toBe(false);
   expect(moveRows()).toEqual(originalRows);
+  expect(
+    within(screen.getByLabelText("Suggested moves")).getAllByRole("button", {
+      name: /^Reply analysis for/,
+    }).length,
+  ).toBeGreaterThan(0);
+  expect(replies).toBe(1);
   expect(
     screen
       .getAllByRole("button", { name: /^CATS, / })[0]
@@ -672,7 +712,7 @@ test("focus moves between board, rack and moves without leaving an inactive curs
   expect(selectedCell()).toBe("113");
   // Returning to the same square after blur must not turn the direction.
   expect(cell("Toggle entry direction").textContent).toContain("Across");
-  await user.click(screen.getByRole("textbox", { name: "Filter moves" }));
+  await user.click(screen.getByRole("heading", { name: "Possible moves" }));
   expect(selectedCell()).toBeUndefined();
   await user.click(cell("I8: empty"));
   await user.keyboard(" ");
@@ -714,6 +754,7 @@ test("direct rack entry supports Space blanks, replacement, paste, full-rack bou
   await user.keyboard("{Control>}a{/Control}DOG");
   expect(current().rack).toBe("DOG");
   expect(current().board.some(Boolean)).toBe(false);
+  await user.click(screen.getByText("Rack tools"));
   await user.click(cell("Sort rack"));
   expect(current().rack).toBe("DGO");
   expect(document.querySelector(".rack-tile.selected")).toBeNull();
@@ -1061,7 +1102,7 @@ test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters
   await typeRack(user, "A ");
   await user.click(cell("H8: DW, start"));
   await user.keyboard(" Q");
-  await user.click(screen.getByText("Unseen tiles"));
+  await user.click(screen.getByText(/^[0-9]+ unseen tiles?$/));
   const pool = () =>
     within(screen.getByRole("list", { name: "Unseen tile counts" }));
   expect(
@@ -1380,6 +1421,7 @@ test("exclude rack tiles with Down or taps, keep the unseen count, and retain he
   expect(current().rack).toBe("CATS");
   expect(current().excludedRackSlots).toEqual([3]);
   expect(rackTile(4).getAttribute("aria-label")).toContain("held out");
+  await user.click(screen.getByText("Rack tools"));
   await user.click(screen.getByRole("button", { name: "Exclude tiles" }));
   await user.click(rackTile(4));
   expect(current().excludedRackSlots).toBeUndefined();
@@ -1388,7 +1430,7 @@ test("exclude rack tiles with Down or taps, keep the unseen count, and retain he
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   const move = (await screen.findAllByRole("button", { name: /^CAT, / }))[0];
   expect(screen.queryAllByRole("button", { name: /^CATS, / })).toHaveLength(0);
-  await user.click(screen.getByText("About bingo odds"));
+  await user.click(screen.getByText("Options"));
   expect(screen.getByText(/89 right now/)).toBeTruthy();
   await user.click(move);
   await waitFor(() => expect(current().rack).toBe("...S"));
@@ -1445,7 +1487,7 @@ test("overdrawn tiles show negative counts while other counts stay visible", asy
   ).toBe(true);
   expect(screen.getByText("Consonants 56")).toBeTruthy();
   expect(screen.getByText("Blanks 2")).toBeTruthy();
-  await user.click(screen.getByText("Unseen tiles"));
+  await user.click(screen.getByText(/^[0-9]+ unseen tiles?$/));
   const pool = within(screen.getByRole("list", { name: "Unseen tile counts" }));
   expect(pool.getByRole("listitem", { name: "U: 2 extra" }).textContent).toBe(
     "U-2",
@@ -1477,4 +1519,26 @@ test("a move's score button opens its own breakdown without playing it", async (
   expect(within(dialog).getByText("5 × 2 = 10")).toBeTruthy();
   expect(current().board.some(Boolean)).toBe(false);
   expect(current().rack).toBe("CAT");
+});
+
+test("exchange simulation expands inside the rack and closes when marks change", async () => {
+  const user = await start();
+  await typeRack(user, "CAT");
+  await user.click(screen.getByText("Rack tools"));
+  await user.click(screen.getByRole("button", { name: "Mark exchange" }));
+  await user.click(rackTile(1));
+  const simulate = screen.getByRole("button", {
+    name: "Simulate exchange (1)",
+  });
+  await user.click(simulate);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  const section = screen.getByRole("region", { name: "Simulate exchange" });
+  expect(section.closest(".rack-panel")).toBeTruthy();
+  expect(
+    within(section).getByRole("button", { name: "Run simulation" }),
+  ).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Clear marks" }));
+  expect(
+    screen.queryByRole("region", { name: "Simulate exchange" }),
+  ).toBeNull();
 });

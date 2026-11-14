@@ -23,17 +23,15 @@ export default function TilePool({ game }: { game: Game }) {
   return (
     <details className="tile-pool">
       <summary>
-        <strong>Unseen tiles</strong>
-        <span className={excess.length ? "tile-pool-alert" : undefined}>
-          {excess.length ? (
-            <>
-              <TriangleAlert size={16} aria-hidden="true" />
-              Check tile counts
-            </>
-          ) : (
-            total
-          )}
-        </span>
+        <strong>
+          {total} unseen {total === 1 ? "tile" : "tiles"}
+        </strong>
+        {!!excess.length && (
+          <span className="tile-pool-alert">
+            <TriangleAlert size={16} aria-hidden="true" />
+            Check tile counts
+          </span>
+        )}
         <ChevronDown
           className="tile-pool-chevron"
           size={15}

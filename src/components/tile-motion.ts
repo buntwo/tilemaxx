@@ -19,7 +19,7 @@ export function rackTileRects(rack: HTMLElement, slots: number[]) {
   );
 }
 
-function tileVisible(rect: DOMRect | undefined): rect is DOMRect {
+function tileVisible(rect: DOMRect | undefined): boolean {
   const viewport = window.visualViewport;
   const width = viewport?.width ?? window.innerWidth;
   const height = viewport?.height ?? window.innerHeight;
@@ -46,16 +46,60 @@ export function prepareTileFlight(
   const slots = rackSlotsForMove(game, move.tiles);
   if (!slots) return;
   const sources = rack ? rackTileRects(rack, slots) : [];
-  const compact =
+  const reveal =
     window.matchMedia("(max-width: 650px)").matches ||
-    !rack ||
     !sources.every(tileVisible) ||
     !move.tiles.every(({ index }) =>
       tileVisible(
         board?.querySelector(`[data-cell="${index}"]`)?.getBoundingClientRect(),
       ),
     );
-  return { compact, slots, sources: compact ? undefined : sources };
+  return { reveal, slots };
+}
+
+export async function revealTileTargets(
+  board: HTMLElement,
+  move: Move,
+  signal: AbortSignal,
+) {
+  const grid = board.querySelector(".board-grid");
+  if (!grid) return;
+  const rect = grid.getBoundingClientRect();
+  const height = window.visualViewport?.height ?? window.innerHeight;
+  const top = 12;
+  const bottom = height - 12;
+  if (rect.top >= top && rect.bottom <= bottom) return;
+  const targets = move.tiles.flatMap(({ index }) => {
+    const tile = board.querySelector(`[data-cell="${index}"]`);
+    return tile ? [tile.getBoundingClientRect()] : [];
+  });
+  const targetTop = targets.length
+    ? Math.min(...targets.map((tile) => tile.top))
+    : rect.top;
+  const targetBottom = targets.length
+    ? Math.max(...targets.map((tile) => tile.bottom))
+    : rect.bottom;
+  const offset =
+    rect.height <= bottom - top
+      ? rect.top < top
+        ? rect.top - top
+        : rect.bottom - bottom
+      : targetTop < top || targetBottom > bottom
+        ? (targetTop + targetBottom - height) / 2
+        : 0;
+  if (Math.abs(offset) < 1) return;
+  window.scrollBy({ top: offset, behavior: "instant" });
+  await new Promise<void>((resolve) => {
+    const frame = requestAnimationFrame(() => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    });
+    function abort() {
+      cancelAnimationFrame(frame);
+      resolve();
+    }
+    signal.addEventListener("abort", abort, { once: true });
+  });
 }
 
 export function flyTiles(
@@ -63,7 +107,6 @@ export function flyTiles(
   tiles: Move["tiles"],
   sources: ReturnType<typeof rackTileRects>,
   rules: Rules,
-  compact: boolean,
   onFinish: () => void,
 ) {
   const viewport = window.visualViewport;
@@ -74,9 +117,27 @@ export function flyTiles(
   }));
   const flights = paths.flatMap(({ source, target, letter }) => {
     const end = target?.getBoundingClientRect();
-    return target && tileVisible(end) && tileVisible(source)
-      ? [{ source, target, end, letter }]
-      : [];
+    if (
+      !target ||
+      !end ||
+      !tileVisible(end) ||
+      !source?.width ||
+      !source.height
+    )
+      return [];
+    // On short screens the rack can sit just beyond the revealed board.
+    // Start at the nearest viewport edge while keeping the rack column.
+    const top = viewport?.offsetTop ?? 0;
+    const bottom = top + (viewport?.height ?? window.innerHeight);
+    const start = tileVisible(source)
+      ? source
+      : {
+          left: source.left,
+          top: source.top < top ? top - source.height : bottom,
+          width: source.width,
+          height: source.height,
+        };
+    return [{ source: start, end, letter }];
   });
   if (!flights.length) return;
 
@@ -85,7 +146,7 @@ export function flyTiles(
   layer.setAttribute("aria-hidden", "true");
   document.body.append(layer);
   let cancelled = false;
-  const animations = flights.map(({ source, target, end, letter }, i) => {
+  const animations = flights.map(({ source, end, letter }, i) => {
     const blank = letter !== letter.toUpperCase();
     const tile = document.createElement("span");
     tile.className = `flying-tile${blank ? " blank" : ""}`;
@@ -101,7 +162,6 @@ export function flyTiles(
       fontSize: `${Math.min(23, source.width * 0.56)}px`,
     });
     layer.append(tile);
-    target.dataset.tileLanding = "";
     const dx = end.left - source.left;
     const dy = end.top - source.top;
     const animation = tile.animate(
@@ -122,26 +182,16 @@ export function flyTiles(
         fill: "both",
       },
     );
-    const finished = animation.finished.then(
-      () => {
-        delete target.dataset.tileLanding;
-        tile.remove();
-      },
-      () => {},
-    );
-    return { target, animation, finished };
+    return animation;
   });
 
   function stop() {
     if (cancelled) return;
     cancelled = true;
-    for (const { target, animation } of animations) {
-      delete target.dataset.tileLanding;
-      animation.cancel();
-    }
+    for (const animation of animations) animation.cancel();
     layer.remove();
     window.removeEventListener("resize", finish);
-    if (!compact) window.removeEventListener("scroll", finish, true);
+    window.removeEventListener("scroll", finish, true);
     viewport?.removeEventListener("resize", finish);
   }
   function finish() {
@@ -150,8 +200,11 @@ export function flyTiles(
     onFinish();
   }
   window.addEventListener("resize", finish);
-  if (!compact) window.addEventListener("scroll", finish, true);
+  window.addEventListener("scroll", finish, true);
   viewport?.addEventListener("resize", finish);
-  void Promise.all(animations.map(({ finished }) => finished)).then(finish);
+  void Promise.all(animations.map((animation) => animation.finished)).then(
+    finish,
+    finish,
+  );
   return stop;
 }

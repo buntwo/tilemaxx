@@ -23,7 +23,6 @@ import {
   Redo2,
   Save,
   Search,
-  Shuffle,
   Smartphone,
   Sparkles,
   Sun,
@@ -41,10 +40,11 @@ import RackEntry from "./components/RackEntry";
 import {
   flyTiles,
   prepareTileFlight,
+  revealTileTargets,
   rackTileRects,
 } from "./components/tile-motion";
 import TilePool from "./components/TilePool";
-import { sortRack, splitRack } from "../shared/rack-entry";
+import { splitRack } from "../shared/rack-entry";
 import BoardStudio from "./components/BoardStudio";
 import ScreenshotImport from "./components/ScreenshotImport";
 import { importBoard } from "../shared/screenshot";
@@ -59,7 +59,6 @@ import {
 import ArchivedGames, { type ArchiveSort } from "./components/ArchivedGames";
 import GameScores from "./components/GameScores";
 import ScoreBreakdown from "./components/ScoreBreakdown";
-import ExchangeAnalysis from "./components/ExchangeAnalysis";
 import { placeTiles } from "../shared/move-analysis";
 import {
   emptyScoring,
@@ -166,7 +165,6 @@ function GameLoadStatus({ id, error }: { id: string; error?: string }) {
 export default function App() {
   const boardPanel = useRef<HTMLElement>(null);
   const rackPanel = useRef<HTMLElement>(null);
-  const flightDock = useRef<HTMLDivElement>(null);
   const [flight, setFlight] = useState<TileFlight>();
   const state = useStore(),
     data = state.data;
@@ -221,25 +219,37 @@ export default function App() {
       setFlight(undefined);
       return;
     }
-    const board = flight.compact ? flightDock.current : boardPanel.current;
-    const sources =
-      flight.sources ?? (board ? rackTileRects(board, flight.slots) : []);
+    const board = boardPanel.current;
+    const rack = rackPanel.current;
     const finish = () =>
       setFlight((current) => (current === flight ? undefined : current));
-    const stop =
-      board &&
-      flyTiles(
+    if (!board || !rack) {
+      finish();
+      return;
+    }
+    const controller = new AbortController();
+    let stop: (() => void) | undefined;
+    const launch = () => {
+      if (controller.signal.aborted) return;
+      stop = flyTiles(
         board,
         flight.move.tiles,
-        sources,
+        rackTileRects(rack, flight.slots),
         flight.before.template.rules,
-        flight.compact,
         finish,
       );
-    if (!stop) finish();
-    return stop || undefined;
+      if (!stop) finish();
+    };
+    if (flight.reveal)
+      void revealTileTargets(board, flight.move, controller.signal).then(
+        launch,
+      );
+    else launch();
+    return () => {
+      controller.abort();
+      stop?.();
+    };
   }, [activeFlight, flight]);
-  const [exchange, setExchange] = useState<{ key: string; slots: number[] }>();
   const previewScore =
     game && preview
       ? scorePlacement(
@@ -407,7 +417,7 @@ export default function App() {
     solver.solve(game);
   }
   function play(move: Move) {
-    if (!game) return;
+    if (!game || activeFlight) return;
     try {
       const next = playTrackedMove(game, move);
       const motion = prepareTileFlight(
@@ -428,9 +438,6 @@ export default function App() {
       setPreview(null);
       update(next);
       setError("");
-      notify(
-        `${move.word} played for ${move.score} points. Add your new rack letters.`,
-      );
     } catch (e) {
       setError((e as Error).message);
     }
@@ -867,7 +874,8 @@ export default function App() {
                 <BoardEntry
                   key={game.id}
                   game={game}
-                  preview={preview}
+                  preview={activeFlight?.move ?? preview}
+                  displayBoard={activeFlight?.before.board}
                   onChange={update}
                   onSelect={() => setPreview(null)}
                 />
@@ -915,19 +923,6 @@ export default function App() {
                 <div className="rack-heading">
                   <h2>Your rack</h2>
                   <button
-                    className="icon-button"
-                    aria-label="Sort rack"
-                    title="Sort rack"
-                    onClick={() =>
-                      update({
-                        ...game,
-                        ...sortRack(game),
-                      })
-                    }
-                  >
-                    <Shuffle size={16} />
-                  </button>
-                  <button
                     className="button primary solve-button"
                     disabled={!hasPlayableRack && !busy}
                     onClick={solve}
@@ -946,10 +941,8 @@ export default function App() {
                   game={game}
                   onChange={update}
                   onSolve={solve}
-                  onExchange={(slots) => setExchange({ key: signature, slots })}
-                  flyingRack={
-                    activeFlight?.compact === false ? activeFlight : undefined
-                  }
+                  positionKey={signature}
+                  flyingRack={activeFlight}
                 />
                 <TilePool key={`tile-pool:${game.id}`} game={game} />
               </section>
@@ -1087,37 +1080,6 @@ export default function App() {
           <span>Tilemaxx · Local & personal</span>
         </footer>
       </main>
-      {activeFlight?.compact && game && (
-        <div
-          className="mobile-preview-dock tile-flight-dock"
-          ref={flightDock}
-          aria-hidden="true"
-          inert
-        >
-          <div className="dock-board">
-            <Board template={game.template} board={game.board} compact />
-          </div>
-          <div className="flight-rack">
-            {Array.from({ length: game.template.rackSize }, (_, slot) => {
-              const consumed = activeFlight.slots.includes(slot);
-              const letter = activeFlight.before.rack[slot];
-              const tile = letter && letter !== "." && !consumed;
-              return (
-                <span
-                  key={slot}
-                  data-rack-slot={slot}
-                  className={`rack-tile${tile ? "" : " empty"}${tile && letter === "?" ? " blank" : ""}`}
-                >
-                  {tile && letter !== "?" ? letter : ""}
-                  {tile && (
-                    <small>{tileScore(letter, game.template.rules)}</small>
-                  )}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      )}
       {workspace === "games" && preview && game && (
         <div className="mobile-preview-dock" aria-label="Move preview">
           <div className="dock-board">
@@ -1154,13 +1116,6 @@ export default function App() {
             </button>
           </div>
         </div>
-      )}
-      {game && exchange?.key === signature && (
-        <ExchangeAnalysis
-          game={game}
-          slots={exchange.slots}
-          onClose={() => setExchange(undefined)}
-        />
       )}
       {toast && (
         <div className="toast" role="status">
