@@ -3933,19 +3933,18 @@ kbd {
   background-color: color-mix(in srgb, var(--archive-tile), #72b77b 28%);
 }
 .board-word-score {
-  --badge-size: clamp(13px, calc(68cqw / var(--size)), 24px);
+  --badge-size: clamp(14px, calc(36cqw / var(--size)), 19px);
   position: absolute;
   z-index: 2;
   display: grid;
   place-items: center;
   min-width: var(--badge-size);
   height: var(--badge-size);
-  padding-inline: 2px;
   border: 1px solid var(--surface);
   border-radius: 999px;
   background: light-dark(#2d5b73, #abd4e7);
   color: light-dark(#fff, #213e4d);
-  font-size: clamp(8px, calc(35cqw / var(--size)), 12px);
+  font-size: clamp(8px, calc(var(--badge-size) * 0.55), 10px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
