@@ -38,6 +38,7 @@ export default function RackEntry({
   onChange,
   onSolve,
   phoneLayout,
+  onReviewEdit,
   positionKey,
   exchangeAdvice,
   exchangeBag,
@@ -50,6 +51,7 @@ export default function RackEntry({
   onChange: (game: Game) => void;
   onSolve: () => void;
   phoneLayout: boolean;
+  onReviewEdit?: () => void;
   positionKey: string;
   exchangeAdvice?: ExchangeAdvice;
   exchangeBag: number;
@@ -78,6 +80,7 @@ export default function RackEntry({
   }>();
   const excludeMode = mode === "exclude";
   const exchangeMode = mode === "exchange";
+  const reviewing = !!onReviewEdit;
   const tools = useRef<HTMLDetailsElement>(null);
   const openExchange = useRef<{ reveal: boolean }>(null);
   const exchangeButton = useRef<HTMLButtonElement>(null);
@@ -86,6 +89,7 @@ export default function RackEntry({
   );
   const input = useRef<HTMLInputElement>(null);
   const rack = useRef<HTMLDivElement>(null);
+  const editingFromReview = useRef(false);
   const slides = useRef(
     new Map<number, { letter: string; stop: () => void }>(),
   );
@@ -137,6 +141,19 @@ export default function RackEntry({
       });
   });
   useImperativeHandle(ref, () => ({ openSuggestedExchange }));
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (reviewing || !focused || !editingFromReview.current || !viewport) return;
+    function keepRackAboveKeyboard() {
+      const rect = rack.current?.getBoundingClientRect();
+      if (!rect || !viewport || viewport.scale !== 1) return;
+      const overlap = rect.bottom + 8 - (viewport.offsetTop + viewport.height);
+      if (overlap > 0) window.scrollBy({ top: overlap, behavior: "instant" });
+    }
+    keepRackAboveKeyboard();
+    viewport.addEventListener("resize", keepRackAboveKeyboard);
+    return () => viewport.removeEventListener("resize", keepRackAboveKeyboard);
+  }, [focused, reviewing]);
   useEffect(() => {
     const close = (event: PointerEvent) => {
       if (!tools.current?.contains(event.target as Node) && tools.current)
@@ -306,6 +323,12 @@ export default function RackEntry({
     setMode(next);
     setOptimalOpen(undefined);
   }
+  function editFromReview(slot: number) {
+    onReviewEdit?.();
+    chooseMode("entry");
+    editingFromReview.current = true;
+    focus(slot);
+  }
   function openSuggestedExchange(reveal: boolean) {
     if (!exchangeAdvice || flyingRack) return;
     const { slots } = exchangeAdvice;
@@ -328,6 +351,14 @@ export default function RackEntry({
         style={{ "--rack-size": capacity } as CSSProperties}
         role="group"
         aria-label="Your rack tiles"
+        onClick={
+          onReviewEdit
+            ? (event) => {
+                if (event.target === event.currentTarget)
+                  editFromReview(Math.min(position, capacity - 1));
+              }
+            : undefined
+        }
       >
         {Array.from({ length: capacity }, (_, i) => {
           const letter = flyingRack
@@ -349,20 +380,30 @@ export default function RackEntry({
               key={i}
               data-rack-slot={i}
               className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""} ${previewed ? "move-preview" : ""}`}
-              aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${exchanging ? ", marked for exchange" : ""}${previewed ? ", used by preview" : ""}`}
+              aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${exchanging ? ", marked for exchange" : ""}${previewed ? ", used by preview" : ""}${onReviewEdit ? ", edit rack" : ""}`}
               aria-pressed={
-                exchangeMode ? exchanging : excludeMode ? excluded : active
+                onReviewEdit
+                  ? undefined
+                  : exchangeMode
+                    ? exchanging
+                    : excludeMode
+                      ? excluded
+                      : active
               }
               aria-disabled={
-                (excludeMode || exchangeMode) && !tile ? true : undefined
+                !onReviewEdit && (excludeMode || exchangeMode) && !tile
+                  ? true
+                  : undefined
               }
               onPointerDown={(e) => e.preventDefault()}
               onClick={() =>
-                exchangeMode
-                  ? toggleExchange(i)
-                  : excludeMode
-                    ? toggleExcluded(i)
-                    : focus(i)
+                onReviewEdit
+                  ? editFromReview(i)
+                  : exchangeMode
+                    ? toggleExchange(i)
+                    : excludeMode
+                      ? toggleExcluded(i)
+                      : focus(i)
               }
             >
               <span className="rack-slot">
@@ -397,6 +438,7 @@ export default function RackEntry({
       <input
         className="rack-keyboard-input"
         ref={input}
+        tabIndex={onReviewEdit ? -1 : undefined}
         aria-label="Rack letters"
         aria-describedby={helpId}
         value={SENTINEL}
@@ -406,6 +448,7 @@ export default function RackEntry({
         spellCheck={false}
         onFocus={() => setFocused(true)}
         onBlur={() => {
+          editingFromReview.current = false;
           setFocused(false);
           setSelectAll(false);
         }}
