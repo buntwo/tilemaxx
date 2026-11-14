@@ -1,6 +1,7 @@
 import type { BoardTemplate, Move, Position } from "./model";
 import { Lexicon } from "./lexicon";
 import { sampleTiles, weightedDraws } from "./move-analysis";
+import { rackSlotsForMove } from "./rack-entry";
 import { prepareSolver, SEARCH_LIMITS, SearchLimitError } from "./solver";
 import { unseenTiles } from "./tile-pool";
 
@@ -55,11 +56,11 @@ export function simulateExchange(
     const examples = new Map<
       string,
       {
-        rack: string;
         word: string;
         score: number;
         bingo: boolean;
         weight: number;
+        draws: Map<string, { score: number; weight: number }>;
       }
     >();
     let weight = 0,
@@ -68,7 +69,8 @@ export function simulateExchange(
       completed = 0,
       playable = 0;
     for (const { draw, weight: copies } of draws) {
-      const full = (keep + draw).split("").sort().join("");
+      const refill = keep + draw;
+      const full = [...refill].sort().join("");
       try {
         let result = cache.get(full);
         if (!result) {
@@ -94,15 +96,28 @@ export function simulateExchange(
           if (!move) continue;
           const key =
             move.word + ":" + (move.tiles.length === template.rackSize);
-          const entry = examples.get(key);
-          examples.set(key, {
-            rack: full,
+          const entry = examples.get(key) ?? {
             word: move.word,
-            score: Math.max(move.score, entry?.score ?? 0),
+            score: 0,
             bingo: move.tiles.length === template.rackSize,
-            weight: (entry?.weight ?? 0) + copies,
-            ...(entry && entry.score > move.score && { rack: entry.rack }),
+            weight: 0,
+            draws: new Map<string, { score: number; weight: number }>(),
+          };
+          entry.weight += copies;
+          entry.score = Math.max(entry.score, move.score);
+          // Match kept tiles first so the draw only includes physical tiles
+          // needed by this placement, including blanks and repeated letters.
+          const needed = rackSlotsForMove({ board, rack: refill }, move.tiles)!
+            .filter((slot) => slot >= keep.length)
+            .map((slot) => refill[slot])
+            .sort()
+            .join("");
+          const previous = entry.draws.get(needed);
+          entry.draws.set(needed, {
+            score: Math.max(move.score, previous?.score ?? 0),
+            weight: copies + (previous?.weight ?? 0),
           });
+          examples.set(key, entry);
         }
         completed++;
         if (completed % 10 === 0 || completed === draws.length)
@@ -124,7 +139,14 @@ export function simulateExchange(
       playable: playable / weight,
       examples: [...examples.values()]
         .sort((a, b) => b.weight - a.weight || b.score - a.score)
-        .slice(0, 8),
+        .slice(0, 8)
+        .map(({ draws, weight: occurrences, ...example }) => ({
+          ...example,
+          chance: occurrences / weight,
+          draws: [...draws]
+            .sort(([, a], [, b]) => b.score - a.score || b.weight - a.weight)
+            .map(([tiles]) => tiles),
+        })),
     };
   }
   if (slots.length <= 2) {

@@ -28,7 +28,13 @@ test("exchange uses exact physical weights and cannot redraw the only exchanged 
   assert.equal(result.bingo, 8 / 9);
   assert.equal(result.playable, 8 / 9);
   assert.equal(result.score, (3 * 54 + 5 * 72) / 9);
-  assert.ok(result.examples.every((example) => !example.rack.includes("E")));
+  assert.deepEqual(
+    result.examples.map(({ word, chance, draws }) => ({ word, chance, draws })),
+    [
+      { word: "AZ", chance: 5 / 9, draws: ["Z"] },
+      { word: "AT", chance: 3 / 9, draws: ["T"] },
+    ],
+  );
   assert.throws(
     () => simulateExchange(lexicon, { ...position, bag: 6 }),
     /bag count/,
@@ -38,6 +44,42 @@ test("exchange uses exact physical weights and cannot redraw the only exchanged 
     /occupied/,
   );
   assert.deepEqual(board, emptyBoard(15));
+});
+
+test("exchange examples aggregate alternative draws and show only tiles used", () => {
+  const tileCounts = Object.fromEntries(
+    TILE_SYMBOLS.map((symbol) => [symbol, 0]),
+  );
+  Object.assign(tileCounts, { A: 1, T: 3, E: 2, Z: 5, "?": 1 });
+  const template = { ...PRESETS[0], rackSize: 3, tileCounts };
+  const board = emptyBoard(15);
+  const lexicon = new Lexicon(["AT"]);
+  const result = simulateExchange(lexicon, {
+    board,
+    rack: "AEE",
+    slots: [1, 2],
+    bag: 7,
+    template,
+  });
+  assert.equal(result.exact, true);
+  assert.deepEqual(result.examples, [
+    {
+      word: "AT",
+      score: 4,
+      bingo: false,
+      chance: 1 - 10 / 36,
+      draws: ["T", "?"],
+    },
+  ]);
+  const kept = simulateExchange(lexicon, {
+    board,
+    rack: "ATE",
+    slots: [2],
+    bag: 7,
+    template,
+  });
+  assert.equal(kept.examples[0].chance, 1);
+  assert.deepEqual(kept.examples[0].draws, [""]);
 });
 
 test("review snapshots survive storage and distinguish a missed bingo from the chosen score", () => {

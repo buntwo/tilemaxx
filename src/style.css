@@ -4147,9 +4147,10 @@ kbd {
 .rack-simulation-stats dt { color: var(--muted); font-size: 10px; }
 .rack-simulation-stats dd { color: var(--primary); margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
 .exchange-examples { list-style: none; padding: 0; }
-.exchange-example-play { display: flex; align-items: center; gap: 6px; }
-.exchange-example-play .bingo-badge { line-height: 10px; }
-.exchange-example-score { margin-left: auto; font-variant-numeric: tabular-nums; }
+.exchange-example-play { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 6px; }
+.exchange-example-play .bingo-badge { margin-right: 0; line-height: 10px; }
+.exchange-example-score, .exchange-example-chance { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.exchange-example-chance { color: var(--primary); font-weight: 650; }
 .exchange-bingo-word { color: #8a6418; }
 :root[data-theme="dark"] .exchange-bingo-word { color: #f5df9e; }
 @media (prefers-color-scheme: dark) {

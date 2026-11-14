@@ -4,6 +4,24 @@ import type { ExchangeResult } from "../../shared/exchange";
 import { unseenTiles } from "../../shared/tile-pool";
 import { usePractice } from "./usePractice";
 
+const exchangePercent = new Intl.NumberFormat(undefined, {
+  style: "percent",
+  maximumFractionDigits: 1,
+});
+
+function drawDescription(draws: string[]) {
+  const combinations = draws
+    .filter(Boolean)
+    .map((draw) =>
+      [...draw].map((tile) => (tile === "?" ? "blank" : tile)).join(" + "),
+    );
+  if (!combinations.length) return "Uses kept tiles";
+  const tiles = combinations.join(" or ");
+  return draws.includes("")
+    ? `Uses kept tiles, or draw ${tiles}`
+    : `Draw ${tiles}`;
+}
+
 export default function ExchangeAnalysis({
   game,
   slots,
@@ -106,31 +124,43 @@ export default function ExchangeAnalysis({
               : `${result.completed} of ${result.total} sampled refills`}
           </p>
           {!!result.examples.length && (
-            <ul className="practice-results exchange-examples">
-              {result.examples.map((example) => (
-                <li key={`${example.word}:${example.bingo}`}>
-                  <div className="exchange-example-play">
-                    <strong
-                      className={
-                        example.bingo ? "exchange-bingo-word" : undefined
-                      }
-                    >
-                      {example.word}
-                    </strong>
-                    {example.bingo && (
-                      <span className="bingo-badge">
-                        <Trophy size={10} aria-hidden="true" />
-                        BINGO
+            <>
+              <p className="small muted">
+                Share of refills where the word was the top play or top bingo.
+                Points show its best score.
+              </p>
+              <ul className="practice-results exchange-examples">
+                {result.examples.map((example) => (
+                  <li key={`${example.word}:${example.bingo}`}>
+                    <div className="exchange-example-play">
+                      <strong
+                        className={
+                          example.bingo ? "exchange-bingo-word" : undefined
+                        }
+                      >
+                        {example.word}
+                      </strong>
+                      <span className="exchange-example-score">
+                        {example.score} pts
                       </span>
-                    )}
-                    <span className="exchange-example-score">
-                      {example.score} pts
-                    </span>
-                  </div>
-                  <small>with {example.rack}</small>
-                </li>
-              ))}
-            </ul>
+                      {example.bingo && (
+                        <span className="bingo-badge">
+                          <Trophy size={10} aria-hidden="true" />
+                          BINGO
+                        </span>
+                      )}
+                      <span className="exchange-example-chance">
+                        {result.exact ? "" : "≈"}
+                        {example.chance < 0.001
+                          ? "<0.1%"
+                          : exchangePercent.format(example.chance)}
+                      </span>
+                    </div>
+                    <small>{drawDescription(example.draws)}</small>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </div>
       )}
