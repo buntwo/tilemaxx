@@ -207,7 +207,7 @@ test("idle effects respect reduced motion", () => {
 });
 
 test.each([
-  { onFire: false, perSecond: 10, burst: 48 },
+  { onFire: false, perSecond: 10, burst: 24 },
   { onFire: true, perSecond: 25, burst: 84 },
 ])(
   "tile sparkle emits $perSecond flecks per second and $burst per click or tap",

@@ -17,7 +17,7 @@ export function attachBrandSparkle(
   button.append(layer);
 
   const flecksPerSecond = onFire ? 25 : 10;
-  const burstSize = onFire ? 84 : 48;
+  const burstSize = onFire ? 84 : 24;
   const particleLimit = 180;
   const particles = new Map<HTMLElement, Animation>();
   let hovering = false;
