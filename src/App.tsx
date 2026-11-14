@@ -507,6 +507,18 @@ export default function App() {
       </div>
     );
   const compactGame = desktopGame && workspace === "games" && !!game;
+  const collapsibleBoardHelp = compactGame || phoneLayout;
+  const menuInTitle = phoneLayout && workspace === "games";
+  const menuButton = (
+    <button
+      className="icon-button menu-button"
+      aria-label="Open workspace menu"
+      aria-expanded={sidebar}
+      onClick={() => setSidebar(true)}
+    >
+      <Menu size={20} />
+    </button>
+  );
   const gameScores = game && (
     <GameScores
       key={game.id}
@@ -606,7 +618,7 @@ export default function App() {
         <span className="board-size">
           {game.template.size} × {game.template.size}
         </span>
-        {compactGame && (
+        {collapsibleBoardHelp && (
           <details
             className="board-help"
             onKeyDown={(event) => {
@@ -670,7 +682,9 @@ export default function App() {
     </div>
   );
   return (
-    <div className={`app-shell${compactGame ? " compact-game" : ""}`}>
+    <div
+      className={`app-shell${compactGame ? " compact-game" : ""}${phoneLayout ? " phone-layout" : ""}`}
+    >
       {sidebar && (
         <div className="sidebar-scrim" onClick={() => setSidebar(false)} />
       )}
@@ -721,7 +735,7 @@ export default function App() {
           Use on another device
         </button>
         <div className="sidebar-bottom">
-          {compactGame ? (
+          {collapsibleBoardHelp ? (
             saveAndTheme
           ) : (
             <div className="local-note">
@@ -773,16 +787,13 @@ export default function App() {
         </div>
       </aside>
       <main className="main-content">
-        {!compactGame && (
+        {phoneLayout && !menuInTitle && (
+          <header className="phone-menu">{menuButton}</header>
+        )}
+        {!compactGame && !phoneLayout && (
           <header className="topbar">
             <div className="breadcrumb">
-              <button
-                className="icon-button menu-button"
-                aria-label="Open workspace menu"
-                onClick={() => setSidebar(true)}
-              >
-                <Menu size={20} />
-              </button>
+              {menuButton}
               <Home size={15} />
               <span>My games</span>
               <span className="breadcrumb-slash">/</span>
@@ -808,6 +819,7 @@ export default function App() {
         )}
         {workspace === "games" && (
           <div className="workspace-heading game-heading">
+            {menuInTitle && menuButton}
             <div className="game-heading-details">
               <div className="game-title-row">
                 {selectedGame?.archived ? (
@@ -977,13 +989,13 @@ export default function App() {
                 <BoardEntry
                   key={game.id}
                   game={game}
-                  hideHelp={compactGame}
+                  hideHelp={collapsibleBoardHelp}
                   preview={activeFlight?.move ?? preview}
                   displayBoard={activeFlight?.before.board}
                   onChange={update}
                   onSelect={() => setPreview(null)}
                 />
-                {!compactGame && boardLegend}
+                {!collapsibleBoardHelp && boardLegend}
               </section>
               <section
                 ref={rackPanel}
@@ -1061,17 +1073,21 @@ export default function App() {
             <div className="results-column">
               <Results
                 compact={compactGame}
+                collapsibleSearch={compactGame || phoneLayout}
                 results={solver.results}
-                exchangeAction={solver.exchangeAdvice && !activeFlight && (
-                  <ExchangeSuggestion
-                    advice={solver.exchangeAdvice}
-                    rack={game.rack}
-                    onOpen={() =>
-                      rackEntry.current?.openSuggestedExchange(phoneLayout)
-                    }
-                    inHeader
-                  />
-                )}
+                exchangeAction={
+                  solver.exchangeAdvice &&
+                  !activeFlight && (
+                    <ExchangeSuggestion
+                      advice={solver.exchangeAdvice}
+                      rack={game.rack}
+                      onOpen={() =>
+                        rackEntry.current?.openSuggestedExchange(phoneLayout)
+                      }
+                      inHeader
+                    />
+                  )
+                }
                 fetchPage={solver.page}
                 fetchShortlist={solver.shortlist}
                 busy={busy}
@@ -1114,18 +1130,20 @@ export default function App() {
                   </div>
                 </div>
               )}
-              <div className="companion-note">
-                <span className="note-icon">
-                  <BookOpen size={19} />
-                </span>
-                <div>
-                  <h3>A companion to your game.</h3>
-                  <p>
-                    Play a suggestion, enter your opponent’s move, then refill
-                    your rack. We’ll remember where you left off.
-                  </p>
+              {!phoneLayout && (
+                <div className="companion-note">
+                  <span className="note-icon">
+                    <BookOpen size={19} />
+                  </span>
+                  <div>
+                    <h3>A companion to your game.</h3>
+                    <p>
+                      Play a suggestion, enter your opponent’s move, then refill
+                      your rack. We’ll remember where you left off.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         ) : selectedGame ? (
@@ -1160,10 +1178,12 @@ export default function App() {
             </button>
           </div>
         )}
-        <footer className="workspace-footer">
-          <span>Less guessing. More good words.</span>
-          <span>Tilemaxx · Local & personal</span>
-        </footer>
+        {!phoneLayout && (
+          <footer className="workspace-footer">
+            <span>Less guessing. More good words.</span>
+            <span>Tilemaxx · Local & personal</span>
+          </footer>
+        )}
       </main>
       {workspace === "games" && preview && game && (
         <div className="mobile-preview-dock" aria-label="Move preview">

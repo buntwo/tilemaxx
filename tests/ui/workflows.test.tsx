@@ -1476,6 +1476,45 @@ test.each(["phone", "tablet", "desktop"])(
   },
 );
 
+test("the phone layout keeps settings, board help and move filtering accessible", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const user = await start();
+  const main = within(screen.getByRole("main"));
+  const menu = main.getByRole("button", { name: "Open workspace menu" });
+  expect(menu.closest(".game-heading")).toBeTruthy();
+  expect(document.querySelector(".breadcrumb")).toBeNull();
+  expect(main.queryByRole("button", { name: "dark theme" })).toBeNull();
+  await user.click(menu);
+  await user.click(within(screen.getByRole("complementary")).getByRole("button", { name: "dark theme" }));
+  expect(document.documentElement.dataset.theme).toBe("dark");
+  await user.click(within(screen.getByRole("complementary")).getByRole("button", { name: "My games" }));
+
+  const legend = main.getByText("Triple word");
+  const help = legend.closest("details")!;
+  expect(help.open).toBe(false);
+  await user.click(main.getByLabelText("Board help"));
+  expect(help.open).toBe(true);
+  expect(main.getByRole("button", { name: "Import screenshot" })).toBeTruthy();
+  await user.click(main.getByLabelText("Board help"));
+  expect(help.open).toBe(false);
+
+  await typeRack(user, "CAT");
+  await user.click(within(screen.getByRole("region", { name: "Your rack" })).getByRole("button", { name: "Find moves" }));
+  await screen.findAllByRole("button", { name: /^CAT, / });
+  expect(main.queryByRole("textbox", { name: "Filter moves" })).toBeNull();
+  await user.click(main.getByRole("button", { name: "Search possible moves" }));
+  const filter = main.getByRole("textbox", { name: "Filter moves" });
+  expect(document.activeElement).toBe(filter);
+  await user.type(filter, "CAT");
+  expect(main.queryByRole("button", { name: /^ACT, / })).toBeNull();
+  await user.keyboard("{Escape}");
+  expect(main.queryByRole("textbox", { name: "Filter moves" })).toBeNull();
+});
+
 test("score tracking records typed opponent moves and solver plays across undo, redo and saving", async () => {
   const user = await start();
   const scores = () =>

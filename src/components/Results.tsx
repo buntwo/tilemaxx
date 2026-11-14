@@ -74,6 +74,7 @@ export default function Results({
   results: resultSet,
   exchangeAction,
   compact = false,
+  collapsibleSearch = compact,
   fetchPage,
   fetchShortlist,
   busy,
@@ -103,6 +104,7 @@ export default function Results({
   results: MoveResults | null;
   exchangeAction?: ReactElement | false;
   compact?: boolean;
+  collapsibleSearch?: boolean;
   fetchPage: FetchMovePage;
   fetchShortlist: (
     searchId: number,
@@ -142,9 +144,9 @@ export default function Results({
   const searchButton = useRef<HTMLButtonElement>(null);
   const filterInputId = useId();
   useEffect(() => {
-    if (compact && searchOpen)
+    if (collapsibleSearch && searchOpen)
       searchInput.current?.focus({ preventScroll: true });
-  }, [compact, searchOpen]);
+  }, [collapsibleSearch, searchOpen]);
   function closeSearch() {
     setSearchOpen(false);
     setFilter("");
@@ -420,7 +422,10 @@ export default function Results({
     </div>
   );
   const searchField = (
-    <div className="search-input" hidden={compact && !searchOpen && !filter}>
+    <div
+      className="search-input"
+      hidden={collapsibleSearch && !searchOpen && !filter}
+    >
       <Search size={16} />
       <input
         id={filterInputId}
@@ -430,7 +435,7 @@ export default function Results({
         onChange={(e) => setFilter(e.target.value)}
         placeholder="Find a word…"
         onKeyDown={(event) => {
-          if (compact && event.key === "Escape") {
+          if (collapsibleSearch && event.key === "Escape") {
             event.preventDefault();
             closeSearch();
           }
@@ -496,12 +501,12 @@ export default function Results({
           </button>
         )}
       </header>
-      {showFilters && (!compact || !hasBingoControls) && (
+      {showFilters && (!collapsibleSearch || !hasBingoControls) && (
         <div className="result-filters">
           {viewPicker}
           {searchField}
           {!hasBingoControls && sortControl}
-          {compact && searchToggle}
+          {collapsibleSearch && searchToggle}
         </div>
       )}
       {!busy &&
@@ -518,9 +523,9 @@ export default function Results({
               replyEnabled && <ReplySettings analysis={replyAnalysis} />
             }
             sortControl={sortControl}
-            toolbarStart={compact && viewPicker}
-            toolbarEnd={compact && searchToggle}
-            searchField={compact && searchField}
+            toolbarStart={collapsibleSearch && viewPicker}
+            toolbarEnd={collapsibleSearch && searchToggle}
+            searchField={collapsibleSearch && searchField}
             rackOdds={rackOdds}
             rackOddsPending={rackOddsPending}
             boardOdds={boardOdds}

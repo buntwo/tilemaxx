@@ -4816,13 +4816,13 @@ label + label {
 .compact-game .main-content {
   padding-inline: clamp(14px, 1.6vw, 28px);
 }
-.compact-game .sidebar .topbar-actions {
+:is(.compact-game, .phone-layout) .sidebar .topbar-actions {
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
   margin: 0 4px 12px;
 }
-.compact-game .sidebar .profile-picker { padding-top: 12px; }
+:is(.compact-game, .phone-layout) .sidebar .profile-picker { padding-top: 12px; }
 .compact-game .game-heading {
   flex-wrap: wrap;
   padding: 12px 0 10px;
@@ -4870,6 +4870,54 @@ label + label {
   margin: 0;
 }
 .board-help-content .direct-entry-help { font-size: 11px; }
+
+.phone-layout .main-content { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.phone-layout .sidebar { overflow-y: auto; }
+.phone-layout .sidebar .sync-status span { display: inline; }
+.phone-layout .sidebar .theme-switch button { width: 40px; height: 36px; }
+.phone-menu { display: flex; padding-block: 4px; }
+.phone-layout :is(.phone-menu, .game-heading) > .menu-button {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  margin: 0;
+}
+.phone-layout .game-heading {
+  padding: 6px 0 9px;
+  gap: 5px;
+}
+.phone-layout .game-heading-details { flex: 1; }
+.phone-layout .game-heading h1 { font-size: clamp(21px, 6vw, 25px); }
+.phone-layout .game-title-meta { margin-top: 0; }
+.phone-layout .game-actions { flex: none; }
+.phone-layout .manage-button { min-width: 44px; min-height: 44px; }
+.phone-layout .archived-game-back { margin-top: 4px; }
+.phone-layout .board-toolbar { padding: 0 4px 0 9px; gap: 2px; }
+.phone-layout .board-toolbar > div:first-child { flex: 1; min-width: 0; gap: 2px; }
+.phone-layout .board-toolbar .board-name { display: block; overflow-wrap: anywhere; }
+.phone-layout .board-toolbar :is(.board-size, .board-name svg, .toolbar-divider) { display: none; }
+.phone-layout .board-actions { flex: none; }
+.phone-layout .board-toolbar .icon-button { width: 38px; height: 40px; }
+.phone-layout .board-help { position: static; }
+.phone-layout .board-panel { position: relative; overflow: visible; }
+.phone-layout .board-help-content { left: 8px; right: 8px; top: 40px; width: auto; }
+.phone-layout .board-panel .board-wrap { padding-block: 4px 2px; }
+.phone-layout .board-panel .direct-entry-tools { margin: 3px 9px 0; padding: 0; }
+.phone-layout .board-panel .direct-entry-actions { margin-left: auto; gap: 8px; }
+.phone-layout .board-panel .direct-entry-actions > button { min-height: 40px; }
+.phone-layout .board-panel .direct-entry-status { font-size: 10px; }
+.phone-layout .rack-panel { margin-top: 8px; padding: 6px 10px 5px; }
+.phone-layout .rack-panel .rack-tiles { margin-block: 4px 3px; }
+.phone-layout .rack-panel .solve-button { min-height: 40px; }
+.phone-layout .rack-panel .tile-pool { margin-top: 4px; }
+.phone-layout .rack-panel .tile-pool summary { padding-top: 2px; }
+.phone-layout .dictionary-strip { padding-top: 6px; }
+.phone-layout .workspace-grid { gap: 9px; }
+.phone-layout .bingo-odds-actions { gap: 4px 6px; }
+.phone-layout .bingo-odds-actions .result-view-picker { padding: 0; }
+.phone-layout .bingo-odds-utilities { display: flex; gap: 6px; align-items: center; }
+.phone-layout .bingo-odds-utilities:has(details[open]) { display: contents; }
+.phone-layout .bingo-odds-settings[open] { order: 1; }
 
 .compact-game .workspace-grid {
   --board-lane-width: max(320px, calc(100svh - 188px));
@@ -4935,15 +4983,15 @@ label + label {
   min-height: 30px;
   white-space: nowrap;
 }
-.compact-game .results-panel .move-search-toggle {
+:is(.compact-game, .phone-layout) .results-panel .move-search-toggle {
   margin-left: auto;
   width: 30px;
   height: 30px;
   border-left: 1px solid var(--line);
 }
-.compact-game .results-panel .search-input[hidden] { display: none; }
-.compact-game .bingo-odds-controls > .search-input { margin-top: 5px; }
-.compact-game .result-filters > .search-input { flex: 1 0 100%; order: 1; }
+:is(.compact-game, .phone-layout) .results-panel .search-input[hidden] { display: none; }
+:is(.compact-game, .phone-layout) .bingo-odds-controls > .search-input { margin-top: 5px; }
+:is(.compact-game, .phone-layout) .result-filters > .search-input { flex: 1 0 100%; order: 1; }
 .compact-game .result-scroll:not(.is-shortlist) {
   height: clamp(185px, calc(100svh - 248px), 520px);
 }
