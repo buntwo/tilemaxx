@@ -4024,14 +4024,45 @@ label + label {
   min-height: 0;
   padding: 0;
   cursor: text;
-  border: 1px solid #6d482f;
-  background: #61432f;
+  border: 0;
+  background: none;
   box-shadow: none;
 }
-.rack-entry .rack-tile.empty {
+.rack-slot {
+  position: absolute;
+  inset: 0;
+  border: 1px solid #6d482f;
+  border-radius: inherit;
+  background: #61432f;
+  pointer-events: none;
+  transition: transform 115ms cubic-bezier(.22,.61,.36,1), box-shadow 115ms ease;
+}
+.rack-tile.empty .rack-slot {
   border-style: dashed;
   border-color: #a57956;
   background: #714e37;
+}
+.rack-tile.selected { z-index: 1; }
+.rack-tile.selected:focus-visible { outline: none; }
+.rack-tile.selected::after {
+  content: "";
+  position: absolute;
+  inset: auto 16% -4px;
+  height: 3px;
+  border-radius: 3px;
+  background: #fff0d3;
+  box-shadow: 0 1px 2px #40270e77;
+  pointer-events: none;
+}
+.rack-tile.selected .rack-slot {
+  transform: translateY(-4px);
+  box-shadow: var(--rack-slot-mark, 0 0 transparent), 0 4px #4a2e1f, 0 6px 6px #43281480;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rack-slot { transition: none; }
+}
+@media (forced-colors: active) {
+  .rack-tile.selected::after { forced-color-adjust: none; background: Highlight; }
 }
 .rack-slot-window,
 .rack-face {
@@ -4067,7 +4098,7 @@ label + label {
   background: color-mix(in srgb, #78a9d7 35%, var(--blank-tile));
   box-shadow: inset 0 0 0 2px #4b80a8;
 }
-.rack-tile[data-rack-sliding] > :not(.rack-slot-window) {
+.rack-tile[data-rack-sliding] .rack-slot > :not(.rack-slot-window, .rack-face.empty) {
   visibility: hidden;
 }
 .tile-flight-layer {
@@ -4094,16 +4125,7 @@ label + label {
   box-shadow: inset 0 -2px #9fbccc, 0 4px 9px #172b2533;
 }
 .flying-tile small { position: absolute; }
-.rack-tile.selected {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-.rack-tile.blank {
-  background: var(--blank-tile);
-  border-color: #9fbccc;
-  color: var(--blank-ink);
-}
-.rack-entry .rack-tile.excluded {
+.rack-tile.excluded .rack-slot {
   border-style: dashed;
   background: var(--surface);
   color: var(--muted);
@@ -4754,7 +4776,11 @@ label + label {
 .rack-entry-actions { flex-wrap: wrap; }
 .rack-exchange-actions { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
 .rack-exchange-actions .button { font-size: 11px; min-height: 32px; }
-.rack-entry .rack-tile.exchange-mark { border-color: #b7772f; box-shadow: inset 0 0 0 1px #b7772f; }
+.rack-tile.exchange-mark .rack-slot {
+  --rack-slot-mark: inset 0 0 0 1px #b7772f;
+  border-color: #b7772f;
+}
+.rack-tile.exchange-mark:not(.selected) .rack-slot { box-shadow: var(--rack-slot-mark); }
 .rack-exchange-icon { position: absolute; top: 3px; right: 3px; color: #9a5619; }
 .mobile-preview-dock { max-height: 60dvh; overflow: auto; }
 

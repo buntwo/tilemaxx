@@ -365,27 +365,31 @@ export default function RackEntry({
                     : focus(i)
               }
             >
-              <span className="rack-slot-window" aria-hidden="true" />
-              <span
-                className={`rack-face${tile === "?" ? " blank" : ""}${!tile ? " empty" : ""}`}
-              >
-                {tile === "?" ? "" : tile || "·"}
-                {tile && <small>{tileScore(tile, game.template.rules)}</small>}
+              <span className="rack-slot">
+                <span
+                  className={`rack-face${tile === "?" ? " blank" : ""}${!tile ? " empty" : ""}`}
+                >
+                  {tile === "?" ? "" : tile || "·"}
+                  {tile && (
+                    <small>{tileScore(tile, game.template.rules)}</small>
+                  )}
+                </span>
+                <span className="rack-slot-window" aria-hidden="true" />
+                {exchanging && (
+                  <Repeat2
+                    className="rack-exchange-icon"
+                    size={12}
+                    aria-hidden="true"
+                  />
+                )}
+                {excluded && (
+                  <Ban
+                    className="rack-excluded-icon"
+                    size={12}
+                    aria-hidden="true"
+                  />
+                )}
               </span>
-              {exchanging && (
-                <Repeat2
-                  className="rack-exchange-icon"
-                  size={12}
-                  aria-hidden="true"
-                />
-              )}
-              {excluded && (
-                <Ban
-                  className="rack-excluded-icon"
-                  size={12}
-                  aria-hidden="true"
-                />
-              )}
             </button>
           );
         })}
