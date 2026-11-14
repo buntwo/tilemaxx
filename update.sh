@@ -1,11 +1,43 @@
 #!/usr/bin/env bash
 
-cd -- "$(dirname -- "${BASH_SOURCE[0]}")" || exit
-git pull --ff-only || exit
+set -e
+export GIT_TERMINAL_PROMPT=0
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+
+state=$(git rev-parse --git-path tilemaxx-update)
+lock="$state.lock"
+if ! mkdir -- "$lock"; then
+  printf '%s\n' "Cannot acquire $lock. Check for another Tilemaxx update." >&2
+  exit 1
+fi
+trap 'rmdir -- "$lock"' EXIT
+trap 'exit 1' HUP INT TERM
+
+# Keep the starting revision until deployment succeeds so scheduled runs can retry.
+if [[ ! -s "$state" ]]; then
+  git rev-parse HEAD > "$state"
+fi
+previous=$(cat -- "$state")
+git pull --ff-only
+current=$(git rev-parse HEAD)
+
+if [[ ${1:-} == --if-changed && $current == "$previous" ]]; then
+  rm -- "$state"
+  printf '%s\n' 'Tilemaxx is up to date. Skipping Docker Compose.'
+  exit 0
+fi
 
 if [[ ! -f compose.yaml ]]; then
   printf '%s\n' 'Create compose.yaml from compose.prebuilt.yaml and uncomment "build: .". See README.md.' >&2
   exit 1
 fi
 
-docker compose -f compose.yaml up -d --build --remove-orphans
+if command -v docker-compose >/dev/null && ! docker compose version >/dev/null 2>&1; then
+  compose=(docker-compose)
+else
+  compose=(docker compose)
+fi
+
+"${compose[@]}" -f compose.yaml up -d --build --remove-orphans
+rm -- "$state"

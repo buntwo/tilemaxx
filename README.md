@@ -101,11 +101,19 @@ For a checkout-based install with `build: .` enabled, run from the deployment ch
 docker compose ps
 ```
 
-The script fast-forwards the checkout and rebuilds using your local `compose.yaml`. Your settings and bind-mounted `data/` stay in place. With standalone Compose, use:
+The script fast-forwards the checkout and rebuilds using your local `compose.yaml`. It supports both `docker compose` and standalone `docker-compose`. Your settings and bind-mounted `data/` stay in place.
+
+#### Schedule updates on Synology
+
+Run `./update.sh` once on the NAS to deploy the current checkout and get the scheduled updater. In **Control Panel → Task Scheduler → Create → Scheduled Task → User-defined script**, set your preferred interval and run this command with the absolute path to your Tilemaxx checkout:
 
 ```sh
-git pull --ff-only && docker-compose -f compose.yaml up -d --build --remove-orphans
+/bin/bash "/path/to/tilemaxx/update-if-changed.sh"
 ```
+
+Use the NAS account that can pull from GitHub and run Docker. Select **Run** once in Task Scheduler to confirm that account can find Git and Docker and access the checkout. Enable failure notifications in **Task Settings** if you want DSM to email you when an update fails.
+
+The scheduled script skips Docker entirely when the checkout is current. If a pull advances the checkout and Compose fails, the next run retries that deployment. A lock prevents overlapping updates. If an interrupted update leaves `.git/tilemaxx-update.lock` behind, remove that empty directory only after confirming no update is running. Use `./update.sh` when you want to rebuild manually, including after editing your local Compose settings.
 
 <details>
 <summary>Preserve a Compose file from an older checkout</summary>
