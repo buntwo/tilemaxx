@@ -4181,6 +4181,25 @@ label + label {
   width: 100%;
 }
 .rack-simulation-heading h3 { margin: 0; font-size: 12px; }
+.optimal-exchange-heading { width: 100%; justify-content: space-between; }
+.optimal-exchange-options {
+  width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.optimal-exchange-options :is(th, td) {
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  font-size: 11px;
+}
+.optimal-exchange-options thead { color: var(--muted); }
+.optimal-exchange-options small { display: block; color: var(--muted); }
+.optimal-exchange-options td:last-child { text-align: right; }
+.optimal-exchange-options .best-swap { background: var(--soft); color: var(--primary); }
+.optimal-exchange-swap { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.optimal-exchange-swap .rack-exchange-letters { flex-wrap: wrap; }
 .rack-simulation-bag { margin-left: auto; color: var(--muted); font-size: 11px; }
 .rack-exchange-letters { display: inline-flex; gap: 3px; }
 .rack-exchange-letters span {

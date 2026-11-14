@@ -1814,6 +1814,43 @@ test("the points value opens an anchored score breakdown without playing the mov
   expect(current().board.some(Boolean)).toBe(false);
 });
 
+test("Optimal Exchange compares swap sizes and marks a choice for the simulator", async () => {
+  let recommended: Extract<PracticeRequest, { kind: "optimal-exchange" }> | undefined;
+  let simulation: Extract<PracticeRequest, { kind: "exchange" }> | undefined;
+  vi.stubGlobal("Worker", class extends SolverWorker {
+    postMessage(request: SolverRequest | PracticeRequest) {
+      if (request.kind === "optimal-exchange") {
+        recommended = request;
+        queueMicrotask(() => this.onmessage?.({ data: { result: {
+          keepBingo: false,
+          checked: 7,
+          screeningDraws: 64,
+          refinementDraws: 600,
+          bestBySize: [{ slots: [1, 2], chance: 0.35, close: false }],
+        }}}));
+      } else if (request.kind === "exchange") simulation = request;
+      else if (!("exchange" in request) && !("turns" in request)) {
+        super.postMessage(request);
+      }
+    }
+  });
+  const user = await start();
+  await typeRack(user, "CAT");
+  await user.click(screen.getByText("Rack tools"));
+  await user.click(screen.getByRole("button", { name: "Optimal Exchange" }));
+  const optimal = within(screen.getByRole("region", { name: "Optimal Exchange" }));
+  expect(await optimal.findByText("≈35%")).toBeTruthy();
+  expect(optimal.getByText("Keep your rack")).toBeTruthy();
+  expect(recommended?.exchange.rack).toBe("CAT");
+  await user.click(optimal.getByRole("button", { name: "Mark 2 tiles for exchange" }));
+  expect(screen.queryByRole("region", { name: "Optimal Exchange" })).toBeNull();
+  expect(screen.getByRole("region", { name: "Simulate exchange" })).toBeTruthy();
+  expect(simulation?.exchange.slots).toEqual([1, 2]);
+  expect(simulation?.exchange.bag).toBe(recommended?.exchange.bag);
+  expect(screen.getByLabelText("Rack tile 2: A, marked for exchange")).toBeTruthy();
+  expect(current().rack).toBe("CAT");
+});
+
 test("exchange simulation starts on open, shows draw scores, and closes when marks change", async () => {
   const requests: PracticeRequest[] = [];
   vi.stubGlobal(

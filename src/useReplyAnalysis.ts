@@ -220,6 +220,7 @@ export function useReplyAnalysis(
     unseen: pool?.total ?? 0,
     invalid,
     bagAssumedEmpty,
+    bagConfirmed: confirmed,
     opponentRack,
     maxScorelessTurns: game ? replyScorelessLimit(game.template) - 1 : 5,
     scorelessTurns,

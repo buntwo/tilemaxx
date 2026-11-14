@@ -6,12 +6,12 @@ import { splitRack } from "../../shared/rack-entry";
 import { unseenTiles } from "../../shared/tile-pool";
 import { usePractice } from "./usePractice";
 
-const exchangePercent = new Intl.NumberFormat(undefined, {
+export const exchangePercent = new Intl.NumberFormat(undefined, {
   style: "percent",
   maximumFractionDigits: 1,
 });
 
-function MiniTiles({ tiles }: { tiles: string }) {
+export function MiniTiles({ tiles }: { tiles: string }) {
   return (
     <span className="rack-exchange-letters">
       {[...tiles].map((tile, i) => (
@@ -53,13 +53,17 @@ export default function ExchangeAnalysis({
   game,
   slots,
   recommendation,
+  bagSize,
+  bagAssumed = true,
 }: {
   game: Game;
   slots: number[];
   recommendation?: string;
+  bagSize?: number;
+  bagAssumed?: boolean;
 }) {
   const { total, excess } = unseenTiles(game, game.template);
-  const bag = Math.max(0, total - game.template.rackSize);
+  const bag = bagSize ?? Math.max(0, total - game.template.rackSize);
   const { result, progress, error, run, reset } = usePractice<ExchangeResult>();
   const minimum = minimumExchangeBag(game.template, slots.length);
   const valid = !excess.length && bag >= minimum;
@@ -91,9 +95,13 @@ export default function ExchangeAnalysis({
         <MiniTiles tiles={slots.map((i) => rack[i]).join("")} />
         <span
           className="rack-simulation-bag"
-          title="Assumes one opponent has up to a full rack"
+          title={
+            bagAssumed
+              ? "Assumes one opponent has up to a full rack"
+              : undefined
+          }
         >
-          {bag} estimated in bag
+          {bag} {bagAssumed ? "estimated in bag" : "in bag"}
         </span>
       </div>
       {recommendation && <p className="small muted">{recommendation}.</p>}

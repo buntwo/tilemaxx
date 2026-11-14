@@ -1019,6 +1019,8 @@ export default function App() {
                   onSolve={solve}
                   positionKey={signature}
                   exchangeAdvice={solver.exchangeAdvice}
+                  exchangeBag={replyAnalysis.bagSize}
+                  exchangeBagConfirmed={replyAnalysis.bagConfirmed}
                   preview={preview}
                   flyingRack={activeFlight}
                 />

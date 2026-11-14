@@ -1,4 +1,10 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
+import { RackBingoIndex } from "../shared/bingo-odds";
+import {
+  optimizeExchange,
+  type OptimalExchangeRequest,
+  type OptimalExchangeResult,
+} from "../shared/optimal-exchange";
 import { simulateExchange, type ExchangeRequest } from "../shared/exchange";
 import {
   recommendExchange,
@@ -17,6 +23,11 @@ type ReviewJob = { position: TurnPosition; move: TrackedMove; index: number };
 export type PracticeRequest =
   | { kind: "exchange"; dictionaryId: string; exchange: ExchangeRequest }
   | {
+      kind: "optimal-exchange";
+      dictionaryId: string;
+      exchange: OptimalExchangeRequest;
+    }
+  | {
       kind: "exchange-advice";
       dictionaryId: string;
       exchange: ExchangeAdviceRequest;
@@ -27,21 +38,43 @@ export type ExchangeAdviceMessage =
   | { result: ExchangeAdvice | undefined }
   | { error: string };
 
+export type OptimalExchangeMessage =
+  | { result: OptimalExchangeResult }
+  | { progress: { completed: number; total: number } }
+  | { error: string };
+
 self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
   const dictionaries = new Map<string, Lexicon>();
-  async function dictionary(id: string) {
-    const cached = dictionaries.get(id);
-    if (cached) return cached;
+  async function loadWords(id: string) {
     const response = await fetch(`/api/dictionaries/${encodeURIComponent(id)}`);
     if (!response.ok)
       throw new Error("Could not load the word list for this position.");
-    const lexicon = new Lexicon(parseWords(await response.text()));
+    return parseWords(await response.text());
+  }
+  async function dictionary(id: string) {
+    const cached = dictionaries.get(id);
+    if (cached) return cached;
+    const lexicon = new Lexicon(await loadWords(id));
     dictionaries.set(id, lexicon);
     return lexicon;
   }
   const progress = (completed: number, total: number) =>
     self.postMessage({ progress: { completed, total } });
   try {
+    if (data.kind === "optimal-exchange") {
+      const words = await loadWords(data.dictionaryId);
+      const result = optimizeExchange(
+        new Lexicon(words),
+        new RackBingoIndex(words),
+        data.exchange,
+        (completed, total) =>
+          self.postMessage({
+            progress: { completed, total },
+          } satisfies OptimalExchangeMessage),
+      );
+      self.postMessage({ result } satisfies OptimalExchangeMessage);
+      return;
+    }
     if (data.kind === "exchange-advice") {
       const lexicon = await dictionary(data.dictionaryId);
       self.postMessage({

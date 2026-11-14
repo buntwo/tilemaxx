@@ -110,11 +110,12 @@ export class RackBingoIndex {
     position: Position,
     template: BoardTemplate,
     moves: readonly Pick<Move, "leave">[],
+    knownBagSize?: number,
   ): RackOdds {
     const { tiles, total, excess } = unseenTiles(position, template);
     const size = template.rackSize;
     const minimum = minimumBingoTiles(template);
-    const bagSize = Math.max(0, total - size);
+    const bagSize = knownBagSize ?? Math.max(0, total - size);
     const byLeave: Record<string, number> = Object.create(null);
     if (excess.length)
       return {
