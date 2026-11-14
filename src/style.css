@@ -1887,38 +1887,54 @@ label + label {
   bottom: 5px;
   right: 6px;
 }
+.results-panel {
+  container-type: inline-size;
+  --result-points: 34px;
+  --result-leave: 88px;
+  --result-position: 37px;
+  --result-gap: 6px;
+  --result-gutter: 12px;
+  --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)
+    [leave] var(--result-leave) [position] var(--result-position);
+}
+.results-panel.with-reply-column {
+  --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)
+    [reply] 62px [leave] var(--result-leave) [position] var(--result-position);
+}
+.result-columns,
+.result-row,
+.result-slot {
+  display: grid;
+  grid-template-columns: var(--result-grid);
+  align-items: center;
+  column-gap: var(--result-gap);
+}
 .result-columns,
 .result-row {
-  display: grid;
-  grid-template-columns: minmax(110px, 1fr) 66px 64px 40px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 18px;
+  padding-inline: var(--result-gutter);
 }
 .result-columns {
   font-size: 8px;
-  letter-spacing: 1px;
+  letter-spacing: .25px;
   background: var(--bg);
-  height: 32px;
   color: var(--muted);
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
-.result-columns span:last-child {
-  text-align: right;
-}
-.result-columns .result-points-heading {
-  text-align: right;
-}
-.result-columns .result-reply-heading {
-  position: absolute;
-  right: 39px;
-  width: 64px;
-  text-align: center;
-  letter-spacing: .25px;
-}
-.result-columns.with-score-action {
-  position: relative;
+.result-word { grid-column: word; }
+.result-score, .result-points-heading { grid-column: points; text-align: right; }
+.result-reply-heading, .result-reply-metric, .result-defense-action { grid-column: reply; }
+.result-reply-heading { text-align: center; }
+.result-leave { grid-column: leave; }
+.result-coordinate, .result-position-heading { grid-column: position; }
+@container (max-width: 390px) {
+  .result-columns, .result-row, .result-slot {
+    --result-points: 29px;
+    --result-leave: 63px;
+    --result-position: 29px;
+    --result-gap: 4px;
+    --result-gutter: 8px;
+  }
 }
 .result-scroll {
   height: 435px;
@@ -1979,50 +1995,58 @@ label + label {
 .result-row .result-score-delta[data-loss="high"] { color: var(--point-loss-high); }
 .result-slot {
   position: absolute;
-  width: 100%;
+  inset-inline: var(--result-gutter);
 }
-.result-slot:has(:is(.result-score-action, .result-defense-action):hover)
-  .result-row {
+.result-slot > .result-row {
+  grid-area: 1 / 1 / 2 / -1;
+  width: calc(100% + 2 * var(--result-gutter));
+  margin-inline: calc(-1 * var(--result-gutter));
+}
+.result-slot:has(:is(.result-score-trigger, .result-defense-action):hover) .result-row {
   background: var(--soft);
 }
-.result-score-action.icon-button {
-  position: absolute;
-  top: 7px;
-  right: 5px;
-  width: 34px;
-  height: 44px;
-  color: var(--primary);
+.result-score-trigger {
+  grid-area: 1 / points;
+  z-index: 1;
+  align-self: stretch;
+  margin-block: 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
 }
-.result-score-action.icon-button:hover {
-  background: var(--soft);
+.result-score-trigger:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 0;
 }
-.result-defense-action.icon-button {
-  position: absolute;
-  top: 7px;
-  right: 40px;
-  width: 64px;
-  height: 44px;
-  padding: 0;
+.result-defense-action {
+  grid-row: 1;
+  z-index: 1;
+  justify-self: center;
 }
-.result-row .result-reply-metric {
-  position: absolute;
-  top: 7px;
-  right: 40px;
-  width: 64px;
-  height: 44px;
+.result-defense-action.icon-button { width: 100%; padding: 0; }
+.result-reply-metric,
+.result-reply-pending {
   display: grid;
   place-items: center;
 }
 .result-reply-pending {
-  position: absolute;
-  right: 40px;
-  top: 7px;
-  width: 64px;
-  height: 44px;
-  display: grid;
-  place-items: center;
   color: var(--muted);
   pointer-events: none;
+}
+.move-score-tooltip {
+  position: fixed;
+  z-index: 110;
+  width: min(250px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 6px 20px #0003;
+  font-size: 12px;
 }
 .reply-cell {
   display: grid;
@@ -2319,8 +2343,7 @@ label + label {
 .result-coordinate {
   font-size: 11px;
   color: var(--muted);
-  display: flex;
-  gap: 9px;
+  white-space: nowrap;
 }
 .result-leave {
   font-size: 9px;
@@ -2883,14 +2906,6 @@ label + label {
   .board-size {
     display: none;
   }
-  .result-leave {
-    display: none;
-  }
-  .result-columns,
-  .result-row {
-    grid-template-columns: minmax(100px, 1fr) 65px 35px;
-    padding: 0 14px;
-  }
   .board-wrap {
     padding: 12px 12px 4px 6px;
   }
@@ -3030,11 +3045,6 @@ label + label {
   }
   .results-empty {
     min-height: 335px;
-  }
-  .result-columns,
-  .result-row {
-    grid-template-columns: minmax(90px, 1fr) 55px 30px;
-    gap: 6px;
   }
   .result-word {
     font-size: 12px;
@@ -3351,15 +3361,6 @@ label + label {
   }
   .results-empty h3 {
     font-size: 20px;
-  }
-  .result-columns,
-  .result-row {
-    grid-template-columns: minmax(115px, 1fr) 65px 60px 35px;
-    padding: 0 16px;
-    gap: 8px;
-  }
-  .result-leave {
-    display: block;
   }
   .result-word {
     font-size: 14px;
@@ -4610,34 +4611,6 @@ label + label {
   padding-left: 21px;
 }
 
-.with-bingo-odds .result-columns,
-.with-bingo-odds .result-row {
-  grid-template-columns: minmax(0, 1fr) 54px 90px 34px;
-  gap: 6px;
-  padding-inline: 12px;
-}
-.results-panel .result-columns.with-score-action,
-.results-panel .result-slot.with-score-action .result-row {
-  padding-right: 108px;
-}
-.results-panel {
-  container-type: inline-size;
-}
-@container (max-width: 390px) {
-  .results-panel .result-columns.with-score-action,
-  .results-panel .result-slot.with-score-action .result-row {
-    grid-template-columns: minmax(0, 1fr) 31px 49px 28px;
-    gap: 5px;
-    padding-left: 9px;
-  }
-  .results-panel .with-score-action .result-coordinate {
-    gap: 3px;
-  }
-  .with-bingo-odds .result-columns.with-score-action .result-leave > span {
-    white-space: normal;
-    line-height: 1;
-  }
-}
 .with-bingo-odds .result-leave {
   display: grid;
   gap: 2px;

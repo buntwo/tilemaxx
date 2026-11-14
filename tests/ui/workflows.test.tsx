@@ -1700,25 +1700,37 @@ test("overdrawn tiles show negative counts while other counts stay visible", asy
   ).toBeNull();
 });
 
-test("a move's score button opens its own breakdown without playing it", async () => {
+test("the points value opens an anchored score breakdown without playing the move", async () => {
   const user = await start();
   await typeRack(user, "CAT");
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   const suggestion = (
     await screen.findAllByRole("button", { name: /^CAT, / })
   )[0];
-  await user.hover(suggestion);
   const action = within(suggestion.parentElement!).getByRole("button", {
     name: /Score breakdown for CAT at/,
   });
   await user.click(action);
-  const dialog = screen.getByRole("dialog");
-  expect(
-    within(dialog).getByRole("heading", { name: /Score breakdown · CAT/ }),
-  ).toBeTruthy();
-  expect(within(dialog).getByText("5 × 2 = 10")).toBeTruthy();
+  const tooltip = screen.getByRole("tooltip");
+  expect(within(tooltip).getByText("5 × 2 = 10")).toBeTruthy();
+  expect(screen.queryByRole("dialog")).toBeNull();
   expect(current().board.some(Boolean)).toBe(false);
   expect(current().rack).toBe("CAT");
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("tooltip")).toBeNull();
+
+  await user.unhover(action);
+  await user.hover(action);
+  expect(await screen.findByRole("tooltip")).toBeTruthy();
+  await user.unhover(action);
+  await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
+
+  touch(action, "pointerdown");
+  expect(await screen.findByRole("tooltip")).toBeTruthy();
+  touch(action, "pointerup");
+  fireEvent.click(action);
+  expect(screen.getByRole("tooltip")).toBeTruthy();
+  expect(current().board.some(Boolean)).toBe(false);
 });
 
 test("exchange simulation starts on open, shows draw scores, and closes when marks change", async () => {

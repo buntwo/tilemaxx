@@ -15,20 +15,17 @@ import {
   LoaderCircle,
   Trophy,
   ChartNoAxesCombined,
-  Calculator,
 } from "lucide-react";
 import { type Game, type Move, coordinate } from "../../shared/model";
 import {
   REPLY_REFINED_SAMPLES,
   REPLY_SAMPLES,
 } from "../../shared/reply-analysis";
-import { ANALYSIS_LIMIT, placeTiles } from "../../shared/move-analysis";
-import { scorePlacement } from "../../shared/game-scoring";
+import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import MoveAnalysis from "./MoveAnalysis";
 import BingoOddsControls from "./BingoOddsControls";
-import Modal from "./Modal";
-import { ScoreBreakdownContent } from "./ScoreBreakdown";
+import { useMoveScoreTooltip } from "./MoveScoreTooltip";
 import PremiumDefense, {
   blockedReplyPoints,
   defenseLabel,
@@ -275,7 +272,7 @@ export default function Results({
       ? replyScoreTotals(analysisGame)
       : undefined;
   const topScore = resultSet?.head[0]?.score ?? 0;
-  const [inspected, setInspected] = useState<{ move: Move; key?: string }>();
+  const scoreTooltip = useMoveScoreTooltip(analysisGame);
   const [inspectedDefense, setInspectedDefense] = useState<{
     move: Move;
     risk: MoveDefense;
@@ -283,17 +280,6 @@ export default function Results({
   }>();
   const defenseDetail =
     inspectedDefense?.key === analysisKey ? inspectedDefense : undefined;
-  const inspectedMove =
-    inspected?.key === analysisKey ? inspected?.move : undefined;
-  const breakdown =
-    inspectedMove &&
-    analysisGame &&
-    scorePlacement(
-      analysisGame.board,
-      placeTiles(analysisGame.board, inspectedMove),
-      analysisGame.template,
-      inspectedMove.direction,
-    );
   const filteredShortlist = shortlist
     .map(({ move }) => move)
     .filter((move) => move.word.includes(filter.trim().toUpperCase()))
@@ -337,6 +323,7 @@ export default function Results({
     setScroll(0);
     if (scroller.current) scroller.current.scrollTop = 0;
     setLocked(null);
+    scoreTooltip.close();
   }, [resultSet, filter, sort, reversed, shortlistOnly]);
   function togglePin(move: Move) {
     setLocked((current) => (current === move.id ? null : move.id));
@@ -470,7 +457,7 @@ export default function Results({
   );
   return (
     <section
-      className={`results-panel panel ${analysisGame || rackOdds ? "with-bingo-odds" : ""}${reserveReplySpace ? " with-reply-preview" : ""}`}
+      className={`results-panel panel ${analysisGame || rackOdds ? "with-bingo-odds" : ""}${reserveReplySpace ? " with-reply-preview" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}`}
     >
       <header
         className={`results-title${exchangeAction ? " has-exchange-advice" : ""}`}
@@ -647,11 +634,21 @@ export default function Results({
               <ReplySettings analysis={replyAnalysis} />
             </div>
           )}
-          <div
-            className={`result-columns${analysisGame ? " with-score-action" : ""}`}
-          >
-            <div>{column("WORD", "word", "word")}</div>
-            <div>{column("POS", "position", "position")}</div>
+          <div className="result-columns">
+            <div className="result-word">{column("WORD", "word", "word")}</div>
+            <div className="result-points-heading">
+              {column("PTS", "score", "points")}
+            </div>
+            {analysisGame && (replyEnabled || defense) && (
+              <div className="result-reply-heading">
+                {column(
+                  "Δ REPLY",
+                  "reply",
+                  "reply change",
+                  !Object.keys(replyDeltas).length,
+                )}
+              </div>
+            )}
             <div className="result-leave">
               {column("LEAVE", "leave", "rack leave")}
               {(analysisGame || rackOdds) &&
@@ -664,19 +661,9 @@ export default function Results({
               {!!boardOdds?.checked &&
                 column("AFTER PLAY", "board-bingo", "bingo odds after play")}
             </div>
-            <div className="result-points-heading">
-              {column("PTS", "score", "points")}
+            <div className="result-position-heading">
+              {column("POS", "position", "position")}
             </div>
-            {replyEnabled && analysisGame && (
-              <div className="result-reply-heading">
-                {column(
-                  "Δ REPLY",
-                  "reply",
-                  "reply change",
-                  !Object.keys(replyDeltas).length,
-                )}
-              </div>
-            )}
           </div>
           <div
             className={`result-scroll${shortlistActive ? " is-shortlist" : ""}`}
@@ -722,9 +709,29 @@ export default function Results({
                   candidates.some((candidate) => candidate.id === m.id);
                 return (
                   <div
-                    className={`result-slot${analysisGame ? " with-score-action" : ""}`}
+                    className="result-slot"
                     key={m.id}
                     style={{ top: (start + offset) * moveRowHeight }}
+                    onPointerEnter={(e) => {
+                      if (
+                        !analyzing &&
+                        !locked &&
+                        e.pointerType === "mouse" &&
+                        matchMedia("(min-width:651px)").matches
+                      )
+                        onPreview(m);
+                      if (
+                        searchId !== undefined &&
+                        reply &&
+                        e.pointerType === "mouse" &&
+                        !analyzing &&
+                        !locked
+                      )
+                        setInspectedReply({ id: m.id, searchId });
+                    }}
+                    onPointerLeave={(e) => {
+                      if (e.pointerType === "mouse" && !locked) onPreview(null);
+                    }}
                   >
                     <button
                       className={`result-row${bingo ? " bingo" : ""}${preview?.id === m.id || selected ? " active" : ""}${locked === m.id ? " pinned" : ""}`}
@@ -738,27 +745,6 @@ export default function Results({
                       aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrifice ? `, ${sacrifice} below top score` : ""}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : ""}`}
                       onPointerDown={(e) => {
                         pointer.current = e.pointerType;
-                      }}
-                      onPointerEnter={(e) => {
-                        if (
-                          !analyzing &&
-                          !locked &&
-                          e.pointerType === "mouse" &&
-                          matchMedia("(min-width:651px)").matches
-                        )
-                          onPreview(m);
-                        if (
-                          searchId !== undefined &&
-                          reply &&
-                          e.pointerType === "mouse" &&
-                          !analyzing &&
-                          !locked
-                        )
-                          setInspectedReply({ id: m.id, searchId });
-                      }}
-                      onPointerLeave={(e) => {
-                        if (e.pointerType === "mouse" && !locked)
-                          onPreview(null);
                       }}
                       onFocus={() => {
                         if (!analyzing && !locked) onPreview(m);
@@ -846,33 +832,6 @@ export default function Results({
                           </span>
                         </small>
                       </span>
-                      <span className="result-coordinate">
-                        {coordinate(m.row * size + m.col, size)}
-                        <span>{m.direction === "across" ? "→" : "↓"}</span>
-                      </span>
-                      <span className="result-leave">
-                        <span>{m.leave || "—"}</span>
-                        {(analysisGame || rackOdds) && (
-                          <strong
-                            className="result-draw-odds"
-                            title="Chance the refilled rack spells a full-length word"
-                          >
-                            {rackPercent ?? (rackOddsPending ? "…" : "—")}
-                          </strong>
-                        )}
-                        {boardChance && boardPercent && (
-                          <span
-                            className="result-board-odds"
-                            title={
-                              boardChance.samples
-                                ? `Chance of a legal bingo before the opponent replies · ${boardChance.samples} sampled refills`
-                                : "Chance of a legal bingo before the opponent replies"
-                            }
-                          >
-                            After play {boardPercent}
-                          </span>
-                        )}
-                      </span>
                       <span className="result-score result-stack">
                         <strong>{m.score}</strong>
                         <small
@@ -899,20 +858,39 @@ export default function Results({
                           />
                         </span>
                       )}
+                      <span className="result-leave">
+                        <span>{m.leave || "—"}</span>
+                        {(analysisGame || rackOdds) && (
+                          <strong
+                            className="result-draw-odds"
+                            title="Chance the refilled rack spells a full-length word"
+                          >
+                            {rackPercent ?? (rackOddsPending ? "…" : "—")}
+                          </strong>
+                        )}
+                        {boardChance && boardPercent && (
+                          <span
+                            className="result-board-odds"
+                            title={
+                              boardChance.samples
+                                ? `Chance of a legal bingo before the opponent replies · ${boardChance.samples} sampled refills`
+                                : "Chance of a legal bingo before the opponent replies"
+                            }
+                          >
+                            After play {boardPercent}
+                          </span>
+                        )}
+                      </span>
+                      <span className="result-coordinate">
+                        {coordinate(m.row * size + m.col, size)}
+                        {m.direction === "across" ? "→" : "↓"}
+                      </span>
                     </button>
-                    {analysisGame && (
-                      <button
-                        type="button"
-                        className="result-score-action icon-button"
-                        aria-label={`Score breakdown for ${m.word} at ${coordinate(m.row * size + m.col, size)} ${m.direction}`}
-                        title="Score breakdown"
-                        onClick={() =>
-                          setInspected({ move: m, key: analysisKey })
-                        }
-                      >
-                        <Calculator size={15} aria-hidden="true" />
-                      </button>
-                    )}
+                    {analysisGame &&
+                      scoreTooltip.trigger(
+                        m,
+                        `Score breakdown for ${m.word} at ${coordinate(m.row * size + m.col, size)} ${m.direction}`,
+                      )}
                     {replyPending && (
                       <span
                         className="result-defense-action result-reply-pending"
@@ -1003,19 +981,7 @@ export default function Results({
           />
         </section>
       )}
-      {inspectedMove && (
-        <Modal
-          title={`Score breakdown · ${inspectedMove.word}`}
-          subtitle={`${coordinate(inspectedMove.row * size + inspectedMove.col, size)} ${inspectedMove.direction}`}
-          onClose={() => setInspected(undefined)}
-        >
-          {breakdown ? (
-            <ScoreBreakdownContent breakdown={breakdown} />
-          ) : (
-            <p>This position changed. Find moves again to check the score.</p>
-          )}
-        </Modal>
-      )}
+      {scoreTooltip.popup}
       {analysisGame && defenseDetail && (
         <PremiumDefense
           game={analysisGame}
