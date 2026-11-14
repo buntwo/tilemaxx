@@ -24,8 +24,10 @@
   --tile-edge: #daccaa;
   --blank-tile: #d1e5f2;
   --blank-ink: #294c67;
-  --archive-tile: #ddcaf3;
-  --archive-tile-edge: #a77bc7;
+  --archive-tile: #8054a5;
+  --archive-tile-edge: #5b357c;
+  --archive-tile-ink: #fff9ff;
+  --archive-blank-ink: #d9efff;
   --tile-warning: #ae2d27;
   --point-loss-low: #8c5c57;
   --point-loss-mid: #a83d34;
@@ -3909,9 +3911,13 @@ kbd {
   background: var(--archive-tile);
 }
 .square.occupied.archive-edit {
+  color: var(--archive-tile-ink);
   box-shadow:
     inset 0 -2px var(--archive-tile-edge),
     0 1px 2px #0001;
+}
+.square.occupied.archive-edit.blank .tile-letter {
+  color: var(--archive-blank-ink);
 }
 .square.pending-blank {
   background: #d1e5f2;
