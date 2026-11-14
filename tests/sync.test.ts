@@ -226,7 +226,7 @@ test("custom board deletion survives stale polling and leaves templates intact o
     client.snapshot.data!.templates = [...PRESETS, custom];
     globalThis.fetch = async () => response({ error: "Unavailable" }, 503);
     await assert.rejects(() => client.deleteTemplate(custom.id));
-    assert.equal(client.snapshot.data!.templates.length, 4);
+    assert.equal(client.snapshot.data!.templates.length, PRESETS.length + 1);
     const old = structuredClone(client.snapshot.data!);
     let poll!: (r: Response) => void;
     globalThis.fetch = async (_url, options) =>

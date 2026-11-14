@@ -5,6 +5,8 @@ import {
   type Move,
   type Placement,
   type Position,
+  bingoPoints,
+  minimumBingoTiles,
   tileScore,
   SCORES,
   letterBonuses,
@@ -144,7 +146,11 @@ export function prepareSolver(
   board: Board,
   template: BoardTemplate,
 ) {
-  const { size, rackSize, bingo: bonus, rules } = template;
+  const { size, rackSize, rules } = template;
+  const bingoTiles = minimumBingoTiles(template);
+  const bonuses = Array.from({ length: rackSize + 1 }, (_, played) =>
+    bingoPoints(template, played),
+  );
   if (
     !Number.isInteger(size) ||
     size < 5 ||
@@ -223,7 +229,7 @@ export function prepareSolver(
     const moves: Move[] = [];
     let bestScore = 0,
       hasBingo = false;
-    if (!rackLength || (options.bingoOnly && rackLength < rackSize))
+    if (!rackLength || (options.bingoOnly && rackLength < bingoTiles))
       return { moves, bestScore, hasBingo };
     if (performance.now() >= deadline) throw new SearchLimitError();
 
@@ -335,7 +341,7 @@ export function prepareSolver(
               })),
             });
           }
-          hasBingo ||= used === rackSize;
+          hasBingo ||= used >= bingoTiles;
           return;
         }
         const tiles: Placement[] = [];
@@ -399,8 +405,8 @@ export function prepareSolver(
           return false;
         if (
           bingoOnly &&
-          (maxTail[node] < rackSize - used ||
-            (atEdge ? used < rackSize : space[cell] < rackSize - used))
+          (maxTail[node] < bingoTiles - used ||
+            (atEdge ? used < bingoTiles : space[cell] < bingoTiles - used))
         )
           return false;
         if (!connected && (atEdge || toAnchor[cell] > rackLength - used))
@@ -411,12 +417,12 @@ export function prepareSolver(
           used &&
           connected &&
           (atEdge || !letters[cell]) &&
-          (!bingoOnly || used === rackSize)
+          (!bingoOnly || used >= bingoTiles)
         ) {
           emit(
             length,
             used,
-            sum * multiplier + crossTotal + (used === rackSize ? bonus : 0),
+            sum * multiplier + crossTotal + bonuses[used],
             available,
             blanks,
           );
@@ -505,7 +511,7 @@ export function prepareSolver(
         if (
           toAnchor[start.cell] > rackLength ||
           (toPremium && toPremium[start.cell] > rackLength) ||
-          (bingoOnly && space[start.cell] < rackSize)
+          (bingoOnly && space[start.cell] < bingoTiles)
         )
           continue;
         startLine = start.line;

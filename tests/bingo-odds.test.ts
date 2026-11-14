@@ -5,7 +5,7 @@ import { Lexicon } from "../shared/lexicon";
 import { emptyBoard, type BoardTemplate } from "../shared/model";
 import { PRESETS } from "../shared/presets";
 import { solve, solvePosition } from "../shared/solver";
-import { TILE_SYMBOLS } from "../shared/tile-pool";
+import { choose, TILE_SYMBOLS, unseenTiles } from "../shared/tile-pool";
 
 function layout(counts: Record<string, number>, rackSize = 2): BoardTemplate {
   return {
@@ -85,6 +85,29 @@ test("exact rack odds match independent physical draws with duplicate letters, a
   next.board[12] = "t";
   const nextOdds = index.calculate(lexicon, next, template, moves);
   assert.equal(nextOdds.byLeave[""], oracle(words, 3, "", pool.slice(0, -1)));
+});
+
+test("Lexulous counts refills that can play seven out of eight tiles", () => {
+  const words = ["AT", "PAINTER"];
+  const lexicon = new Lexicon(words);
+  const template = PRESETS.find(({ id }) => id === "lexulous")!;
+  const position = { board: emptyBoard(15), rack: "PAINTEAT" };
+  const move = solve(lexicon, position.board, position.rack, template)[0];
+  assert.equal(move.leave, "AEINPT");
+  const odds = new RackBingoIndex(words).calculate(
+    lexicon,
+    position,
+    template,
+    [move],
+  );
+  const unseen = unseenTiles(position, template);
+  const rCount = unseen.tiles.find(({ symbol }) => symbol === "R")!.count;
+  const expected =
+    1 -
+    choose(unseen.total - rCount - unseen.totals.blank, 2) /
+      choose(unseen.total, 2);
+  assert.equal(odds.exact, true);
+  assert.ok(Math.abs(odds.byLeave[move.leave] - expected) < 1e-12);
 });
 
 test("board odds find bingos that use existing board letters and weight exact refills", () => {

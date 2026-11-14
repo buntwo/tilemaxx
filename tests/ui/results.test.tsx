@@ -114,8 +114,11 @@ function setup(
         elapsed={4}
         error=""
         size={options.size ?? 15}
-        rackSize={options.rackSize ?? 7}
-        bingoBonus={options.bingoBonus ?? 50}
+        bingoRules={{
+          rackSize: options.rackSize ?? 7,
+          bingo: options.bingoBonus ?? 50,
+          rules: "scrabble",
+        }}
         rackOdds={options.rackOdds}
         boardOdds={boardOdds}
         analysisGame={options.analysisGame}

@@ -31,7 +31,7 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
   try {
     const state: AppState = await (await req("/state")).json(),
       game = state.games[0];
-    assert.equal(state.templates.length, 3);
+    assert.deepEqual(state.templates, PRESETS);
     assert.equal(state.dictionaries.length, 2);
     assert.match(game.startedOn!, /^\d{4}-\d{2}-\d{2}$/);
     const croppedPng = readFileSync("tests/fixtures/board.png");
@@ -66,6 +66,20 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
       await req("/profiles", "POST", { name: "Phone player" })
     ).json();
     assert.equal(profile.name, "Phone player");
+    for (const template of PRESETS.slice(3)) {
+      const created = await req("/games", "POST", {
+        ...game,
+        name: `${template.name} game`,
+        profileId: state.profiles[0].id,
+        template,
+        rack: "ABCDEFGH".slice(0, template.rackSize),
+      });
+      assert.equal(created.status, 201);
+      const saved: Game = await created.json();
+      const reloaded = await req(`/games/${saved.id}`);
+      assert.deepEqual((await reloaded.json()).template, template);
+      assert.equal((await req(`/games/${saved.id}`, "DELETE", {})).status, 200);
+    }
     const created: Game = await (
       await req("/games", "POST", {
         ...game,
@@ -169,7 +183,7 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
       );
     }
     assert.deepEqual(store.getGame(customGame.id)!.template, template);
-    assert.equal(store.state().templates.length, 4);
+    assert.equal(store.state().templates.length, PRESETS.length + 1);
     assert.equal(
       (
         await req(`/templates/${template.id}`, "PUT", {
@@ -276,7 +290,7 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
     assert.equal(store.getGame(created.id)!.archivedState?.rack, "DOG");
     assert.equal(store.getGame(created.id)!.scoring?.you.points, 10);
     assert.equal(store.getGame(created.id)!.trackedMoves?.[0].word, "CAT");
-    assert.equal(store.state().templates.length, 4);
+    assert.equal(store.state().templates.length, PRESETS.length + 1);
     assert.deepEqual(
       store.state().templates.find((t) => t.id === template.id),
       editedTemplate,

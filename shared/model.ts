@@ -1,7 +1,14 @@
 import { rackAfterMove } from "./rack-entry";
 
 export type Premium = "" | "DL" | "TL" | "QL" | "DW" | "TW" | "QW";
-export type Rules = "scrabble" | "wwf";
+export const RULE_NAMES = {
+  scrabble: "Scrabble",
+  wwf: "Words With Friends",
+  wordfeud: "Wordfeud",
+  crossplay: "NYT Crossplay",
+  lexulous: "Lexulous",
+} as const;
+export type Rules = keyof typeof RULE_NAMES;
 export interface BoardTemplate {
   id: string;
   name: string;
@@ -205,32 +212,51 @@ export interface Move {
   blanks: number;
   crosses: string[];
 }
+function letterValues(values: readonly number[]) {
+  return Object.fromEntries(
+    [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"].map((letter, i) => [letter, values[i]]),
+  );
+}
+
 export const SCORES: Record<Rules, Record<string, number>> = {
-  scrabble: Object.fromEntries(
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-      .split("")
-      .map((c, i) => [
-        c,
-        [
-          1, 3, 3, 2, 1, 4, 2, 4, 1, 8, 5, 1, 3, 1, 1, 3, 10, 1, 1, 1, 1, 4, 4,
-          8, 4, 10,
-        ][i],
-      ]),
-  ),
-  wwf: Object.fromEntries(
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-      .split("")
-      .map((c, i) => [
-        c,
-        [
-          1, 4, 4, 2, 1, 4, 3, 3, 1, 10, 5, 2, 4, 2, 1, 4, 10, 1, 1, 1, 2, 5, 4,
-          8, 3, 10,
-        ][i],
-      ]),
-  ),
+  scrabble: letterValues([
+    1, 3, 3, 2, 1, 4, 2, 4, 1, 8, 5, 1, 3, 1, 1, 3, 10, 1, 1, 1, 1, 4, 4, 8, 4,
+    10,
+  ]),
+  wwf: letterValues([
+    1, 4, 4, 2, 1, 4, 3, 3, 1, 10, 5, 2, 4, 2, 1, 4, 10, 1, 1, 1, 2, 5, 4, 8, 3,
+    10,
+  ]),
+  wordfeud: letterValues([
+    1, 4, 4, 2, 1, 4, 3, 4, 1, 10, 5, 1, 3, 1, 1, 4, 10, 1, 1, 1, 2, 4, 4, 8, 4,
+    10,
+  ]),
+  crossplay: letterValues([
+    1, 4, 3, 2, 1, 4, 4, 3, 1, 10, 6, 2, 3, 1, 1, 3, 10, 1, 1, 1, 2, 6, 5, 8, 4,
+    10,
+  ]),
+  lexulous: letterValues([
+    1, 4, 4, 2, 1, 5, 2, 5, 1, 8, 6, 1, 4, 1, 1, 4, 12, 1, 1, 2, 1, 5, 5, 8, 5,
+    12,
+  ]),
 };
 export const tileScore = (letter: string, rules: Rules) =>
   letter && letter === letter.toUpperCase() ? (SCORES[rules][letter] ?? 0) : 0;
+
+type BingoRules = Pick<BoardTemplate, "rackSize" | "bingo" | "rules">;
+
+export function minimumBingoTiles({ rackSize, rules }: BingoRules) {
+  return rules === "lexulous" && rackSize === 8 ? 7 : rackSize;
+}
+
+export function isBingo(template: BingoRules, played: number) {
+  return played >= minimumBingoTiles(template) && played <= template.rackSize;
+}
+
+export function bingoPoints(template: BingoRules, played: number) {
+  if (played === template.rackSize) return template.bingo;
+  return isBingo(template, played) ? 40 : 0;
+}
 export const letterBonuses: Partial<Record<Premium, number>> = {
   DL: 2,
   TL: 3,
@@ -348,7 +374,7 @@ export function applyMove(game: Game, move: Move, player?: Player): Game {
       move.word,
       move.score,
       player,
-      player ? move.tiles.length === game.template.rackSize : undefined,
+      player ? isBingo(game.template, move.tiles.length) : undefined,
       player
         ? {
             board: game.board,

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { validateCrop } from "../shared/screenshot";
 import { MAX_TILE_COUNT, TILE_SYMBOLS } from "../shared/tile-pool";
-import { MAX_GAME_NOTES } from "../shared/model";
+import { MAX_GAME_NOTES, RULE_NAMES } from "../shared/model";
 export const nameSchema = z.string().trim().min(1).max(80);
 const cell = z.string().regex(/^[a-zA-Z]?$/);
 export const screenshotExampleSchema = z
@@ -66,7 +66,7 @@ export const templateSchema = z
     start: z.number().int().min(0),
     rackSize: z.number().int().min(1).max(10),
     bingo: z.number().int().min(0).max(200),
-    rules: z.enum(["scrabble", "wwf"]),
+    rules: z.enum(Object.keys(RULE_NAMES) as (keyof typeof RULE_NAMES)[]),
     tileCounts: z
       .record(z.enum(TILE_SYMBOLS), z.number().int().min(0).max(MAX_TILE_COUNT))
       .optional(),

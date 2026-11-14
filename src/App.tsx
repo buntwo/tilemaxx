@@ -1076,8 +1076,7 @@ export default function App() {
                 elapsed={solver.elapsed}
                 error={solver.error}
                 size={game.template.size}
-                rackSize={game.template.rackSize}
-                bingoBonus={game.template.bingo}
+                bingoRules={game.template}
                 preview={preview}
                 onPreview={setPreview}
                 onPlay={play}

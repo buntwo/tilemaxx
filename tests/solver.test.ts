@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { solve, inspectBoard, prepareSolver } from "../shared/solver";
 import { PRESETS } from "../shared/presets";
+import { scorePlacement } from "../shared/game-scoring";
 import {
   emptyBoard,
   type BoardTemplate,
@@ -15,6 +16,55 @@ import {
 
 const lex = (words: string) =>
   new Lexicon(parseWords(words.split(" ").join("\n")));
+
+test("variant boards apply their own premiums, letter values, and opening bonuses", () => {
+  for (const [id, layout, corner, start, word, faceScore] of [
+    ["wordfeud", [24, 20, 12, 8], "TL", "", "JUG", 15],
+    ["crossplay", [20, 20, 8, 8], "TL", "", "VOW", 17],
+    ["lexulous", [24, 8, 17, 8], "TW", "DW", "QUA", 14],
+  ] as const) {
+    const template = PRESETS.find((preset) => preset.id === id)!;
+    assert.equal(template.premiums[0], corner);
+    assert.equal(template.premiums[template.start], start);
+    assert.deepEqual(
+      ["DL", "TL", "DW", "TW"].map(
+        (premium) =>
+          template.premiums.filter((cell) => cell === premium).length,
+      ),
+      layout,
+    );
+    const base = emptyBoard(15);
+    const move = solve(lex(word), base, word, template).find(
+      (move) => move.row === 7 && move.col === 7 && move.direction === "across",
+    )!;
+    const board = [...base];
+    for (const { index, letter } of move.tiles) board[index] = letter;
+    const score = faceScore * (start === "DW" ? 2 : 1);
+    assert.equal(move.score, score);
+    assert.equal(scorePlacement(base, board, template)?.score, score);
+  }
+});
+
+test("Lexulous finds and scores seven- and eight-tile bingos", () => {
+  const template = PRESETS.find(({ id }) => id === "lexulous")!;
+  const base = emptyBoard(15);
+  const solver = prepareSolver(lex("PAINTER PAINTERS"), base, template);
+  assert.ok(solver.solve("PAINTER", {}, { bingoOnly: true }).length);
+  assert.equal(solver.summarize("PAINTER").bingo, true);
+  const moves = solver.solve("PAINTERS");
+  for (const [word, bonus] of [
+    ["PAINTER", 40],
+    ["PAINTERS", 50],
+  ] as const) {
+    const move = moves.find((move) => move.word === word)!;
+    const board = [...base];
+    for (const { index, letter } of move.tiles) board[index] = letter;
+    const breakdown = scorePlacement(base, board, template)!;
+    assert.equal(breakdown.bonus, bonus);
+    assert.equal(breakdown.bingo, true);
+    assert.equal(breakdown.score, move.score);
+  }
+});
 test("opening moves cover the center, apply DW and do not invent letters", () => {
   const t = PRESETS[0],
     moves = solve(lex("CAT AT ACT TAC DOG"), emptyBoard(15), "CAT", t);

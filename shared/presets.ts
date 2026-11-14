@@ -1,4 +1,4 @@
-import { type BoardTemplate, type Premium } from "./model";
+import { RULE_NAMES, type BoardTemplate, type Premium } from "./model";
 import { getTileCounts } from "./tile-pool";
 
 function board(
@@ -6,7 +6,11 @@ function board(
   name: string,
   size: number,
   placements: Partial<Record<Premium, number[][]>>,
-  rules: "scrabble" | "wwf" = "scrabble",
+  {
+    rules = "scrabble",
+    rackSize = 7,
+    bingo = 50,
+  }: Partial<Pick<BoardTemplate, "rules" | "rackSize" | "bingo">> = {},
 ): BoardTemplate {
   const premiums: Premium[] = Array(size * size).fill("");
   for (const [premium, coordinates] of Object.entries(placements))
@@ -18,8 +22,8 @@ function board(
     size,
     premiums,
     start: Math.floor(size / 2) * size + Math.floor(size / 2),
-    rackSize: 7,
-    bingo: rules === "wwf" ? 35 : 50,
+    rackSize,
+    bingo,
     rules,
     tileCounts: getTileCounts({ id, rules }),
     builtin: true,
@@ -62,7 +66,7 @@ export const PRESETS: BoardTemplate[] = [
   }),
   board(
     "wwf",
-    "Words With Friends",
+    RULE_NAMES.wwf,
     15,
     {
       TW: reflect(15, [[0, 3]]),
@@ -81,7 +85,7 @@ export const PRESETS: BoardTemplate[] = [
         [5, 7],
       ]),
     },
-    "wwf",
+    { rules: "wwf", bingo: 35 },
   ),
   board("super", "Super Scrabble", 21, {
     QW: reflect(21, [[0, 0]]),
@@ -116,4 +120,77 @@ export const PRESETS: BoardTemplate[] = [
       [9, 9],
     ]),
   }),
+  board(
+    "wordfeud",
+    RULE_NAMES.wordfeud,
+    15,
+    {
+      TW: reflect(15, [[0, 4]]),
+      DW: reflect(15, [
+        [2, 2],
+        [3, 7],
+        [4, 4],
+      ]),
+      TL: reflect(15, [
+        [0, 0],
+        [1, 5],
+        [3, 3],
+        [5, 5],
+      ]),
+      DL: reflect(15, [
+        [0, 7],
+        [1, 1],
+        [2, 6],
+        [4, 6],
+      ]),
+    },
+    { rules: "wordfeud", bingo: 40 },
+  ),
+  board(
+    "crossplay",
+    RULE_NAMES.crossplay,
+    15,
+    {
+      TW: reflect(15, [[0, 3]]),
+      DW: reflect(15, [
+        [1, 1],
+        [3, 7],
+      ]),
+      TL: reflect(15, [
+        [0, 0],
+        [1, 6],
+        [4, 5],
+      ]),
+      DL: reflect(15, [
+        [0, 7],
+        [2, 4],
+        [3, 3],
+        [5, 7],
+      ]),
+    },
+    { rules: "crossplay", bingo: 40 },
+  ),
+  board(
+    "lexulous",
+    RULE_NAMES.lexulous,
+    15,
+    {
+      TW: reflect(15, [
+        [0, 0],
+        [0, 7],
+      ]),
+      DW: reflect(15, [
+        [1, 2],
+        [3, 4],
+        [7, 7],
+      ]),
+      TL: reflect(15, [[2, 5]]),
+      DL: reflect(15, [
+        [0, 3],
+        [1, 6],
+        [5, 6],
+      ]),
+    },
+    { rules: "lexulous", rackSize: 8 },
+  ),
 ];

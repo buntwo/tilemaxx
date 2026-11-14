@@ -20,7 +20,7 @@ After making the move in your actual game, enter the tiles you drew and your opp
 
 - **Compare alternatives.** The **Shortlist** surfaces plays worth a closer look. See which tiles each move leaves on your rack, estimate your odds of a bingo (using all your tiles), and check what your opponent might play back.
 - **Review your games.** Track scores, revisit a turn with its original board and rack, or use **Review game** to find missed bingos and large score gaps.
-- **Play on different boards.** Choose Scrabble, Super Scrabble, or a Words With Friends layout. Use **Board studio** to design your own.
+- **Play on different boards.** Choose Scrabble, Super Scrabble, Words With Friends, Wordfeud, NYT Crossplay, or Lexulous. Each preset includes its English tile bag and scoring. Use **Board studio** to design your own.
 
 <p>
   <a href="docs/screenshots/phone-preview.webp"><img src="docs/screenshots/phone-preview.webp" width="300" alt="Phone view with a move preview, score breakdown control, and Play button above the board."></a>

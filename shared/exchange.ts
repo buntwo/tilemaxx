@@ -1,4 +1,4 @@
-import type { BoardTemplate, Move, Position } from "./model";
+import { isBingo, type BoardTemplate, type Move, type Position } from "./model";
 import { Lexicon } from "./lexicon";
 import { sampleTiles, weightedDraws } from "./move-analysis";
 import { rackSlotsForMove, splitRack } from "./rack-entry";
@@ -87,9 +87,7 @@ export function simulateExchange(
           const moves = prepared.solve(full, { maxMs });
           result = {
             best: moves[0],
-            bingo: moves.find(
-              (move) => move.tiles.length === template.rackSize,
-            ),
+            bingo: moves.find((move) => isBingo(template, move.tiles.length)),
           };
           cache.set(full, result);
         }
@@ -99,12 +97,12 @@ export function simulateExchange(
         if (result.best) playable += copies;
         for (const move of new Set([result.best, result.bingo])) {
           if (!move) continue;
-          const key =
-            move.word + ":" + (move.tiles.length === template.rackSize);
+          const bingo = isBingo(template, move.tiles.length);
+          const key = move.word + ":" + bingo;
           const entry = examples.get(key) ?? {
             word: move.word,
             score: 0,
-            bingo: move.tiles.length === template.rackSize,
+            bingo,
             weight: 0,
             draws: new Map<string, { score: number; weight: number }>(),
           };

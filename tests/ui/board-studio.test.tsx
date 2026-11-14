@@ -29,7 +29,7 @@ test("custom board deletion requires confirmation, permits cancel and retry, and
   const user = userEvent.setup();
   render(<Harness />);
   expect(screen.queryByRole("button", { name: "Delete Scrabble" })).toBeNull();
-  expect(screen.getAllByText("Read-only")).toHaveLength(3);
+  expect(screen.getAllByText("Read-only")).toHaveLength(PRESETS.length);
   await user.click(screen.getByRole("button", { name: "Delete Mini" }));
   expect(deleted).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "Keep board" }));
@@ -44,5 +44,30 @@ test("custom board deletion requires confirmation, permits cancel and retry, and
     expect(screen.queryByRole("button", { name: "Edit Mini" })).toBeNull(),
   );
   expect(screen.getByRole("button", { name: "New custom board" })).toBeTruthy();
-  expect(screen.getAllByText("Read-only")).toHaveLength(3);
+  expect(screen.getAllByText("Read-only")).toHaveLength(PRESETS.length);
+});
+
+test("starting a custom board from Lexulous copies its bag, rack size, and tile values", async () => {
+  const saved = vi.fn().mockResolvedValue(undefined);
+  render(
+    <BoardStudio
+      templates={PRESETS}
+      onSave={saved}
+      onDelete={async () => {}}
+      onBack={() => {}}
+    />,
+  );
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "New custom board" }));
+  await user.selectOptions(screen.getByLabelText("Start from"), "lexulous");
+  expect(screen.getByLabelText<HTMLInputElement>("Rack size").value).toBe("8");
+  expect(screen.getByLabelText<HTMLSelectElement>("Tile values").value).toBe(
+    "lexulous",
+  );
+  expect(screen.getByText("Starting tile counts · 89 tiles")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Save board template" }));
+  expect(saved).toHaveBeenCalledWith(
+    expect.objectContaining({ rules: "lexulous", rackSize: 8, builtin: false }),
+    false,
+  );
 });

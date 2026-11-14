@@ -1,6 +1,11 @@
 import { useId } from "react";
 import { History } from "lucide-react";
-import { localDate, MAX_GAME_NOTES, type Game } from "../../shared/model";
+import {
+  localDate,
+  MAX_GAME_NOTES,
+  RULE_NAMES,
+  type Game,
+} from "../../shared/model";
 
 export function FullMoveHistoryIcon() {
   return (
@@ -67,6 +72,9 @@ export function GameDetailFields({ game }: { game?: Game }) {
         <datalist id={platforms}>
           <option value="Scrabble GO" />
           <option value="Words With Friends" />
+          <option value={RULE_NAMES.wordfeud} />
+          <option value={RULE_NAMES.crossplay} />
+          <option value={RULE_NAMES.lexulous} />
           <option value="In person" />
         </datalist>
       </label>

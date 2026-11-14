@@ -1,5 +1,7 @@
 import { type Lexicon } from "./lexicon";
 import {
+  isBingo,
+  minimumBingoTiles,
   type Board,
   type BoardTemplate,
   type Move,
@@ -278,6 +280,8 @@ export function analyzeMoves(
     Array<string>(count).fill(symbol),
   );
   const deadline = performance.now() + maxMs;
+  const bingoTiles = minimumBingoTiles(template);
+  const crossplay = template.rules === "crossplay";
   // The boards used by analysis are immutable snapshots.
   const prepared = new WeakMap<Board, ReturnType<typeof prepareSolver>>();
   function prepare(position: Board, until: number) {
@@ -298,8 +302,7 @@ export function analyzeMoves(
     until: number,
     bingoOnly = false,
   ) {
-    if (!letters || (bingoOnly && letters.length < template.rackSize))
-      return [];
+    if (!letters || (bingoOnly && letters.length < bingoTiles)) return [];
     const { solver, limits } = prepare(position, until);
     return solver.solve(letters, limits, { bingoOnly, unsorted: true });
   }
@@ -354,7 +357,7 @@ export function analyzeMoves(
       leave,
       board: placeTiles(board, move),
       drawSize: Math.min(bagSize, template.rackSize - leave.length),
-      goesOut: bagSize === 0 && leave.length === 0,
+      goesOut: !crossplay && bagSize === 0 && leave.length === 0,
       exact: null as { bingo: number; draws: string[] } | null,
       bingo: 0,
       bingoDraws: new Map<string, number>(),
@@ -378,7 +381,7 @@ export function analyzeMoves(
     !inferWeight &&
     entry.drawSize <= 2 &&
     !entry.goesOut &&
-    entry.leave.length + entry.drawSize === template.rackSize
+    entry.leave.length + entry.drawSize >= bingoTiles
       ? weightedDraws(pool, entry.drawSize)
       : [],
   );
@@ -386,10 +389,7 @@ export function analyzeMoves(
   let drawsChecked = 0;
   if (drawTotal) progress({ phase: "draws", completed: 0, total: drawTotal });
   for (const [i, entry] of entries.entries()) {
-    if (
-      entry.leave.length + entry.drawSize < template.rackSize ||
-      entry.goesOut
-    ) {
+    if (entry.leave.length + entry.drawSize < bingoTiles || entry.goesOut) {
       entry.exact = { bingo: 0, draws: [] };
       continue;
     }
@@ -454,7 +454,7 @@ export function analyzeMoves(
           replyBingo = false;
         for (const reply of replies) {
           if (!strongest || reply.score > strongest.score) strongest = reply;
-          replyBingo ||= reply.tiles.length === template.rackSize;
+          replyBingo ||= isBingo(template, reply.tiles.length);
         }
         const bingo =
           !entry.exact && !!search(entry.board, refill, deadline, true).length;
@@ -466,8 +466,9 @@ export function analyzeMoves(
           const key = reply?.id ?? "";
           let forecast = forecasts.get(key);
           if (!forecast) {
-            const opponentWentOut = !!reply && !bagAfter && !reply.leave;
-            if (entry.goesOut || opponentWentOut) {
+            const opponentWentOut =
+              !crossplay && !!reply && !bagAfter && !reply.leave;
+            if (entry.goesOut || opponentWentOut || (crossplay && !bagSize)) {
               forecast = { score: 0, bingo: false };
             } else {
               let position = entry.board;

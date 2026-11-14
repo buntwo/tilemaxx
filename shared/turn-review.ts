@@ -1,4 +1,10 @@
-import type { Game, Move, TrackedMove, TurnPosition } from "./model";
+import {
+  isBingo,
+  type Game,
+  type Move,
+  type TrackedMove,
+  type TurnPosition,
+} from "./model";
 import type { Lexicon } from "./lexicon";
 import { solvePosition, SEARCH_LIMITS } from "./solver";
 import { analyzeMoves } from "./move-analysis";
@@ -28,10 +34,9 @@ export function reviewOpportunity(
   playedTiles: number,
 ) {
   const best = moves[0];
-  const bingo =
-    playedTiles !== template.rackSize
-      ? moves.find((move) => move.tiles.length === template.rackSize)
-      : undefined;
+  const bingo = !isBingo(template, playedTiles)
+    ? moves.find((move) => isBingo(template, move.tiles.length))
+    : undefined;
   const gap = Math.max(0, (best?.score ?? 0) - played.score);
   return { best, bingo, gap };
 }

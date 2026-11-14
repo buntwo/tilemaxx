@@ -1,6 +1,8 @@
 import {
   applyMove,
+  bingoPoints,
   coordinate,
+  isBingo,
   letterBonuses,
   remember,
   trackedMoveHistory,
@@ -177,16 +179,13 @@ export function scorePlacement(
     ? words.some((word) => word.touchesExisting)
     : Boolean(board[template.start]);
   if (!connected) return null;
-  const bingo = placed.length === template.rackSize;
+  const bonus = bingoPoints(template, placed.length);
   return {
     word: words[0].word,
-    score: words.reduce(
-      (sum, word) => sum + word.score,
-      bingo ? template.bingo : 0,
-    ),
-    bingo,
+    score: words.reduce((sum, word) => sum + word.score, bonus),
+    bingo: isBingo(template, placed.length),
     words,
-    bonus: bingo ? template.bingo : 0,
+    bonus,
   };
 }
 
@@ -550,7 +549,7 @@ export function playTrackedMove(game: Game, move: Move): Game {
     scoring: addScore(previous.scoring ?? emptyScoring(), "you", {
       word: move.word,
       score: move.score,
-      bingo: move.tiles.length === game.template.rackSize,
+      bingo: isBingo(game.template, move.tiles.length),
     }),
   };
 }

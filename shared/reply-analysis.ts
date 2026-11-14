@@ -51,7 +51,7 @@ export interface ExactReply {
   rack: string;
   highest: Move | null;
   reply: Move | null;
-  ends: "you" | "opponent" | "scoreless" | null;
+  ends: "you" | "opponent" | "scoreless" | "final-turns" | null;
   yourAdjustment: number;
   opponentAdjustment: number;
   difference: number | null;
@@ -67,7 +67,7 @@ export interface ReplyPosition extends Position {
 }
 
 export const replyScorelessLimit = (template: BoardTemplate) =>
-  template.rules === "wwf" ? 3 : 6;
+  template.rules === "wwf" || template.rules === "wordfeud" ? 3 : 6;
 
 export type ReplyDetailOptions =
   | {
@@ -180,7 +180,29 @@ export function prepareReplyAnalysis(
   const { pool, rackSize, bagSize } = replyPosition(position);
   const rack = pool.join("");
   const scorelessLimit = replyScorelessLimit(template);
+  function opponentMoves(candidate: Move) {
+    return prepareSolver(lexicon, placeTiles(board, candidate), template).solve(
+      rack,
+      limit(deadline()),
+      { unsorted: true },
+    );
+  }
   function endgame(candidate: Move): Omit<ExactReply, "difference"> {
+    if (template.rules === "crossplay") {
+      const reply = opponentMoves(candidate).reduce<Move | null>(
+        (best, move) => (!best || move.score > best.score ? move : best),
+        null,
+      );
+      return {
+        kind: "empty-bag",
+        rack,
+        highest: reply,
+        reply,
+        ends: "final-turns",
+        yourAdjustment: 0,
+        opponentAdjustment: 0,
+      };
+    }
     const yourLeave = rackPoints(candidate.leave, template.rules);
     const theirLeave = rackPoints(rack, template.rules);
     let ends: ExactReply["ends"] = null;
@@ -198,12 +220,7 @@ export function prepareReplyAnalysis(
       yourAdjustment = -yourLeave;
       opponentAdjustment = -theirLeave;
     } else {
-      const solver = prepareSolver(
-        lexicon,
-        placeTiles(board, candidate),
-        template,
-      );
-      const options = solver.solve(rack, limit(deadline()), { unsorted: true });
+      const options = opponentMoves(candidate);
       let bestSwing =
         beforeReply + 1 >= scorelessLimit ? yourLeave - theirLeave : 0;
       for (const move of options) {

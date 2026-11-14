@@ -16,7 +16,14 @@ import {
   Trophy,
   ChartNoAxesCombined,
 } from "lucide-react";
-import { type Game, type Move, coordinate } from "../../shared/model";
+import {
+  bingoPoints,
+  isBingo,
+  type BoardTemplate,
+  type Game,
+  type Move,
+  coordinate,
+} from "../../shared/model";
 import {
   REPLY_REFINED_SAMPLES,
   REPLY_SAMPLES,
@@ -73,8 +80,7 @@ export default function Results({
   elapsed,
   error,
   size,
-  rackSize,
-  bingoBonus,
+  bingoRules,
   preview,
   onPreview,
   onPlay,
@@ -106,8 +112,7 @@ export default function Results({
   elapsed: number;
   error: string;
   size: number;
-  rackSize: number;
-  bingoBonus: number;
+  bingoRules: Pick<BoardTemplate, "rackSize" | "bingo" | "rules">;
   preview: Move | null;
   onPreview: (m: Move | null) => void;
   onPlay: (m: Move) => void;
@@ -672,7 +677,8 @@ export default function Results({
               style={{ height: total * moveRowHeight, position: "relative" }}
             >
               {visible.map((m, offset) => {
-                const bingo = m.tiles.length === rackSize;
+                const bingo = isBingo(bingoRules, m.tiles.length);
+                const bingoBonus = bingoPoints(bingoRules, m.tiles.length);
                 const rackChance = rackOdds?.byLeave[m.leave];
                 const rackPercent =
                   rackChance === undefined
@@ -810,7 +816,7 @@ export default function Results({
                           {bingo && (
                             <span
                               className="bingo-badge"
-                              title={`All ${rackSize} tiles · +${bingoBonus} bonus included in score`}
+                              title={`${m.tiles.length === bingoRules.rackSize ? "All " : ""}${m.tiles.length} tiles · +${bingoBonus} bonus included in score`}
                             >
                               <Trophy size={10} aria-hidden="true" />
                               BINGO

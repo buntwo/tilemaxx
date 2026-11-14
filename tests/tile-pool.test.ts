@@ -8,11 +8,14 @@ import {
   unseenTiles,
 } from "../shared/tile-pool";
 
-test("starting counts cover all three presets and legacy snapshots", () => {
+test("starting counts cover every preset and snapshots without explicit counts", () => {
   for (const [index, total, blanks, eCount] of [
     [0, 100, 2, 12],
     [1, 104, 2, 13],
     [2, 200, 4, 24],
+    [3, 104, 2, 12],
+    [4, 100, 3, 12],
+    [5, 89, 2, 11],
   ]) {
     const template = { ...PRESETS[index], tileCounts: undefined };
     const pool = unseenTiles({ board: [], rack: "" }, template);

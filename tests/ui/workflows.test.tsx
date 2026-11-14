@@ -1167,8 +1167,10 @@ test("custom template creation/editing persists one template and built-ins have 
   expect(screen.getByRole("heading", { name: "Board studio" })).toBeTruthy();
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.queryByRole("heading", { name: "Your rack" })).toBeNull();
-  expect(document.querySelectorAll(".layout-thumbnail")).toHaveLength(3);
-  expect(screen.getAllByText("Read-only")).toHaveLength(3);
+  expect(document.querySelectorAll(".layout-thumbnail")).toHaveLength(
+    PRESETS.length,
+  );
+  expect(screen.getAllByText("Read-only")).toHaveLength(PRESETS.length);
   expect(screen.queryByRole("button", { name: "Edit Scrabble" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "New custom board" }));
   await user.clear(screen.getByLabelText("Board name"));
@@ -1185,9 +1187,9 @@ test("custom template creation/editing persists one template and built-ins have 
   await user.type(screen.getByLabelText("Starting Q count"), "4");
   await user.click(screen.getByRole("button", { name: "Save changes" }));
   await screen.findByRole("button", { name: "Edit Mini revised" });
-  expect(remote.templates).toHaveLength(4);
-  expect(remote.templates[3].bingo).toBe(25);
-  expect(remote.templates[3].tileCounts?.Q).toBe(4);
+  expect(remote.templates).toHaveLength(PRESETS.length + 1);
+  expect(remote.templates.at(-1)?.bingo).toBe(25);
+  expect(remote.templates.at(-1)?.tileCounts?.Q).toBe(4);
   expect(current().template).toEqual(PRESETS[0]);
   await user.click(screen.getByRole("button", { name: "Back to games" }));
   expect(screen.getByRole("heading", { name: "First game" })).toBeTruthy();

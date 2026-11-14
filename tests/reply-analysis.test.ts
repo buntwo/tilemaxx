@@ -220,6 +220,27 @@ test("known racks separate the raw reply from going-out adjustments", () => {
   assert.equal(placeTiles(board, opens)[7], "I");
 });
 
+test("Crossplay can reply after you empty your rack without charging leftover tiles", () => {
+  const { template, board, lexicon } = fixture("TIQ", 2);
+  template.rules = "crossplay";
+  const candidate = solve(lexicon, board, "I", template).find(
+    (move) => move.tiles[0].index === 7,
+  )!;
+  assert.equal(candidate.leave, "");
+  const result = prepareReplyAnalysis(
+    lexicon,
+    { board, rack: "I", template, bagSize: 0, scorelessTurns: 0 },
+    candidate,
+    500,
+    budget,
+  )(candidate);
+  assert.equal(result.kind, "empty-bag");
+  assert.equal(result.ends, "final-turns");
+  assert.equal(result.reply?.word, "QI");
+  assert.equal(result.yourAdjustment, 0);
+  assert.equal(result.opponentAdjustment, 0);
+});
+
 test("scoreless endings deduct both racks and invalid bag counts fail", () => {
   const { template, board, lexicon } = fixture("TIQZ", 2);
   const move = { ...solve(lexicon, board, "IZ", template)[0], score: 0 };

@@ -4,6 +4,8 @@ import Board from "./Board";
 import {
   type BoardTemplate,
   type Premium,
+  type Rules,
+  RULE_NAMES,
   emptyBoard,
 } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
@@ -170,12 +172,15 @@ export default function BoardEditor({
                 onChange={(e) =>
                   setDraft({
                     ...draft,
-                    rules: e.target.value as "scrabble" | "wwf",
+                    rules: e.target.value as Rules,
                   })
                 }
               >
-                <option value="scrabble">Scrabble</option>
-                <option value="wwf">Words With Friends</option>
+                {Object.entries(RULE_NAMES).map(([rules, name]) => (
+                  <option key={rules} value={rules}>
+                    {name}
+                  </option>
+                ))}
               </select>
             </label>
             <label>

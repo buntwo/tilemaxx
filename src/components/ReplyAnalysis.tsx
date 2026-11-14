@@ -362,9 +362,11 @@ function ExactReplyDetails({
         ) : (
           <div>
             <dt>
-              {ends === "opponent"
-                ? "They go out"
-                : "Strongest immediate reply"}
+              {ends === "final-turns"
+                ? "Their final turn"
+                : ends === "opponent"
+                  ? "They go out"
+                  : "Strongest immediate reply"}
             </dt>
             <dd>{replyText}</dd>
           </div>
@@ -383,7 +385,7 @@ function ExactReplyDetails({
             <dd>{signedPoints(result.difference)} pts</dd>
           </div>
         )}
-        {ends && (
+        {ends && ends !== "final-turns" && (
           <div>
             <dt>Unplayed tiles</dt>
             <dd>
