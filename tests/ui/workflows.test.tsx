@@ -8,6 +8,7 @@ import {
   fireEvent,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { version } from "../../package.json";
 import App from "../../src/App";
 import { GameStore, store } from "../../src/store";
 import { summarizeGame } from "../../shared/game-index";
@@ -1491,7 +1492,7 @@ test.each(["phone", "tablet", "desktop"])(
   },
 );
 
-test("the phone layout keeps settings, board help and move filtering accessible", async () => {
+test("the phone layout keeps settings, the build version, board help and move filtering accessible", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === "(max-width: 650px)",
     addEventListener() {},
@@ -1504,9 +1505,12 @@ test("the phone layout keeps settings, board help and move filtering accessible"
   expect(document.querySelector(".breadcrumb")).toBeNull();
   expect(main.queryByRole("button", { name: "dark theme" })).toBeNull();
   await user.click(menu);
-  await user.click(within(screen.getByRole("complementary")).getByRole("button", { name: "dark theme" }));
+  const sidebar = within(screen.getByRole("complementary"));
+  const theme = sidebar.getByRole("group", { name: "Color theme" });
+  expect(sidebar.getByText(`v${version}`)).toBe(theme.nextElementSibling);
+  await user.click(within(theme).getByRole("button", { name: "dark theme" }));
   expect(document.documentElement.dataset.theme).toBe("dark");
-  await user.click(within(screen.getByRole("complementary")).getByRole("button", { name: "My games" }));
+  await user.click(sidebar.getByRole("button", { name: "My games" }));
 
   const legend = main.getByText("Triple word");
   const help = legend.closest("details")!;
