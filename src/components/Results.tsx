@@ -1,4 +1,11 @@
-import { useId, useMemo, useRef, useState, useEffect } from "react";
+import {
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useEffect,
+  type ReactElement,
+} from "react";
 import {
   ArrowDownWideNarrow,
   ChevronDown,
@@ -61,6 +68,7 @@ function formatOdds(chance: number, exact: boolean) {
 
 export default function Results({
   results: resultSet,
+  exchangeAction,
   compact = false,
   fetchPage,
   fetchShortlist,
@@ -89,6 +97,7 @@ export default function Results({
   onCancelBoardOdds,
 }: {
   results: MoveResults | null;
+  exchangeAction?: ReactElement | false;
   compact?: boolean;
   fetchPage: FetchMovePage;
   fetchShortlist: (
@@ -463,7 +472,9 @@ export default function Results({
     <section
       className={`results-panel panel ${analysisGame || rackOdds ? "with-bingo-odds" : ""}${reserveReplySpace ? " with-reply-preview" : ""}`}
     >
-      <header className="results-title">
+      <header
+        className={`results-title${exchangeAction ? " has-exchange-advice" : ""}`}
+      >
         <div className="heading-with-icon">
           <Sparkles size={19} />
           <h2>Possible moves</h2>
@@ -471,6 +482,7 @@ export default function Results({
         {resultSet && (
           <span className="count-badge">{totalMoves.toLocaleString()}</span>
         )}
+        {exchangeAction}
         {analysisGame && !!totalMoves && !busy && !error && (
           <button
             type="button"
@@ -492,8 +504,8 @@ export default function Results({
               setAnalyzing(!analyzing);
             }}
           >
-            <ChartNoAxesCombined size={15} />{" "}
-            {analyzing ? "Close analysis" : "Analyze"}
+            <ChartNoAxesCombined size={15} aria-hidden="true" />
+            <span>{analyzing ? "Close analysis" : "Analyze"}</span>
           </button>
         )}
       </header>

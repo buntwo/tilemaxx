@@ -37,7 +37,8 @@ import {
 import Board from "./components/Board";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
 import BoardEntry, { BoardEntryHelp } from "./components/BoardEntry";
-import RackEntry from "./components/RackEntry";
+import RackEntry, { type RackEntryHandle } from "./components/RackEntry";
+import ExchangeSuggestion from "./components/ExchangeSuggestion";
 import {
   flyTiles,
   prepareTileFlight,
@@ -180,6 +181,7 @@ export default function App() {
   const phoneLayout = useMediaQuery("(max-width: 650px)");
   const boardPanel = useRef<HTMLElement>(null);
   const rackPanel = useRef<HTMLElement>(null);
+  const rackEntry = useRef<RackEntryHandle>(null);
   const [flight, setFlight] = useState<TileFlight>();
   const state = useStore(),
     data = state.data;
@@ -999,6 +1001,7 @@ export default function App() {
                 )}
                 <RackEntry
                   key={game.id}
+                  ref={rackEntry}
                   game={game}
                   onChange={update}
                   onSolve={solve}
@@ -1041,6 +1044,16 @@ export default function App() {
               <Results
                 compact={compactGame}
                 results={solver.results}
+                exchangeAction={solver.exchangeAdvice && !activeFlight && (
+                  <ExchangeSuggestion
+                    advice={solver.exchangeAdvice}
+                    rack={game.rack}
+                    onOpen={() =>
+                      rackEntry.current?.openSuggestedExchange(phoneLayout)
+                    }
+                    inHeader
+                  />
+                )}
                 fetchPage={solver.page}
                 fetchShortlist={solver.shortlist}
                 busy={busy}

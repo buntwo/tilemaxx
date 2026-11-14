@@ -4369,6 +4369,62 @@ kbd {
 .results-title:has(.analysis-toggle) .count-badge {
   margin-left: auto;
 }
+.results-title.has-exchange-advice {
+  container-type: inline-size;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.has-exchange-advice .heading-with-icon { white-space: nowrap; }
+.results-exchange-advice {
+  min-height: 30px;
+  min-width: 0;
+  margin-left: auto;
+  gap: 4px;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #ffd783;
+  border-color: #d89336;
+  color: #542d0c;
+}
+.results-exchange-advice > :not(.results-exchange-tiles) { flex-shrink: 0; }
+.results-exchange-tiles { overflow: hidden; text-overflow: ellipsis; }
+.results-exchange-advice:hover { background: #ffca62; }
+:root[data-theme="dark"] .results-exchange-advice {
+  background: #76471d;
+  border-color: #ab7237;
+  color: #fff0cc;
+}
+:root[data-theme="dark"] .results-exchange-advice:hover { background: #865525; }
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .results-exchange-advice {
+    background: #76471d;
+    border-color: #ab7237;
+    color: #fff0cc;
+  }
+  :root[data-theme="system"] .results-exchange-advice:hover { background: #865525; }
+}
+@container (max-width: 460px) {
+  .has-exchange-advice .count-badge { display: none; }
+}
+@container (max-width: 400px) {
+  .has-exchange-advice .heading-with-icon svg { display: none; }
+  .has-exchange-advice .analysis-toggle { gap: 0; }
+  .has-exchange-advice .analysis-toggle span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+@container (max-width: 300px) {
+  .has-exchange-advice h2 { font-size: 13px; }
+  .results-exchange-advice { gap: 3px; padding-inline: 5px; }
+  :is(.results-exchange-verb, .results-exchange-separator) { display: none; }
+}
+.rack-tiles { scroll-margin-block-start: 12px; }
 .move-analysis {
   margin: 0 14px 12px;
   padding: 12px;

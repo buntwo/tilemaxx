@@ -1644,7 +1644,13 @@ test("exchange simulation starts on open, shows draw scores, and closes when mar
   ).toBeNull();
 });
 
-test("an exchange suggestion preserves holds and opens the inline panel", async () => {
+test.each(["rack", "results"])("the %s exchange suggestion preserves holds and opens the inline panel", async (source) => {
+  const fromResults = source === "results";
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(max-width: 650px)" && fromResults,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
   let pending: SolverWorker | undefined;
   let adviceRequest: Extract<PracticeRequest, { kind: "exchange-advice" }> | undefined;
   let simulation: Extract<PracticeRequest, { kind: "exchange" }> | undefined;
@@ -1678,7 +1684,17 @@ test("an exchange suggestion preserves holds and opens the inline panel", async 
   await act(() => pending?.onmessage?.({
     data: { result: { slots: [4, 5], edge: 8, comparedWith: "CATS" } },
   }));
-  await user.click(screen.getByRole("button", { name: "Swap UV · +8 pts" }));
+  const rack = screen.getByRole("region", { name: "Your rack" });
+  const header = screen.getByRole("heading", { name: "Possible moves" }).closest("header")!;
+  const swap = { name: "Swap UV · +8 pts" };
+  const rackAction = within(rack).getByRole("button", swap);
+  const headerAction = within(header).getByRole("button", swap);
+  const tiles = within(rack).getByRole("group", { name: "Your rack tiles" });
+  const scroll = vi.fn();
+  tiles.scrollIntoView = scroll;
+  await user.click(fromResults ? headerAction : rackAction);
+  if (fromResults) expect(scroll).toHaveBeenCalledExactlyOnceWith({ block: "start", behavior: "smooth" });
+  else expect(scroll).not.toHaveBeenCalled();
   const panel = screen.getByRole("region", { name: "Simulate exchange" });
   expect(panel.closest(".rack-panel")).toBeTruthy();
   expect(within(panel).getByText(/Estimated \+8 points vs. CATS/)).toBeTruthy();

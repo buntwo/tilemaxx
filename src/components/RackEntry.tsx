@@ -1,10 +1,12 @@
 import {
   useEffect,
   useId,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
+  type Ref,
 } from "react";
 import {
   enterRack,
@@ -18,10 +20,15 @@ import type { ExchangeAdvice } from "../../shared/exchange-advice";
 import { Ban, Repeat2, Shuffle, SlidersHorizontal } from "lucide-react";
 import { canAnimateTiles } from "./tile-motion";
 import ExchangeAnalysis from "./ExchangeAnalysis";
+import ExchangeSuggestion, { exchangeAdviceDetail } from "./ExchangeSuggestion";
 
 const SENTINEL = "\u200b";
+export type RackEntryHandle = {
+  openSuggestedExchange: (reveal: boolean) => void;
+};
 
 export default function RackEntry({
+  ref,
   game,
   onChange,
   onSolve,
@@ -30,6 +37,7 @@ export default function RackEntry({
   preview,
   flyingRack,
 }: {
+  ref?: Ref<RackEntryHandle>;
   game: Game;
   onChange: (game: Game) => void;
   onSolve: () => void;
@@ -50,7 +58,7 @@ export default function RackEntry({
   const excludeMode = mode === "exclude";
   const exchangeMode = mode === "exchange";
   const tools = useRef<HTMLDetailsElement>(null);
-  const focusExchange = useRef(false);
+  const openExchange = useRef<{ reveal: boolean }>(null);
   const exchangeButton = useRef<HTMLButtonElement>(null);
   const [exchangeMarks, setExchangeMarks] = useState<Record<number, string>>(
     {},
@@ -75,16 +83,20 @@ export default function RackEntry({
     mode === "entry" && !exchangeSlots.length && !flyingRack && !focused
       ? exchangeAdvice
       : undefined;
-  const suggestedTiles = advice?.slots.map((slot) => game.rack[slot]);
-  const adviceDetail =
-    advice &&
-    `Estimated +${Math.round(advice.edge)} points vs. ${advice.comparedWith ?? "passing"} through your next turn, including the opponent’s reply`;
   useLayoutEffect(() => {
-    if (focusExchange.current && simulation === exchangeKey) {
-      exchangeButton.current?.focus({ preventScroll: true });
-      focusExchange.current = false;
-    }
-  }, [exchangeKey, simulation]);
+    if (!openExchange.current || simulation !== exchangeKey) return;
+    const { reveal } = openExchange.current;
+    openExchange.current = null;
+    exchangeButton.current?.focus({ preventScroll: true });
+    if (reveal)
+      rack.current?.scrollIntoView({
+        block: "start",
+        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+      });
+  });
+  useImperativeHandle(ref, () => ({ openSuggestedExchange }));
   useEffect(() => {
     const close = (event: PointerEvent) => {
       if (!tools.current?.contains(event.target as Node) && tools.current)
@@ -252,6 +264,18 @@ export default function RackEntry({
     input.current?.blur();
     if (tools.current) tools.current.open = false;
     setMode(next);
+  }
+  function openSuggestedExchange(reveal: boolean) {
+    if (!exchangeAdvice || flyingRack) return;
+    const { slots } = exchangeAdvice;
+    chooseMode("entry");
+    openExchange.current = { reveal };
+    setExchangeMarks(
+      Object.fromEntries(slots.map((slot) => [slot, game.rack[slot]])),
+    );
+    const key = JSON.stringify([positionKey, slots]);
+    setAcceptedAdvice({ key, detail: exchangeAdviceDetail(exchangeAdvice) });
+    setSimulation(key);
   }
   const previewSlots =
     preview && !flyingRack ? rackSlotsForMove(game, preview.tiles) : null;
@@ -440,30 +464,12 @@ export default function RackEntry({
                 ? "All tiles selected · type to replace"
                 : "Space = blank · ↓ Hold · ↑ Exchange"}
         </p>
-        {advice && suggestedTiles && adviceDetail && (
-          <button
-            type="button"
-            className="text-button rack-exchange-advice"
-            title={adviceDetail}
-            aria-label={`Swap ${suggestedTiles.join("")} · +${Math.round(advice.edge)} pts`}
-            onClick={() => {
-              chooseMode("entry");
-              focusExchange.current = true;
-              setExchangeMarks(
-                Object.fromEntries(
-                  advice.slots.map((slot) => [slot, game.rack[slot]]),
-                ),
-              );
-              const key = JSON.stringify([positionKey, advice.slots]);
-              setAcceptedAdvice({ key, detail: adviceDetail });
-              setSimulation(key);
-            }}
-          >
-            <Repeat2 size={13} aria-hidden="true" />
-            <span>
-              Swap {suggestedTiles.join("")} · +{Math.round(advice.edge)} pts
-            </span>
-          </button>
+        {advice && (
+          <ExchangeSuggestion
+            advice={advice}
+            rack={game.rack}
+            onOpen={() => openSuggestedExchange(false)}
+          />
         )}
         {mode === "entry" ? (
           <details
