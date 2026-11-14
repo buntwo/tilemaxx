@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { gameSchema } from "../server/validation";
 import { BoardEditHistory } from "../shared/board-entry";
+import { summarizeGame } from "../shared/game-index";
 import {
   boardWordsAt,
   correctTrackedMove,
@@ -44,6 +45,38 @@ function fixture(): Game {
     archived: false,
   };
 }
+
+test("the full history badge requires tracked plays from an empty board to the saved position", () => {
+  const game = { ...fixture(), rack: "CAT" };
+  const lexicon = new Lexicon(["CAT", "CATS"]);
+  const opening = solve(lexicon, game.board, game.rack, game.template)[0];
+  const first = { ...playTrackedMove(game, opening), rack: "S" };
+  const nextMove = solve(lexicon, first.board, first.rack, first.template)[0];
+  const complete = playTrackedMove(first, nextMove);
+  assert.equal(summarizeGame(game).fullMoveHistory, false);
+  assert.equal(summarizeGame(complete).fullMoveHistory, true);
+  assert.equal(summarizeGame({ ...complete, past: [] }).fullMoveHistory, true);
+  const archived = archiveGame(complete);
+  assert.equal(
+    summarizeGame({ ...archived, board: game.board }).fullMoveHistory,
+    true,
+  );
+  const partial = {
+    ...setScoreTracking(importBoard(game, first.board), true),
+    rack: "S",
+  };
+  assert.equal(
+    summarizeGame(playTrackedMove(partial, nextMove)).fullMoveHistory,
+    false,
+  );
+  const pending = [...first.board];
+  for (const { index, letter } of nextMove.tiles) pending[index] = letter;
+  assert.equal(
+    summarizeGame(new BoardEditHistory().apply(first, pending, "enter"))
+      .fullMoveHistory,
+    false,
+  );
+});
 
 test("board hover scores each crossing word with its original premiums when available", () => {
   const game = fixture();

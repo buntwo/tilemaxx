@@ -113,7 +113,7 @@ export function createStore(directory: string, root: string) {
   const staleSummaryJoin = `
     FROM games LEFT JOIN game_summaries AS summaries
       ON summaries.id=games.id AND summaries.revision=games.revision
-    WHERE summaries.id IS NULL
+    WHERE summaries.id IS NULL OR json_type(summaries.data, '$.fullMoveHistory') IS NULL
   `;
   const hasStaleSummary = db.prepare(`SELECT 1 ${staleSummaryJoin} LIMIT 1`);
   const missingSummaries = db.prepare(`SELECT games.data ${staleSummaryJoin}`);

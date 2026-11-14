@@ -1407,6 +1407,51 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   expect(cell("My games").getAttribute("aria-current")).toBe("page");
 });
 
+test("the game picker and archive show the full move history icon on complete games", async () => {
+  const user = await start();
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT");
+  await user.click(cell("Record opponent move"));
+  await store.flush();
+  expect(
+    within(cell("Switch game")).getByRole("img", { name: "Full move history" }),
+  ).toBeTruthy();
+  expect(screen.queryByText("TIP", { exact: true })).toBeNull();
+
+  const complete = current();
+  remote.games.push(
+    {
+      ...complete,
+      id: "archived-tracked",
+      name: "Tracked match",
+      archived: true,
+    },
+    {
+      ...game(),
+      id: "archived-partial",
+      name: "Partial match",
+      board: complete.board,
+      archived: true,
+    },
+  );
+  await act(() => store.refresh());
+  await user.click(cell("Switch game"));
+  const active = screen.getByRole("menuitemradio", { name: /^First game/ });
+  expect(
+    within(active).getByRole("img", { name: "Full move history" }),
+  ).toBeTruthy();
+  await user.keyboard("{Escape}");
+  await user.click(cell("Archived games"));
+  const tracked = screen.getByRole("button", { name: /^Tracked match/ });
+  expect(
+    within(tracked).getByRole("img", { name: "Full move history" }),
+  ).toBeTruthy();
+  const partial = screen.getByRole("button", { name: /^Partial match/ });
+  expect(
+    within(partial).queryByRole("img", { name: "Full move history" }),
+  ).toBeNull();
+});
+
 test.each(["phone", "tablet", "desktop"])(
   "game scores use the expected panel order on the %s layout",
   async (layout) => {

@@ -1,5 +1,19 @@
 import { useId } from "react";
+import { History } from "lucide-react";
 import { localDate, MAX_GAME_NOTES, type Game } from "../../shared/model";
+
+export function FullMoveHistoryIcon() {
+  return (
+    <span
+      className="full-move-history"
+      role="img"
+      aria-label="Full move history"
+      title="Full move history"
+    >
+      <History size={14} aria-hidden="true" />
+    </span>
+  );
+}
 
 export function GameMetadata({
   game,

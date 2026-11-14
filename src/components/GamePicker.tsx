@@ -10,7 +10,7 @@ import { createPortal } from "react-dom";
 import { Check, ChevronRight, GripVertical } from "lucide-react";
 import type { GameSummary } from "../../shared/game-index";
 
-import { GameMetadata } from "./GameDetails";
+import { FullMoveHistoryIcon, GameMetadata } from "./GameDetails";
 import LayoutThumbnail from "./LayoutThumbnail";
 
 function GamePickerLabel({
@@ -29,7 +29,10 @@ function GamePickerLabel({
       </span>
       <LayoutThumbnail thumbnail={game.thumbnail} />
       <span className="game-picker-label">
-        <strong>{game.name}</strong>
+        <strong>
+          {game.name}
+          {game.fullMoveHistory && <FullMoveHistoryIcon />}
+        </strong>
         <small>
           <GameMetadata game={game} />
         </small>
@@ -261,6 +264,9 @@ export default function GamePicker({
             type="button"
             className="game-picker-trigger"
             aria-label="Switch game"
+            aria-description={
+              game?.fullMoveHistory ? "Full move history" : undefined
+            }
             aria-expanded={open}
             aria-haspopup="menu"
             aria-controls={open ? id : undefined}
@@ -276,6 +282,7 @@ export default function GamePicker({
             <span className="game-picker-title">
               {game?.name ?? "Select a game"}
             </span>
+            {game?.fullMoveHistory && <FullMoveHistoryIcon />}
             <ChevronRight
               className="game-picker-chevron"
               size={18}

@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, Pencil } from "lucide-react";
 import type { GameSummary } from "../../shared/game-index";
-import { GameMetadata } from "./GameDetails";
+import { FullMoveHistoryIcon, GameMetadata } from "./GameDetails";
 import LayoutThumbnail from "./LayoutThumbnail";
 
 export type ArchiveSort = "date" | "opponent";
@@ -63,7 +63,10 @@ export default function ArchivedGames({
                   >
                     <LayoutThumbnail thumbnail={game.thumbnail} />
                     <span className="game-picker-label">
-                      <strong>{game.name}</strong>
+                      <strong>
+                        {game.name}
+                        {game.fullMoveHistory && <FullMoveHistoryIcon />}
+                      </strong>
                       <small>
                         <GameMetadata game={game} />
                       </small>

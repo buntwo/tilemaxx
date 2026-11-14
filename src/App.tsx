@@ -55,6 +55,7 @@ import Results from "./components/Results";
 import GamePicker from "./components/GamePicker";
 import {
   GameDetailFields,
+  FullMoveHistoryIcon,
   GameMetadata,
   readGameDetails,
 } from "./components/GameDetails";
@@ -812,6 +813,9 @@ export default function App() {
                     onReorder={(ids) => store.reorderGames(profileId, ids)}
                   />
                 )}
+                {selectedGame?.archived && selectedGame.fullMoveHistory && (
+                  <FullMoveHistoryIcon />
+                )}
                 {game && tracksScores(game) && (
                   <span
                     className="game-title-score"
@@ -1107,10 +1111,6 @@ export default function App() {
                     your rack. We’ll remember where you left off.
                   </p>
                 </div>
-              </div>
-              <div className="keyboard-tip">
-                <span>TIP</span>Use <kbd>Space</kbd> for a blank in your rack.
-                On the board, press Space before a letter to enter a blank.
               </div>
             </div>
           </div>

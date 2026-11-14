@@ -1083,6 +1083,13 @@ label + label {
   gap: 3px;
   overflow-wrap: anywhere;
 }
+.full-move-history {
+  display: inline-flex;
+  flex: none;
+  margin-inline-start: 4px;
+  vertical-align: -2px;
+  color: var(--primary);
+}
 .game-picker-menu .game-picker-label,
 .game-picker-drag-label .game-picker-label,
 .archive-open .game-picker-label {
@@ -2369,30 +2376,6 @@ label + label {
   line-height: 1.8;
   max-width: 270px;
 }
-.keyboard-tip {
-  margin: 4px 8px 15px;
-  padding: 14px 0;
-  border-top: 1px solid var(--line);
-  font-size: 9px;
-  color: var(--muted);
-  line-height: 1.8;
-}
-.keyboard-tip > span {
-  font-size: 7px;
-  letter-spacing: 0.5px;
-  font-weight: 600;
-  display: inline-block;
-  margin-right: 8px;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 1px 4px;
-}
-kbd {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  padding: 1px 4px;
-  border-radius: 3px;
-}
 .workspace-footer {
   border-top: 1px solid var(--line);
   display: flex;
@@ -3412,9 +3395,6 @@ kbd {
   .companion-note p {
     font-size: 11px;
     max-width: none;
-  }
-  .keyboard-tip {
-    font-size: 10px;
   }
   .workspace-footer {
     font-size: 8px;
