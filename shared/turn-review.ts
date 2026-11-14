@@ -1,70 +1,10 @@
-import { scorePlacement } from "./game-scoring";
-import {
-  trackedMoveHistory,
-  type Game,
-  type Move,
-  type TrackedMove,
-  type TurnPosition,
-} from "./model";
+import type { Game, Move, TrackedMove, TurnPosition } from "./model";
 import type { Lexicon } from "./lexicon";
 import { solvePosition, SEARCH_LIMITS } from "./solver";
 import { analyzeMoves } from "./move-analysis";
 import { unseenTiles } from "./tile-pool";
 
-export function reviewTurns(game: Game) {
-  const used = new Set<number>();
-  return trackedMoveHistory(game).map((move, index) => {
-    const snapshot = move.review;
-    if (snapshot && (move.player === "opponent" || snapshot.excludedRackSlots))
-      return { move, index, position: snapshot };
-    const pastIndex = game.past.findIndex(
-      (entry, i) =>
-        !used.has(i) &&
-        entry.at === move.at &&
-        entry.player === move.player &&
-        entry.label === move.word &&
-        entry.score === move.score &&
-        (!snapshot ||
-          (entry.rack === snapshot.rack &&
-            entry.board.every((tile, cell) => tile === snapshot.board[cell]))),
-    );
-    if (pastIndex < 0) return { move, index, position: snapshot };
-    used.add(pastIndex);
-    const entry = game.past[pastIndex];
-    if (snapshot) {
-      // Older snapshots can recover held slots from their original undo entry.
-      const position = entry.excludedRackSlots
-        ? { ...snapshot, excludedRackSlots: entry.excludedRackSlots }
-        : snapshot;
-      return { move, index, position };
-    }
-    const before =
-      move.player === "you" ? entry.board : entry.scoring?.pendingBase;
-    if (!before) return { move, index };
-    const after =
-      move.player === "opponent"
-        ? entry.board
-        : (game.past[pastIndex + 1]?.board ?? game.board);
-    const breakdown = scorePlacement(before, after, game.template);
-    if (
-      !breakdown ||
-      breakdown.score !== move.score ||
-      !breakdown.words.some((word) => word.word === move.word)
-    )
-      return { move, index };
-    const position: TurnPosition = {
-      board: before.map((tile, i) => (tile ? after[i] : "")),
-      rack: move.player === "you" ? entry.rack : undefined,
-      excludedRackSlots:
-        move.player === "you" ? entry.excludedRackSlots : undefined,
-      dictionaryId: game.dictionaryId,
-      tiles: after.flatMap((letter, i) =>
-        letter && !before[i] ? [{ index: i, letter }] : [],
-      ),
-    };
-    return { move, index, position };
-  });
-}
+export { reviewTurns } from "./game-scoring";
 
 export function reviewTurn(
   lexicon: Lexicon,

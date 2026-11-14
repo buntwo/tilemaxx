@@ -1542,6 +1542,37 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   expect(remote.games[0].scoring?.you.points).toBe(6);
 });
 
+test("the board blank control corrects recorded scores and saves with undo and redo", async () => {
+  const user = await start();
+  const scores = within(screen.getByRole("region", { name: "Game scores" }));
+  const titleScore = () => screen.getByRole("group", { name: "Tracked score" }).textContent;
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT");
+  await typeRack(user, "S");
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  await user.click(await screen.findByRole("button", { name: /^CATS, / }));
+  expect(titleScore()).toBe("6–10");
+  await user.click(scores.getByText("Tracked move history"));
+  const points = () => within(scores.getByRole("table", { name: "Tracked moves" }))
+    .getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[2].textContent);
+  await user.click(cell("H8: C, start"));
+  await user.click(cell("Blank tile: off"));
+  expect(cell("H8: C blank, start")).toBeTruthy();
+  expect(titleScore()).toBe("3–4");
+  expect(points()).toEqual(["3", "4"]);
+  expect(scores.queryByRole("button", { name: "Keep as correction" })).toBeNull();
+  await user.click(cell("Undo"));
+  expect(titleScore()).toBe("6–10");
+  expect(points()).toEqual(["6", "10"]);
+  await user.click(cell("Redo"));
+  expect(titleScore()).toBe("3–4");
+  expect(points()).toEqual(["3", "4"]);
+  await store.flush();
+  await act(() => store.refresh());
+  expect(remote.games[0].board[112]).toBe("c");
+  expect(remote.games[0].trackedMoves?.map(({ score }) => score)).toEqual([4, 3]);
+});
+
 test("editing the rack terminates an active search and permits new input", async () => {
   let running: SolverWorker | undefined;
   class DeferredWorker extends SolverWorker {

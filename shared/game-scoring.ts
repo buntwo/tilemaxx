@@ -13,7 +13,9 @@ import {
   type Move,
   type Player,
   type TrackedMove,
+  type TurnPosition,
 } from "./model";
+import { rackSlotsForMove } from "./rack-entry";
 
 export function emptyScoring(imported = false): GameScoring {
   const score = { points: 0, moves: 0, best: 0, bingos: 0 };
@@ -47,12 +49,31 @@ export function setScoreTracking(game: Game, enabled: boolean): Game {
 export function trackBoardEdit(
   game: Game,
   board: Board,
-): GameScoring | undefined {
-  if (!tracksScores(game)) return game.scoring;
+): Pick<Game, "scoring" | "trackedMoves"> {
+  if (!tracksScores(game)) return { scoring: game.scoring };
   const base = game.scoring?.pendingBase ?? game.board;
-  if (board.some((tile, i) => tile !== base[i]))
-    return { ...(game.scoring ?? emptyScoring()), pendingBase: base };
-  return game.scoring ? { ...game.scoring, pendingBase: undefined } : undefined;
+  const corrections = rescoreBoardCorrections(game, board, base);
+  const correctedCells = corrections?.cells;
+  const correctedBase = correctedCells?.size
+    ? base.map((tile, i) => (correctedCells.has(i) ? board[i] : tile))
+    : base;
+  // A blank toggle on an existing square is a correction even for positions
+  // with no saved move to rescore. New tiles still belong to the pending play.
+  const pendingBase = board.some(
+    (tile, i) => tile.toUpperCase() !== correctedBase[i].toUpperCase(),
+  )
+    ? correctedBase
+    : undefined;
+  const scoring = corrections
+    ? updateScoreTotals(game, corrections.history, corrections.moves)
+    : game.scoring;
+  return {
+    scoring:
+      scoring || pendingBase
+        ? { ...(scoring ?? emptyScoring()), pendingBase }
+        : undefined,
+    trackedMoves: corrections?.moves,
+  };
 }
 
 export function treatBoardEditAsCorrection(game: Game): Game {
@@ -169,6 +190,192 @@ export function scorePlacement(
   };
 }
 
+export function reviewTurns(game: Game) {
+  const used = new Set<number>();
+  return trackedMoveHistory(game).map((move, index) => {
+    const snapshot = move.review;
+    if (snapshot && (move.player === "opponent" || snapshot.excludedRackSlots))
+      return { move, index, position: snapshot };
+    const pastIndex = game.past.findIndex(
+      (entry, i) =>
+        !used.has(i) &&
+        entry.at === move.at &&
+        entry.player === move.player &&
+        entry.label === move.word &&
+        entry.score === move.score &&
+        (!snapshot ||
+          (entry.rack === snapshot.rack &&
+            entry.board.every((tile, cell) => tile === snapshot.board[cell]))),
+    );
+    if (pastIndex < 0) return { move, index, position: snapshot };
+    used.add(pastIndex);
+    const entry = game.past[pastIndex];
+    if (snapshot) {
+      // Older snapshots can recover held slots from their original undo entry.
+      const position = entry.excludedRackSlots
+        ? { ...snapshot, excludedRackSlots: entry.excludedRackSlots }
+        : snapshot;
+      return { move, index, position };
+    }
+    const before =
+      move.player === "you" ? entry.board : entry.scoring?.pendingBase;
+    if (!before) return { move, index };
+    const after =
+      move.player === "opponent"
+        ? entry.board
+        : (game.past[pastIndex + 1]?.board ?? game.board);
+    const breakdown = scorePlacement(before, after, game.template);
+    if (
+      !breakdown ||
+      breakdown.score !== move.score ||
+      !breakdown.words.some((word) => word.word === move.word)
+    )
+      return { move, index };
+    const position: TurnPosition = {
+      board: before.map((tile, i) => (tile ? after[i] : "")),
+      rack: move.player === "you" ? entry.rack : undefined,
+      excludedRackSlots:
+        move.player === "you" ? entry.excludedRackSlots : undefined,
+      dictionaryId: game.dictionaryId,
+      tiles: after.flatMap((letter, i) =>
+        letter && !before[i] ? [{ index: i, letter }] : [],
+      ),
+    };
+    return { move, index, position };
+  });
+}
+
+// Find the last time a previous edit broke the connection to a recorded tile.
+function replacementBoundaries(game: Game, cells: Set<number>, start: number) {
+  const firstEligible = new Map<number, number>();
+  if (!game.scoring) return firstEligible;
+  for (const [i, entry] of game.past.entries()) {
+    if (entry.player || entry.trackedMoves || !entry.scoring) continue;
+    const next = game.past[i + 1] ?? game;
+    const before = entry.scoring.pendingBase ?? entry.board;
+    const after = next.scoring?.pendingBase ?? next.board;
+    const count = entry.scoring.you.moves + entry.scoring.opponent.moves;
+    for (const cell of cells) {
+      if (
+        before[cell] &&
+        before[cell].toUpperCase() !== after[cell].toUpperCase()
+      ) {
+        firstEligible.set(cell, start + count);
+      }
+    }
+  }
+  return firstEligible;
+}
+
+function rescoreBoardCorrections(game: Game, board: Board, base: Board) {
+  const candidates = new Set(
+    board.flatMap((letter, index) =>
+      letter &&
+      letter !== game.board[index] &&
+      base[index] &&
+      (!game.board[index] ||
+        base[index].toUpperCase() === game.board[index].toUpperCase())
+        ? [index]
+        : [],
+    ),
+  );
+  if (!candidates.size) return;
+
+  const history = trackedMoveHistory(game);
+  const start = currentScoreStart(game, history);
+  if (start === history.length) return;
+  const firstEligible = replacementBoundaries(game, candidates, start);
+  const turns = reviewTurns(game);
+  const cells = new Set<number>();
+  let moves: TrackedMove[] | undefined;
+  // Pending replacements from an earlier edit are not the same physical tile.
+  // Walk backward through the saved positions so a correction stops at that
+  // tile's placement, or at a position where the square held something else.
+  for (let i = history.length - 1; i >= start && candidates.size; i--) {
+    const { move, position } = turns[i];
+    if (!position) continue;
+    const original = [...position.board];
+    for (const { index, letter } of position.tiles) original[index] = letter;
+    const changes = new Set<number>();
+    for (const index of candidates) {
+      const previous = original[index];
+      if (
+        i < (firstEligible.get(index) ?? start) ||
+        previous.toUpperCase() !== base[index].toUpperCase()
+      ) {
+        candidates.delete(index);
+        continue;
+      }
+      if (previous !== board[index]) changes.add(index);
+      if (!position.board[index]) candidates.delete(index);
+    }
+    if (!changes.size) continue;
+    const before = position.board.map((letter, index) =>
+      letter && changes.has(index) ? board[index] : letter,
+    );
+    const after = original.map((letter, index) =>
+      changes.has(index) ? board[index] : letter,
+    );
+    const oldPlay = scorePlacement(
+      position.board,
+      original,
+      game.template,
+      position.direction,
+    );
+    const play = scorePlacement(
+      before,
+      after,
+      game.template,
+      position.direction,
+    );
+    if (!oldPlay || !play) continue;
+    const review: TurnPosition = {
+      ...position,
+      board: before,
+      tiles: position.tiles.map((tile) =>
+        changes.has(tile.index) ? { ...tile, letter: board[tile.index] } : tile,
+      ),
+    };
+    if (
+      position.rack &&
+      position.tiles.some((tile) => changes.has(tile.index))
+    ) {
+      const rack = [...position.rack];
+      const slots = rackSlotsForMove(
+        { ...position, rack: position.rack },
+        position.tiles,
+      );
+      if (slots) {
+        for (const [i, { letter }] of review.tiles.entries()) {
+          rack[slots[i]] = letter === letter.toUpperCase() ? letter : "?";
+        }
+        review.rack = rack.join("");
+      } else if (
+        !rackSlotsForMove({ ...review, rack: position.rack }, review.tiles)
+      ) {
+        delete review.rack;
+        delete review.excludedRackSlots;
+      }
+    }
+    // One-tile plays can have either crossing word as their recorded name.
+    const wordIndex = oldPlay.words.findIndex(({ word }) => word === move.word);
+    const word = play.words[wordIndex]?.word ?? move.word;
+    const scoredCells = new Set(play.words.flatMap(({ cells }) => cells));
+    for (const index of changes) cells.add(index);
+    moves ??= [...history];
+    moves[i] = {
+      ...move,
+      word,
+      score: [...changes].some((index) => scoredCells.has(index))
+        ? play.score
+        : move.score,
+      bingo: move.bingo ?? play.bingo,
+      review,
+    };
+  }
+  if (moves) return { history, moves, cells };
+}
+
 export function boardWordsAt(game: Game, index: number) {
   const { board, template, past, scoring } = game;
   if (!board[index]) return [];
@@ -228,6 +435,25 @@ export function boardWordsAt(game: Game, index: number) {
   }
   if (unresolved.size && scoring?.pendingBase)
     fillScores(scoring.pendingBase, board);
+  const moves = trackedMoveHistory(game);
+  const firstEligible = replacementBoundaries(
+    game,
+    new Set(words.flatMap(({ cells }) => cells)),
+    currentScoreStart(game, moves),
+  );
+  const recordedTurns = new Set<string>();
+  for (let i = moves.length - 1; i >= currentScoreStart(game, moves); i--) {
+    const { review, at, player } = moves[i];
+    if (!review) continue;
+    recordedTurns.add(
+      `${player}:${at}:${review.tiles.map(({ index }) => index).join(",")}`,
+    );
+    for (const word of unresolved) {
+      if (word.cells.some((cell) => i < (firstEligible.get(cell) ?? 0)))
+        unresolved.delete(word);
+    }
+    if (unresolved.size) useReview(review);
+  }
   for (let i = past.length - 1; i >= 0 && unresolved.size; i--) {
     const entry = past[i];
     if (
@@ -237,7 +463,8 @@ export function boardWordsAt(game: Game, index: number) {
       return words;
     const after = past[i + 1]?.board ?? board;
     if (entry.review) {
-      useReview(entry.review);
+      const key = `${entry.player}:${entry.at}:${entry.review.tiles.map(({ index }) => index).join(",")}`;
+      if (!recordedTurns.has(key)) useReview(entry.review);
     } else if (entry.score !== undefined) {
       fillScores(
         entry.player === "opponent"
@@ -250,29 +477,14 @@ export function boardWordsAt(game: Game, index: number) {
     for (const word of unresolved) {
       const step = word.direction === "across" ? 1 : template.size;
       if (
-        word.cells.some((cell) => entry.board[cell] !== board[cell]) ||
+        word.cells.some(
+          (cell) =>
+            entry.board[cell].toUpperCase() !== board[cell].toUpperCase(),
+        ) ||
         wordCells(entry.board, template.size, index, step).length !==
           word.cells.length
       )
         unresolved.delete(word);
-    }
-  }
-  if (unresolved.size) {
-    // Tracked moves can retain their scoring snapshots after undo history rolls off.
-    const moves = trackedMoveHistory(game);
-    const activeCount = scoring
-      ? scoring.you.moves + scoring.opponent.moves
-      : moves.length;
-    const first = Math.max(0, moves.length - activeCount);
-    for (let i = moves.length - 1; i >= first && unresolved.size; i--) {
-      const review = moves[i].review;
-      if (!review) continue;
-      useReview(review);
-      // A later snapshot with different letters breaks the link to older plays.
-      for (const word of unresolved) {
-        if (word.cells.some((cell) => review.board[cell] !== board[cell]))
-          unresolved.delete(word);
-      }
     }
   }
   return words;
@@ -372,10 +584,31 @@ export function correctTrackedMove(
   });
 
   // A screenshot import or clearing the board resets the score while retaining the log.
-  const scoring = game.scoring ?? emptyScoring(isImportedPosition(game));
-  const sessionStart = game.scoring
+  const scoring = updateScoreTotals(game, moves, next, index);
+  const history = remember(
+    game,
+    insert ? "Added missed move" : "Corrected tracked move",
+  );
+  const past = [...history.past];
+  past[past.length - 1] = { ...past[past.length - 1], trackedMoves: moves };
+  return { ...game, ...history, past, trackedMoves: next, scoring };
+}
+
+function currentScoreStart(game: Game, moves: readonly TrackedMove[]) {
+  const { scoring } = game;
+  return scoring
     ? Math.max(0, moves.length - scoring.you.moves - scoring.opponent.moves)
     : 0;
+}
+
+function updateScoreTotals(
+  game: Game,
+  moves: readonly TrackedMove[],
+  next: readonly TrackedMove[],
+  index = moves.length,
+) {
+  const scoring = game.scoring ?? emptyScoring(isImportedPosition(game));
+  const sessionStart = currentScoreStart(game, moves);
   const corrected = { ...scoring };
   if (index >= sessionStart) {
     for (const player of ["you", "opponent"] as const) {
@@ -404,13 +637,7 @@ export function correctTrackedMove(
         throw new Error("The running score is too large.");
     }
   }
-  const history = remember(
-    game,
-    insert ? "Added missed move" : "Corrected tracked move",
-  );
-  const past = [...history.past];
-  past[past.length - 1] = { ...past[past.length - 1], trackedMoves: moves };
-  return { ...game, ...history, past, trackedMoves: next, scoring: corrected };
+  return corrected;
 }
 
 function summarizeMoves(moves: readonly TrackedMove[]) {

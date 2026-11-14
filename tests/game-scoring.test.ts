@@ -229,6 +229,180 @@ test("deletion and replacement of recorded tiles remain corrections", () => {
   assert.equal(edited.scoring?.opponent.moves, 0);
 });
 
+function crossedCat() {
+  // CAT spans G8–I8 through the opening double word. RA and AT cross the A
+  // and T when RA is played next. The T and A score on both turns.
+  const game = { ...fixture(), rack: "CATQ", excludedRackSlots: [3] };
+  const lexicon = new Lexicon(["CAT", "ART", "RAT", "AR"]);
+  const opening = solve(lexicon, game.board, "CAT", game.template).find(
+    ({ direction, tiles }) => direction === "across" && tiles[0].index === 111,
+  )!;
+  const first = playTrackedMove(game, { ...opening, leave: "Q" });
+  const next = [...first.board];
+  next[98] = "A";
+  next[97] = "R";
+  return recordOpponentPlay(new BoardEditHistory().apply(first, next, "enter"));
+}
+
+test("blank corrections rescore both players using original premiums and survive save, undo and redo", () => {
+  const played = crossedCat();
+  const originalScores = trackedMoveHistory(played).map(({ score }) => score);
+  assert.deepEqual(originalScores, [10, 8]);
+  const edits = new BoardEditHistory();
+  const board = [...played.board];
+  board[112] = "a";
+  const corrected = edits.apply(played, board, "blank");
+  assert.equal(corrected.scoring?.pendingBase, undefined);
+  assert.deepEqual(
+    trackedMoveHistory(corrected).map(({ score }) => score),
+    [8, 7],
+  );
+  assert.deepEqual(corrected.scoring?.you, {
+    points: 8,
+    moves: 1,
+    best: 8,
+    bingos: 0,
+  });
+  assert.deepEqual(corrected.scoring?.opponent, {
+    points: 7,
+    moves: 1,
+    best: 7,
+    bingos: 0,
+  });
+  assert.equal(corrected.rack, played.rack);
+  const [opening, reply] = trackedMoveHistory(corrected);
+  assert.equal(
+    opening.review?.tiles.find(({ index }) => index === 112)?.letter,
+    "a",
+  );
+  assert.equal(opening.review?.rack, "C?TQ");
+  assert.deepEqual(opening.review?.excludedRackSlots, [3]);
+  assert.equal(reply.review?.board[112], "a");
+  assert.ok(summarizeGame(corrected).fullMoveHistory);
+  assert.equal(boardWordsAt(corrected, 112)[0].score, 8);
+  assert.equal(boardWordsAt(corrected, 112)[0].fromPlay, true);
+
+  const original = gameSchema.parse(JSON.parse(JSON.stringify(played)));
+  const saved = gameSchema.parse(JSON.parse(JSON.stringify(corrected)));
+  const reverted = undo(saved);
+  assert.deepEqual(reverted.board, played.board);
+  assert.deepEqual(reverted.scoring, original.scoring);
+  assert.deepEqual(reverted.trackedMoves, original.trackedMoves);
+  assert.deepEqual(redo(reverted).trackedMoves, saved.trackedMoves);
+  assert.deepEqual(redo(reverted).scoring, saved.scoring);
+  assert.deepEqual(redo(reverted).board, saved.board);
+
+  const switchedBack = new BoardEditHistory().apply(
+    saved,
+    played.board,
+    "blank",
+  );
+  assert.deepEqual(
+    gameSchema.parse(JSON.parse(JSON.stringify(switchedBack))).scoring,
+    original.scoring,
+  );
+  assert.deepEqual(switchedBack.trackedMoves, played.trackedMoves);
+});
+
+test("a grouped letter replacement and a pending opponent play are tracked separately", () => {
+  const played = crossedCat();
+  const edits = new BoardEditHistory();
+  const board = [...played.board];
+  board[111] = "B";
+  const replacement = edits.apply(played, [...board], "enter");
+  board[113] = "t";
+  const corrected = edits.apply(replacement, [...board], "enter");
+  assert.equal(corrected.past.length, played.past.length + 1);
+  assert.deepEqual(
+    trackedMoveHistory(corrected).map(({ word, score }) => [word, score]),
+    [
+      ["BAT", 8],
+      ["RA", 7],
+    ],
+  );
+  assert.deepEqual(undo(corrected).trackedMoves, played.trackedMoves);
+  assert.equal(corrected.scoring?.pendingBase, undefined);
+
+  board[114] = "S";
+  const pending = edits.apply(corrected, [...board], "enter");
+  board[111] = "b";
+  const edited = edits.apply(pending, [...board], "blank");
+  assert.equal(pendingOpponentPlay(edited)?.word, "BATS");
+  assert.equal(pendingOpponentPlay(edited)?.score, 2);
+  assert.equal(edited.scoring?.opponent.moves, 1);
+  assert.equal(recordOpponentPlay(edited).scoring?.opponent.moves, 2);
+});
+
+test("bingo corrections use retained snapshots and leave previous scoring sessions alone", () => {
+  const game = { ...fixture(), rack: "RETAINS" };
+  const lexicon = new Lexicon(["RETAINS"]);
+  const opening = solve(lexicon, game.board, game.rack, game.template)[0];
+  const played = playTrackedMove(game, opening);
+  const board = [...played.board];
+  const tile = opening.tiles[0];
+  board[tile.index] = tile.letter.toLowerCase();
+  const corrected = new BoardEditHistory().apply(
+    { ...played, past: [] },
+    board,
+    "blank",
+  );
+  assert.ok(corrected.scoring!.you.points < opening.score);
+  assert.equal(corrected.scoring?.you.bingos, 1);
+  assert.equal(corrected.scoring?.you.moves, 1);
+  assert.equal(corrected.trackedMoves?.[0].bingo, true);
+  assert.deepEqual(undo(corrected).trackedMoves, played.trackedMoves);
+
+  for (const position of [
+    importBoard(played, played.board),
+    setScoreTracking(importBoard(played, played.board), true),
+  ]) {
+    const edited = new BoardEditHistory().apply(position, board, "blank");
+    assert.deepEqual(edited.scoring, position.scoring);
+    assert.deepEqual(edited.trackedMoves, position.trackedMoves);
+  }
+});
+
+test("older saves can recover both moves from undo history and then persist the correction", () => {
+  const legacy = crossedCat();
+  delete legacy.trackedMoves;
+  for (const entry of legacy.past) delete entry.review;
+  const board = [...legacy.board];
+  board[113] = "t";
+  const corrected = new BoardEditHistory().apply(legacy, board, "blank");
+  assert.deepEqual(
+    trackedMoveHistory(corrected).map(({ score }) => score),
+    [8, 7],
+  );
+  assert.deepEqual(
+    trackedMoveHistory(undo(corrected)).map(({ score }) => score),
+    [10, 8],
+  );
+  const { past, ...withoutUndoHistory } = legacy;
+  const unknown = new BoardEditHistory().apply(
+    { ...withoutUndoHistory, past: [] },
+    board,
+    "blank",
+  );
+  assert.deepEqual(unknown.scoring, legacy.scoring);
+});
+
+test("erasing then re-entering an existing tile as a blank rescored the original turn", () => {
+  const played = crossedCat();
+  const edits = new BoardEditHistory();
+  const board = [...played.board];
+  board[113] = "";
+  const erased = edits.apply(played, [...board], "erase");
+  assert.equal(erased.scoring?.pendingBase?.[113], "T");
+  board[113] = "t";
+  const corrected = edits.apply(erased, board, "enter");
+  assert.equal(corrected.scoring?.pendingBase, undefined);
+  assert.deepEqual(
+    trackedMoveHistory(corrected).map(({ score }) => score),
+    [8, 7],
+  );
+  assert.deepEqual(undo(corrected).scoring, erased.scoring);
+});
+
 test("import starts an untracked position and undo restores scores and the tracking preference", () => {
   const game = fixture();
   game.rack = "CAT";

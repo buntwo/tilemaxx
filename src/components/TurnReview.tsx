@@ -83,7 +83,11 @@ export default function TurnReview({
                     <strong>{position.rack.replaceAll(".", "·")}</strong>
                   </p>
                 ) : (
-                  <p>Opponent rack is unknown.</p>
+                  <p>
+                    {turn.move.player === "opponent"
+                      ? "Opponent rack is unknown."
+                      : "Rack before the move is unknown."}
+                  </p>
                 )}
                 {breakdown && <ScoreBreakdown breakdown={breakdown} />}
                 {position.rack && !progress && !alternatives && (
