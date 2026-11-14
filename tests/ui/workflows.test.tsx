@@ -1596,6 +1596,60 @@ test("the phone layout keeps settings, the build version, board help and move fi
   expect(main.queryByRole("textbox", { name: "Filter moves" })).toBeNull();
 });
 
+test("phone results preview on the game board and tapping the side rack resumes editing", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const user = await start();
+  const board = document.querySelector(".board-entry")!;
+  const workspace = board.closest(".workspace-grid")!;
+  const reviewing = () => workspace.classList.contains("phone-move-review");
+  const ghosts = () => board.querySelectorAll(".ghost");
+  expect(reviewing()).toBe(false);
+  await typeRack(user, "CATS");
+  await user.keyboard("{Enter}");
+  const row = (await screen.findAllByRole("button", { name: /^CATS, / }))[0];
+  expect(reviewing()).toBe(true);
+  expect(ghosts()).toHaveLength(0);
+
+  await user.click(row);
+  expect(ghosts()).toHaveLength(4);
+  expect(document.querySelectorAll(".board-grid")).toHaveLength(1);
+  expect(
+    screen.getByRole("button", { name: "Play" }).hasAttribute("disabled"),
+  ).toBe(false);
+  expect(current().board.some(Boolean)).toBe(false);
+
+  await user.click(rackTile(2));
+  expect(reviewing()).toBe(false);
+  expect(ghosts()).toHaveLength(0);
+  expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
+  expect(document.activeElement).toBe(
+    screen.getByRole("textbox", { name: "Rack letters" }),
+  );
+  expect(current().rack).toBe("CATS");
+
+  await user.keyboard("{Enter}");
+  expect(reviewing()).toBe(true);
+  await user.click(rackTile(2));
+  expect(reviewing()).toBe(false);
+  await user.click(row);
+  expect(reviewing()).toBe(true);
+  expect(ghosts()).toHaveLength(4);
+  expect(current().board.some(Boolean)).toBe(false);
+  await user.click(screen.getByRole("button", { name: "Play" }));
+  expect(current().board.filter(Boolean)).toHaveLength(4);
+  expect(reviewing()).toBe(false);
+  expect(ghosts()).toHaveLength(0);
+
+  await typeRack(user, "QXZ");
+  await user.keyboard("{Enter}");
+  await screen.findByRole("heading", { name: "No legal moves found" });
+  expect(reviewing()).toBe(false);
+});
+
 test("score tracking records typed opponent moves and solver plays across undo, redo and saving", async () => {
   const user = await start();
   const scores = () =>

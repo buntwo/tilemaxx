@@ -34,9 +34,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { version } from "../package.json";
-import Board from "./components/Board";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
 import BoardEntry, { BoardEntryHelp } from "./components/BoardEntry";
+import GameWorkspace, { usePhoneMoveReview } from "./components/GameWorkspace";
 import RackEntry, { type RackEntryHandle } from "./components/RackEntry";
 import ExchangeSuggestion from "./components/ExchangeSuggestion";
 import {
@@ -63,13 +63,10 @@ import {
 } from "./components/GameDetails";
 import ArchivedGames, { type ArchiveSort } from "./components/ArchivedGames";
 import GameScores from "./components/GameScores";
-import ScoreBreakdown from "./components/ScoreBreakdown";
-import { placeTiles } from "../shared/move-analysis";
 import {
   emptyScoring,
   playTrackedMove,
   recordOpponentPlay,
-  scorePlacement,
   tracksScores,
   setScoreTracking,
   treatBoardEditAsCorrection,
@@ -83,7 +80,6 @@ import {
   type Game,
   type Move,
   archiveGame,
-  coordinate,
   emptyBoard,
   orderGames,
   redo,
@@ -116,6 +112,7 @@ type TileFlight = NonNullable<ReturnType<typeof prepareTileFlight>> & {
   before: Game;
   destination: string;
   move: Move;
+  phoneReview: boolean;
 };
 
 function currentWorkspace(): Workspace {
@@ -248,6 +245,13 @@ export default function App() {
     workspace === "games" && flight?.destination === signature
       ? flight
       : undefined;
+  const phoneReview = usePhoneMoveReview(
+    phoneLayout && workspace === "games",
+    !busy && !solver.error && solver.results?.total
+      ? solver.results.searchId
+      : undefined,
+    activeFlight?.phoneReview,
+  );
   useLayoutEffect(() => {
     if (!flight) return;
     if (!activeFlight) {
@@ -285,15 +289,6 @@ export default function App() {
       stop?.();
     };
   }, [activeFlight, flight]);
-  const previewScore =
-    game && preview
-      ? scorePlacement(
-          game.board,
-          placeTiles(game.board, preview),
-          game.template,
-          preview.direction,
-        )
-      : null;
   const hasPlayableRack = !!game && !!splitRack(game).available;
   useEffect(() => {
     updateFavicon();
@@ -447,7 +442,17 @@ export default function App() {
     }
   }
   function solve(reload = false) {
-    if (game && hasPlayableRack && solver.solve(game, reload)) setPreview(null);
+    if (!game || !hasPlayableRack) return;
+    if (phoneLayout) phoneReview.open();
+    if (solver.solve(game, reload)) setPreview(null);
+  }
+  function editPosition() {
+    if (phoneReview.showing) phoneReview.dismiss();
+    setPreview(null);
+  }
+  function previewMove(move: Move | null) {
+    if (move && phoneLayout) phoneReview.open();
+    setPreview(move);
   }
   function play(move: Move) {
     if (!game || activeFlight) return;
@@ -466,6 +471,7 @@ export default function App() {
           before: game,
           destination: positionSignature(next),
           move,
+          phoneReview: phoneReview.showing,
         },
       );
       setPreview(null);
@@ -1019,7 +1025,7 @@ export default function App() {
             onBack={openMyGames}
           />
         ) : game ? (
-          <div className="workspace-grid">
+          <GameWorkspace phone={phoneLayout} reviewing={phoneReview.showing}>
             <div className="board-column">
               <section ref={boardPanel} className="board-panel panel">
                 {!compactGame && boardToolbar}
@@ -1030,8 +1036,29 @@ export default function App() {
                   preview={activeFlight?.move ?? preview}
                   displayBoard={activeFlight?.before.board}
                   onChange={update}
-                  onSelect={() => setPreview(null)}
+                  onSelect={editPosition}
                 />
+                {phoneReview.showing && (
+                  <div className="board-review-actions">
+                    <span aria-live="polite">
+                      {preview ? (
+                        <>
+                          <strong>{preview.word}</strong> · {preview.score} pts
+                        </>
+                      ) : (
+                        "Tap a move to preview"
+                      )}
+                    </span>
+                    <button
+                      className="button primary"
+                      type="button"
+                      disabled={!preview || !!activeFlight}
+                      onClick={() => preview && play(preview)}
+                    >
+                      Play
+                    </button>
+                  </div>
+                )}
                 {!collapsibleBoardHelp && boardLegend}
               </section>
               <section
@@ -1049,6 +1076,7 @@ export default function App() {
                   onChange={update}
                   onSolve={solve}
                   phoneLayout={phoneLayout}
+                  onReviewEdit={phoneReview.showing ? editPosition : undefined}
                   positionKey={signature}
                   exchangeAdvice={solver.exchangeAdvice}
                   exchangeBag={replyAnalysis.bagSize}
@@ -1075,9 +1103,10 @@ export default function App() {
                     <ExchangeSuggestion
                       advice={solver.exchangeAdvice}
                       rack={game.rack}
-                      onOpen={() =>
-                        rackEntry.current?.openSuggestedExchange(phoneLayout)
-                      }
+                      onOpen={() => {
+                        if (phoneReview.showing) editPosition();
+                        rackEntry.current?.openSuggestedExchange(phoneLayout);
+                      }}
                       inHeader
                     />
                   )
@@ -1090,7 +1119,8 @@ export default function App() {
                 size={game.template.size}
                 bingoRules={game.template}
                 preview={preview}
-                onPreview={setPreview}
+                onPreview={previewMove}
+                phoneLayout={phoneLayout}
                 onPlay={play}
                 onSolve={solve}
                 onCancelSearch={solver.cancelSearch}
@@ -1140,7 +1170,7 @@ export default function App() {
                 </div>
               )}
             </div>
-          </div>
+          </GameWorkspace>
         ) : selectedGame ? (
           <section className="welcome-panel panel" aria-label="Game board">
             <GameLoadStatus
@@ -1180,43 +1210,6 @@ export default function App() {
           </footer>
         )}
       </main>
-      {workspace === "games" && preview && game && (
-        <div className="mobile-preview-dock" aria-label="Move preview">
-          <div className="dock-board">
-            <Board
-              template={game.template}
-              board={game.board}
-              archivedBoard={game.archived ? game.archivedBoard : undefined}
-              preview={preview}
-              compact
-            />
-          </div>
-          <div className="dock-info">
-            <button
-              className="icon-button"
-              aria-label="Close move preview"
-              onClick={() => setPreview(null)}
-            >
-              <X size={18} />
-            </button>
-            <span className="eyebrow">PREVIEW</span>
-            <strong>{preview.word}</strong>
-            <span>{preview.score} points</span>
-            {previewScore && <ScoreBreakdown breakdown={previewScore} />}
-            <small>
-              {coordinate(
-                preview.row * game.template.size + preview.col,
-                game.template.size,
-              )}{" "}
-              {preview.direction}
-            </small>
-            <button className="button primary" onClick={() => play(preview)}>
-              Play
-              <ArrowRight size={15} />
-            </button>
-          </div>
-        </div>
-      )}
       {toast && (
         <div className="toast" role="status">
           <Check size={17} />

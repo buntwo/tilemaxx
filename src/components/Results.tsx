@@ -84,6 +84,7 @@ export default function Results({
   bingoRules,
   preview,
   onPreview,
+  phoneLayout = false,
   onPlay,
   onSolve,
   onCancelSearch,
@@ -118,6 +119,7 @@ export default function Results({
   bingoRules: BingoRules;
   preview: Move | null;
   onPreview: (m: Move | null) => void;
+  phoneLayout?: boolean;
   onPlay: (m: Move) => void;
   onSolve: (reload?: boolean) => void;
   onCancelSearch: () => void;
@@ -329,6 +331,9 @@ export default function Results({
     setLocked(null);
     scoreTooltip.close();
   }, [resultSet, filter, sort, reversed, shortlistOnly]);
+  useEffect(() => {
+    if (phoneLayout && !preview) setLocked(null);
+  }, [phoneLayout, preview]);
   function togglePin(move: Move) {
     setLocked((current) => (current === move.id ? null : move.id));
     onPreview(move);
@@ -525,6 +530,7 @@ export default function Results({
               replyEnabled && <ReplySettings analysis={replyAnalysis} />
             }
             sortControl={sortControl}
+            sortBeforeCheck={phoneLayout}
             toolbarStart={collapsibleSearch && viewPicker}
             toolbarEnd={collapsibleSearch && searchToggle}
             searchField={collapsibleSearch && searchField}

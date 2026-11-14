@@ -12,6 +12,7 @@ export default function BingoOddsControls({
   moves,
   settings,
   sortControl,
+  sortBeforeCheck = false,
   toolbarStart,
   toolbarEnd,
   searchField,
@@ -27,6 +28,7 @@ export default function BingoOddsControls({
   moves: Move[];
   settings?: ReactNode;
   sortControl?: ReactNode;
+  sortBeforeCheck?: boolean;
   toolbarStart?: ReactNode;
   toolbarEnd?: ReactNode;
   searchField?: ReactNode;
@@ -48,6 +50,7 @@ export default function BingoOddsControls({
     <div className="bingo-odds-controls">
       <div className="bingo-odds-actions">
         {toolbarStart}
+        {sortBeforeCheck && sortControl}
         {progress ? (
           <>
             <button
@@ -73,7 +76,7 @@ export default function BingoOddsControls({
             Check bingo after your play
           </button>
         )}
-        {sortControl}
+        {!sortBeforeCheck && sortControl}
         <div className="bingo-odds-utilities">
           <details className="bingo-odds-settings">
             <summary>Options</summary>
