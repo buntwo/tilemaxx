@@ -1868,17 +1868,15 @@ test("the points value opens an anchored score breakdown without playing the mov
   expect(current().board.some(Boolean)).toBe(false);
 });
 
-test("Optimal Exchange displays the ranked choices and marks a specific same-size swap", async () => {
-  let recommended:
-    | Extract<PracticeRequest, { kind: "optimal-exchange" }>
-    | undefined;
+test("Optimal Exchange restores the ranked choices after simulating a swap", async () => {
+  const searches: Extract<PracticeRequest, { kind: "optimal-exchange" }>[] = [];
   let simulation: Extract<PracticeRequest, { kind: "exchange" }> | undefined;
   vi.stubGlobal(
     "Worker",
     class extends SolverWorker {
       postMessage(request: SolverRequest | PracticeRequest) {
         if (request.kind === "optimal-exchange") {
-          recommended = request;
+          searches.push(request);
           queueMicrotask(() =>
             this.onmessage?.({
               data: {
@@ -1918,16 +1916,46 @@ test("Optimal Exchange displays the ranked choices and marks a specific same-siz
   ).toBeTruthy();
   expect(within(second).getByText("≈35%")).toBeTruthy();
   expect(within(third).getByText("≈18%")).toBeTruthy();
-  expect(recommended?.exchange.rack).toBe("CAT");
+  expect(searches.map(({ exchange }) => exchange.rack)).toEqual(["CAT"]);
   await user.click(
     within(second).getByRole("button", { name: "Mark A, T for exchange" }),
   );
   expect(screen.queryByRole("region", { name: "Optimal Exchange" })).toBeNull();
-  expect(screen.getByRole("region", { name: "Simulate exchange" })).toBeTruthy();
+  const simulator = within(
+    screen.getByRole("region", { name: "Simulate exchange" }),
+  );
   expect(simulation?.exchange.slots).toEqual([1, 2]);
-  expect(simulation?.exchange.bag).toBe(recommended?.exchange.bag);
+  expect(simulation?.exchange.bag).toBe(searches[0].exchange.bag);
   expect(screen.getByLabelText("Rack tile 2: A, marked for exchange")).toBeTruthy();
   expect(current().rack).toBe("CAT");
+  await user.click(
+    simulator.getByRole("button", { name: "Back to Optimal Exchange" }),
+  );
+  expect(screen.queryByRole("region", { name: "Simulate exchange" })).toBeNull();
+  const restored = within(
+    screen.getByRole("region", { name: "Optimal Exchange" }),
+  );
+  expect(restored.getAllByRole("row").map((row) => row.textContent)).toEqual(
+    optimal.getAllByRole("row").map((row) => row.textContent),
+  );
+  expect(document.activeElement).toBe(
+    restored.getByRole("heading", { name: "Optimal Exchange" }),
+  );
+  await user.click(
+    restored.getByRole("button", { name: "Mark C, T for exchange" }),
+  );
+  expect(simulation?.exchange.slots).toEqual([0, 2]);
+  expect(searches).toHaveLength(1);
+  await user.click(rackTile(1));
+  await user.keyboard("B");
+  expect(current().rack).toBe("BAT");
+  expect(screen.queryByRole("region", { name: "Optimal Exchange" })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Back to Optimal Exchange" }),
+  ).toBeNull();
+  await user.click(screen.getByText("Rack tools"));
+  await user.click(screen.getByRole("button", { name: "Optimal Exchange" }));
+  expect(searches.map(({ exchange }) => exchange.rack)).toEqual(["CAT", "BAT"]);
 });
 
 test("exchange simulation starts on open, shows draw scores, and closes when marks change", async () => {
@@ -1958,6 +1986,9 @@ test("exchange simulation starts on open, shows draw scores, and closes when mar
   await user.click(simulate);
   expect(screen.queryByRole("dialog")).toBeNull();
   const section = screen.getByRole("region", { name: "Simulate exchange" });
+  expect(
+    within(section).queryByRole("button", { name: "Back to Optimal Exchange" }),
+  ).toBeNull();
   expect(section.closest(".rack-panel")).toBeTruthy();
   const cat = await within(section).findByText("CAT");
   const row = within(cat.closest("li")!);

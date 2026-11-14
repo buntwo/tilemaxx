@@ -17,6 +17,7 @@ import {
 } from "../../shared/rack-entry";
 import { tileScore, type Game, type Move } from "../../shared/model";
 import type { ExchangeAdvice } from "../../shared/exchange-advice";
+import type { OptimalExchangeResult } from "../../shared/optimal-exchange";
 import { Ban, Repeat2, Shuffle, SlidersHorizontal, Trophy } from "lucide-react";
 import { canAnimateTiles } from "./tile-motion";
 import ExchangeAnalysis from "./ExchangeAnalysis";
@@ -55,8 +56,14 @@ export default function RackEntry({
   const [focused, setFocused] = useState(false);
   const [selectAll, setSelectAll] = useState(false);
   const [mode, setMode] = useState<"entry" | "exclude" | "exchange">("entry");
-  const [simulation, setSimulation] = useState<string>();
-  const [optimalOpen, setOptimalOpen] = useState<string>();
+  const [simulation, setSimulation] = useState<{
+    key: string;
+    optimalResult?: OptimalExchangeResult;
+  }>();
+  const [optimalOpen, setOptimalOpen] = useState<{
+    key: string;
+    result?: OptimalExchangeResult;
+  }>();
   const [acceptedAdvice, setAcceptedAdvice] = useState<{
     key: string;
     detail: string;
@@ -86,12 +93,14 @@ export default function RackEntry({
     .filter((i) => game.rack[i] === exchangeMarks[i]);
   const exchangeKey = JSON.stringify([positionKey, exchangeSlots, exchangeBag]);
   const optimalKey = JSON.stringify([positionKey, exchangeBag]);
+  const activeSimulation =
+    simulation?.key === exchangeKey ? simulation : undefined;
   const advice =
     mode === "entry" && !exchangeSlots.length && !flyingRack && !focused
       ? exchangeAdvice
       : undefined;
   useLayoutEffect(() => {
-    if (!openExchange.current || simulation !== exchangeKey) return;
+    if (!openExchange.current || !activeSimulation) return;
     const { reveal } = openExchange.current;
     openExchange.current = null;
     exchangeButton.current?.focus({ preventScroll: true });
@@ -283,7 +292,7 @@ export default function RackEntry({
     );
     const key = JSON.stringify([positionKey, slots, exchangeBag]);
     setAcceptedAdvice({ key, detail: exchangeAdviceDetail(exchangeAdvice) });
-    setSimulation(key);
+    setSimulation({ key });
   }
   const previewSlots =
     preview && !flyingRack ? rackSlotsForMove(game, preview.tiles) : null;
@@ -514,7 +523,7 @@ export default function RackEntry({
                 onClick={() => {
                   chooseMode("entry");
                   setSimulation(undefined);
-                  setOptimalOpen(optimalKey);
+                  setOptimalOpen({ key: optimalKey });
                   tools.current?.querySelector("summary")?.focus();
                 }}
               >
@@ -538,11 +547,11 @@ export default function RackEntry({
             ref={exchangeButton}
             type="button"
             className="button secondary"
-            aria-expanded={simulation === exchangeKey}
+            aria-expanded={!!activeSimulation}
             onClick={() => {
               setOptimalOpen(undefined);
               setSimulation(
-                simulation === exchangeKey ? undefined : exchangeKey,
+                activeSimulation ? undefined : { key: exchangeKey },
               );
             }}
           >
@@ -557,33 +566,48 @@ export default function RackEntry({
           </button>
         </div>
       )}
-      {optimalOpen === optimalKey && !flyingRack && (
+      {optimalOpen?.key === optimalKey && !flyingRack && (
         <OptimalExchange
           key={optimalKey}
           game={game}
           bag={exchangeBag}
           assumed={!exchangeBagConfirmed}
+          restoredResult={optimalOpen.result}
           onClose={() => {
             setOptimalOpen(undefined);
             tools.current?.querySelector("summary")?.focus();
           }}
-          onUse={(slots) => {
+          onUse={(slots, result) => {
             setExchangeMarks(
               Object.fromEntries(slots.map((slot) => [slot, game.rack[slot]])),
             );
             setOptimalOpen(undefined);
             openExchange.current = { reveal: false };
-            setSimulation(JSON.stringify([positionKey, slots, exchangeBag]));
+            setSimulation({
+              key: JSON.stringify([positionKey, slots, exchangeBag]),
+              optimalResult: result,
+            });
           }}
         />
       )}
-      {simulation === exchangeKey && !!exchangeSlots.length && (
+      {activeSimulation && !!exchangeSlots.length && (
         <ExchangeAnalysis
           key={exchangeKey}
           game={game}
           slots={exchangeSlots}
           bagSize={exchangeBag}
           bagAssumed={!exchangeBagConfirmed}
+          onBack={
+            activeSimulation.optimalResult
+              ? () => {
+                  setSimulation(undefined);
+                  setOptimalOpen({
+                    key: optimalKey,
+                    result: activeSimulation.optimalResult,
+                  });
+                }
+              : undefined
+          }
           recommendation={
             acceptedAdvice?.key === exchangeKey
               ? acceptedAdvice.detail
