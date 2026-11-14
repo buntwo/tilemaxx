@@ -86,6 +86,7 @@ export default function Results({
   onPreview,
   onPlay,
   onSolve,
+  onCancelSearch,
   hasRack,
   analysisGame,
   analysisKey,
@@ -118,7 +119,8 @@ export default function Results({
   preview: Move | null;
   onPreview: (m: Move | null) => void;
   onPlay: (m: Move) => void;
-  onSolve: () => void;
+  onSolve: (reload?: boolean) => void;
+  onCancelSearch: () => void;
   hasRack: boolean;
   analysisGame?: Game;
   analysisKey?: string;
@@ -548,7 +550,7 @@ export default function Results({
           <LoaderCircle className="spin" size={30} />
           <h3>{busy}</h3>
           <p>Your board stays ready while we look.</p>
-          <button className="button secondary" onClick={onSolve}>
+          <button className="button secondary" onClick={onCancelSearch}>
             Cancel search
           </button>
         </div>
@@ -558,7 +560,7 @@ export default function Results({
           <p className="error" role="alert">
             {error}
           </p>
-          <button className="button secondary" onClick={onSolve}>
+          <button className="button secondary" onClick={() => onSolve()}>
             Try again
           </button>
         </div>
@@ -583,7 +585,7 @@ export default function Results({
           </p>
           <button
             className="button primary"
-            onClick={onSolve}
+            onClick={() => onSolve()}
             disabled={!hasRack}
           >
             <Sparkles size={16} />
@@ -595,7 +597,7 @@ export default function Results({
           <p role="status">
             Move results are unavailable. Find moves again to reload them.
           </p>
-          <button className="button primary" onClick={onSolve}>
+          <button className="button primary" onClick={() => onSolve(true)}>
             Find moves
           </button>
         </div>

@@ -131,6 +131,7 @@ function setup(
         }}
         onPlay={onPlay}
         onSolve={() => {}}
+        onCancelSearch={() => {}}
         onBoardOdds={
           options.onBoardOdds &&
           ((moves, bagSize) => {

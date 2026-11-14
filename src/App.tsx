@@ -25,7 +25,6 @@ import {
   Save,
   Search,
   Smartphone,
-  Sparkles,
   Sun,
   Undo2,
   Upload,
@@ -447,10 +446,8 @@ export default function App() {
       setFormBusy(false);
     }
   }
-  function solve() {
-    if (!game || (!busy && !hasPlayableRack)) return;
-    setPreview(null);
-    solver.solve(game);
+  function solve(reload = false) {
+    if (game && hasPlayableRack && solver.solve(game, reload)) setPreview(null);
   }
   function play(move: Move) {
     if (!game || activeFlight) return;
@@ -1051,27 +1048,6 @@ export default function App() {
                   onChange={update}
                   onSolve={solve}
                   phoneLayout={phoneLayout}
-                  solveAction={
-                    !compactGame && (
-                      <button
-                        type="button"
-                        className="button primary rack-solve"
-                        disabled={!hasPlayableRack && !busy}
-                        onClick={solve}
-                      >
-                        {busy ? (
-                          <LoaderCircle
-                            className="spin"
-                            size={15}
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <Sparkles size={15} aria-hidden="true" />
-                        )}
-                        {busy ? "Cancel" : "Find moves"}
-                      </button>
-                    )
-                  }
                   positionKey={signature}
                   exchangeAdvice={solver.exchangeAdvice}
                   exchangeBag={replyAnalysis.bagSize}
@@ -1117,6 +1093,7 @@ export default function App() {
                 onPreview={setPreview}
                 onPlay={play}
                 onSolve={solve}
+                onCancelSearch={solver.cancelSearch}
                 hasRack={hasPlayableRack}
                 analysisGame={game}
                 analysisKey={signature}
