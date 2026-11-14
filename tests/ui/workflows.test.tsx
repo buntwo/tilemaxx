@@ -1868,9 +1868,10 @@ test("the points value opens an anchored score breakdown without playing the mov
   expect(current().board.some(Boolean)).toBe(false);
 });
 
-test("Optimal Exchange restores the ranked choices after simulating a swap", async () => {
+test("Optimal Exchange restores the rankings and caches each completed simulation", async () => {
   const searches: Extract<PracticeRequest, { kind: "optimal-exchange" }>[] = [];
-  let simulation: Extract<PracticeRequest, { kind: "exchange" }> | undefined;
+  const simulations: Extract<PracticeRequest, { kind: "exchange" }>[] = [];
+  let pendingSimulation: SolverWorker | undefined;
   vi.stubGlobal(
     "Worker",
     class extends SolverWorker {
@@ -1896,26 +1897,51 @@ test("Optimal Exchange restores the ranked choices after simulating a swap", asy
               },
             }),
           );
-        } else if (request.kind === "exchange") simulation = request;
-        else if (!("exchange" in request) && !("turns" in request)) {
+        } else if (request.kind === "exchange") {
+          simulations.push(request);
+          pendingSimulation = this;
+        } else if (!("exchange" in request) && !("turns" in request)) {
           super.postMessage(request);
         }
       }
     },
   );
+  function finishSimulation(score: number, bingo: number) {
+    act(() => {
+      pendingSimulation!.onmessage?.({
+        data: {
+          result: {
+            score,
+            bingo,
+            playable: 1,
+            exact: true,
+            completed: 20,
+            total: 20,
+            examples: [],
+          },
+        },
+      });
+    });
+  }
   const user = await start();
   await typeRack(user, "CAT");
   await user.click(screen.getByText("Rack tools"));
   await user.click(screen.getByRole("button", { name: "Optimal Exchange" }));
-  const optimal = within(screen.getByRole("region", { name: "Optimal Exchange" }));
+  const optimal = within(
+    screen.getByRole("region", { name: "Optimal Exchange" }),
+  );
   expect(await optimal.findByText("≈35%")).toBeTruthy();
-  const [head, baseline, first, second, third, all] = optimal.getAllByRole("row");
-  expect(within(head).getByRole("columnheader", { name: "Leave" })).toBeTruthy();
+  const [head, baseline, first, second, third, all] =
+    optimal.getAllByRole("row");
+  expect(
+    within(head).getByRole("columnheader", { name: "Leave" }),
+  ).toBeTruthy();
   expect(within(baseline).getByText("Keep your rack")).toBeTruthy();
   expect(within(baseline).getAllByRole("cell")[0].textContent).toBe("CAT");
   expect(within(first).getByText("≈42%")).toBeTruthy();
   expect(
-    within(first).getByRole("button", { name: "Simulate exchanging C, T" })
+    within(first)
+      .getByRole("button", { name: "Simulate exchanging C, T" })
       .textContent?.trim(),
   ).toBe("Simulate");
   expect(within(first).getAllByRole("cell")[0].textContent).toBe("A");
@@ -1932,14 +1958,25 @@ test("Optimal Exchange restores the ranked choices after simulating a swap", asy
   const simulator = within(
     screen.getByRole("region", { name: "Simulate exchange" }),
   );
-  expect(simulation?.exchange.slots).toEqual([1, 2]);
-  expect(simulation?.exchange.bag).toBe(searches[0].exchange.bag);
-  expect(screen.getByLabelText("Rack tile 2: A, marked for exchange")).toBeTruthy();
+  expect(simulations[0].exchange.slots).toEqual([1, 2]);
+  expect(simulations[0].exchange.bag).toBe(searches[0].exchange.bag);
+  expect(
+    simulator.getByText("Bingo chance · ≈35% from Optimal Exchange"),
+  ).toBeTruthy();
+  finishSimulation(24, 0.27);
+  expect(simulator.getByText("24.0 pts")).toBeTruthy();
+  expect(simulator.getByText("27%")).toBeTruthy();
+  expect(simulator.queryByText(/from Optimal Exchange/)).toBeNull();
+  expect(
+    screen.getByLabelText("Rack tile 2: A, marked for exchange"),
+  ).toBeTruthy();
   expect(current().rack).toBe("CAT");
   await user.click(
     simulator.getByRole("button", { name: "Back to Optimal Exchange" }),
   );
-  expect(screen.queryByRole("region", { name: "Simulate exchange" })).toBeNull();
+  expect(
+    screen.queryByRole("region", { name: "Simulate exchange" }),
+  ).toBeNull();
   const restored = within(
     screen.getByRole("region", { name: "Optimal Exchange" }),
   );
@@ -1952,8 +1989,39 @@ test("Optimal Exchange restores the ranked choices after simulating a swap", asy
   await user.click(
     restored.getByRole("button", { name: "Simulate exchanging C, T" }),
   );
-  expect(simulation?.exchange.slots).toEqual([0, 2]);
+  expect(simulations[1].exchange.slots).toEqual([0, 2]);
+  const other = within(
+    screen.getByRole("region", { name: "Simulate exchange" }),
+  );
+  expect(
+    other.getByText("Bingo chance · ≈42% from Optimal Exchange"),
+  ).toBeTruthy();
+  finishSimulation(31, 0.44);
+  expect(other.getByText("31.0 pts")).toBeTruthy();
+  await user.click(
+    other.getByRole("button", { name: "Back to Optimal Exchange" }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Simulate exchanging A, T" }),
+  );
+  const cached = within(
+    screen.getByRole("region", { name: "Simulate exchange" }),
+  );
+  expect(cached.getByText("24.0 pts")).toBeTruthy();
+  expect(cached.queryByRole("status")).toBeNull();
+  expect(simulations).toHaveLength(2);
   expect(searches).toHaveLength(1);
+  await user.click(cached.getByRole("button", { name: "Run again" }));
+  expect(simulations).toHaveLength(3);
+  finishSimulation(28, 0.31);
+  await user.click(
+    cached.getByRole("button", { name: "Back to Optimal Exchange" }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Simulate exchanging A, T" }),
+  );
+  expect(screen.getByText("28.0 pts")).toBeTruthy();
+  expect(simulations).toHaveLength(3);
   await user.click(rackTile(1));
   await user.keyboard("B");
   expect(current().rack).toBe("BAT");
@@ -1964,6 +2032,11 @@ test("Optimal Exchange restores the ranked choices after simulating a swap", asy
   await user.click(screen.getByText("Rack tools"));
   await user.click(screen.getByRole("button", { name: "Optimal Exchange" }));
   expect(searches.map(({ exchange }) => exchange.rack)).toEqual(["CAT", "BAT"]);
+  await user.click(
+    await screen.findByRole("button", { name: "Simulate exchanging A, T" }),
+  );
+  expect(simulations).toHaveLength(4);
+  expect(screen.queryByText("28.0 pts")).toBeNull();
 });
 
 test("exchange simulation starts on open, shows draw scores, and closes when marks change", async () => {

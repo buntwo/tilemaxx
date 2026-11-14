@@ -22,7 +22,10 @@ export default function OptimalExchange({
   assumed: boolean;
   restoredResult?: OptimalExchangeResult;
   onClose: () => void;
-  onUse: (slots: number[], result: OptimalExchangeResult) => void;
+  onUse: (
+    swap: OptimalExchangeResult["bestSwaps"][number],
+    result: OptimalExchangeResult,
+  ) => void;
 }) {
   const { rack, board, template, excludedRackSlots, dictionaryId } = game;
   const { available, held } = splitRack(game);
@@ -141,7 +144,7 @@ export default function OptimalExchange({
                         aria-label={`Simulate exchanging ${tiles
                           .map((tile) => (tile === "?" ? "blank" : tile))
                           .join(", ")}`}
-                        onClick={() => onUse(option.slots, result)}
+                        onClick={() => onUse(option, result)}
                       >
                         <Play size={12} aria-hidden="true" /> Simulate
                       </button>
