@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Play } from "lucide-react";
 import { minimumExchangeBag } from "../../shared/exchange";
 import type { Game } from "../../shared/model";
 import type { OptimalExchangeResult } from "../../shared/optimal-exchange";
@@ -24,7 +25,7 @@ export default function OptimalExchange({
   onUse: (slots: number[], result: OptimalExchangeResult) => void;
 }) {
   const { rack, board, template, excludedRackSlots, dictionaryId } = game;
-  const { available } = splitRack(game);
+  const { available, held } = splitRack(game);
   const { excess } = unseenTiles(game, template);
   const minimum = minimumExchangeBag(template, 1);
   const unavailable = excess.length
@@ -87,18 +88,29 @@ export default function OptimalExchange({
             <thead>
               <tr>
                 <th scope="col">Swap</th>
+                <th scope="col">Leave</th>
                 <th scope="col">Bingo chance</th>
-                <th scope="col" aria-label="Use swap" />
+                <th scope="col" aria-label="Simulate swap" />
               </tr>
             </thead>
             <tbody>
               <tr>
                 <th scope="row">Keep your rack</th>
+                <td>
+                  <MiniTiles tiles={available} />
+                </td>
                 <td>{result.keepBingo ? "100%" : "0%"}</td>
                 <td />
               </tr>
               {result.bestSwaps.map((option, index) => {
                 const tiles = option.slots.map((slot) => rack[slot]);
+                const { available: leave } = splitRack({
+                  rack,
+                  excludedRackSlots: [
+                    ...(excludedRackSlots ?? []),
+                    ...option.slots,
+                  ],
+                });
                 return (
                   <tr
                     key={option.slots.join(",")}
@@ -109,11 +121,15 @@ export default function OptimalExchange({
                     }
                   >
                     <th scope="row">
-                      <span className="optimal-exchange-swap">
-                        {tiles.length}
-                        <MiniTiles tiles={tiles.join("")} />
-                      </span>
+                      <MiniTiles tiles={tiles.join("")} />
                     </th>
+                    <td>
+                      {leave ? (
+                        <MiniTiles tiles={leave} />
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
                     <td>
                       ≈{exchangePercent.format(option.chance)}
                       {option.close && <small>Close estimate</small>}
@@ -121,13 +137,13 @@ export default function OptimalExchange({
                     <td>
                       <button
                         type="button"
-                        className="text-button"
-                        aria-label={`Mark ${tiles
+                        className="text-button optimal-exchange-simulate"
+                        aria-label={`Simulate exchanging ${tiles
                           .map((tile) => (tile === "?" ? "blank" : tile))
-                          .join(", ")} for exchange`}
+                          .join(", ")}`}
                         onClick={() => onUse(option.slots, result)}
                       >
-                        Mark
+                        <Play size={12} aria-hidden="true" /> Simulate
                       </button>
                     </td>
                   </tr>
@@ -135,6 +151,11 @@ export default function OptimalExchange({
               })}
             </tbody>
           </table>
+          {held && (
+            <p className="small muted">
+              Leave shows playable tiles. Held tiles stay on your rack.
+            </p>
+          )}
           <p className="small muted">
             {result.checked} swaps screened with {result.screeningDraws} shared
             draws.

@@ -1890,6 +1890,7 @@ test("Optimal Exchange restores the ranked choices after simulating a swap", asy
                     { slots: [0, 2], chance: 0.42, close: false },
                     { slots: [1, 2], chance: 0.35, close: false },
                     { slots: [0], chance: 0.18, close: false },
+                    { slots: [0, 1, 2], chance: 0, close: false },
                   ],
                 },
               },
@@ -1908,17 +1909,24 @@ test("Optimal Exchange restores the ranked choices after simulating a swap", asy
   await user.click(screen.getByRole("button", { name: "Optimal Exchange" }));
   const optimal = within(screen.getByRole("region", { name: "Optimal Exchange" }));
   expect(await optimal.findByText("≈35%")).toBeTruthy();
-  const [, baseline, first, second, third] = optimal.getAllByRole("row");
+  const [head, baseline, first, second, third, all] = optimal.getAllByRole("row");
+  expect(within(head).getByRole("columnheader", { name: "Leave" })).toBeTruthy();
   expect(within(baseline).getByText("Keep your rack")).toBeTruthy();
+  expect(within(baseline).getAllByRole("cell")[0].textContent).toBe("CAT");
   expect(within(first).getByText("≈42%")).toBeTruthy();
   expect(
-    within(first).getByRole("button", { name: "Mark C, T for exchange" }),
-  ).toBeTruthy();
+    within(first).getByRole("button", { name: "Simulate exchanging C, T" })
+      .textContent?.trim(),
+  ).toBe("Simulate");
+  expect(within(first).getAllByRole("cell")[0].textContent).toBe("A");
   expect(within(second).getByText("≈35%")).toBeTruthy();
+  expect(within(second).getAllByRole("cell")[0].textContent).toBe("C");
   expect(within(third).getByText("≈18%")).toBeTruthy();
+  expect(within(third).getAllByRole("cell")[0].textContent).toBe("AT");
+  expect(within(all).getAllByRole("cell")[0].textContent).toBe("—");
   expect(searches.map(({ exchange }) => exchange.rack)).toEqual(["CAT"]);
   await user.click(
-    within(second).getByRole("button", { name: "Mark A, T for exchange" }),
+    within(second).getByRole("button", { name: "Simulate exchanging A, T" }),
   );
   expect(screen.queryByRole("region", { name: "Optimal Exchange" })).toBeNull();
   const simulator = within(
@@ -1942,7 +1950,7 @@ test("Optimal Exchange restores the ranked choices after simulating a swap", asy
     restored.getByRole("heading", { name: "Optimal Exchange" }),
   );
   await user.click(
-    restored.getByRole("button", { name: "Mark C, T for exchange" }),
+    restored.getByRole("button", { name: "Simulate exchanging C, T" }),
   );
   expect(simulation?.exchange.slots).toEqual([0, 2]);
   expect(searches).toHaveLength(1);
