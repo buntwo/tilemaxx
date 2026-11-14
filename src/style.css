@@ -3920,19 +3920,17 @@ kbd {
   color: var(--archive-blank-ink);
 }
 .square.occupied.word-hover {
-  --hover-base: var(--tile);
-  background-color: color-mix(in srgb, var(--hover-base) 81%, #826238);
+  --word-highlight: light-dark(#dceccf, #b5d1a5);
+  background-color: var(--word-highlight);
 }
 .board-grid.with-word-scores .square.occupied:not(.ghost) {
   -webkit-touch-callout: none;
 }
 .square.word-hover.blank {
-  --hover-base: var(--blank-tile);
-  background-color: color-mix(in srgb, var(--hover-base) 88%, black);
+  background-color: color-mix(in srgb, var(--blank-tile), var(--word-highlight) 60%);
 }
-.square.word-hover.archive-edit {
-  --hover-base: var(--archive-tile);
-  background-color: color-mix(in srgb, var(--hover-base) 88%, black);
+.square.occupied.word-hover.archive-edit {
+  background-color: color-mix(in srgb, var(--archive-tile), #72b77b 28%);
 }
 .board-word-score {
   --badge-size: clamp(13px, calc(68cqw / var(--size)), 24px);
@@ -3955,18 +3953,18 @@ kbd {
   pointer-events: none;
 }
 .board-word-score.across {
-  left: calc(100% - 3px);
+  left: calc(100% + 2px);
   top: 50%;
 }
 .board-word-score.down {
   left: 50%;
-  top: calc(100% - 3px);
+  top: calc(100% + 2px);
 }
 .square:has(.board-word-score.down) .board-word-score.across {
-  top: min(50%, calc(100% - var(--badge-size) - 3px));
+  top: clamp(25%, calc(100% - var(--badge-size) + 2px), 50%);
 }
 .square:has(.board-word-score.across) .board-word-score.down {
-  left: min(50%, calc(100% - var(--badge-size) - 3px));
+  left: clamp(25%, calc(100% - var(--badge-size) + 2px), 50%);
 }
 .square.pending-blank {
   background: #d1e5f2;
@@ -4867,7 +4865,7 @@ kbd {
   gap: 14px;
 }
 .compact-game .board-panel { padding: 5px 9px 3px; }
-.compact-game .board-panel .board-wrap { padding: 1px 0 2px; }
+.compact-game .board-panel .board-wrap { padding: 1px 5px 2px 0; }
 .compact-game .board-panel .direct-entry-tools {
   margin-block: 3px 0;
   padding-block: 0;

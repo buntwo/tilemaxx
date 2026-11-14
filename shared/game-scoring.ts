@@ -190,14 +190,30 @@ export function boardWordsAt(game: Game, index: number) {
     ];
   });
   const unresolved = new Set(words);
+  function useReview({
+    board: base,
+    tiles,
+    direction,
+  }: NonNullable<TrackedMove["review"]>) {
+    if (
+      ![...unresolved].some(({ cells }) =>
+        tiles.some(({ index }) => cells.includes(index)),
+      )
+    )
+      return;
+    const played = [...base];
+    for (const tile of tiles) played[tile.index] = tile.letter;
+    fillScores(base, played, direction);
+  }
   function fillScores(
     base: Board,
     after: Board,
     direction?: Move["direction"],
   ) {
     const play = scorePlacement(base, after, template, direction);
+    if (!play) return;
     for (const word of unresolved) {
-      const match = play?.words.find(
+      const match = play.words.find(
         (scored) =>
           scored.direction === word.direction &&
           scored.cells[0] === word.cells[0] &&
@@ -205,7 +221,7 @@ export function boardWordsAt(game: Game, index: number) {
           word.cells.every((i) => after[i] === board[i]),
       );
       if (!match) continue;
-      word.score = match.score;
+      word.score = match.score + (match === play.words[0] ? play.bonus : 0);
       word.fromPlay = true;
       unresolved.delete(word);
     }
@@ -218,19 +234,10 @@ export function boardWordsAt(game: Game, index: number) {
       entry.label === "Imported screenshot" ||
       entry.label === "Cleared board and rack"
     )
-      break;
+      return words;
     const after = past[i + 1]?.board ?? board;
     if (entry.review) {
-      const { board: base, tiles, direction } = entry.review;
-      if (
-        [...unresolved].some(({ cells }) =>
-          tiles.some(({ index }) => cells.includes(index)),
-        )
-      ) {
-        const played = [...base];
-        for (const tile of tiles) played[tile.index] = tile.letter;
-        fillScores(base, played, direction);
-      }
+      useReview(entry.review);
     } else if (entry.score !== undefined) {
       fillScores(
         entry.player === "opponent"
@@ -248,6 +255,24 @@ export function boardWordsAt(game: Game, index: number) {
           word.cells.length
       )
         unresolved.delete(word);
+    }
+  }
+  if (unresolved.size) {
+    // Tracked moves can retain their scoring snapshots after undo history rolls off.
+    const moves = trackedMoveHistory(game);
+    const activeCount = scoring
+      ? scoring.you.moves + scoring.opponent.moves
+      : moves.length;
+    const first = Math.max(0, moves.length - activeCount);
+    for (let i = moves.length - 1; i >= first && unresolved.size; i--) {
+      const review = moves[i].review;
+      if (!review) continue;
+      useReview(review);
+      // A later snapshot with different letters breaks the link to older plays.
+      for (const word of unresolved) {
+        if (word.cells.some((cell) => review.board[cell] !== board[cell]))
+          unresolved.delete(word);
+      }
     }
   }
   return words;

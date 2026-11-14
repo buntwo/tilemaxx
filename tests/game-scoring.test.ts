@@ -20,6 +20,7 @@ import {
   remember,
   restoreArchivedGame,
   trackedMoveHistory,
+  tileScore,
   undo,
   type Game,
 } from "../shared/model";
@@ -89,6 +90,45 @@ test("board hover does not join the end of one row to the start of another", () 
   game.board[14] = "A";
   game.board[15] = "T";
   assert.deepEqual(boardWordsAt(game, 14), []);
+});
+
+test("board hover adds the bingo bonus only to the main word, using retained tracked moves", () => {
+  for (const template of PRESETS.slice(0, 2)) {
+    const game = { ...fixture(), template, rack: "RETAINS" };
+    // An existing T above the S forms TS in the same turn.
+    game.board[104] = "T";
+    const move = solve(
+      new Lexicon(["RETAINS", "TS"]),
+      game.board,
+      game.rack,
+      template,
+    ).find(
+      (move) => move.direction === "across" && move.tiles.at(-1)?.index === 119,
+    )!;
+    assert.ok(move);
+    const played = playTrackedMove(game, move);
+    const [main, cross] = boardWordsAt(played, 119);
+    assert.equal(main.word, "RETAINS");
+    assert.equal(cross.word, "TS");
+    assert.equal(main.score + cross.score, move.score);
+    const wordValue = boardWordsAt(
+      { ...played, template: { ...template, bingo: 0 } },
+      119,
+    )[0].score;
+    assert.equal(main.score - wordValue, template.bingo);
+    assert.deepEqual(boardWordsAt({ ...played, past: [] }, 119), [main, cross]);
+    assert.deepEqual(boardWordsAt(redo(undo(played)), 119), [main, cross]);
+    const imported = importBoard({ ...played, past: [] }, played.board);
+    const faceValue = [...move.word].reduce(
+      (sum, letter) => sum + tileScore(letter, template.rules),
+      0,
+    );
+    assert.equal(boardWordsAt(imported, 119)[0].score, faceValue);
+    assert.equal(
+      boardWordsAt({ ...imported, past: [] }, 119)[0].score,
+      faceValue,
+    );
+  }
 });
 
 test("inferred plays match solver scoring for crosses, premiums, blanks and a bingo", () => {
