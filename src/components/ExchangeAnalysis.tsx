@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Trophy } from "lucide-react";
+import { ArrowLeft, Trophy } from "lucide-react";
 import type { Game } from "../../shared/model";
 import { minimumExchangeBag, type ExchangeResult } from "../../shared/exchange";
 import { splitRack } from "../../shared/rack-entry";
@@ -55,12 +55,14 @@ export default function ExchangeAnalysis({
   recommendation,
   bagSize,
   bagAssumed = true,
+  onBack,
 }: {
   game: Game;
   slots: number[];
   recommendation?: string;
   bagSize?: number;
   bagAssumed?: boolean;
+  onBack?: () => void;
 }) {
   const { total, excess } = unseenTiles(game, game.template);
   const bag = bagSize ?? Math.max(0, total - game.template.rackSize);
@@ -88,6 +90,13 @@ export default function ExchangeAnalysis({
       className="rack-simulation practice-body"
       aria-label="Simulate exchange"
     >
+      {onBack && (
+        <div className="rack-simulation-actions">
+          <button type="button" className="button secondary" onClick={onBack}>
+            <ArrowLeft size={13} aria-hidden="true" /> Back to Optimal Exchange
+          </button>
+        </div>
+      )}
       <div className="rack-simulation-heading">
         <h3>
           Exchange {slots.length} {slots.length === 1 ? "tile" : "tiles"}

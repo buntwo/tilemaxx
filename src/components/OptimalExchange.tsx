@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { minimumExchangeBag } from "../../shared/exchange";
 import type { Game } from "../../shared/model";
 import type { OptimalExchangeResult } from "../../shared/optimal-exchange";
@@ -12,14 +12,16 @@ export default function OptimalExchange({
   game,
   bag,
   assumed,
+  restoredResult,
   onClose,
   onUse,
 }: {
   game: Game;
   bag: number;
   assumed: boolean;
+  restoredResult?: OptimalExchangeResult;
   onClose: () => void;
-  onUse: (slots: number[]) => void;
+  onUse: (slots: number[], result: OptimalExchangeResult) => void;
 }) {
   const { rack, board, template, excludedRackSlots, dictionaryId } = game;
   const { available } = splitRack(game);
@@ -37,17 +39,27 @@ export default function OptimalExchange({
     dictionaryId,
     exchange: { rack, board, template, excludedRackSlots, bag },
   }));
-  const { result, progress, error, run } = usePractice<OptimalExchangeResult>();
+  const heading = useRef<HTMLHeadingElement>(null);
+  const {
+    result: freshResult,
+    progress,
+    error,
+    run,
+  } = usePractice<OptimalExchangeResult>();
+  const result = restoredResult ?? freshResult;
   useEffect(() => {
-    if (!unavailable) run(request);
-  }, [request, run, unavailable]);
+    if (restoredResult) heading.current?.focus({ preventScroll: true });
+    else if (!unavailable) run(request);
+  }, [request, restoredResult, run, unavailable]);
   return (
     <section
       className="rack-simulation practice-body"
       aria-label="Optimal Exchange"
     >
       <div className="rack-simulation-heading optimal-exchange-heading">
-        <h3>Optimal Exchange</h3>
+        <h3 ref={heading} tabIndex={-1}>
+          Optimal Exchange
+        </h3>
         <button type="button" className="text-button" onClick={onClose}>
           {progress ? "Cancel" : "Close"}
         </button>
@@ -113,7 +125,7 @@ export default function OptimalExchange({
                         aria-label={`Mark ${tiles
                           .map((tile) => (tile === "?" ? "blank" : tile))
                           .join(", ")} for exchange`}
-                        onClick={() => onUse(option.slots)}
+                        onClick={() => onUse(option.slots, result)}
                       >
                         Mark
                       </button>
