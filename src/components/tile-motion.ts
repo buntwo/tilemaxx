@@ -15,7 +15,9 @@ export function canAnimateTiles() {
 
 export function rackTileRects(rack: HTMLElement, slots: number[]) {
   return slots.map((slot) =>
-    rack.querySelector(`[data-rack-slot="${slot}"]`)?.getBoundingClientRect(),
+    rack
+      .querySelector(`[data-rack-slot="${slot}"] .rack-slot`)
+      ?.getBoundingClientRect(),
   );
 }
 

@@ -815,6 +815,47 @@ test("direct rack entry supports Space blanks, replacement, paste, full-rack bou
   expect(remote.games[0].rack).toBe("DGO");
 });
 
+test("deleting the last rack tile reveals the selected empty slot during its slide", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query !== "(prefers-reduced-motion: reduce)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, "animate");
+  let finish!: () => void;
+  const finished = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  Object.defineProperty(Element.prototype, "animate", {
+    configurable: true,
+    value: () => ({ finished, cancel() {} }),
+  });
+  remote.games[0].rack = "CAT?DOG";
+  remote.games[0].revision++;
+  try {
+    const user = await start();
+    const last = await screen.findByRole("button", { name: "Rack tile 7: G" });
+    await user.click(last);
+    await user.keyboard("{Backspace}");
+    expect(last.classList.contains("empty")).toBe(true);
+    expect(last.classList.contains("selected")).toBe(true);
+    expect(last.querySelector(".rack-slot > .rack-face.empty")).toBeTruthy();
+    expect(
+      last.querySelector(".rack-slot .rack-slot-window .rack-slide")
+        ?.textContent,
+    ).toBe("G2");
+    expect(last.hasAttribute("data-rack-sliding")).toBe(true);
+    await act(async () => finish());
+    expect(last.querySelector(".rack-slide")).toBeNull();
+    expect(last.hasAttribute("data-rack-sliding")).toBe(false);
+    expect(last.classList.contains("selected")).toBe(true);
+    expect(last.getAttribute("aria-label")).toBe("Rack tile 7: empty");
+  } finally {
+    if (original) Object.defineProperty(Element.prototype, "animate", original);
+    else Reflect.deleteProperty(Element.prototype, "animate");
+  }
+});
+
 test("rack accepts mobile input/deletion events, stays focused, and Enter starts solving", async () => {
   const user = await start();
   await user.click(rackTile(1));
