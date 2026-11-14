@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useId,
   useImperativeHandle,
@@ -17,6 +18,7 @@ import {
 } from "../../shared/rack-entry";
 import { tileScore, type Game, type Move } from "../../shared/model";
 import type { ExchangeAdvice } from "../../shared/exchange-advice";
+import type { ExchangeResult } from "../../shared/exchange";
 import type { OptimalExchangeResult } from "../../shared/optimal-exchange";
 import { Ban, Repeat2, Shuffle, SlidersHorizontal, Trophy } from "lucide-react";
 import { canAnimateTiles } from "./tile-motion";
@@ -25,6 +27,7 @@ import OptimalExchange from "./OptimalExchange";
 import ExchangeSuggestion, { exchangeAdviceDetail } from "./ExchangeSuggestion";
 
 const SENTINEL = "\u200b";
+const EXCHANGE_CACHE_LIMIT = 16;
 export type RackEntryHandle = {
   openSuggestedExchange: (reveal: boolean) => void;
 };
@@ -59,11 +62,14 @@ export default function RackEntry({
   const [simulation, setSimulation] = useState<{
     key: string;
     optimalResult?: OptimalExchangeResult;
+    bingoEstimate?: number;
   }>();
   const [optimalOpen, setOptimalOpen] = useState<{
     key: string;
     result?: OptimalExchangeResult;
   }>();
+  const [exchangeResults, setExchangeResults] =
+    useState<Map<string, ExchangeResult>>();
   const [acceptedAdvice, setAcceptedAdvice] = useState<{
     key: string;
     detail: string;
@@ -95,6 +101,22 @@ export default function RackEntry({
   const optimalKey = JSON.stringify([positionKey, exchangeBag]);
   const activeSimulation =
     simulation?.key === exchangeKey ? simulation : undefined;
+  useEffect(() => {
+    setExchangeResults(undefined);
+  }, [optimalKey]);
+  const cacheExchangeResult = useCallback(
+    (result: ExchangeResult) => {
+      setExchangeResults((previous) => {
+        const next = new Map(previous);
+        next.delete(exchangeKey);
+        next.set(exchangeKey, result);
+        if (next.size > EXCHANGE_CACHE_LIMIT)
+          next.delete(next.keys().next().value!);
+        return next;
+      });
+    },
+    [exchangeKey],
+  );
   const advice =
     mode === "entry" && !exchangeSlots.length && !flyingRack && !focused
       ? exchangeAdvice
@@ -577,7 +599,7 @@ export default function RackEntry({
             setOptimalOpen(undefined);
             tools.current?.querySelector("summary")?.focus();
           }}
-          onUse={(slots, result) => {
+          onUse={({ slots, chance }, result) => {
             setExchangeMarks(
               Object.fromEntries(slots.map((slot) => [slot, game.rack[slot]])),
             );
@@ -586,6 +608,7 @@ export default function RackEntry({
             setSimulation({
               key: JSON.stringify([positionKey, slots, exchangeBag]),
               optimalResult: result,
+              bingoEstimate: chance,
             });
           }}
         />
@@ -597,6 +620,9 @@ export default function RackEntry({
           slots={exchangeSlots}
           bagSize={exchangeBag}
           bagAssumed={!exchangeBagConfirmed}
+          cachedResult={exchangeResults?.get(exchangeKey)}
+          bingoEstimate={activeSimulation.bingoEstimate}
+          onResult={cacheExchangeResult}
           onBack={
             activeSimulation.optimalResult
               ? () => {

@@ -55,6 +55,9 @@ export default function ExchangeAnalysis({
   recommendation,
   bagSize,
   bagAssumed = true,
+  cachedResult,
+  bingoEstimate,
+  onResult,
   onBack,
 }: {
   game: Game;
@@ -62,11 +65,21 @@ export default function ExchangeAnalysis({
   recommendation?: string;
   bagSize?: number;
   bagAssumed?: boolean;
+  cachedResult?: ExchangeResult;
+  bingoEstimate?: number;
+  onResult: (result: ExchangeResult) => void;
   onBack?: () => void;
 }) {
   const { total, excess } = unseenTiles(game, game.template);
   const bag = bagSize ?? Math.max(0, total - game.template.rackSize);
-  const { result, progress, error, run, reset } = usePractice<ExchangeResult>();
+  const {
+    result: freshResult,
+    progress,
+    error,
+    run,
+    reset,
+  } = usePractice<ExchangeResult>();
+  const result = freshResult ?? cachedResult;
   const minimum = minimumExchangeBag(game.template, slots.length);
   const valid = !excess.length && bag >= minimum;
   const { board, dictionaryId, rack, excludedRackSlots, template } = game;
@@ -83,8 +96,11 @@ export default function ExchangeAnalysis({
     exchange: { board, rack, excludedRackSlots, slots, bag, template },
   }));
   useEffect(() => {
-    if (valid) run(request);
-  }, [valid, request, run]);
+    if (valid && !cachedResult) run(request);
+  }, [valid, cachedResult, request, run]);
+  useEffect(() => {
+    if (freshResult && freshResult !== cachedResult) onResult(freshResult);
+  }, [freshResult, cachedResult, onResult]);
   return (
     <section
       className="rack-simulation practice-body"
@@ -153,6 +169,12 @@ export default function ExchangeAnalysis({
       {error && (
         <p className="error" role="alert">
           {error}
+        </p>
+      )}
+      {!result && bingoEstimate !== undefined && (
+        <p className="small muted">
+          Bingo chance · ≈{exchangePercent.format(bingoEstimate)} from Optimal
+          Exchange
         </p>
       )}
       {result && (
