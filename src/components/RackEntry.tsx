@@ -462,7 +462,7 @@ export default function RackEntry({
               ? "Tap tiles to hold or release them"
               : focused && selectAll
                 ? "All tiles selected · type to replace"
-                : "Space = blank · ↓ Hold · ↑ Exchange"}
+                : "Space = blank · ↓ Hold · ↑ Exchange · Enter = find moves"}
         </p>
         {advice && (
           <ExchangeSuggestion
