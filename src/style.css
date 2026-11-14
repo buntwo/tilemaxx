@@ -4238,6 +4238,47 @@ label + label {
   touch-action: manipulation;
 }
 
+.opponent-rack {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  margin-top: 4px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: light-dark(#edf2f2, #29393b);
+}
+.opponent-rack-label {
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+}
+.opponent-rack-label small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.opponent-rack-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.opponent-rack-tiles span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid light-dark(#aebfc3, #849fa5);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: light-dark(#dde8e9, #bacdd0);
+  color: #28464b;
+  font-size: 13px;
+  font-weight: 650;
+}
+.opponent-rack-tiles .blank {
+  background: var(--blank-tile);
+}
 .tile-pool {
   margin-top: 12px;
   border-top: 1px solid var(--line);

@@ -46,6 +46,8 @@ import {
   rackTileRects,
 } from "./components/tile-motion";
 import TilePool from "./components/TilePool";
+import OpponentRack from "./components/OpponentRack";
+import { useReplyAnalysis } from "./useReplyAnalysis";
 import { splitRack } from "../shared/rack-entry";
 import BoardStudio from "./components/BoardStudio";
 import ScreenshotImport from "./components/ScreenshotImport";
@@ -227,6 +229,12 @@ export default function App() {
   const signature = game ? positionSignature(game) : "";
   const solver = useSolver(signature);
   const { busy, warnings } = solver;
+  const replyAnalysis = useReplyAnalysis(
+    game,
+    signature,
+    solver.results?.head ?? null,
+    workspace === "games" && !!game && !busy && !solver.error,
+  );
   const activeFlight =
     workspace === "games" && flight?.destination === signature
       ? flight
@@ -1014,6 +1022,10 @@ export default function App() {
                   preview={preview}
                   flyingRack={activeFlight}
                 />
+                <OpponentRack
+                  rack={replyAnalysis.opponentRack}
+                  assumed={replyAnalysis.bagAssumedEmpty}
+                />
                 <TilePool key={`tile-pool:${game.id}`} game={game} />
               </section>
               {!phoneLayout && gameScores}
@@ -1073,6 +1085,7 @@ export default function App() {
                 hasRack={hasPlayableRack}
                 analysisGame={game}
                 analysisKey={signature}
+                replyAnalysis={replyAnalysis}
                 rackOdds={solver.rackOdds}
                 defense={solver.defense}
                 defenseProgress={

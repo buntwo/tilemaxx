@@ -20,6 +20,7 @@ import type {
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import { MoveResultIndex } from "../../shared/move-results";
 import { moveRowHeight, type FetchMovePage } from "../../src/useMoveResults";
+import { useReplyAnalysis } from "../../src/useReplyAnalysis";
 const moves: Move[] = [
   {
     id: "a",
@@ -98,6 +99,12 @@ function setup(
   function Harness() {
     const [preview, setPreview] = useState<Move | null>(null);
     const [boardOdds, setBoardOdds] = useState(options.boardOdds);
+    const replyAnalysis = useReplyAnalysis(
+      options.analysisGame,
+      options.analysisGame?.id,
+      results.head,
+      options.replyEnabled ?? !!options.analysisGame,
+    );
     return (
       <Results
         results={results}
@@ -112,6 +119,7 @@ function setup(
         rackOdds={options.rackOdds}
         boardOdds={boardOdds}
         analysisGame={options.analysisGame}
+        replyAnalysis={replyAnalysis}
         replyEnabled={options.replyEnabled}
         preview={preview}
         onPreview={(m) => {

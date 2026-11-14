@@ -83,6 +83,10 @@ export function useReplyAnalysis(
   const reference = target[0];
   const invalid = !!pool?.excess.length;
   const bagAssumedEmpty = bagSize === 0 && !confirmed && (pool?.total ?? 0) > 0;
+  const opponentRack =
+    bagSize === 0 && pool && !invalid
+      ? pool.tiles.map(({ symbol, count }) => symbol.repeat(count)).join("")
+      : "";
   const position: ReplyPosition | undefined = game && {
     board: game.board,
     rack: game.rack,
@@ -216,6 +220,7 @@ export function useReplyAnalysis(
     unseen: pool?.total ?? 0,
     invalid,
     bagAssumedEmpty,
+    opponentRack,
     maxScorelessTurns: game ? replyScorelessLimit(game.template) - 1 : 5,
     scorelessTurns,
     setOptions: (bagSize: number, scorelessTurns: number) =>

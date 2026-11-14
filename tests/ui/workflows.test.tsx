@@ -20,6 +20,7 @@ import { MoveResultIndex } from "../../shared/move-results";
 import type { SolverMessage, SolverRequest } from "../../src/solver-messages";
 import type { PracticeRequest } from "../../src/practice.worker";
 import { simulateExchange } from "../../shared/exchange";
+import { TILE_SYMBOLS } from "../../shared/tile-pool";
 
 let remote: AppState;
 const game = (): Game => ({
@@ -1667,6 +1668,53 @@ test("reordering My games saves the profile order without switching games", asyn
   expect(options()).toEqual(reordered);
   await user.keyboard("{Escape}");
   expect(screen.queryByTitle("2 active games")).toBeNull();
+});
+
+test("the opponent rack is visible before solving and follows the reply bag count", async () => {
+  const game = remote.games[0];
+  game.rack = "CAT";
+  game.excludedRackSlots = [2];
+  game.template.tileCounts = Object.fromEntries(
+    TILE_SYMBOLS.map((tile) => [
+      tile,
+      [..."CATJJ?"].filter((letter) => tile === letter).length,
+    ]),
+  );
+  game.revision++;
+  const user = await start();
+  const panel = within(screen.getByRole("region", { name: "Your rack" }));
+  const opponentRack = () =>
+    panel.queryByRole("img", { name: "Opponent rack: J, J, blank" });
+  expect(
+    await panel.findByRole("img", { name: "Opponent rack: J, J, blank" }),
+  ).toBeTruthy();
+  expect(panel.getByText("Bag assumed empty")).toBeTruthy();
+
+  await user.click(panel.getByText("Rack tools"));
+  await user.click(panel.getByRole("button", { name: "Exclude tiles" }));
+  await user.click(panel.getByRole("button", { name: /^Rack tile 3: T/ }));
+  await user.click(panel.getByRole("button", { name: "Done" }));
+  expect(opponentRack()).toBeTruthy();
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  await screen.findAllByRole("button", { name: /^CAT, / });
+  await user.click(screen.getByText("Options", { selector: "summary" }));
+  await user.click(screen.getByText("Reply settings", { selector: "summary" }));
+  const bag = screen.getByRole("spinbutton", { name: "Tiles in bag" });
+  await user.type(bag, "1");
+  await user.click(
+    screen.getByRole("button", { name: "Update reply analysis" }),
+  );
+  expect(opponentRack()).toBeNull();
+  await user.clear(bag);
+  await user.click(
+    screen.getByRole("button", { name: "Update reply analysis" }),
+  );
+  expect(opponentRack()).toBeTruthy();
+  expect(panel.getByText("Bag empty")).toBeTruthy();
+
+  await typeRack(user, "Z");
+  expect(opponentRack()).toBeNull();
+  expect(panel.getByText("Check tile counts")).toBeTruthy();
 });
 
 test("overdrawn tiles show negative counts while other counts stay visible", async () => {

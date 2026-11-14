@@ -31,7 +31,7 @@ import PremiumDefense, {
   defenseLabel,
 } from "./PremiumDefense";
 import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
-import { useReplyAnalysis } from "../useReplyAnalysis";
+import type { useReplyAnalysis } from "../useReplyAnalysis";
 import type { ShortlistEntry } from "../../shared/move-shortlist";
 import {
   defaultSortDescending,
@@ -82,6 +82,7 @@ export default function Results({
   hasRack,
   analysisGame,
   analysisKey,
+  replyAnalysis,
   replyEnabled = !!analysisGame,
   rackOdds,
   rackOddsPending,
@@ -114,6 +115,7 @@ export default function Results({
   hasRack: boolean;
   analysisGame?: Game;
   analysisKey?: string;
+  replyAnalysis: ReturnType<typeof useReplyAnalysis>;
   replyEnabled?: boolean;
   rackOdds?: RackOdds;
   rackOddsPending?: boolean;
@@ -148,14 +150,7 @@ export default function Results({
   const [candidates, setCandidates] = useState<Move[]>([]);
   const [shortlistOnly, setShortlistOnly] = useState(false);
   const shortlistActive = shortlistOnly && !!analysisGame;
-  const replyCandidates = resultSet?.head ?? null;
   const totalMoves = resultSet?.total ?? 0;
-  const replyAnalysis = useReplyAnalysis(
-    analysisGame,
-    analysisKey,
-    replyCandidates,
-    replyEnabled && !busy && !error,
-  );
   const targetIds = useMemo(
     () => new Set(replyAnalysis.target.map(({ id }) => id)),
     [replyAnalysis.target],
