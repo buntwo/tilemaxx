@@ -27,7 +27,7 @@ function GamePickerLabel({
       <span className="game-picker-number" aria-hidden="true">
         {number}
       </span>
-      <LayoutThumbnail thumbnail={game.thumbnail} />
+      <LayoutThumbnail thumbnail={game.thumbnail} platform={game.platform} />
       <span className="game-picker-label">
         <strong>
           {game.name}

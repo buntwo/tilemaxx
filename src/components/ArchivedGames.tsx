@@ -61,7 +61,10 @@ export default function ArchivedGames({
                     className="archive-open"
                     onClick={() => onOpen(game.id)}
                   >
-                    <LayoutThumbnail thumbnail={game.thumbnail} />
+                    <LayoutThumbnail
+                      thumbnail={game.thumbnail}
+                      platform={game.platform}
+                    />
                     <span className="game-picker-label">
                       <strong>
                         {game.name}

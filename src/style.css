@@ -1,3 +1,5 @@
+@import "./premium-palettes.css";
+
 :root {
   font-family:
     Inter,
@@ -29,6 +31,8 @@
   --archive-tile-ink: #fff9ff;
   --archive-blank-ink: #d9efff;
   --tile-warning: #ae2d27;
+  --tile-overdrawn: light-dark(#edc2b6, #754b45);
+  --tile-overdrawn-ink: light-dark(#8e4b3d, #f4d8cf);
   --point-loss-low: #8c5c57;
   --point-loss-mid: #a83d34;
   --point-loss-high: #b21e2b;
@@ -39,16 +43,6 @@
   --board: #eef1e9;
   --cell: #e6ebdf;
   --shadow: 0 3px 20px #233d3405;
-  --dw: #edc2b6;
-  --dw-ink: #8e4b3d;
-  --tw: #d78476;
-  --tw-ink: #fff;
-  --dl: #bfdbe2;
-  --dl-ink: #456d7a;
-  --tl: #80b0c0;
-  --tl-ink: #163d4d;
-  --ql: #aaa2cf;
-  --qw: #a36f92;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -75,13 +69,6 @@
   --board: #202a23;
   --cell: #354234;
   --shadow: 0 3px 20px #0001;
-  --dw: #754b45;
-  --dw-ink: #f4d8cf;
-  --tw: #a35d51;
-  --dl: #345d66;
-  --dl-ink: #d0e8ec;
-  --tl: #497e90;
-  --tl-ink: #eef8fc;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -109,13 +96,6 @@
     --board: #202a23;
     --cell: #354234;
     --shadow: 0 3px 20px #0001;
-    --dw: #754b45;
-    --dw-ink: #f4d8cf;
-    --tw: #a35d51;
-    --dl: #345d66;
-    --dl-ink: #d0e8ec;
-    --tl: #497e90;
-    --tl-ink: #eef8fc;
     color-scheme: dark;
   }
 }
@@ -1491,11 +1471,11 @@ label + label {
 }
 .ql {
   background: var(--ql);
-  color: #fff;
+  color: var(--ql-ink);
 }
 .qw {
   background: var(--qw);
-  color: #fff;
+  color: var(--qw-ink);
 }
 .square.occupied {
   transition: none;
@@ -4364,9 +4344,9 @@ label + label {
   border-color: var(--line);
 }
 .tile-pool-tile.overdrawn {
-  color: var(--dw-ink);
-  background: var(--dw);
-  border-color: var(--dw);
+  color: var(--tile-overdrawn-ink);
+  background: var(--tile-overdrawn);
+  border-color: var(--tile-overdrawn);
 }
 .tile-count-editor {
   margin-top: 14px;

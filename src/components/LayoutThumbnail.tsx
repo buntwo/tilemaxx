@@ -1,8 +1,11 @@
 import type { BoardTemplate } from "../../shared/model";
 import { thumbnailKinds, type GameThumbnail } from "../../shared/game-index";
+import { premiumPalette } from "../premium-palettes";
 
 export default function LayoutThumbnail(
-  props: { template: BoardTemplate } | { thumbnail: GameThumbnail },
+  props:
+    | { template: BoardTemplate }
+    | { thumbnail: GameThumbnail; platform?: string },
 ) {
   const { size, kinds, start } =
     "template" in props
@@ -29,6 +32,9 @@ export default function LayoutThumbnail(
       className={start === undefined ? "board-thumbnail" : "layout-thumbnail"}
       viewBox={`-0.5 -0.5 ${size + 1} ${size + 1}`}
       aria-hidden="true"
+      data-premium-palette={premiumPalette(
+        "thumbnail" in props ? props.platform : undefined,
+      )}
     >
       {[...cells].map(([premium, path]) => (
         <path

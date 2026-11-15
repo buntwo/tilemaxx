@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { History } from "lucide-react";
-import {
-  localDate,
-  MAX_GAME_NOTES,
-  RULE_NAMES,
-  type Game,
-} from "../../shared/model";
+import { localDate, MAX_GAME_NOTES, type Game } from "../../shared/model";
+import { gamePlatforms } from "../premium-palettes";
 
 export function FullMoveHistoryIcon() {
   return (
@@ -46,14 +42,7 @@ export function GameMetadata({
   );
 }
 
-const platforms = [
-  "Scrabble GO",
-  RULE_NAMES.wwf,
-  RULE_NAMES.wordfeud,
-  RULE_NAMES.crossplay,
-  RULE_NAMES.lexulous,
-  "In person",
-];
+const platforms: string[] = gamePlatforms.map(({ name }) => name);
 
 export function GameDetailFields({ game }: { game?: Game }) {
   const savedPlatform = game?.platform ?? "";
