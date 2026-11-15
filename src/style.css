@@ -5096,6 +5096,7 @@ label + label {
 }
 .with-board-history .direct-entry-status {
   min-width: 0;
+  padding-inline-start: 6px;
   overflow: hidden;
   font-size: 10px;
   line-height: 1.2;
