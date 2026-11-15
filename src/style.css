@@ -4063,6 +4063,7 @@ label + label {
 .with-board-history + .direct-entry-help { padding: 4px 8px; }
 
 .rack-entry {
+  --rack-tray-width: min(100%, calc(var(--rack-size) * 59px + 7px));
   position: relative;
 }
 .rack-keyboard-input {
@@ -4079,7 +4080,7 @@ label + label {
   pointer-events: none;
 }
 .rack-entry .rack-tiles {
-  width: min(100%, calc(var(--rack-size) * 59px + 7px));
+  width: var(--rack-tray-width);
   padding: 5px 6px 7px;
   margin-bottom: 7px;
   border: 1px solid #684029;
@@ -4087,6 +4088,17 @@ label + label {
   background: linear-gradient(180deg, #966342, #74492f);
   box-shadow: inset 0 1px #b4845e, inset 0 -3px #563522;
 }
+.rack-owner-label {
+  display: block;
+  width: var(--rack-tray-width);
+  margin: 0 auto 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+}
+.rack-entry .rack-owner-label + .rack-tiles { margin-top: 0; }
 .rack-entry .rack-tile {
   flex: 1 1 0;
   min-width: 0;
@@ -5174,6 +5186,7 @@ label + label {
   --review-rack-gap: 6px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--review-rack-width);
+  align-items: start;
   gap: var(--review-rack-gap);
   container-type: inline-size;
 }
@@ -5187,11 +5200,11 @@ label + label {
 }
 .phone-move-review .rack-entry {
   --review-tile-gap: 3px;
-  /* Share the board's height between both racks, with room for the tray. */
   --review-rack-tile-size: min(calc(var(--review-rack-width) - 8px), calc(
     (100cqi - var(--review-rack-width) - var(--review-rack-gap) - 12px)
-    / var(--shown-rack-tiles) - var(--review-tile-gap)
+    / var(--rack-size) - var(--review-tile-gap)
   ));
+  --review-opponent-tile-size: min(18px, calc(var(--review-rack-tile-size) * .6));
 }
 .phone-move-review .rack-panel .rack-tiles {
   flex-direction: column;
@@ -5208,17 +5221,19 @@ label + label {
   cursor: pointer;
   container-type: inline-size;
 }
+.phone-move-review .rack-owner-label { font-size: 9px; }
+.phone-move-review .rack-tiles + .rack-owner-label { margin-top: 6px; }
 .phone-move-review .opponent-rack-tiles {
   flex-flow: column nowrap;
   align-items: center;
   gap: var(--review-tile-gap);
-  margin: 6px auto 0;
+  margin: 0 auto;
 }
 .phone-move-review .opponent-rack-tiles span {
-  width: var(--review-rack-tile-size);
+  width: var(--review-opponent-tile-size);
   height: auto;
   aspect-ratio: 1;
-  font-size: min(20px, calc(var(--review-rack-tile-size) * .54));
+  font-size: min(12px, calc(var(--review-opponent-tile-size) * .65));
 }
 .phone-move-review .rack-face { font-size: min(20px, 54cqi); }
 .phone-move-review .rack-face small { right: 2px; bottom: 1px; }
@@ -5310,8 +5325,8 @@ label + label {
   margin-top: 6px;
   padding: 7px 11px 8px;
 }
-:is(.compact-game, .phone-layout) .rack-panel .rack-tiles {
-  width: min(100%, calc(var(--rack-size) * 53px + 7px));
+:is(.compact-game, .phone-layout) .rack-panel .rack-entry {
+  --rack-tray-width: min(100%, calc(var(--rack-size) * 53px + 7px));
 }
 :is(.compact-game, .phone-layout) .rack-panel .rack-tile {
   max-width: 46px;
