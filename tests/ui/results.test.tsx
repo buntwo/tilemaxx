@@ -18,7 +18,7 @@ import type {
   ReplyDistribution,
 } from "../../shared/reply-analysis";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
-import { MoveResultIndex } from "../../shared/move-results";
+import { MoveResultIndex, type MoveResults } from "../../shared/move-results";
 import { moveRowHeight, type FetchMovePage } from "../../src/useMoveResults";
 import { useReplyAnalysis } from "../../src/useReplyAnalysis";
 import type { RankEndgame } from "../../src/useSolver";
@@ -100,14 +100,13 @@ function setup(
     bingo: options.bingoBonus ?? 50,
   };
   const index = new MoveResultIndex(options.moves ?? moves, bingoRules);
-  const results = index.summary(0);
   const rank = options.rankEndgame?.(index);
   const fetchPage =
     options.fetchPage ?? vi.fn(async (_id, query) => index.page(query));
   const fetchShortlist = vi.fn(async (_id, options) =>
     index.shortlist(options),
   );
-  function Harness() {
+  function Harness({ results }: { results: MoveResults }) {
     const [preview, setPreview] = useState<Move | null>(null);
     const [boardOdds, setBoardOdds] = useState(options.boardOdds);
     const replyAnalysis = useReplyAnalysis(
@@ -153,8 +152,14 @@ function setup(
       />
     );
   }
-  render(<Harness />);
-  return { onPlay, onPreview, user: userEvent.setup() };
+  let searchId = 0;
+  const view = render(<Harness results={index.summary(searchId)} />);
+  return {
+    onPlay,
+    onPreview,
+    user: userEvent.setup(),
+    rerun: () => view.rerender(<Harness results={index.summary(++searchId)} />),
+  };
 }
 const rows = () => screen.getAllByRole("button", { name: /points,/ });
 
@@ -404,7 +409,7 @@ test("empty-bag replies start automatically and can be overridden", async () => 
   expect(screen.queryByText("Bag assumed empty")).toBeNull();
 });
 
-test("empty-bag estimates rank moves automatically and ignore a canceled ranking", async () => {
+test("empty-bag rows wait for estimates unless the user skips to points", async () => {
   vi.stubGlobal(
     "Worker",
     class {
@@ -413,7 +418,7 @@ test("empty-bag estimates rank moves automatically and ignore a canceled ranking
     },
   );
   const pending: { signal: AbortSignal; publish: () => void }[] = [];
-  const { user } = setup(false, {
+  const { user, rerun } = setup(false, {
     analysisGame: endgame,
     rankEndgame: (index) => (_search, _game, _turns, signal) =>
       new Promise((resolve) =>
@@ -439,26 +444,11 @@ test("empty-bag estimates rank moves automatically and ignore a canceled ranking
         }),
       ),
   });
+  const skip = () =>
+    screen.getByRole("button", { name: "Skip endgame analysis" });
   expect(screen.getByText("Estimating endgames…")).toBeTruthy();
-  expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
-  await user.click(screen.getByText("Reply settings"));
-  const setBag = async (value: string) => {
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Tiles in bag" }), {
-      target: { value },
-    });
-    await user.click(
-      screen.getByRole("button", { name: "Update reply analysis" }),
-    );
-  };
-  await setBag("1");
-  expect(pending[0].signal.aborted).toBe(true);
+  expect(screen.queryAllByRole("button", { name: /points,/ })).toHaveLength(0);
   await act(async () => pending[0].publish());
-  expect(
-    screen.queryByRole("button", { name: "Sort by estimated endgame swing" }),
-  ).toBeNull();
-
-  await setBag("0");
-  await act(async () => pending[1].publish());
   const swing = await screen.findByRole("button", {
     name: "Sort by estimated endgame swing",
   });
@@ -470,11 +460,32 @@ test("empty-bag estimates rank moves automatically and ignore a canceled ranking
     screen.getByTitle(/^Estimated endgame swing −41/).textContent,
   ).toContain("≈−41");
   expect(screen.getByText("Estimated 2 of 3 moves")).toBeTruthy();
-  await user.click(screen.getByRole("button", { name: "Sort by points" }));
-  await waitFor(() =>
-    expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/),
-  );
-  expect(screen.getByText("QI out")).toBeTruthy();
+  rerun();
+  expect(screen.queryAllByRole("button", { name: /points,/ })).toHaveLength(0);
+  await user.click(skip());
+  expect(pending[1].signal.aborted).toBe(true);
+  expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
+  await act(async () => pending[1].publish());
+  expect(
+    screen.queryByRole("button", { name: "Sort by estimated endgame swing" }),
+  ).toBeNull();
+  expect(
+    screen
+      .getByRole("button", { name: "Sort by points" })
+      .getAttribute("aria-pressed"),
+  ).toBe("true");
+
+  rerun();
+  expect(skip()).toBeTruthy();
+  await act(async () => pending[2].publish());
+  expect(
+    (
+      await screen.findByRole("button", {
+        name: "Sort by estimated endgame swing",
+      })
+    ).getAttribute("aria-pressed"),
+  ).toBe("true");
+  expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
 });
 test("rack odds sort every move and board odds rank checked moves separately", async () => {
   const { user } = setup(true, {

@@ -254,6 +254,7 @@ export default function Results({
   const activeOrder = ordering?.searchId === searchId ? ordering : undefined;
   const ranking =
     replyEnabled && !shortlistActive ? replyAnalysis.ranking : undefined;
+  const waitingForEndgame = replyEnabled && replyAnalysis.estimatingEndgame;
   const endgameRanked = !!ranking?.checked;
   const sort =
     activeOrder?.sort === "endgame" && !endgameRanked
@@ -339,7 +340,7 @@ export default function Results({
       endgameId: endgameRanked ? ranking.id : undefined,
     },
     fetchPage,
-    !busy && !error,
+    !busy && !error && !waitingForEndgame,
   );
   const total = shortlistActive ? filteredShortlist.length : page.total;
   const start = shortlistActive ? 0 : page.start;
@@ -530,7 +531,10 @@ export default function Results({
             aria-expanded={analyzing}
             disabled={
               !analyzing &&
-              (!total || pagePending || (!shortlistActive && page.unavailable))
+              (waitingForEndgame ||
+                !total ||
+                pagePending ||
+                (!shortlistActive && page.unavailable))
             }
             onClick={() => {
               if (!analyzing)
@@ -650,6 +654,22 @@ export default function Results({
             Find moves
           </button>
         </div>
+      ) : waitingForEndgame ? (
+        <div className="results-empty">
+          <LoaderCircle className="spin" size={24} aria-hidden="true" />
+          <h3 role="status">Estimating endgames…</h3>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => {
+              replyAnalysis.skipEndgameEstimate();
+              setShortlistOnly(false);
+              setSort("score");
+            }}
+          >
+            Skip endgame analysis
+          </button>
+        </div>
       ) : !shortlistActive && page.unavailable ? (
         <div className="results-empty">
           <p role="status">
@@ -692,9 +712,6 @@ export default function Results({
                 {replyAnalysis.bagAssumedEmpty
                   ? "Bag assumed empty"
                   : "Empty bag"}
-                {replyAnalysis.estimatingEndgame && (
-                  <span role="status">Estimating endgames…</span>
-                )}
                 {replyAnalysis.endgameEstimateUnavailable && (
                   <span role="status">Endgame estimates unavailable.</span>
                 )}

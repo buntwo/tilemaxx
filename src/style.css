@@ -4713,9 +4713,31 @@ label + label {
 .analysis-endgame > p {
   font-weight: 650;
 }
-.analysis-endgame ol {
-  margin: 5px 0;
-  padding-left: 21px;
+.analysis-line {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.analysis-line th,
+.analysis-line td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.analysis-line tbody th {
+  font-weight: 500;
+}
+.analysis-line :is(th, td):last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.move-analysis .analysis-good {
+  color: var(--primary);
+  font-weight: 650;
+}
+.move-analysis .analysis-bad {
+  color: var(--tile-warning);
+  font-weight: 650;
 }
 
 .with-bingo-odds .result-leave {

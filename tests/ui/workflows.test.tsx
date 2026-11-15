@@ -64,6 +64,12 @@ class SolverWorker {
   }
   postMessage(request: SolverRequest) {
     if (this.reply) return;
+    if (request.kind === "endgame") {
+      queueMicrotask(() =>
+        this.onmessage?.({ data: { kind: "endgame", id: request.id } }),
+      );
+      return;
+    }
     if (request.kind === "discard") {
       this.results.delete(request.searchId);
       return;
@@ -306,17 +312,30 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
   const card = screen.getByRole("article", { name: /^Analysis for CATS / });
   expect(card.querySelectorAll("summary")).toHaveLength(1);
   await user.click(within(card).getByText(/^CATS .* details$/));
-  expect(within(card).getByText(/^Optimal endgame swing \+/)).toBeTruthy();
-  expect(within(card).getByRole("list").textContent).toMatch(/^You · CATS /);
+  expect(
+    within(card)
+      .getByText("Optimal endgame swing +32")
+      .classList.contains("analysis-good"),
+  ).toBe(true);
+  const line = within(
+    within(card).getByRole("table", { name: "Optimal endgame line" }),
+  );
+  expect(line.getByRole("rowheader", { name: "You" })).toBeTruthy();
+  expect(line.getByRole("cell", { name: "CATS" })).toBeTruthy();
+  expect(line.getByRole("cell", { name: "12" })).toBeTruthy();
   const comparison = within(
     screen.getByRole("table", { name: "Move comparison" }),
   );
   expect(
-    comparison.getByRole("cell", { name: "122–140 · Loss by 18" }),
-  ).toBeTruthy();
+    comparison
+      .getByRole("cell", { name: "122–140 · Lose by 18" })
+      .classList.contains("analysis-bad"),
+  ).toBe(true);
   expect(
-    within(card).getByText("Final score 122–140 · Loss by 18"),
-  ).toBeTruthy();
+    within(card)
+      .getByText("Final score 122–140 · Lose by 18")
+      .classList.contains("analysis-bad"),
+  ).toBe(true);
 
   fireEvent.change(budget, { target: { value: "101" } });
   expect(budget.getAttribute("aria-invalid")).toBe("true");
