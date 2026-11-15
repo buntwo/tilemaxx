@@ -168,7 +168,7 @@ export default function Results({
   const shortlistActive = shortlistOnly && !!analysisGame;
   const totalMoves = resultSet?.total ?? 0;
   const boardOdds =
-    !phoneLayout || checkedBoardOdds?.bagSize === replyAnalysis.bagSize
+    checkedBoardOdds?.bagSize === replyAnalysis.bagSize
       ? checkedBoardOdds
       : undefined;
   const bingoCount = resultSet?.bingoCount ?? 0;
@@ -543,6 +543,7 @@ export default function Results({
       )}
       {!busy &&
         !error &&
+        resultSet &&
         !!totalMoves &&
         analysisGame &&
         onBoardOdds &&
@@ -550,9 +551,15 @@ export default function Results({
           <BingoOddsControls
             key={`bingo-odds:${analysisKey}`}
             game={analysisGame}
-            moves={
+            searchId={resultSet.searchId}
+            bagSize={replyAnalysis.bagSize}
+            minimumBag={replyAnalysis.minimumBag}
+            repliesPending={replyAnalysis.pending}
+            invalid={replyAnalysis.invalid}
+            moves={resultSet.head}
+            manualMoves={
               phoneLayout
-                ? resultSet?.head ?? []
+                ? undefined
                 : shortlistActive
                   ? filteredShortlist
                   : page.head
@@ -561,15 +568,6 @@ export default function Results({
               replyEnabled && <ReplySettings analysis={replyAnalysis} />
             }
             sortControl={sortControl}
-            automatic={
-              phoneLayout && resultSet
-                ? {
-                    searchId: resultSet.searchId,
-                    bagSize: replyAnalysis.bagSize,
-                    ready: !replyAnalysis.pending && !replyAnalysis.invalid,
-                  }
-                : undefined
-            }
             toolbarStart={collapsibleSearch && viewPicker}
             toolbarEnd={collapsibleSearch && searchToggle}
             searchField={collapsibleSearch && searchField}
@@ -703,17 +701,65 @@ export default function Results({
                 )}
               </div>
             )}
-            <div className="result-leave">
-              {column("LEAVE", "leave", "rack leave")}
-              {(analysisGame || rackOdds) &&
-                column(
-                  phoneLayout ? "DRAW %" : "BINGO DRAW %",
-                  "bingo-draw",
-                  "bingo draw odds",
-                  !rackOdds || !!rackOdds.error,
-                )}
-              {!!boardOdds?.checked &&
-                column("AFTER PLAY", "board-bingo", "bingo odds after play")}
+            <div className="result-leave-heading">
+              {analysisGame || rackOdds || boardOdds?.checked ? (
+                <details
+                  className="result-leave-sort"
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget))
+                      event.currentTarget.open = false;
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape" || !event.currentTarget.open)
+                      return;
+                    event.preventDefault();
+                    event.currentTarget.open = false;
+                    event.currentTarget.querySelector("summary")?.focus();
+                  }}
+                >
+                  <summary
+                    className="result-column-sort"
+                    aria-label="Sort by leave or bingo odds"
+                  >
+                    {sort === "bingo-draw"
+                      ? "DRAW %"
+                      : sort === "board-bingo"
+                        ? "AFTER %"
+                        : "LEAVE"}
+                    <ChevronDown size={9} aria-hidden="true" />
+                  </summary>
+                  <div
+                    className="result-leave-sort-options"
+                    onClick={(event) => {
+                      const menu = event.currentTarget.closest("details");
+                      if (
+                        !(event.target instanceof Element) ||
+                        !event.target.closest("button") ||
+                        !menu
+                      )
+                        return;
+                      menu.open = false;
+                      menu.querySelector("summary")?.focus();
+                    }}
+                  >
+                    {column("Rack leave", "leave", "rack leave")}
+                    {column(
+                      "Bingo draw %",
+                      "bingo-draw",
+                      "bingo draw odds",
+                      !rackOdds || !!rackOdds.error,
+                    )}
+                    {column(
+                      "Bingo after play %",
+                      "board-bingo",
+                      "bingo odds after play",
+                      !boardOdds?.checked,
+                    )}
+                  </div>
+                </details>
+              ) : (
+                column("LEAVE", "leave", "rack leave")
+              )}
             </div>
             <div className="result-position-heading">
               {column("POS", "position", "position")}
@@ -916,6 +962,7 @@ export default function Results({
                             className="result-draw-odds"
                             title="Chance the refilled rack spells a full-length word"
                           >
+                            <span className="result-odds-label">Draw</span>{" "}
                             {rackPercent ?? (rackOddsPending ? "…" : "—")}
                           </strong>
                         )}
@@ -928,9 +975,8 @@ export default function Results({
                                 : "Chance of a legal bingo before the opponent replies"
                             }
                           >
-                            {phoneLayout
-                              ? boardPercent
-                              : `After play ${boardPercent}`}
+                            <span className="result-odds-label">After</span>{" "}
+                            {boardPercent}
                           </span>
                         )}
                       </span>
@@ -1006,11 +1052,11 @@ export default function Results({
             Replies {Object.keys(replyAnalysis.results ?? {}).length}/
             {replyAnalysis.target.length}
           </span>
-        ) : phoneLayout && boardOddsProgress ? (
+        ) : boardOddsProgress ? (
           <span role="status" title="Checking bingo odds after your play">
             Bingo {boardOddsProgress.checked}/{boardOddsProgress.total}
           </span>
-        ) : phoneLayout && rackOddsPending ? (
+        ) : rackOddsPending ? (
           <span role="status">Calculating bingo draws…</span>
         ) : defenseProgress ? (
           <span title="Checking premium replies">Risk {defenseProgress}</span>

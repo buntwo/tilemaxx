@@ -274,6 +274,7 @@ test("board check uses the current filtered moves, and cancelled results stay ou
     screen.getByRole("textbox", { name: "Filter moves" }),
     "CATS",
   );
+  await user.click(screen.getByText("Options", { selector: "summary" }));
   await user.click(
     screen.getByRole("button", { name: "Check bingo after your play" }),
   );
@@ -316,9 +317,11 @@ test("board check uses the current filtered moves, and cancelled results stay ou
   ).toBeNull();
 });
 
-test("narrow results stream bingo odds after replies finish and discard odds for an older bag size", async () => {
+test.each(["narrow", "wide"])("%s results stream bingo odds after replies finish and discard odds for an older bag size", async (layout) => {
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(max-width: 650px)",
+    matches:
+      (layout === "narrow" && query === "(max-width: 650px)") ||
+      (layout === "wide" && query === "(min-width: 1000px)"),
     addEventListener() {},
     removeEventListener() {},
   }));
@@ -351,10 +354,14 @@ test("narrow results stream bingo odds after replies finish and discard odds for
   await typeRack(user, "CATS");
   await user.keyboard("{Enter}");
   await screen.findByRole("button", { name: "Sort by points" });
-  expect(screen.queryByRole("combobox", { name: "Sort moves" })).toBeNull();
-  expect(
-    screen.queryByRole("button", { name: "Check bingo after your play" }),
-  ).toBeNull();
+  expect(!!screen.queryByRole("combobox", { name: "Sort moves" })).toBe(
+    layout === "wide",
+  );
+  const manualCheck = screen.queryByRole("button", {
+    name: "Check bingo after your play",
+  });
+  if (layout === "wide") expect(manualCheck?.closest("details")?.open).toBe(false);
+  else expect(manualCheck).toBeNull();
   expect(replies).toHaveLength(1);
   expect(checks).toHaveLength(0);
   function finishReplies(index: number) {
@@ -815,7 +822,7 @@ test("rack → real solver → hover preview → play → undo/redo → save", a
       .getAllByRole("button")
       .map((move) => move.getAttribute("aria-label"));
   const originalRows = moveRows();
-  expect(row[0].querySelector(".result-draw-odds")?.textContent).toBe("25%");
+  expect(row[0].querySelector(".result-draw-odds")?.textContent).toBe("Draw 25%");
   fireEvent.pointerEnter(row[0], { pointerType: "mouse" });
   expect(current().board.some(Boolean)).toBe(false);
   expect(countA()).toBeTruthy();
@@ -840,7 +847,7 @@ test("rack → real solver → hover preview → play → undo/redo → save", a
     screen
       .getAllByRole("button", { name: /^CATS, / })[0]
       .querySelector(".result-draw-odds")?.textContent,
-  ).toBe("25%");
+  ).toBe("Draw 25%");
   expect(solves).toBe(1);
   await user.click(screen.getByRole("button", { name: "Redo" }));
   expect(screen.queryByLabelText("Suggested moves")).toBeNull();

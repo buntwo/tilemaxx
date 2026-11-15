@@ -1145,7 +1145,7 @@ export default function App() {
                 boardOddsProgress={solver.boardOddsProgress}
                 boardOddsError={solver.boardOddsError}
                 onBoardOdds={(candidates, bagSize) =>
-                  solver.runBoardOdds(game, candidates, bagSize, phoneLayout)
+                  solver.runBoardOdds(game, candidates, bagSize)
                 }
                 onCancelBoardOdds={solver.cancelBoardOdds}
               />
