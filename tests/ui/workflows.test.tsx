@@ -593,6 +593,46 @@ const selectedCell = () =>
     .querySelector(".board-entry .square.selected")
     ?.getAttribute("data-cell");
 
+test.each(["phone", "desktop"])(
+  "the %s game footer shows and copies the current game's ID",
+  async (layout) => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches:
+        (layout === "phone" && query === "(max-width: 650px)") ||
+        (layout === "desktop" && query === "(min-width: 1000px)"),
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    const user = await start();
+    const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const footer = () =>
+      within(
+        screen.getByRole("main").querySelector<HTMLElement>(":scope > footer:last-child")!,
+      );
+    const copyButton = () =>
+      footer().getByRole("button", { name: "Copy Game ID" });
+    expect(footer().getByText("g", { selector: "code" })).toBeTruthy();
+    await user.click(copyButton());
+    expect(copy).toHaveBeenCalledExactlyOnceWith("g");
+    expect(await screen.findByText("Game ID copied.")).toBeTruthy();
+
+    remote.games.push({ ...game(), id: "second-game", name: "Second game" });
+    await act(() => store.refresh());
+    await user.click(screen.getByRole("button", { name: "Switch game" }));
+    await user.click(screen.getByRole("menuitemradio", { name: /^Second game/ }));
+    expect(
+      await footer().findByText("second-game", { selector: "code" }),
+    ).toBeTruthy();
+
+    copy.mockRejectedValueOnce(new Error("Clipboard unavailable"));
+    await user.click(copyButton());
+    expect(await screen.findByText("Game ID selected for copying.")).toBeTruthy();
+    expect(window.getSelection()?.toString()).toBe("second-game");
+    window.getSelection()?.removeAllRanges();
+    copy.mockRestore();
+  },
+);
+
 test("board hover shows both word scores on a shared ending and keeps them across tile gaps", async () => {
   const user = await start();
   await user.click(cell("G8: empty"));

@@ -36,6 +36,7 @@ import { version } from "../package.json";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
 import BoardEntry, { BoardEntryHelp } from "./components/BoardEntry";
 import { GameCalculations } from "./components/GameCalculations";
+import GameId from "./components/GameId";
 import GameWorkspace, { usePhoneMoveReview } from "./components/GameWorkspace";
 import RackEntry, { type RackEntryHandle } from "./components/RackEntry";
 import ExchangeSuggestion from "./components/ExchangeSuggestion";
@@ -1224,10 +1225,15 @@ function Tilemaxx() {
             </button>
           </div>
         )}
-        {!phoneLayout && (
+        {(!phoneLayout || openId) && (
           <footer className="workspace-footer">
-            <span>Less guessing. More good words.</span>
-            <span>Tilemaxx · Local & personal</span>
+            {!phoneLayout && (
+              <div className="workspace-footer-notes">
+                <span>Less guessing. More good words.</span>
+                <span>Tilemaxx · Local & personal</span>
+              </div>
+            )}
+            {openId && <GameId id={openId} onNotice={notify} />}
           </footer>
         )}
       </main>
