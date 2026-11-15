@@ -328,12 +328,12 @@ export default function MoveAnalysis({
                     )}
                     {forecast.endgameLimit && <p>{forecast.endgameLimit}</p>}
                     {forecast.endgame && (
-                      <details className="analysis-endgame">
-                        <summary>
+                      <div className="analysis-endgame">
+                        <p>
                           Optimal endgame swing{" "}
                           {forecast.endgame.spread > 0 ? "+" : ""}
                           {forecast.endgame.spread}
-                        </summary>
+                        </p>
                         <ol>
                           {forecast.endgame.line.map((step, turn) => (
                             <li key={turn}>
@@ -344,7 +344,7 @@ export default function MoveAnalysis({
                             </li>
                           ))}
                         </ol>
-                      </details>
+                      </div>
                     )}
                     {exampleReply && (
                       <button

@@ -292,6 +292,11 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
   await user.click(screen.getByRole("button", { name: "Run analysis" }));
   await screen.findByRole("button", { name: "Refine estimates" });
   expect(requests[0].endgameBudgetMultiplier).toBe(1);
+  const card = screen.getByRole("article", { name: /^Analysis for CATS / });
+  expect(card.querySelectorAll("summary")).toHaveLength(1);
+  await user.click(within(card).getByText(/^CATS .* details$/));
+  expect(within(card).getByText(/^Optimal endgame swing \+/)).toBeTruthy();
+  expect(within(card).getByRole("list").textContent).toMatch(/^You · CATS /);
 
   fireEvent.change(budget, { target: { value: "101" } });
   expect(budget.getAttribute("aria-invalid")).toBe("true");
