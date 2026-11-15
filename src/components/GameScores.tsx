@@ -12,6 +12,31 @@ import Modal from "./Modal";
 import ScoreBreakdown from "./ScoreBreakdown";
 import TurnReview from "./TurnReview";
 
+export function GameScoreBadge({
+  game,
+  prominent,
+}: {
+  game: Game;
+  prominent: boolean;
+}) {
+  if (!tracksScores(game)) return null;
+  return (
+    <span
+      className={
+        prominent ? "game-title-score game-scoreboard" : "game-title-score"
+      }
+      role="group"
+      aria-label="Tracked score"
+    >
+      <span aria-label="Your score">{game.scoring?.you.points ?? 0}</span>
+      <span aria-hidden="true">–</span>
+      <span aria-label="Opponent score">
+        {game.scoring?.opponent.points ?? 0}
+      </span>
+    </span>
+  );
+}
+
 export default function GameScores({
   game,
   onToggle,
