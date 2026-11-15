@@ -2280,6 +2280,11 @@ test.each(["phone", "desktop"])("%s square selection filters moves without editi
 });
 
 test("score tracking records typed opponent moves and solver plays across undo, redo and saving", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(min-width: 1000px)" || query === "(any-hover: hover)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
   const user = await start();
   const scores = () =>
     within(screen.getByRole("region", { name: "Game scores" }));
@@ -2291,6 +2296,9 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   const titleScore = () =>
     screen.queryByRole("group", { name: "Tracked score" });
   expect(titleScore()?.textContent).toBe("0–0");
+  const heading = cell("Game options").closest(".game-heading");
+  expect(heading?.contains(titleScore())).toBe(true);
+  expect(titleScore()?.closest(".game-title-row, .board-toolbar")).toBeNull();
 
   await user.click(cell("H8: DW, start"));
   await user.keyboard("CAQ{Backspace}T");

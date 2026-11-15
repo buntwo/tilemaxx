@@ -66,12 +66,11 @@ import {
   readGameDetails,
 } from "./components/GameDetails";
 import ArchivedGames, { type ArchiveSort } from "./components/ArchivedGames";
-import GameScores from "./components/GameScores";
+import GameScores, { GameScoreBadge } from "./components/GameScores";
 import {
   emptyScoring,
   playTrackedMove,
   recordOpponentPlay,
-  tracksScores,
   setScoreTracking,
   treatBoardEditAsCorrection,
 } from "../shared/game-scoring";
@@ -564,6 +563,9 @@ function Tilemaxx() {
   const compactGame = desktopGame && workspace === "games" && !!game;
   const collapsibleBoardHelp = compactGame || phoneLayout;
   const menuInTitle = phoneLayout && workspace === "games";
+  const headlineScore = game && (
+    <GameScoreBadge game={game} prominent={compactGame} />
+  );
   const menuButton = (
     <button
       className="icon-button menu-button"
@@ -695,7 +697,7 @@ function Tilemaxx() {
   const boardToolbar = game && (
     <div className="board-toolbar">
       <div>
-        <span className="board-name">
+        <span className="board-name" title={game.template.name}>
           <Grid2X2 size={16} />
           {game.template.name}
           {hasCustomPremiums(game) && " (custom)"}
@@ -924,22 +926,9 @@ function Tilemaxx() {
                 {selectedGame?.archived && selectedGame.fullMoveHistory && (
                   <FullMoveHistoryIcon />
                 )}
-                {game && tracksScores(game) && (
-                  <span
-                    className="game-title-score"
-                    role="group"
-                    aria-label="Tracked score"
-                  >
-                    <span aria-label="Your score">
-                      {game.scoring?.you.points ?? 0}
-                    </span>
-                    <span aria-hidden="true">–</span>
-                    <span aria-label="Opponent score">
-                      {game.scoring?.opponent.points ?? 0}
-                    </span>
-                  </span>
-                )}
+                {!compactGame && headlineScore}
               </div>
+              {compactGame && headlineScore}
               {selectedGame && (
                 <div className="game-title-meta">
                   <div>
@@ -956,12 +945,14 @@ function Tilemaxx() {
                 </details>
               )}
             </div>
-            {compactGame && boardToolbar}
             {game && (
               <div className="game-actions">
+                {compactGame && boardToolbar}
                 {game.archived && (
                   <button
-                    className="button secondary"
+                    className="button secondary restore-game"
+                    aria-label="Restore game"
+                    title="Restore game"
                     disabled={!game.archivedBoard}
                     onClick={() => {
                       update(restoreArchivedGame(game));
@@ -972,12 +963,13 @@ function Tilemaxx() {
                       );
                     }}
                   >
-                    <Undo2 size={16} /> Restore game
+                    <Undo2 size={16} /> <span>Restore game</span>
                   </button>
                 )}
                 <button
                   className="button secondary manage-button"
                   aria-label="Game options"
+                  title="Game options"
                   onClick={() => openDialog("manage")}
                 >
                   <MoreHorizontal size={18} />
