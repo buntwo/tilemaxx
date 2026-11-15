@@ -39,7 +39,7 @@ interface PremiumSearch {
 }
 
 export class SearchLimitError extends Error {
-  constructor() {
+  constructor(readonly reason?: "time" | "nodes" | "moves") {
     super(
       "This search is too large to finish safely. Replace one or more blanks with known letters, or use a smaller word list, then try again. No partial results were shown.",
     );
@@ -235,7 +235,7 @@ export function prepareSolver(
       hasBingo = false;
     if (!rackLength || (options.bingoOnly && rackLength < bingoTiles))
       return { moves, bestScore, hasBingo };
-    if (performance.now() >= deadline) throw new SearchLimitError();
+    if (performance.now() >= deadline) throw new SearchLimitError("time");
 
     const counts = premiumSearch ? new Uint16Array(26) : new Uint8Array(26);
     let rackMask = 0,
@@ -326,7 +326,7 @@ export function prepareSolver(
           }
           return;
         }
-        if (moveCount >= budget.maxMoves) throw new SearchLimitError();
+        if (moveCount >= budget.maxMoves) throw new SearchLimitError("moves");
         moveCount++;
         if (summaryOnly) {
           if (score > bestScore) {
@@ -394,12 +394,9 @@ export function prepareSolver(
         connected: boolean,
         hitsPremium = false,
       ) {
-        if (
-          ++nodes > budget.maxNodes ||
-          ((nodes & 255) === 0 && performance.now() >= deadline)
-        ) {
-          throw new SearchLimitError();
-        }
+        if (++nodes > budget.maxNodes) throw new SearchLimitError("nodes");
+        if ((nodes & 255) === 0 && performance.now() >= deadline)
+          throw new SearchLimitError("time");
         const atEdge = startPosition + length === size;
         if (
           toPremium &&
@@ -511,7 +508,7 @@ export function prepareSolver(
       }
 
       for (const start of starts) {
-        if (performance.now() >= deadline) throw new SearchLimitError();
+        if (performance.now() >= deadline) throw new SearchLimitError("time");
         if (
           toAnchor[start.cell] > rackLength ||
           (toPremium && toPremium[start.cell] > rackLength) ||

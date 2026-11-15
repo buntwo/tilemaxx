@@ -164,7 +164,7 @@ function bucket(score: number) {
 
 function limit(until: number) {
   const maxMs = Math.min(SEARCH_LIMITS.maxMs, until - performance.now());
-  if (maxMs <= 0) throw new SearchLimitError();
+  if (maxMs <= 0) throw new SearchLimitError("time");
   return { maxMs };
 }
 
@@ -381,7 +381,7 @@ export function replyEndgameLine(
   lexicon: Lexicon,
   position: ReplyPosition,
   candidate: Move,
-  deadline: number,
+  timeLimitMs: number,
 ) {
   const { pool, bagSize } = replyPosition(position);
   const { board, template, scorelessTurns } = position;
@@ -394,7 +394,7 @@ export function replyEndgameLine(
     pool.join(""),
     template,
     scorelessTurns,
-    (board, rack) => {
+    (board, rack, deadline) => {
       let solver = cache.get(board);
       if (!solver) {
         solver = prepareSolver(lexicon, board, template);
@@ -403,5 +403,6 @@ export function replyEndgameLine(
       return solver.solve(rack, limit(deadline), { unsorted: true });
     },
     placeTiles,
+    timeLimitMs,
   );
 }

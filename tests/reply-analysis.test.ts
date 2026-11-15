@@ -214,7 +214,7 @@ test("known racks separate the raw reply from going-out adjustments", () => {
   assert.equal(final.yourAdjustment, 10);
   assert.equal(final.opponentAdjustment, -10);
   assert.equal(
-    replyEndgameLine(lexicon, position, out, budget()).spread,
+    replyEndgameLine(lexicon, position, out, 2_500).spread,
     out.score + 20,
   );
   assert.equal(placeTiles(board, opens)[7], "I");

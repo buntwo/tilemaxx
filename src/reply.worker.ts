@@ -96,7 +96,7 @@ async function runDetail(
         lexicon,
         request,
         candidate,
-        performance.now() + 2_500,
+        2_500,
       );
       self.postMessage({ id, kind, line });
     } else {

@@ -290,9 +290,7 @@ export default function MoveAnalysis({
                         .
                       </p>
                     )}
-                    {forecast.endgame === null && (
-                      <p>Empty-bag search reached its limit for this move.</p>
-                    )}
+                    {forecast.endgameLimit && <p>{forecast.endgameLimit}</p>}
                     {forecast.endgame && (
                       <details className="analysis-endgame">
                         <summary>

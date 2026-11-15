@@ -1,10 +1,14 @@
 import { type Board, type BoardTemplate, type Move, tileScore } from "./model";
-import { SearchLimitError } from "./solver";
+import { SEARCH_LIMITS, SearchLimitError } from "./solver";
 
 export interface EndgameLine {
   spread: number;
   line: (Move | null)[];
 }
+
+export class EndgameSearchLimitError extends Error {}
+
+const POSITION_LIMIT = 1_500;
 
 export function rackPoints(rack: string, rules: BoardTemplate["rules"]) {
   return [...rack].reduce(
@@ -20,12 +24,26 @@ export function solveEmptyBag(
   opponent: string,
   template: BoardTemplate,
   priorScoreless: number,
-  search: (board: Board, rack: string) => Move[],
+  search: (board: Board, rack: string, deadline: number) => Move[],
   place: (board: Board, move: Move) => Board,
+  timeLimitMs: number,
 ): EndgameLine {
   const value = (rack: string) => rackPoints(rack, template.rules);
   const cache = new Map<string, EndgameLine>();
+  const start = performance.now();
+  const deadline = start + timeLimitMs;
   let states = 0;
+  function stop(limit: string): never {
+    const elapsed = Math.round(performance.now() - start).toLocaleString();
+    const positions = `${states.toLocaleString()} ${states === 1 ? "position" : "positions"}`;
+    throw new EndgameSearchLimitError(
+      `Endgame search reached ${limit} after visiting ${positions} (${elapsed} ms elapsed).`,
+    );
+  }
+  function checkTime() {
+    if (performance.now() >= deadline)
+      stop(`its ${timeLimitMs.toLocaleString()} ms time limit`);
+  }
   function turn(
     position: Board,
     own: string,
@@ -33,12 +51,35 @@ export function solveEmptyBag(
     scoreless: number,
   ): EndgameLine {
     if (scoreless >= 6) return { spread: value(other) - value(own), line: [] };
+    checkTime();
     const key = `${position.join(".")}|${own}|${other}|${scoreless}`;
     const cached = cache.get(key);
     if (cached) return cached;
-    if (++states > 1_500) throw new SearchLimitError();
+    if (states === POSITION_LIMIT) stop("its position limit");
+    states++;
+    let moves: Move[];
+    try {
+      moves = search(position, own, deadline);
+    } catch (error) {
+      if (!(error instanceof SearchLimitError)) throw error;
+      if (error.reason === "time") {
+        checkTime();
+        stop(
+          `the ${SEARCH_LIMITS.maxMs.toLocaleString()} ms move-generation limit at a single position`,
+        );
+      }
+      if (error.reason === "nodes")
+        stop(
+          `the move generator’s ${SEARCH_LIMITS.maxNodes.toLocaleString()}-node limit at a single position`,
+        );
+      if (error.reason === "moves")
+        stop(
+          `the move generator’s ${SEARCH_LIMITS.maxMoves.toLocaleString()}-move limit at a single position`,
+        );
+      stop("a move-generation limit at a single position");
+    }
     let best: EndgameLine = { spread: -Infinity, line: [] };
-    for (const move of [...search(position, own), null]) {
+    for (const move of [...moves, null]) {
       if (move && !move.leave) {
         const spread = move.score + 2 * value(other);
         if (spread > best.spread) best = { spread, line: [move] };
@@ -66,6 +107,7 @@ export function solveEmptyBag(
     candidate.leave,
     candidate.score ? 0 : priorScoreless + 1,
   );
+  checkTime();
   return {
     spread: candidate.score - result.spread,
     line: [candidate, ...result.line],

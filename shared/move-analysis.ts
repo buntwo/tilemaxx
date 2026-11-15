@@ -11,7 +11,11 @@ import {
 import { rackLetters } from "./rack-entry";
 import { SEARCH_LIMITS, SearchLimitError, prepareSolver } from "./solver";
 import { unseenTiles } from "./tile-pool";
-import { solveEmptyBag, type EndgameLine } from "./endgame";
+import {
+  EndgameSearchLimitError,
+  solveEmptyBag,
+  type EndgameLine,
+} from "./endgame";
 
 export const ANALYSIS_LIMIT = 3;
 export const ANALYSIS_TRIALS = 200;
@@ -50,6 +54,7 @@ export interface MoveForecast {
   bigThreatOpened: number;
   models: Record<OpponentModel, ReplyForecast>;
   endgame?: EndgameLine | null;
+  endgameLimit?: string;
 }
 export interface AnalysisResult {
   trials: number;
@@ -286,14 +291,14 @@ export function analyzeMoves(
   const prepared = new WeakMap<Board, ReturnType<typeof prepareSolver>>();
   function prepare(position: Board, until: number) {
     const deadline = Math.min(until, performance.now() + SEARCH_LIMITS.maxMs);
-    if (performance.now() >= deadline) throw new SearchLimitError();
+    if (performance.now() >= deadline) throw new SearchLimitError("time");
     let solver = prepared.get(position);
     if (!solver) {
       solver = prepareSolver(lexicon, position, template);
       prepared.set(position, solver);
     }
     const maxMs = Math.min(SEARCH_LIMITS.maxMs, deadline - performance.now());
-    if (maxMs <= 0) throw new SearchLimitError();
+    if (maxMs <= 0) throw new SearchLimitError("time");
     return { solver, limits: { maxMs } };
   }
   function search(
@@ -586,8 +591,8 @@ export function analyzeMoves(
         };
       }
       let endgame: EndgameLine | null | undefined;
+      let endgameLimit: string | undefined;
       if (searchEndgames) {
-        const endgameDeadline = performance.now() + 1_500 / entries.length;
         try {
           endgame = solveEmptyBag(
             board,
@@ -595,12 +600,14 @@ export function analyzeMoves(
             pool.join(""),
             template,
             request.scorelessTurns ?? 0,
-            (position, letters) => search(position, letters, endgameDeadline),
+            search,
             placeTiles,
+            1_500 / entries.length,
           );
         } catch (error) {
-          if (!(error instanceof SearchLimitError)) throw error;
+          if (!(error instanceof EndgameSearchLimitError)) throw error;
           endgame = null;
+          endgameLimit = error.message;
         }
         progress({
           phase: "endgames",
@@ -611,6 +618,7 @@ export function analyzeMoves(
       return {
         move: entry.move,
         endgame,
+        endgameLimit,
         drawSize: entry.drawSize,
         bingo: entry.exact?.bingo ?? entry.bingo / totalWeight,
         exact: entry.exact !== null,
