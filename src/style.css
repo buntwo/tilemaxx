@@ -5057,7 +5057,7 @@ label + label {
 .phone-layout .board-panel .direct-entry-tools { margin: 3px 5px 0; padding: 0; }
 .phone-layout .board-panel .direct-entry-actions { margin-left: auto; gap: 1px; }
 .phone-layout .board-panel .direct-entry-actions > button,
-.phone-layout .board-review-history > button {
+.phone-layout .board-mode-history > button {
   min-width: 44px;
   min-height: 44px;
 }
@@ -5078,6 +5078,7 @@ label + label {
   white-space: nowrap;
 }
 .phone-layout .board-undo { position: relative; }
+.phone-layout :is(.board-undo, .board-redo):not(:disabled) { color: var(--primary); }
 .phone-layout .board-undo::before {
   content: "";
   position: absolute;
@@ -5086,10 +5087,20 @@ label + label {
   bottom: 12px;
   border-left: 1px solid var(--line);
 }
-.board-review-history {
+.board-mode-history {
   display: flex;
   flex: none;
   margin-left: auto;
+}
+.phone-layout .move-square-controls {
+  gap: 2px;
+  padding-inline: 6px;
+}
+.phone-layout .move-square-controls > [role="status"] {
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 .phone-layout .rack-panel { margin-top: 8px; padding: 6px 10px 5px; }
 .phone-layout .rack-panel .rack-tiles { margin: 4px auto 3px; }

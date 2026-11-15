@@ -26,6 +26,7 @@ import {
   type GameIndex,
   type GameSummary,
 } from "../shared/game-index";
+import { backfillGameResult } from "../shared/game-scoring";
 import { PRESETS } from "../shared/presets";
 import { parseWords } from "../shared/lexicon";
 import { defaultDictionary } from "../shared/dictionaries";
@@ -231,11 +232,14 @@ export function createStore(directory: string, root: string) {
   function createGame(input: Parameters<typeof insertGame>[0]) {
     return transaction(() => insertGame(input));
   }
-  function writeGame(game: Game): Game | undefined {
+  function writeGame(
+    game: Game,
+    updatedAt = new Date().toISOString(),
+  ): Game | undefined {
     const saved = {
       ...game,
       revision: game.revision + 1,
-      updatedAt: new Date().toISOString(),
+      updatedAt,
     };
     const result = db
       .prepare("UPDATE games SET revision=?,data=? WHERE id=? AND revision=?")
@@ -261,6 +265,16 @@ export function createStore(directory: string, root: string) {
       });
     }
     db.exec("PRAGMA user_version=1");
+  }
+  if (db.prepare("PRAGMA user_version").get()?.user_version === 1) {
+    transaction(() => {
+      if (db.prepare("PRAGMA user_version").get()?.user_version !== 1) return;
+      for (const game of games()) {
+        const updated = backfillGameResult(game);
+        if (updated !== game) writeGame(updated, game.updatedAt);
+      }
+      db.exec("PRAGMA user_version=2");
+    });
   }
   return {
     db,

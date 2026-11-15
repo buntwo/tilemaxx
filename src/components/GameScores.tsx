@@ -3,6 +3,7 @@ import { ChevronDown, Pencil, Plus, Trophy } from "lucide-react";
 import { trackedMoveHistory, type Game, type Player } from "../../shared/model";
 import {
   correctTrackedMove,
+  displayedGameScoring,
   emptyScoring,
   gameScoreTotals,
   isImportedPosition,
@@ -21,8 +22,9 @@ export function GameScoreBadge({
   prominent: boolean;
 }) {
   if (!tracksScores(game)) return null;
-  const { you, opponent } = gameScoreTotals(game.scoring);
-  const outcome = !game.scoring?.end
+  const scoring = displayedGameScoring(game);
+  const { you, opponent } = gameScoreTotals(scoring);
+  const outcome = !scoring?.end
     ? game.archived
       ? "archived"
       : "playing"
@@ -71,7 +73,7 @@ export default function GameScores({
 }) {
   const tracking = tracksScores(game);
   const play = pendingOpponentPlay(game);
-  const scoring = game.scoring ?? emptyScoring();
+  const scoring = displayedGameScoring(game) ?? emptyScoring();
   const adjusted = gameScoreTotals(scoring);
   const totals = { you: 0, opponent: 0 };
   const history = trackedMoveHistory(game);

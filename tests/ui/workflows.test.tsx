@@ -2215,6 +2215,14 @@ test("the phone layout keeps settings, the build version, board help and move fi
   expect(main.queryByRole("button", { name: /^ACT, / })).toBeNull();
   await user.keyboard("{Escape}");
   expect(main.queryByRole("textbox", { name: "Filter moves" })).toBeNull();
+  expect(main.getByRole("button", { name: "Undo" }).closest(".board-review-actions")).toBeTruthy();
+  await user.click(main.getByRole("button", { name: "Filter moves by squares" }));
+  const markControls = main.getByRole("button", { name: "Done" }).closest(".move-square-controls");
+  expect(markControls?.contains(main.getByRole("button", { name: "Undo" }))).toBe(true);
+  const redoWhileMarking = main.getByRole("button", { name: "Redo" });
+  expect(markControls?.contains(redoWhileMarking)).toBe(true);
+  await user.click(redoWhileMarking);
+  expect(current().board[112]).toBe("C");
 });
 
 test("entering the opponent's final tile updates the score and ends the game on the phone", async () => {
