@@ -554,7 +554,7 @@ test("upgrading SQLite recovers saved rack-outs once for active and archived gam
       const updated = store.getGame(game.id)!;
       assert.equal(updated.revision, game.revision + 1);
       assert.equal(updated.updatedAt, game.updatedAt);
-      assert.equal(updated.scoring?.end?.out, game.id === pending.id ? "opponent" : "you");
+      assert.deepEqual(updated.scoring?.end, { out: game.id === pending.id ? "opponent" : "you", rackPoints: 10 });
       assert.equal(store.index().games.find(({ id }) => id === game.id)?.revision, updated.revision);
     }
     const archived = store.getGame(archive.id)!;

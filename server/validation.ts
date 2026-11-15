@@ -115,10 +115,21 @@ const scoringSchema = z.object({
   pendingBase: z.array(cell).max(625).optional(),
   imported: z.boolean().optional(),
   end: z
-    .object({
-      out: z.enum(["you", "opponent"]),
-      rackPoints: z.number().int().nonnegative(),
-    })
+    .union([
+      z.object({
+        out: z.enum(["you", "opponent"]),
+        rackPoints: z.number().int().nonnegative(),
+      }),
+      z
+        .object({
+          manual: z.literal(true),
+          scores: z
+            .object({ you: z.number().int(), opponent: z.number().int() })
+            .optional(),
+          outcome: z.enum(["win", "loss", "tie"]).optional(),
+        })
+        .refine((end) => !end.outcome || !!end.scores),
+    ])
     .optional(),
 });
 const review = z

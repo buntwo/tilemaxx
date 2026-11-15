@@ -9,12 +9,14 @@ import {
   correctTrackedMove,
   displayedGameScoring,
   emptyScoring,
+  endGameManually,
   gameScoreTotals,
   pendingOpponentPlay,
   playTrackedMove,
   recordOpponentPlay,
   recordOpponentRackOut,
   scoreTotalsAtPosition,
+  scoresAfterRackDeductions,
   setScoreTracking,
   tracksScores,
   treatBoardEditAsCorrection,
@@ -52,6 +54,51 @@ function fixture(): Game {
     archived: false,
   };
 }
+
+test("manual game results preserve board history and round-trip through saves, undo, and archives", () => {
+  const base = fixture();
+  const game = {
+    ...base,
+    rack: "Q",
+    template: {
+      ...base.template,
+      tileCounts: Object.fromEntries(
+        TILE_SYMBOLS.map((tile) => [tile, Number("QS".includes(tile))]),
+      ),
+    },
+    scoring: emptyScoring(),
+  };
+  game.scoring.you.points = 7;
+  game.scoring.opponent.points = 15;
+  const scores = scoresAfterRackDeductions(game, gameScoreTotals(game.scoring));
+  assert.deepEqual(scores, { you: -3, opponent: 14 });
+  assert.equal(
+    scoresAfterRackDeductions(
+      { ...game, template: { ...game.template, rules: "crossplay" } },
+      gameScoreTotals(game.scoring),
+    ),
+    undefined,
+  );
+  const ended = endGameManually(game, { manual: true, scores, outcome: "win" });
+  const saved = gameSchema.parse(JSON.parse(JSON.stringify(ended)));
+  assert.deepEqual(gameScoreTotals(saved.scoring), scores);
+  assert.deepEqual(summarizeGame(archiveGame(saved)).score, {
+    ...scores,
+    outcome: "win",
+  });
+  assert.deepEqual(saved.board, game.board);
+  assert.equal(saved.rack, "Q");
+  const resumed = undo(saved);
+  assert.deepEqual(resumed.scoring, game.scoring);
+  assert.deepEqual(redo(resumed).scoring?.end, ended.scoring?.end);
+  assert.deepEqual(trackedMoveHistory(saved), trackedMoveHistory(game));
+  const unscored = endGameManually(
+    { ...base, trackScores: false },
+    { manual: true },
+  );
+  assert.deepEqual(unscored.scoring?.end, { manual: true });
+  assert.equal(summarizeGame(archiveGame(unscored)).score, null);
+});
 
 test("recording a pending turn folds separate board edits into one scored move after saving", () => {
   const game = fixture();

@@ -54,12 +54,18 @@ export interface PlayerScore {
   best: number;
   bingos: number;
 }
+export type GameOutcome = "win" | "loss" | "tie";
+export type ManualGameEnd = {
+  manual: true;
+  scores?: Record<Player, number>;
+  outcome?: GameOutcome;
+};
 export interface GameScoring {
   you: PlayerScore;
   opponent: PlayerScore;
   pendingBase?: Board;
   imported?: boolean;
-  end?: { out: Player; rackPoints: number };
+  end?: { out: Player; rackPoints: number } | ManualGameEnd;
 }
 export const BOARD_EDIT_LABELS = {
   enter: "Entered board letters",
