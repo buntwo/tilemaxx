@@ -53,6 +53,7 @@ export interface AnalysisRequest extends Position, Partial<EndgameSettings> {
   seed: number;
   previousBoard?: Board;
   endgameBudgetMultiplier?: number;
+  cachedEndgames?: Record<string, EndgameLine>;
 }
 export interface ReplyForecast {
   replyScore: number;
@@ -627,7 +628,7 @@ export function analyzeMoves(
       let endgameLimit: string | undefined;
       if (searchEndgames) {
         try {
-          endgame = solveEmptyBag(
+          endgame = request.cachedEndgames?.[entry.move.id] ?? solveEmptyBag(
             board,
             entry.move,
             pool.join(""),

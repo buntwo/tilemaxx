@@ -387,6 +387,7 @@ export function replyEndgameLine(
   position: ReplyPosition,
   candidate: Move,
   timeLimitMs: number,
+  positionLimit?: number,
 ) {
   const { pool, bagSize } = replyPosition(position);
   const { board, template } = position;
@@ -408,6 +409,6 @@ export function replyEndgameLine(
       return solver.solve(rack, limit(deadline), { unsorted: true });
     },
     placeTiles,
-    { timeLimitMs },
+    { timeLimitMs, positionLimit },
   );
 }

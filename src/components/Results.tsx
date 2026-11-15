@@ -30,7 +30,7 @@ import {
 import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
-import { scoreTone, signedPoints } from "../score-tone";
+import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import MoveAnalysis from "./MoveAnalysis";
 import MoveWord, { BingoBadge } from "./MoveWord";
 import BingoOddsControls from "./BingoOddsControls";
@@ -105,7 +105,7 @@ export default function Results({
   analysisKey,
   replyAnalysis,
   replyEnabled = !!analysisGame,
-  rackOdds,
+  rackOdds: calculatedRackOdds,
   rackOddsPending,
   defense,
   defenseProgress,
@@ -178,8 +178,10 @@ export default function Results({
   const [shortlistOnly, setShortlistOnly] = useState(false);
   const shortlistActive = shortlistOnly && !!analysisGame;
   const totalMoves = resultSet?.total ?? 0;
+  const endgame = !!analysisGame && replyAnalysis.bagSize === 0;
+  const rackOdds = endgame ? undefined : calculatedRackOdds;
   const boardOdds =
-    checkedBoardOdds?.bagSize === replyAnalysis.bagSize
+    !endgame && checkedBoardOdds?.bagSize === replyAnalysis.bagSize
       ? checkedBoardOdds
       : undefined;
   const targetIds = useMemo(
@@ -258,15 +260,16 @@ export default function Results({
   const waitingForEndgame = replyEnabled && replyAnalysis.estimatingEndgame;
   const endgameRanked = !!ranking?.checked;
   const sort =
-    activeOrder?.sort === "endgame" && !endgameRanked
-      ? "score"
-      : (activeOrder?.sort ?? (endgameRanked ? "endgame" : "score"));
+    activeOrder &&
+    (activeOrder.sort !== "endgame" || endgameRanked) &&
+    (!endgame || (activeOrder.sort !== "bingo-draw" && activeOrder.sort !== "board-bingo"))
+      ? activeOrder.sort
+      : endgameRanked ? "endgame" : "score";
   const reversed =
     (activeOrder?.sort === sort && activeOrder.reversed) || false;
   function setSort(sort: MoveSort, reversed = false) {
     setOrdering({ searchId, sort, reversed });
   }
-  const endgame = replyAnalysis.bagSize === 0;
   const estimateNotice = replyAnalysis.endgameEstimateUnavailable
     ? "Endgame estimates unavailable."
     : endgameRanked && ranking.checked < totalMoves
@@ -307,7 +310,7 @@ export default function Results({
     [shortlist],
   );
   const replyScores =
-    analysisGame && replyAnalysis.bagSize === 0
+    analysisGame && endgame
       ? scoreTotalsAtPosition(analysisGame)
       : undefined;
   const topScore = resultSet?.head[0]?.score ?? 0;
@@ -496,7 +499,7 @@ export default function Results({
   return (
     <section
       aria-label="Possible moves"
-      className={`results-panel panel ${analysisGame || rackOdds ? "with-bingo-odds" : ""}${reserveReplySpace ? " with-reply-preview" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${endgameRanked ? " with-endgame-estimates" : ""}`}
+      className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${reserveReplySpace ? " with-reply-preview" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${endgameRanked ? " with-endgame-estimates" : ""}`}
     >
       <header
         className={`results-title${exchangeAction ? " has-exchange-advice" : ""}`}
@@ -511,7 +514,7 @@ export default function Results({
             }
           />
           <h2>
-            {analysisGame && endgame && !replyAnalysis.invalid
+            {endgame && !replyAnalysis.invalid
               ? "Possible moves - Endgame"
               : "Possible moves"}
           </h2>
@@ -745,7 +748,7 @@ export default function Results({
               </div>
             )}
             <div className="result-leave-heading">
-              {analysisGame || rackOdds || boardOdds?.checked ? (
+              {!endgame && (analysisGame || rackOdds || boardOdds?.checked) ? (
                 <details
                   className="result-leave-sort"
                   onBlur={(event) => {
@@ -837,6 +840,9 @@ export default function Results({
                   : undefined;
                 const reply = replyAnalysis.results?.[m.id];
                 const estimate = page.endgame?.[m.id];
+                const finalMargin = estimate && replyScores
+                  ? replyScores.you - replyScores.opponent + estimate.spread
+                  : undefined;
                 const threat = estimate?.reply?.goesOut
                   ? estimate.reply
                   : undefined;
@@ -999,11 +1005,18 @@ export default function Results({
                               >
                                 {!estimate.exact && "≈"}
                                 {signedPoints(estimate.spread)}
-                                {threatBingo && (
+                                {threatBingo && finalMargin === undefined && (
                                   <BingoBadge className="endgame-threat-badge" />
                                 )}
                               </strong>
-                              {threat && (
+                              {finalMargin !== undefined ? (
+                                <small
+                                  className={scoreTone(finalMargin) ?? "reply-neutral"}
+                                  title={estimate.exact ? "Final margin" : "Estimated final margin"}
+                                >
+                                  {finalMarginLabel(finalMargin)}
+                                </small>
+                              ) : threat && (
                                 <small
                                   className={
                                     threatBingo ? "bingo-move-word" : "value-bad"
@@ -1036,7 +1049,7 @@ export default function Results({
                       )}
                       <span className="result-leave">
                         <span>{m.leave || "—"}</span>
-                        {(analysisGame || rackOdds) && (
+                        {!endgame && (analysisGame || rackOdds) && (
                           <strong
                             className="result-draw-odds"
                             title="Chance the refilled rack spells a full-length word"
@@ -1131,11 +1144,11 @@ export default function Results({
             Replies {Object.keys(replyAnalysis.results ?? {}).length}/
             {replyAnalysis.target.length}
           </span>
-        ) : boardOddsProgress ? (
+        ) : !endgame && boardOddsProgress ? (
           <span role="status" title="Checking bingo odds after your play">
             Bingo {boardOddsProgress.checked}/{boardOddsProgress.total}
           </span>
-        ) : rackOddsPending ? (
+        ) : !endgame && rackOddsPending ? (
           <span role="status">Calculating bingo draws…</span>
         ) : defenseProgress ? (
           <span title="Checking premium replies">Risk {defenseProgress}</span>

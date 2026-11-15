@@ -551,6 +551,57 @@ test("empty-bag rows wait for estimates unless the user skips to points", async 
   ).toBe("true");
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
 });
+
+test("endgame rows show the implied result beside the swing and only letters in Leave", async () => {
+  vi.stubGlobal("Worker", class {
+    terminate() {}
+    postMessage() {}
+  });
+  const onBoardOdds = vi.fn();
+  const { user } = setup(false, {
+    analysisGame: {
+      ...endgame,
+      trackScores: true,
+      scoring: {
+        you: { points: 105, moves: 4, best: 25, bingos: 0 },
+        opponent: { points: 100, moves: 4, best: 25, bingos: 0 },
+      },
+    },
+    rackOdds: { byLeave: { Z: 0 }, exact: true, bagSize: 0 },
+    boardOdds: {
+      byMove: { a: { chance: 0, exact: true } },
+      checked: 1,
+      total: 1,
+      bagSize: 0,
+    },
+    onBoardOdds,
+    rankEndgame: (index) => async () =>
+      index.setEndgame(1, new Map([
+        ["a", { spread: -41, exact: false }],
+        ["b", { spread: 5, exact: true }],
+        ["c", { spread: -5, exact: true }],
+      ])),
+  });
+  await screen.findByText("Win by 10");
+  const results = rows();
+  for (const [row, outcome, tone] of [
+    [results[0], "Win by 10", "value-good"],
+    [results[1], "Tie", "reply-neutral"],
+    [results[2], "Lose by 36", "value-bad"],
+  ] as const) {
+    expect(row.querySelector(".endgame-estimate small")?.textContent).toBe(outcome);
+    expect(row.querySelector(".endgame-estimate small")?.classList.contains(tone)).toBe(true);
+    expect(row.getAttribute("aria-label")).not.toMatch(/bingo draw|bingo after/);
+    expect(row.querySelector(".result-leave")?.textContent).toBe(row === results[2] ? "Z" : "AS");
+  }
+  expect(screen.getByRole("button", { name: "Sort by rack leave" })).toBeTruthy();
+  expect(screen.queryByLabelText("Sort by leave or bingo odds")).toBeNull();
+  await user.click(screen.getByText("Options"));
+  expect(screen.getByText("Reply settings")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Check bingo after your play" })).toBeNull();
+  expect(onBoardOdds).not.toHaveBeenCalled();
+});
+
 test("rack odds sort every move and board odds rank checked moves separately", async () => {
   const { user } = setup(true, {
     analysisGame: bingoCheckGame,
