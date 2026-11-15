@@ -1114,6 +1114,7 @@ function Tilemaxx() {
                   displayBoard={activeFlight?.before.board}
                   onChange={update}
                   onSelect={editPosition}
+                  onSolve={hasPlayableRack && !activeFlight ? solve : undefined}
                   historyControls={
                     !phoneReview.showing &&
                     !squareFilter.selecting &&

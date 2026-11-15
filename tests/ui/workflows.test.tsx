@@ -948,6 +948,26 @@ test("right/down switch direction first, then advance; left/up always move witho
   expect(cell("Toggle entry direction").textContent).toContain("Down");
 });
 
+test("Enter on the board finds moves using the just-entered play and existing rack", async () => {
+  const user = await start();
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("{Enter}");
+  expect(document.activeElement).toBe(entry());
+  expect(cell("Find moves")).toHaveProperty("disabled", true);
+
+  await typeRack(user, "S");
+  await user.click(cell("H8: DW, start"));
+  expect(entry().getAttribute("enterkeyhint")).toBe("search");
+  await user.keyboard("{Shift>}{Enter}{/Shift}");
+  expect(cell("Toggle entry direction").textContent).toContain("Down");
+  expect(cell("Find moves")).toHaveProperty("disabled", false);
+
+  await user.keyboard("{ArrowRight}CAT{Enter}");
+  expect(await screen.findByRole("button", { name: /^CATS, / })).toBeTruthy();
+  expect(current().board.slice(112, 116)).toEqual(["C", "A", "T", ""]);
+  expect(current().rack).toBe("S");
+});
+
 test("repeat tap toggles direction and controls preserve the same input focus", async () => {
   const user = await start();
   await user.click(cell("C3: DW"));
@@ -2558,6 +2578,36 @@ test("end game defaults to deductions and archiving with both settings reversibl
     },
   });
 });
+
+test.each([
+  ["scrabble", "Available when the bag is empty."],
+  ["crossplay", "Crossplay doesn’t deduct unplayed tiles."],
+] as const)(
+  "end game shows unavailable %s deductions as disabled",
+  async (rules, note) => {
+    const fixture = remote.games[0];
+    fixture.revision = 1;
+    fixture.template.rules = rules;
+    fixture.board.splice(112, 3, "C", "A", "T");
+    fixture.rack = "Q";
+    const user = await start();
+    await user.click(cell("Game options"));
+    await user.click(screen.getByRole("button", { name: /^End game/ }));
+
+    const dialog = within(screen.getByRole("dialog"));
+    const deductions = dialog.getByRole("checkbox", {
+      name: "Deduct unplayed tiles",
+      description: note,
+    });
+    expect(deductions).toHaveProperty("disabled", true);
+    await user.click(deductions);
+    expect(deductions).toHaveProperty("checked", false);
+    expect(dialog.getByRole("checkbox", { name: "Archive game" })).toHaveProperty(
+      "checked",
+      true,
+    );
+  },
+);
 
 test("phone rack entry reveals the tiles above the keyboard and restores the page when it closes", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({

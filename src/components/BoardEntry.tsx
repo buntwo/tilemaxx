@@ -35,6 +35,7 @@ export default function BoardEntry({
   preview,
   onChange,
   onSelect,
+  onSolve,
   moveFilter,
   historyControls,
 }: {
@@ -44,6 +45,7 @@ export default function BoardEntry({
   preview: Move | null;
   onChange: (game: Game) => void;
   onSelect: () => void;
+  onSolve?: () => void;
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
 }) {
@@ -61,6 +63,7 @@ export default function BoardEntry({
       preview={preview}
       wordScores={displayBoard ? undefined : wordScores}
       onSelect={onSelect}
+      onSolve={onSolve}
       moveFilter={moveFilter}
       historyControls={historyControls}
       onBreak={() => history.current.reset()}
@@ -80,6 +83,7 @@ export function BoardInput({
   preview,
   onChange,
   onSelect,
+  onSolve,
   onBreak,
   onCursorChange,
   selection,
@@ -96,6 +100,7 @@ export function BoardInput({
   preview?: Move | null;
   onChange: (board: BoardState, kind: EditKind) => void;
   onSelect?: () => void;
+  onSolve?: () => void;
   onBreak?: () => void;
   onCursorChange?: (index: number | null) => void;
   selection?: { index: number };
@@ -294,6 +299,7 @@ export function BoardInput({
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="characters"
+        enterKeyHint={onSolve ? "search" : undefined}
         spellCheck={false}
         onFocus={() => {
           setFocused(true);
@@ -362,7 +368,12 @@ export function BoardInput({
               erase();
               break;
             case "Enter":
-              if (e.shiftKey && !e.repeat) toggleDirection();
+              if (e.repeat) break;
+              if (e.shiftKey) toggleDirection();
+              else if (onSolve) {
+                e.currentTarget.blur();
+                onSolve();
+              }
               break;
             case "Escape":
               setSelected(null);

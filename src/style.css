@@ -1232,6 +1232,17 @@ label + label {
   margin: 0;
   accent-color: var(--primary);
 }
+.score-checkbox:has(input:disabled),
+.score-checkbox-note {
+  color: var(--muted);
+}
+.score-checkbox-note {
+  margin: 4px 0 0 21px;
+  font-size: 12px;
+}
+.score-checkbox-note + .score-checkbox {
+  margin-top: 18px;
+}
 .score-players {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
