@@ -14,7 +14,9 @@ import {
   type Board,
   type BoardTemplate,
   type Game,
+  type GameOutcome,
   type GameScoring,
+  type ManualGameEnd,
   type Move,
   type Player,
   type TrackedMove,
@@ -40,9 +42,10 @@ export function tracksScores(game: Game): boolean {
 }
 
 export function gameScoreTotals(scoring: GameScoring | undefined) {
-  const rackAdjustment = scoring?.end
-    ? scoring.end.rackPoints * (scoring.end.out === "you" ? 1 : -1)
-    : 0;
+  const end = scoring?.end;
+  if (end && "manual" in end && end.scores) return end.scores;
+  const rackAdjustment =
+    end && "out" in end ? end.rackPoints * (end.out === "you" ? 1 : -1) : 0;
   return {
     you: (scoring?.you.points ?? 0) + rackAdjustment,
     opponent: (scoring?.opponent.points ?? 0) - rackAdjustment,
@@ -57,24 +60,28 @@ export function displayedGameScoring(game: Game): GameScoring | undefined {
 export type GameScoreSummary = {
   you: number;
   opponent: number;
-  outcome: "playing" | "archived" | "win" | "loss" | "tie";
+  outcome: "playing" | "archived" | GameOutcome;
 };
 
 export function summarizeGameScore(
   game: Game,
   scoring = displayedGameScoring(game),
 ): GameScoreSummary | null {
-  if (!tracksScores(game)) return null;
+  const end = scoring?.end;
+  const manual = end && "manual" in end ? end : undefined;
+  if (manual ? !manual.scores : !tracksScores(game)) return null;
   const { you, opponent } = gameScoreTotals(scoring);
-  const outcome = !scoring?.end
-    ? game.archived
-      ? "archived"
-      : "playing"
-    : you === opponent
-      ? "tie"
-      : you > opponent
-        ? "win"
-        : "loss";
+  const outcome =
+    manual?.outcome ??
+    (!end
+      ? game.archived
+        ? "archived"
+        : "playing"
+      : you === opponent
+        ? "tie"
+        : you > opponent
+          ? "win"
+          : "loss");
   return { you, opponent, outcome };
 }
 
@@ -581,6 +588,26 @@ export function scoreTotalsAtPosition(game: Game) {
   };
 }
 
+export function scoresAfterRackDeductions(
+  game: Game,
+  totals: Record<Player, number>,
+) {
+  if (game.template.rules === "crossplay") return;
+  const { total, excess, tiles } = unseenTiles(game, game.template);
+  if (excess.length || total > game.template.rackSize) return;
+  return {
+    you:
+      totals.you -
+      [...rackLetters(game.rack)].reduce(
+        (points, tile) => points + tileScore(tile, game.template.rules),
+        0,
+      ),
+    opponent:
+      totals.opponent -
+      tiles.reduce((points, tile) => points + tile.count * tile.score, 0),
+  };
+}
+
 function canRecordRackOut(game: Game) {
   return (
     tracksScores(game) &&
@@ -673,7 +700,7 @@ function addScore(
 
 export function recordOpponentPlay(
   game: Game,
-  end = opponentRackOut(game),
+  end: GameScoring["end"] | null = opponentRackOut(game),
 ): Game {
   const play = pendingOpponentPlay(game);
   if (!play) return game;
@@ -711,6 +738,20 @@ export function recordOpponentPlay(
   };
 }
 
+export function endGameManually(game: Game, result: ManualGameEnd): Game {
+  if (game.archived || game.scoring?.end) return game;
+  const recorded = recordOpponentPlay(game, null);
+  return {
+    ...recorded,
+    ...remember(recorded, "Ended game"),
+    scoring: {
+      ...(recorded.scoring ?? emptyScoring(isImportedPosition(recorded))),
+      pendingBase: undefined,
+      end: result,
+    },
+  };
+}
+
 export function playTrackedMove(
   game: Game,
   move: Move,
@@ -718,12 +759,12 @@ export function playTrackedMove(
 ): Game {
   if (displayedGameScoring(game)?.end) {
     if (game.archived) return applyMove(game, move);
-    throw new Error("This game has ended. Undo the last move to continue.");
+    throw new Error("This game has ended. Use Undo to continue.");
   }
   if (!tracksScores(game)) return applyMove(game, move);
   const previous = recordOpponentPlay(game);
   if (!game.archived && previous.scoring?.end)
-    throw new Error("This game has ended. Undo the last move to continue.");
+    throw new Error("This game has ended. Use Undo to continue.");
   const pendingBase = previous.scoring?.pendingBase;
   if (
     pendingBase &&

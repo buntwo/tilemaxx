@@ -71,6 +71,7 @@ import {
 import ArchivedGames, { type ArchiveSort } from "./components/ArchivedGames";
 import GameScoreBadge from "./components/GameScoreBadge";
 import GameScores from "./components/GameScores";
+import EndGameDialog from "./components/EndGameDialog";
 import {
   emptyScoring,
   playTrackedMove,
@@ -113,6 +114,7 @@ type Dialog =
   | "ui-guide"
   | "rename"
   | "delete"
+  | "end-game"
   | "manage"
   | null;
 const workspaceHashes = {
@@ -260,13 +262,14 @@ function Tilemaxx() {
     store.watchGames(openId, editId);
   }, [openId, editId]);
   const signature = game ? positionSignature(game) : "";
+  const gameOver = !!game?.scoring?.end && !game.archived;
   const solver = useSolver(signature);
   const { busy, warnings } = solver;
   const replyAnalysis = useReplyAnalysis(
     game,
     signature,
     solver.results?.head ?? null,
-    workspace === "games" && !!game && !busy && !solver.error,
+    workspace === "games" && !!game && !gameOver && !busy && !solver.error,
     { searchId: solver.results?.searchId, rank: solver.rankEndgame },
   );
   const activeFlight =
@@ -274,7 +277,7 @@ function Tilemaxx() {
       ? flight
       : undefined;
   const phoneReview = usePhoneMoveReview(
-    phoneLayout && workspace === "games",
+    phoneLayout && workspace === "games" && !gameOver,
     !busy && !solver.error && solver.results?.total
       ? solver.results.searchId
       : undefined,
@@ -317,7 +320,6 @@ function Tilemaxx() {
       stop?.();
     };
   }, [activeFlight, flight]);
-  const gameOver = !!game?.scoring?.end && !game.archived;
   const hasPlayableRack = !!game && !gameOver && !!splitRack(game).available;
   useEffect(() => {
     updateFavicon();
@@ -1786,6 +1788,22 @@ function Tilemaxx() {
           </footer>
         </Modal>
       )}
+      {dialog === "end-game" && game && !gameOver && !game.archived && (
+        <EndGameDialog
+          key={game.id}
+          game={game}
+          bagEmpty={replyAnalysis.bagSize === 0}
+          onEnd={(next) => {
+            editPosition();
+            if (busy) solver.cancelSearch();
+            solver.cancelBoardOdds();
+            update(next);
+            setDialog(null);
+            notify("Game ended. Use Undo to resume.");
+          }}
+          onClose={() => setDialog(null)}
+        />
+      )}
       {dialog === "manage" && game && (
         <Modal
           title="Game options"
@@ -1844,6 +1862,16 @@ function Tilemaxx() {
               </span>
               <ArrowUpRight size={16} />
             </button>
+            {!game.archived && !gameOver && (
+              <button disabled={formBusy} onClick={() => openDialog("end-game")}>
+                <Check size={19} />
+                <span>
+                  <strong>End game</strong>
+                  <small>Record the final result.</small>
+                </span>
+                <ArrowUpRight size={16} />
+              </button>
+            )}
             <button
               disabled={formBusy}
               onClick={() => {

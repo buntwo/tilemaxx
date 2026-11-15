@@ -37,8 +37,15 @@ export default function GameScores({
   const tracking = tracksScores(game);
   const play = pendingOpponentPlay(game);
   const scoring = displayedGameScoring(game) ?? emptyScoring();
+  const end = scoring.end;
+  const rackOut = end && "out" in end ? end : undefined;
+  const manual = end && "manual" in end ? end : undefined;
+  const outcome = manual?.outcome;
   const adjusted = gameScoreTotals(scoring);
   const margin = adjusted.you - adjusted.opponent;
+  const tone = scoreTone(
+    outcome ? { win: 1, loss: -1, tie: 0 }[outcome] : margin,
+  );
   const totals = { you: 0, opponent: 0 };
   const history = trackedMoveHistory(game);
   const historyKey = JSON.stringify(history);
@@ -90,7 +97,7 @@ export default function GameScores({
           Track scores
         </label>
       </div>
-      {tracking ? (
+      {(manual ? !!manual.scores : tracking) ? (
         <>
           <dl className="score-players">
             {(["you", "opponent"] as const).map((player) => {
@@ -113,29 +120,27 @@ export default function GameScores({
               );
             })}
           </dl>
-          <p className={`score-detail ${scoreTone(margin) ?? ""}`}>
-            {margin > 0
-              ? `${scoring.end ? "Win" : "Lead"} by ${margin}`
-              : margin < 0
-                ? `${scoring.end ? "Lose" : "Trail"} by ${-margin}`
-                : scoring.end
-                  ? "Tie"
-                  : "Tied"}
+          <p className={`score-detail ${tone ?? ""}`}>
+            {outcome
+              ? { win: "You won", loss: "Opponent won", tie: "Tie" }[outcome]
+              : margin > 0
+                ? `${scoring.end ? "Win" : "Lead"} by ${margin}`
+                : margin < 0
+                  ? `${scoring.end ? "Lose" : "Trail"} by ${-margin}`
+                  : scoring.end
+                    ? "Tie"
+                    : "Tied"}
           </p>
-          {scoring.end && (
+          {rackOut && (
             <p className="score-detail">
-              {scoring.end.out === "you"
-                ? "You went out."
-                : "Opponent went out."}{" "}
-              {scoring.end.rackPoints > 0 && (
+              {rackOut.out === "you" ? "You went out." : "Opponent went out."}{" "}
+              {rackOut.rackPoints > 0 && (
                 <>
-                  <span
-                    className={scoreTone(scoring.end.out === "you" ? 1 : -1)}
-                  >
-                    {scoring.end.rackPoints} rack points
+                  <span className={scoreTone(rackOut.out === "you" ? 1 : -1)}>
+                    {rackOut.rackPoints} rack points
                   </span>{" "}
                   transferred to{" "}
-                  {scoring.end.out === "you" ? "you" : "the opponent"}.
+                  {rackOut.out === "you" ? "you" : "the opponent"}.
                 </>
               )}
             </p>
@@ -169,6 +174,8 @@ export default function GameScores({
             </div>
           )}
         </>
+      ) : manual ? (
+        <p className="score-detail">Game ended.</p>
       ) : isImportedPosition(game) ? (
         <p className="score-detail">
           Screenshot imported. Turn tracking on to count moves from this

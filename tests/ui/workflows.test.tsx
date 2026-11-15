@@ -2482,6 +2482,54 @@ test("entering the opponent's final tile updates the score and ends the game on 
   expect(scoreDelta()?.textContent).toBe("−16");
 });
 
+test("game options can end a game with rack deductions and undo the finish", async () => {
+  const fixture = remote.games[0];
+  fixture.revision = 1;
+  fixture.board.splice(112, 3, "C", "A", "T");
+  fixture.rack = "Q";
+  fixture.scoring = {
+    you: { points: 30, moves: 1, best: 30, bingos: 0 },
+    opponent: { points: 24, moves: 1, best: 24, bingos: 0 },
+  };
+  fixture.template.tileCounts = Object.fromEntries(
+    TILE_SYMBOLS.map((tile) => [tile, Number("ACQST".includes(tile))]),
+  );
+  const user = await start();
+  await waitFor(() => expect(scoreTotals()).toBe("30–24"));
+  await user.click(cell("Game options"));
+  await user.click(screen.getByRole("button", { name: /^End game/ }));
+  const dialog = within(screen.getByRole("dialog"));
+  expect(
+    dialog.getByRole("spinbutton", { name: "Your final score" }),
+  ).toHaveProperty("value", "30");
+  await user.click(
+    dialog.getByRole("button", { name: "Deduct unplayed tiles" }),
+  );
+  expect(
+    dialog.getByRole("spinbutton", { name: "Your final score" }),
+  ).toHaveProperty("value", "20");
+  expect(
+    dialog.getByRole("spinbutton", { name: "Opponent’s final score" }),
+  ).toHaveProperty("value", "23");
+  await user.selectOptions(
+    dialog.getByRole("combobox", { name: "Result" }),
+    "win",
+  );
+  await user.click(dialog.getByRole("button", { name: "End game" }));
+  expect(screen.getByRole("heading", { name: "Game over" })).toBeTruthy();
+  expect(trackedScore().getAttribute("data-outcome")).toBe("win");
+  expect(scoreTotals()).toBe("20–23");
+  await act(() => store.flush());
+  expect(remote.games[0].scoring?.end).toEqual({
+    manual: true,
+    scores: { you: 20, opponent: 23 },
+    outcome: "win",
+  });
+  await user.click(cell("Undo"));
+  expect(scoreTotals()).toBe("30–24");
+  expect(screen.getByRole("button", { name: "Find moves" })).toBeTruthy();
+});
+
 test("phone rack entry reveals the tiles above the keyboard and restores the page when it closes", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === "(max-width: 650px)",
