@@ -1729,21 +1729,26 @@ test("archived games filter by opponent while honoring the selected sort", async
   const archive = within(screen.getByRole("region", { name: "Archived games" }));
   const search = archive.getByRole("searchbox", { name: "Filter by opponent" });
   const sort = archive.getByRole("combobox", { name: "Sort by" });
+  const count = archive.getByRole("status", { name: "Archived game count" });
   const names = () =>
     archive
       .queryAllByRole("listitem")
       .map((row) => row.querySelector("strong")?.textContent);
 
+  expect(count.textContent).toBe("3");
   await user.type(search, " sAm ");
   expect(names()).toEqual(["Sam Cooke", "Alex Sampson"]);
+  expect(count.textContent).toBe("2 / 3");
   await user.selectOptions(sort, "opponent");
   expect(names()).toEqual(["Alex Sampson", "Sam Cooke"]);
   expect(search).toHaveProperty("value", " sAm ");
   await user.type(search, "Z");
   expect(names()).toHaveLength(0);
-  expect(archive.getByRole("status").textContent).toBe("No matching games.");
+  expect(count.textContent).toBe("0 / 3");
+  expect(archive.getByText("No matching games.")).toBeTruthy();
   await user.clear(search);
   expect(names()).toEqual(["Alex Sampson", "Morgan", "Sam Cooke"]);
+  expect(count.textContent).toBe("3");
 });
 
 test("dates are editable, the keyboard picker shows active games, and the sidebar opens archived games", async () => {

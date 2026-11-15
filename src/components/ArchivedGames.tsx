@@ -33,11 +33,23 @@ export default function ArchivedGames({
       const byOpponent = opponentOrder.compare(a.name, b.name);
       return sort === "date" ? byDate || byOpponent : byOpponent || byDate;
     });
+  const total = games.length.toLocaleString();
+  const count = query.trim()
+    ? `${results.length.toLocaleString()} / ${total}`
+    : total;
 
   return (
     <section className="archive-view" aria-labelledby="archive-heading">
       <div className="workspace-heading">
-        <h1 id="archive-heading">Archived games</h1>
+        <div className="archive-title">
+          <h1 id="archive-heading">Archived games</h1>
+          <output
+            className="count-badge archive-count"
+            aria-label="Archived game count"
+          >
+            {count}
+          </output>
+        </div>
         <button className="button secondary archive-back" onClick={onBack}>
           <ArrowLeft size={16} />
           Back to games
