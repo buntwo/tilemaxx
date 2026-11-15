@@ -12,6 +12,7 @@ import { rackLetters } from "./rack-entry";
 import { SEARCH_LIMITS, SearchLimitError, prepareSolver } from "./solver";
 import { unseenTiles } from "./tile-pool";
 import {
+  DEFAULT_ENDGAME_POSITION_LIMIT,
   EndgameSearchLimitError,
   solveEmptyBag,
   type EndgameLine,
@@ -20,8 +21,25 @@ import {
 export const ANALYSIS_LIMIT = 3;
 export const ANALYSIS_TRIALS = 200;
 export const REFINED_TRIALS = 800;
+export const MAX_ENDGAME_BUDGET_MULTIPLIER = 100;
+const ANALYSIS_ENDGAME_TIME_MS = 1_500;
 export type OpponentModel = "strong" | "casual";
 const MODELS = ["strong", "casual"] as const;
+
+export function isEndgameBudgetMultiplier(value: number) {
+  return (
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= MAX_ENDGAME_BUDGET_MULTIPLIER
+  );
+}
+
+export function endgameAnalysisLimits(multiplier: number, moves: number) {
+  return {
+    timeLimitMs: (ANALYSIS_ENDGAME_TIME_MS * multiplier) / Math.max(1, moves),
+    positionLimit: DEFAULT_ENDGAME_POSITION_LIMIT * multiplier,
+  };
+}
 
 export interface AnalysisRequest extends Position {
   template: BoardTemplate;
@@ -31,6 +49,7 @@ export interface AnalysisRequest extends Position {
   seed: number;
   previousBoard?: Board;
   scorelessTurns?: number;
+  endgameBudgetMultiplier?: number;
 }
 export interface ReplyForecast {
   replyScore: number;
@@ -280,6 +299,11 @@ export function analyzeMoves(
   ) {
     throw new Error("Enter zero to five prior scoreless turns.");
   }
+  const multiplier = request.endgameBudgetMultiplier ?? 1;
+  if (!isEndgameBudgetMultiplier(multiplier))
+    throw new Error(
+      `Enter a whole-number endgame budget from 1 to ${MAX_ENDGAME_BUDGET_MULTIPLIER}.`,
+    );
 
   const pool = unseen.tiles.flatMap(({ symbol, count }) =>
     Array<string>(count).fill(symbol),
@@ -566,6 +590,7 @@ export function analyzeMoves(
     );
   const searchEndgames =
     !bagSize && template.rules === "scrabble" && opponentRackSize > 0;
+  const endgameLimits = endgameAnalysisLimits(multiplier, entries.length);
   if (searchEndgames)
     progress({ phase: "endgames", completed: 0, total: entries.length });
   return {
@@ -602,7 +627,7 @@ export function analyzeMoves(
             request.scorelessTurns ?? 0,
             search,
             placeTiles,
-            1_500 / entries.length,
+            endgameLimits,
           );
         } catch (error) {
           if (!(error instanceof EndgameSearchLimitError)) throw error;

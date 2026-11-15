@@ -255,6 +255,62 @@ test("analysis counter follows worker progress and disappears on cancel", async 
   expect(analysisWorker!.terminate).toHaveBeenCalledOnce();
 });
 
+test("an empty-bag analysis can be rerun with a higher endgame budget", async () => {
+  const requests: AnalysisRequest[] = [];
+  class BudgetWorker extends SolverWorker {
+    postMessage(
+      request: Parameters<SolverWorker["postMessage"]>[0] | AnalysisRequest,
+    ) {
+      if ("kind" in request) return super.postMessage(request);
+      requests.push(request);
+      const result = analyzeMoves(new Lexicon(["CATS"]), request, new Set());
+      queueMicrotask(() => this.onmessage?.({ data: { result } }));
+    }
+  }
+  vi.stubGlobal("Worker", BudgetWorker);
+  const user = await start();
+  const game = current();
+  act(() =>
+    store.update({
+      ...game,
+      rack: "CATS",
+      template: {
+        ...game.template,
+        tileCounts: Object.fromEntries(
+          TILE_SYMBOLS.map((symbol) => [symbol, Number("ACSTZ".includes(symbol))]),
+        ),
+      },
+    }),
+  );
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  await user.click(await screen.findByRole("button", { name: "Analyze" }));
+  const budget = screen.getByRole<HTMLInputElement>("spinbutton", {
+    name: /Endgame budget/,
+  });
+  expect(budget.value).toBe("1");
+  expect(screen.getByText("1,500 positions or 1.5 s per move")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Run analysis" }));
+  await screen.findByRole("button", { name: "Refine estimates" });
+  expect(requests[0].endgameBudgetMultiplier).toBe(1);
+
+  fireEvent.change(budget, { target: { value: "101" } });
+  expect(budget.getAttribute("aria-invalid")).toBe("true");
+  expect(
+    screen.getByRole<HTMLButtonElement>("button", { name: "Run analysis" }).disabled,
+  ).toBe(true);
+  fireEvent.change(budget, { target: { value: "10" } });
+  expect(screen.getByText("15,000 positions or 15 s per move")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Run analysis" }));
+  await screen.findByRole("button", { name: "Refine estimates" });
+  expect(requests[1].endgameBudgetMultiplier).toBe(10);
+
+  const analysis = within(screen.getByLabelText("Move analysis"));
+  fireEvent.change(analysis.getByRole("spinbutton", { name: "Tiles in bag" }), {
+    target: { value: "1" },
+  });
+  expect(screen.queryByRole("spinbutton", { name: /Endgame budget/ })).toBeNull();
+});
+
 test("a new game defaults to imported WOW24 even from another dictionary", async () => {
   const user = await start();
   const wow = {

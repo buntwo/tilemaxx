@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChartNoAxesCombined, X } from "lucide-react";
 import { type Game, type Move, coordinate } from "../../shared/model";
 import { unseenTiles } from "../../shared/tile-pool";
 import { rackLetters } from "../../shared/rack-entry";
 import {
   ANALYSIS_TRIALS,
+  MAX_ENDGAME_BUDGET_MULTIPLIER,
   REFINED_TRIALS,
   type AnalysisResult,
   type AnalysisRequest,
@@ -12,6 +13,8 @@ import {
   type OpponentModel,
   type MoveForecast,
   addedTiles,
+  endgameAnalysisLimits,
+  isEndgameBudgetMultiplier,
   placeTiles,
 } from "../../shared/move-analysis";
 import Board from "./Board";
@@ -40,6 +43,8 @@ export default function MoveAnalysis({
   const [model, setModel] = useState<OpponentModel>("strong");
   const [infer, setInfer] = useState(false);
   const [scoreless, setScoreless] = useState(0);
+  const [endgameBudgetText, setEndgameBudgetText] = useState("1");
+  const budgetHintId = useId();
   const [result, setResult] = useState<AnalysisResult>();
   const [error, setError] = useState("");
   const [progress, setProgress] = useState<AnalysisProgress>();
@@ -68,6 +73,12 @@ export default function MoveAnalysis({
     bagSize === 0 &&
     game.template.rules === "scrabble" &&
     total > 0;
+  const endgameBudget = endgame ? Number(endgameBudgetText) : 1;
+  const budgetValid = isEndgameBudgetMultiplier(endgameBudget);
+  const { positionLimit, timeLimitMs } = endgameAnalysisLimits(
+    endgameBudget,
+    candidates.length,
+  );
   const position = (move: Move) =>
     `${coordinate(move.row * size + move.col, size)}${move.direction === "across" ? " →" : " ↓"}`;
 
@@ -81,7 +92,7 @@ export default function MoveAnalysis({
     setError("");
     setExample(undefined);
     return stop;
-  }, [key, bagText, inferenceKey, scoreless]);
+  }, [key, bagText, inferenceKey, scoreless, endgameBudget]);
 
   function run(trials: number) {
     setError("");
@@ -123,6 +134,7 @@ export default function MoveAnalysis({
       trials,
       previousBoard: canInfer && infer ? previous : undefined,
       scorelessTurns: scoreless,
+      endgameBudgetMultiplier: endgame ? endgameBudget : undefined,
     } satisfies AnalysisRequest & { dictionaryId: string });
   }
 
@@ -196,6 +208,7 @@ export default function MoveAnalysis({
             disabled={
               !candidates.length ||
               !bagValid ||
+              !budgetValid ||
               !!excess.length ||
               result?.target === REFINED_TRIALS
             }
@@ -216,17 +229,38 @@ export default function MoveAnalysis({
         </label>
       )}
       {endgame && (
-        <label className="analysis-option">
-          Prior scoreless turns
-          <select
-            value={scoreless}
-            onChange={(event) => setScoreless(Number(event.target.value))}
-          >
-            {Array.from({ length: 6 }, (_, count) => (
-              <option key={count}>{count}</option>
-            ))}
-          </select>
-        </label>
+        <div className="analysis-controls">
+          <label>
+            Prior scoreless turns
+            <select
+              value={scoreless}
+              onChange={(event) => setScoreless(Number(event.target.value))}
+            >
+              {Array.from({ length: 6 }, (_, count) => (
+                <option key={count}>{count}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Endgame budget (×)
+            <input
+              type="number"
+              min={1}
+              max={MAX_ENDGAME_BUDGET_MULTIPLIER}
+              inputMode="numeric"
+              value={endgameBudgetText}
+              disabled={!!progress}
+              aria-invalid={!budgetValid || undefined}
+              aria-describedby={budgetHintId}
+              onChange={(event) => setEndgameBudgetText(event.target.value)}
+            />
+          </label>
+          <span className="analysis-budget-hint" id={budgetHintId}>
+            {budgetValid
+              ? `${positionLimit.toLocaleString()} positions or ${(timeLimitMs / 1_000).toLocaleString()} s per move`
+              : `Enter a whole number from 1 to ${MAX_ENDGAME_BUDGET_MULTIPLIER}.`}
+          </span>
+        </div>
       )}
       {excess.length > 0 ? (
         <p className="error">

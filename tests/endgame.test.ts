@@ -27,7 +27,7 @@ test("endgame reports the overall deadline, positions visited, and elapsed time"
           throw new SearchLimitError("time");
         },
         placeTiles,
-        500,
+        { timeLimitMs: 500 },
       ),
     {
       message:
@@ -36,36 +36,39 @@ test("endgame reports the overall deadline, positions visited, and elapsed time"
   );
 });
 
-test("endgame reports the position cap separately from the deadline", (t) => {
+test("endgame applies both the default and an increased position cap", (t) => {
   t.mock.method(performance, "now", () => 0);
-  let generated = 0;
-  assert.throws(
-    () =>
-      solveEmptyBag(
-        board,
-        candidate,
-        "TINGLOS",
-        template,
-        0,
-        (position, rack) => {
-          generated++;
-          const index = position.indexOf("");
-          return [..."ABCDE"].map((letter) => ({
-            ...candidate,
-            tiles: [{ index, letter }],
-            leave: rack.slice(1),
-          }));
-        },
-        placeTiles,
-        500,
-      ),
-    (error) =>
-      error instanceof EndgameSearchLimitError &&
-      error.message.includes(
-        "its position limit after visiting 1,500 positions",
-      ),
-  );
-  assert.equal(generated, 1_500);
+  for (const positionLimit of [undefined, 3_000]) {
+    let generated = 0;
+    const expected = positionLimit ?? 1_500;
+    assert.throws(
+      () =>
+        solveEmptyBag(
+          board,
+          candidate,
+          "TINGLOS",
+          template,
+          0,
+          (position, rack) => {
+            generated++;
+            const index = position.indexOf("");
+            return [..."ABCDE"].map((letter) => ({
+              ...candidate,
+              tiles: [{ index, letter }],
+              leave: rack.slice(1),
+            }));
+          },
+          placeTiles,
+          { timeLimitMs: 500, positionLimit },
+        ),
+      (error) =>
+        error instanceof EndgameSearchLimitError &&
+        error.message.includes(
+          `its position limit after visiting ${expected.toLocaleString()} positions`,
+        ),
+    );
+    assert.equal(generated, expected);
+  }
 });
 
 test("endgame identifies a single-position move-generation limit", (t) => {
@@ -84,7 +87,7 @@ test("endgame identifies a single-position move-generation limit", (t) => {
           throw new SearchLimitError("time");
         },
         placeTiles,
-        2_500,
+        { timeLimitMs: 2_500 },
       ),
     /2,000 ms move-generation limit at a single position after visiting 1 position/,
   );
