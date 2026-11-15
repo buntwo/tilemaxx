@@ -4,6 +4,7 @@ import { trackedMoveHistory, type Game, type Player } from "../../shared/model";
 import {
   correctTrackedMove,
   emptyScoring,
+  gameScoreTotals,
   isImportedPosition,
   pendingOpponentPlay,
   tracksScores,
@@ -20,6 +21,23 @@ export function GameScoreBadge({
   prominent: boolean;
 }) {
   if (!tracksScores(game)) return null;
+  const { you, opponent } = gameScoreTotals(game.scoring);
+  const outcome = !game.scoring?.end
+    ? game.archived
+      ? "archived"
+      : "playing"
+    : you === opponent
+      ? "tie"
+      : you > opponent
+        ? "win"
+        : "loss";
+  const status = {
+    archived: "Archived game",
+    playing: "Game in progress",
+    tie: "Tie game",
+    win: "You won",
+    loss: "You lost",
+  }[outcome];
   return (
     <span
       className={
@@ -27,12 +45,13 @@ export function GameScoreBadge({
       }
       role="group"
       aria-label="Tracked score"
+      aria-description={status}
+      title={status}
+      data-outcome={outcome}
     >
-      <span aria-label="Your score">{game.scoring?.you.points ?? 0}</span>
+      <span aria-label="Your score">{you}</span>
       <span aria-hidden="true">–</span>
-      <span aria-label="Opponent score">
-        {game.scoring?.opponent.points ?? 0}
-      </span>
+      <span aria-label="Opponent score">{opponent}</span>
     </span>
   );
 }
@@ -53,6 +72,7 @@ export default function GameScores({
   const tracking = tracksScores(game);
   const play = pendingOpponentPlay(game);
   const scoring = game.scoring ?? emptyScoring();
+  const adjusted = gameScoreTotals(scoring);
   const totals = { you: 0, opponent: 0 };
   const history = trackedMoveHistory(game);
   const historyKey = JSON.stringify(history);
@@ -109,7 +129,7 @@ export default function GameScores({
                 <div key={player}>
                   <dt>{player === "you" ? "You" : "Opponent"}</dt>
                   <dd className="score-total">
-                    {points} <small>pts</small>
+                    {adjusted[player]} <small>pts</small>
                   </dd>
                   <dd className="score-detail">
                     {moves} {moves === 1 ? "move" : "moves"} · Avg{" "}
@@ -123,6 +143,15 @@ export default function GameScores({
               );
             })}
           </dl>
+          {scoring.end && (
+            <p className="score-detail">
+              {scoring.end.out === "you"
+                ? "You went out."
+                : "Opponent went out."}{" "}
+              {scoring.end.rackPoints > 0 &&
+                `${scoring.end.rackPoints} rack points transferred to ${scoring.end.out === "you" ? "you" : "the opponent"}.`}
+            </p>
+          )}
           {scoring.pendingBase && (
             <div className="score-pending">
               <p>

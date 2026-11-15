@@ -71,6 +71,7 @@ import {
   emptyScoring,
   playTrackedMove,
   recordOpponentPlay,
+  recordOpponentRackOut,
   setScoreTracking,
   treatBoardEditAsCorrection,
 } from "../shared/game-scoring";
@@ -102,6 +103,7 @@ type Dialog =
   | "rename-profile"
   | "delete-profile"
   | "history"
+  | "board-help"
   | "help"
   | "rename"
   | "delete"
@@ -309,7 +311,8 @@ function Tilemaxx() {
       stop?.();
     };
   }, [activeFlight, flight]);
-  const hasPlayableRack = !!game && !!splitRack(game).available;
+  const gameOver = !!game?.scoring?.end && !game.archived;
+  const hasPlayableRack = !!game && !gameOver && !!splitRack(game).available;
   useEffect(() => {
     updateFavicon();
     void store.refresh();
@@ -499,7 +502,7 @@ function Tilemaxx() {
   function play(move: Move) {
     if (!game || activeFlight) return;
     try {
-      const next = playTrackedMove(game, move);
+      const next = playTrackedMove(game, move, replyAnalysis.bagSize);
       const motion = prepareTileFlight(
         game,
         move,
@@ -562,6 +565,7 @@ function Tilemaxx() {
       </div>
     );
   const compactGame = desktopGame && workspace === "games" && !!game;
+  const phoneBoardControls = phoneLayout && !compactGame;
   const collapsibleBoardHelp = compactGame || phoneLayout;
   const menuInTitle = phoneLayout && workspace === "games";
   const headlineScore = game && (
@@ -695,17 +699,39 @@ function Tilemaxx() {
       ))}
     </div>
   );
+  const boardName =
+    game && game.template.name + (hasCustomPremiums(game) ? " (custom)" : "");
+  const boardSize = game && `${game.template.size} × ${game.template.size}`;
+  const boardHistoryControls = game && (
+    <>
+      <button
+        className="icon-button board-undo"
+        disabled={!game.past.length}
+        aria-label="Undo"
+        title="Undo"
+        onClick={undoGame}
+      >
+        <Undo2 size={17} />
+      </button>
+      <button
+        className="icon-button"
+        disabled={!game.future.length}
+        aria-label="Redo"
+        title="Redo"
+        onClick={() => update(redo(game))}
+      >
+        <Redo2 size={17} />
+      </button>
+    </>
+  );
   const boardToolbar = game && (
     <div className="board-toolbar">
       <div>
-        <span className="board-name" title={game.template.name}>
+        <span className="board-name" title={boardName}>
           <Grid2X2 size={16} />
-          {game.template.name}
-          {hasCustomPremiums(game) && " (custom)"}
+          {boardName}
         </span>
-        <span className="board-size">
-          {game.template.size} × {game.template.size}
-        </span>
+        <span className="board-size">{boardSize}</span>
         {collapsibleBoardHelp && (
           <details
             className="board-help"
@@ -739,24 +765,7 @@ function Tilemaxx() {
         >
           <ImagePlus size={17} />
         </button>
-        <button
-          className="icon-button"
-          disabled={!game.past.length}
-          aria-label="Undo"
-          title="Undo"
-          onClick={undoGame}
-        >
-          <Undo2 size={17} />
-        </button>
-        <button
-          className="icon-button"
-          disabled={!game.future.length}
-          aria-label="Redo"
-          title="Redo"
-          onClick={() => update(redo(game))}
-        >
-          <Redo2 size={17} />
-        </button>
+        {boardHistoryControls}
         <span className="toolbar-divider" />
         <button
           className="icon-button"
@@ -1076,7 +1085,7 @@ function Tilemaxx() {
                   }
                 }}
               >
-                {!compactGame && boardToolbar}
+                {!compactGame && !phoneBoardControls && boardToolbar}
                 <BoardEntry
                   key={game.id}
                   game={game}
@@ -1085,6 +1094,9 @@ function Tilemaxx() {
                   displayBoard={activeFlight?.before.board}
                   onChange={update}
                   onSelect={editPosition}
+                  historyControls={
+                    phoneBoardControls && !phoneReview.showing && boardHistoryControls
+                  }
                   moveFilter={{
                     marks: squareFilter.marks,
                     onToggle: squareFilter.selecting ? (index) => {
@@ -1113,6 +1125,11 @@ function Tilemaxx() {
                         "Choose a move to preview"
                       )}
                     </span>
+                    {phoneBoardControls && (
+                      <div className="board-review-history">
+                        {boardHistoryControls}
+                      </div>
+                    )}
                     {!movePreview?.analysis && (
                       <button
                         className="board-review-play"
@@ -1139,7 +1156,9 @@ function Tilemaxx() {
                   key={game.id}
                   ref={rackEntry}
                   game={game}
-                  onChange={update}
+                  onChange={(next) =>
+                    update(next.rack !== game.rack ? recordOpponentRackOut(next) : next)
+                  }
                   onSolve={solve}
                   phoneLayout={phoneLayout}
                   onReviewEdit={phoneReview.showing ? editPosition : undefined}
@@ -1159,72 +1178,78 @@ function Tilemaxx() {
               {!phoneLayout && gameScores}
             </div>
             <div className="results-column">
-              <Results
-                compact={compactGame}
-                collapsibleSearch={compactGame || phoneLayout}
-                results={solver.results}
-                exchangeAction={
-                  solver.exchangeAdvice &&
-                  !activeFlight && (
-                    <ExchangeSuggestion
-                      advice={solver.exchangeAdvice}
-                      rack={game.rack}
-                      onOpen={() => {
-                        if (phoneReview.showing) editPosition();
-                        rackEntry.current?.openSuggestedExchange(phoneLayout);
-                      }}
-                      inHeader
-                    />
-                  )
-                }
-                fetchPage={solver.page}
-                fetchShortlist={solver.shortlist}
-                busy={busy}
-                calculating={solver.calculating}
-                elapsed={solver.elapsed}
-                error={solver.error}
-                size={game.template.size}
-                bingoRules={game.template}
-                preview={preview}
-                requiredSquares={squareFilter.requiredSquares}
-                squareFilterControl={
-                  <button
-                    ref={squareFilterButton}
-                    className={`icon-button move-square-toggle${squareFilter.marks.size ? " has-required-squares" : ""}`}
-                    type="button"
-                    aria-label="Filter moves by squares"
-                    aria-pressed={squareFilter.selecting}
-                    title={squareFilter.marks.size ? `Filter moves by squares (${squareFilter.marks.size} selected)` : "Filter moves by squares"}
-                    onClick={toggleSquareSelection}
-                  >
-                    <Focus size={16} aria-hidden="true" />
-                  </button>
-                }
-                onPreview={previewMove}
-                phoneLayout={phoneLayout}
-                onPlay={play}
-                onSolve={solve}
-                onCancelSearch={solver.cancelSearch}
-                hasRack={hasPlayableRack}
-                analysisGame={game}
-                analysisKey={signature}
-                replyAnalysis={replyAnalysis}
-                rackOdds={solver.rackOdds}
-                defense={solver.defense}
-                defenseProgress={
-                  solver.defenseProgress === undefined
-                    ? undefined
-                    : `${solver.defenseProgress}/${Math.min(solver.results?.total ?? 0, DEFENSE_LIMIT)}`
-                }
-                rackOddsPending={solver.rackOddsPending}
-                boardOdds={solver.boardOdds}
-                boardOddsProgress={solver.boardOddsProgress}
-                boardOddsError={solver.boardOddsError}
-                onBoardOdds={(candidates, bagSize) =>
-                  solver.runBoardOdds(game, candidates, bagSize)
-                }
-                onCancelBoardOdds={solver.cancelBoardOdds}
-              />
+              {gameOver ? (
+                <section className="results-panel game-over panel" aria-label="Possible moves">
+                  <h3>Game over</h3>
+                </section>
+              ) : (
+                <Results
+                  compact={compactGame}
+                  collapsibleSearch={compactGame || phoneLayout}
+                  results={solver.results}
+                  exchangeAction={
+                    solver.exchangeAdvice &&
+                    !activeFlight && (
+                      <ExchangeSuggestion
+                        advice={solver.exchangeAdvice}
+                        rack={game.rack}
+                        onOpen={() => {
+                          if (phoneReview.showing) editPosition();
+                          rackEntry.current?.openSuggestedExchange(phoneLayout);
+                        }}
+                        inHeader
+                      />
+                    )
+                  }
+                  fetchPage={solver.page}
+                  fetchShortlist={solver.shortlist}
+                  busy={busy}
+                  calculating={solver.calculating}
+                  elapsed={solver.elapsed}
+                  error={solver.error}
+                  size={game.template.size}
+                  bingoRules={game.template}
+                  preview={preview}
+                  requiredSquares={squareFilter.requiredSquares}
+                  squareFilterControl={
+                    <button
+                      ref={squareFilterButton}
+                      className={`icon-button move-square-toggle${squareFilter.marks.size ? " has-required-squares" : ""}`}
+                      type="button"
+                      aria-label="Filter moves by squares"
+                      aria-pressed={squareFilter.selecting}
+                      title={squareFilter.marks.size ? `Filter moves by squares (${squareFilter.marks.size} selected)` : "Filter moves by squares"}
+                      onClick={toggleSquareSelection}
+                    >
+                      <Focus size={16} aria-hidden="true" />
+                    </button>
+                  }
+                  onPreview={previewMove}
+                  phoneLayout={phoneLayout}
+                  onPlay={play}
+                  onSolve={solve}
+                  onCancelSearch={solver.cancelSearch}
+                  hasRack={hasPlayableRack}
+                  analysisGame={game}
+                  analysisKey={signature}
+                  replyAnalysis={replyAnalysis}
+                  rackOdds={solver.rackOdds}
+                  defense={solver.defense}
+                  defenseProgress={
+                    solver.defenseProgress === undefined
+                      ? undefined
+                      : `${solver.defenseProgress}/${Math.min(solver.results?.total ?? 0, DEFENSE_LIMIT)}`
+                  }
+                  rackOddsPending={solver.rackOddsPending}
+                  boardOdds={solver.boardOdds}
+                  boardOddsProgress={solver.boardOddsProgress}
+                  boardOddsError={solver.boardOddsError}
+                  onBoardOdds={(candidates, bagSize) =>
+                    solver.runBoardOdds(game, candidates, bagSize)
+                  }
+                  onCancelBoardOdds={solver.cancelBoardOdds}
+                />
+              )}
               {phoneLayout && gameScores}
               {warnings.length > 0 && (
                 <div className="board-warnings">
@@ -1575,6 +1600,18 @@ function Tilemaxx() {
           )}
         </Modal>
       )}
+      {dialog === "board-help" && game && (
+        <Modal
+          title="Board help"
+          subtitle={`${boardName} · ${boardSize}`}
+          onClose={() => setDialog(null)}
+        >
+          <div className="board-help-dialog">
+            <BoardEntryHelp />
+            {boardLegend}
+          </div>
+        </Modal>
+      )}
       {dialog === "history" && game && (
         <Modal
           title="Your moves, remembered."
@@ -1743,6 +1780,25 @@ function Tilemaxx() {
           closeDisabled={formBusy}
         >
           <div className="game-option-list" aria-busy={formBusy}>
+            {phoneBoardControls && (
+              <>
+                <button disabled={formBusy} onClick={() => openDialog("screenshot")}>
+                  <ImagePlus size={19} />
+                  <span><strong>Import screenshot</strong></span>
+                  <ArrowUpRight size={16} />
+                </button>
+                <button disabled={formBusy} onClick={() => openDialog("history")}>
+                  <History size={19} />
+                  <span><strong>Move history</strong></span>
+                  <ArrowUpRight size={16} />
+                </button>
+                <button disabled={formBusy} onClick={() => openDialog("board-help")}>
+                  <CircleHelp size={19} />
+                  <span><strong>Board help</strong></span>
+                  <ArrowUpRight size={16} />
+                </button>
+              </>
+            )}
             <button disabled={formBusy} onClick={() => openDialog("rename")}>
               <Pencil size={19} />
               <span>

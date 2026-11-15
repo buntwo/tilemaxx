@@ -17,7 +17,8 @@ import {
   type TrackedMove,
   type TurnPosition,
 } from "./model";
-import { rackSlotsForMove } from "./rack-entry";
+import { rackLetters, rackSlotsForMove } from "./rack-entry";
+import { unseenTiles } from "./tile-pool";
 
 export function emptyScoring(imported = false): GameScoring {
   const score = { points: 0, moves: 0, best: 0, bingos: 0 };
@@ -33,6 +34,16 @@ export function isImportedPosition(game: Game): boolean {
 
 export function tracksScores(game: Game): boolean {
   return game.trackScores !== false && !isImportedPosition(game);
+}
+
+export function gameScoreTotals(scoring: GameScoring | undefined) {
+  const rackAdjustment = scoring?.end
+    ? scoring.end.rackPoints * (scoring.end.out === "you" ? 1 : -1)
+    : 0;
+  return {
+    you: (scoring?.you.points ?? 0) + rackAdjustment,
+    opponent: (scoring?.opponent.points ?? 0) - rackAdjustment,
+  };
 }
 
 export function setScoreTracking(game: Game, enabled: boolean): Game {
@@ -61,11 +72,13 @@ export function trackBoardEdit(
     : base;
   // A blank toggle on an existing square is a correction even for positions
   // with no saved move to rescore. New tiles still belong to the pending play.
-  const pendingBase = board.some(
-    (tile, i) => tile.toUpperCase() !== correctedBase[i].toUpperCase(),
-  )
-    ? correctedBase
-    : undefined;
+  const pendingBase =
+    !game.scoring?.end &&
+    board.some(
+      (tile, i) => tile.toUpperCase() !== correctedBase[i].toUpperCase(),
+    )
+      ? correctedBase
+      : undefined;
   const scoring = corrections
     ? updateScoreTotals(game, corrections.history, corrections.moves)
     : game.scoring;
@@ -513,6 +526,60 @@ export function pendingOpponentPlay(game: Game) {
     : null;
 }
 
+function canRecordRackOut(game: Game) {
+  return (
+    tracksScores(game) &&
+    !game.archived &&
+    !game.scoring?.end &&
+    game.template.rules !== "crossplay"
+  );
+}
+
+function opponentRackOut(game: Game) {
+  const base = game.scoring?.pendingBase;
+  const rack = rackLetters(game.rack);
+  if (!base || !canRecordRackOut(game) || !rack) return;
+  const { total, excess } = unseenTiles(game, game.template);
+  if (total || excess.length) return;
+  const placed = game.board.filter((letter, index) => letter && !base[index]);
+  if (!placed.length || placed.length > game.template.rackSize) return;
+  return {
+    out: "opponent" as const,
+    rackPoints: [...rack].reduce(
+      (total, tile) => total + tileScore(tile, game.template.rules),
+      0,
+    ),
+  };
+}
+
+export function recordOpponentRackOut(
+  game: Game,
+  { mergeBoardUndo = false }: { mergeBoardUndo?: boolean } = {},
+) {
+  const end = opponentRackOut(game);
+  if (!end) return game;
+  const recorded = recordOpponentPlay(game, end);
+  const before = mergeBoardUndo ? game.past.at(-1) : undefined;
+  if (recorded === game || !before) return recorded;
+  // From board entry, the tiles and their recorded score share one undo step.
+  const move = recorded.past.at(-1)!;
+  return {
+    ...recorded,
+    past: [
+      ...game.past.slice(0, -1),
+      {
+        ...before,
+        label: move.label,
+        player: move.player,
+        score: move.score,
+        bingo: move.bingo,
+        review: move.review,
+        at: move.at,
+      },
+    ],
+  };
+}
+
 function addScore(
   scoring: GameScoring,
   player: Player,
@@ -531,7 +598,10 @@ function addScore(
   };
 }
 
-export function recordOpponentPlay(game: Game): Game {
+export function recordOpponentPlay(
+  game: Game,
+  end = opponentRackOut(game),
+): Game {
   const play = pendingOpponentPlay(game);
   if (!play) return game;
   const base = game.scoring!.pendingBase!;
@@ -545,13 +615,26 @@ export function recordOpponentPlay(game: Game): Game {
         letter && !base[index] ? [{ index, letter }] : [],
       ),
     }),
-    scoring: addScore(game.scoring!, "opponent", play),
+    scoring: {
+      ...addScore(game.scoring!, "opponent", play),
+      ...(end && { end }),
+    },
   };
 }
 
-export function playTrackedMove(game: Game, move: Move): Game {
+export function playTrackedMove(
+  game: Game,
+  move: Move,
+  bagSize?: number,
+): Game {
+  if (game.scoring?.end) {
+    if (game.archived) return applyMove(game, move);
+    throw new Error("This game has ended. Undo the last move to continue.");
+  }
   if (!tracksScores(game)) return applyMove(game, move);
   const previous = recordOpponentPlay(game);
+  if (!game.archived && previous.scoring?.end)
+    throw new Error("This game has ended. Undo the last move to continue.");
   const pendingBase = previous.scoring?.pendingBase;
   if (
     pendingBase &&
@@ -562,13 +645,27 @@ export function playTrackedMove(game: Game, move: Move): Game {
     );
   }
   const result = applyMove(previous, move, "you");
+  const scoring = addScore(previous.scoring ?? emptyScoring(), "you", {
+    word: move.word,
+    score: move.score,
+    bingo: isBingo(game.template, move.tiles.length),
+  });
+  if (canRecordRackOut(previous) && !rackLetters(result.rack) && !bagSize) {
+    const { total, excess, tiles } = unseenTiles(result, result.template);
+    // With an empty bag, every unseen tile is on the opponent’s rack.
+    if (total > 0 && total <= result.template.rackSize && !excess.length) {
+      scoring.end = {
+        out: "you",
+        rackPoints: tiles.reduce(
+          (points, tile) => points + tile.count * tile.score,
+          0,
+        ),
+      };
+    }
+  }
   return {
     ...result,
-    scoring: addScore(previous.scoring ?? emptyScoring(), "you", {
-      word: move.word,
-      score: move.score,
-      bingo: isBingo(game.template, move.tiles.length),
-    }),
+    scoring,
   };
 }
 

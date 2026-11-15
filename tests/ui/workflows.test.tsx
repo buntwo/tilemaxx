@@ -2162,14 +2162,41 @@ test("the phone layout keeps settings, the build version, board help and move fi
   expect(document.documentElement.dataset.theme).toBe("dark");
   await user.click(sidebar.getByRole("button", { name: "My games" }));
 
-  const legend = main.getByText("Triple word");
-  const help = legend.closest("details")!;
-  expect(help.open).toBe(false);
-  await user.click(main.getByLabelText("Board help"));
-  expect(help.open).toBe(true);
-  expect(main.getByRole("button", { name: "Import screenshot" })).toBeTruthy();
-  await user.click(main.getByLabelText("Board help"));
-  expect(help.open).toBe(false);
+  expect(document.querySelector(".board-toolbar")).toBeNull();
+  const score = main.getByRole("group", { name: "Tracked score" });
+  expect(score.closest(".game-heading")).toBeTruthy();
+  expect(score.getAttribute("data-outcome")).toBe("playing");
+  const options = main.getByRole("button", { name: "Game options" });
+  const dialog = () => within(screen.getByRole("dialog"));
+  const close = () => user.click(dialog().getByRole("button", { name: "Close dialog" }));
+  for (const [label, heading] of [
+    ["Board help", "Board help"],
+    ["Move history", "Your moves, remembered."],
+    ["Import screenshot", "Import a screenshot"],
+  ]) {
+    expect(main.queryByRole("button", { name: label })).toBeNull();
+    await user.click(options);
+    await user.click(dialog().getByRole("button", { name: label }));
+    expect(dialog().getByRole("heading", { name: heading })).toBeTruthy();
+    if (label === "Board help") {
+      expect(dialog().getByText("Triple word")).toBeTruthy();
+      expect(dialog().getByText("Scrabble · 15 × 15")).toBeTruthy();
+    }
+    await close();
+  }
+  const undo = main.getByRole("button", { name: "Undo" });
+  const redo = main.getByRole("button", { name: "Redo" });
+  const entryTools = undo.closest(".direct-entry-actions");
+  expect(entryTools?.contains(redo)).toBe(true);
+  expect(entryTools?.contains(main.getByRole("button", { name: "Toggle entry direction" }))).toBe(true);
+  expect(entryTools?.contains(main.getByRole("button", { name: "Blank tile: off" }))).toBe(true);
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("C");
+  await user.click(undo);
+  expect(current().board[112]).toBe("");
+  await user.click(redo);
+  expect(current().board[112]).toBe("C");
+  await user.click(undo);
 
   const rack = within(screen.getByRole("region", { name: "Your rack" }));
   const findMoves = main.getByRole("button", { name: "Find moves" });
@@ -2188,6 +2215,44 @@ test("the phone layout keeps settings, the build version, board help and move fi
   expect(main.queryByRole("button", { name: /^ACT, / })).toBeNull();
   await user.keyboard("{Escape}");
   expect(main.queryByRole("textbox", { name: "Filter moves" })).toBeNull();
+});
+
+test("entering the opponent's final tile updates the score and ends the game on the phone", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const fixture = remote.games[0];
+  fixture.revision = 1;
+  fixture.board.splice(112, 3, "C", "A", "T");
+  fixture.rack = "Q";
+  fixture.scoring = {
+    you: { points: 20, moves: 1, best: 20, bingos: 0 },
+    opponent: { points: 10, moves: 1, best: 10, bingos: 0 },
+  };
+  fixture.template.tileCounts = Object.fromEntries(
+    TILE_SYMBOLS.map((symbol) => [symbol, Number("ACQST".includes(symbol))]),
+  );
+  const user = await start();
+  const badge = () => screen.getByRole("group", { name: "Tracked score" });
+  await waitFor(() => expect(badge().textContent).toBe("20–10"));
+  await user.click(cell("K8: empty"));
+  await user.keyboard("S");
+  expect(badge().textContent).toBe("10–26");
+  expect(badge().getAttribute("data-outcome")).toBe("loss");
+  expect(screen.getByRole("heading", { name: "Game over" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Find moves" })).toBeNull();
+  expect(current().trackedMoves?.at(-1)).toMatchObject({ word: "CATS", player: "opponent", score: 6 });
+  await act(() => store.flush());
+  expect(remote.games[0].scoring?.end).toEqual({ out: "opponent", rackPoints: 10 });
+  await user.click(cell("Undo"));
+  expect(current().board[115]).toBe("");
+  expect(badge().textContent).toBe("20–10");
+  expect(badge().getAttribute("data-outcome")).toBe("playing");
+  await user.click(cell("Redo"));
+  expect(badge().textContent).toBe("10–26");
+  expect(badge().getAttribute("data-outcome")).toBe("loss");
 });
 
 test("phone rack entry reveals the tiles above the keyboard and restores the page when it closes", async () => {
