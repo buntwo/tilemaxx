@@ -2402,7 +2402,7 @@ test("the phone layout keeps settings, the build version, board help and move fi
   await user.click(menu);
   const sidebar = within(screen.getByRole("complementary"));
   const theme = sidebar.getByRole("group", { name: "Color theme" });
-  const settingsButton = sidebar.getByRole("button", { name: "Workspace settings" });
+  const settingsButton = sidebar.getByRole("button", { name: "Settings" });
   expect(settingsButton.textContent).toBe("");
   expect(settingsButton.parentElement).toBe(theme.nextElementSibling);
   expect(settingsButton.nextElementSibling).toBe(sidebar.getByText(`v${version}`));
@@ -3076,9 +3076,9 @@ test("workspace settings keep board previews visible with plain rack tiles and p
   const openSettings = () =>
     user.click(
       within(screen.getByRole("complementary", { name: "Workspace menu" }))
-        .getByRole("button", { name: "Workspace settings" }),
+        .getByRole("button", { name: "Settings" }),
     );
-  const dialog = () => within(screen.getByRole("dialog", { name: "Workspace settings" }));
+  const dialog = () => within(screen.getByRole("dialog", { name: "Settings" }));
   const option = (name: string) =>
     dialog().getByRole<HTMLInputElement>("checkbox", { name });
   const rackHighlight = "Highlight rack tiles on move preview";
@@ -3086,6 +3086,7 @@ test("workspace settings keep board previews visible with plain rack tiles and p
   const playAnimation = "Animate tiles when playing a move";
 
   await openSettings();
+  expect(dialog().getByText("Applies to all games in this browser only.")).toBeTruthy();
   for (const name of [rackHighlight, pulse, playAnimation]) {
     expect(option(name).checked).toBe(true);
     await user.click(option(name));

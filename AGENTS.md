@@ -27,5 +27,5 @@
 
 1. Keep the opening to a short hook, one concrete description, and the quick links. Put walkthroughs and setup details below the main screenshot.
 2. Start Tilemaxx with a temporary `DATA_DIR` and use a fictional game with a bundled word list. Switch the app to **Dark** before taking any README screenshot.
-3. Open **Workspace settings** with the gear below the sidebar theme controls. Turn off **Highlight rack tiles on move preview** and **Pulse move previews**, then find moves and preview a play on the board.
+3. Open **Settings** with the gear below the sidebar theme controls. Turn off **Highlight rack tiles on move preview** and **Pulse move previews**, then find moves and preview a play on the board.
 4. Replace the WebP files in `docs/screenshots/` with real captures of the desktop workspace, phone preview, and reply heatmap. Use the same sample position for all three, check their crops at README width, and update the alt text to match.

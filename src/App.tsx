@@ -852,8 +852,8 @@ function Tilemaxx() {
               <button
                 className="icon-button workspace-settings-button"
                 type="button"
-                aria-label="Workspace settings"
-                title="Workspace settings"
+                aria-label="Settings"
+                title="Settings"
                 onClick={() => openDialog("workspace-settings")}
               >
                 <Settings size={17} aria-hidden="true" />

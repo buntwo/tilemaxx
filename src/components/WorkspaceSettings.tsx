@@ -49,8 +49,8 @@ export default function WorkspaceSettings({
 }) {
   return (
     <Modal
-      title="Workspace settings"
-      subtitle="Applies to all games in this browser."
+      title="Settings"
+      subtitle="Applies to all games in this browser only."
       onClose={onClose}
     >
       <div className="workspace-preference-list">
