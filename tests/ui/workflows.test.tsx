@@ -112,6 +112,11 @@ class SolverWorker {
 }
 
 test("compare mode selects moves without playing and switches model without rerunning", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(any-hover: hover)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
   let runs = 0;
   class TestAnalysisWorker extends SolverWorker {
     postMessage(
@@ -135,8 +140,15 @@ test("compare mode selects moves without playing and switches model without reru
   const alternative = screen
     .getAllByRole("button", { name: /^CATS, / })
     .find((row) => row.getAttribute("aria-pressed") === "false")!;
+  const ghosts = () => document.querySelectorAll(".board-entry .ghost");
+  await user.hover(alternative);
+  expect(ghosts()).toHaveLength(4);
+  expect(alternative.getAttribute("aria-pressed")).toBe("false");
+  await user.unhover(alternative);
+  expect(ghosts()).toHaveLength(0);
   await user.click(alternative);
   expect(alternative.getAttribute("aria-pressed")).toBe("true");
+  expect(ghosts()).toHaveLength(4);
   expect(current().board.some(Boolean)).toBe(false);
   await user.click(screen.getByRole("button", { name: "Run analysis" }));
   expect(
@@ -152,6 +164,40 @@ test("compare mode selects moves without playing and switches model without reru
   await user.click(rackTile(1));
   await user.keyboard("D");
   expect(screen.queryByRole("article", { name: /^Analysis for/ })).toBeNull();
+});
+
+test("phone analysis taps preview and select a move without offering Play", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const user = await start();
+  await typeRack(user, "CATS");
+  await user.keyboard("{Enter}");
+  await user.click(await screen.findByRole("button", { name: "Analyze" }));
+  const move = screen.getAllByRole("button", {
+    name: /^CATS, /,
+    pressed: false,
+  })[0];
+  const tap = () =>
+    user.pointer([{ keys: "[TouchA]", target: move }, { keys: "[/TouchA]" }]);
+
+  await tap();
+  expect(move.getAttribute("aria-pressed")).toBe("true");
+  expect(document.querySelectorAll(".board-entry .ghost")).toHaveLength(4);
+  expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
+  await tap();
+  expect(move.getAttribute("aria-pressed")).toBe("false");
+  expect(current().board.some(Boolean)).toBe(false);
+  expect(current().rack).toBe("CATS");
+
+  await user.click(screen.getByRole("button", { name: "Close analysis" }));
+  expect(document.querySelectorAll(".board-entry .ghost")).toHaveLength(0);
+  await tap();
+  expect(
+    screen.getByRole("button", { name: "Play" }).hasAttribute("disabled"),
+  ).toBe(false);
 });
 
 test("Analyze keeps one set of move controls while the list scrolls", async () => {

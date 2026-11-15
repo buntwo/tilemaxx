@@ -123,7 +123,7 @@ export default function Results({
   size: number;
   bingoRules: BingoRules;
   preview: Move | null;
-  onPreview: (m: Move | null) => void;
+  onPreview: (m: Move | null, analysis?: boolean) => void;
   phoneLayout?: boolean;
   onPlay: (m: Move) => void;
   onSolve: (reload?: boolean) => void;
@@ -184,7 +184,7 @@ export default function Results({
   }>();
   const [heatmap, setHeatmap] = useState<{ id: string; searchId: number }>();
   const replyMove =
-    preview ??
+    (analyzing ? null : preview) ??
     (inspectedReply?.searchId === resultSet?.searchId
       ? replyAnalysis.target.find(({ id }) => id === inspectedReply?.id)
       : undefined);
@@ -814,22 +814,13 @@ export default function Results({
                     key={m.id}
                     style={{ top: (start + offset) * moveRowHeight }}
                     onPointerEnter={(e) => {
-                      if (
-                        analyzing ||
-                        locked ||
-                        !canHoverWithMouse(e.pointerType)
-                      )
-                        return;
-                      onPreview(m);
-                      if (searchId !== undefined && reply)
+                      if (locked || !canHoverWithMouse(e.pointerType)) return;
+                      onPreview(m, analyzing);
+                      if (!analyzing && searchId !== undefined && reply)
                         setInspectedReply({ id: m.id, searchId });
                     }}
                     onPointerLeave={(e) => {
-                      if (
-                        !analyzing &&
-                        !locked &&
-                        canHoverWithMouse(e.pointerType)
-                      )
+                      if (!locked && canHoverWithMouse(e.pointerType))
                         onPreview(null);
                     }}
                   >
@@ -847,7 +838,7 @@ export default function Results({
                         pointer.current = e.pointerType;
                       }}
                       onFocus={() => {
-                        if (!analyzing && !locked) onPreview(m);
+                        if (!locked) onPreview(m, analyzing);
                       }}
                       onContextMenu={(event) => {
                         if (analyzing) return;
@@ -863,6 +854,7 @@ export default function Results({
                       onClick={(e) => {
                         if (analyzing) {
                           toggleCandidate(m);
+                          onPreview(m, true);
                           return;
                         }
                         if (

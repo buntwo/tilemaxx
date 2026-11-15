@@ -202,7 +202,11 @@ export default function App() {
     [toast, setToast] = useState(""),
     [error, setError] = useState("");
   const [theme, setTheme] = useState(saved("tilewise:theme", "system"));
-  const [preview, setPreview] = useState<Move | null>(null);
+  const [movePreview, setPreview] = useState<{
+    move: Move;
+    analysis: boolean;
+  } | null>(null);
+  const preview = movePreview?.move ?? null;
   const [formName, setFormName] = useState(""),
     [formTrackScores, setFormTrackScores] = useState(true),
     [formTemplate, setFormTemplate] = useState("scrabble"),
@@ -451,9 +455,9 @@ export default function App() {
     if (phoneReview.showing) phoneReview.dismiss();
     setPreview(null);
   }
-  function previewMove(move: Move | null) {
+  function previewMove(move: Move | null, analysis = false) {
     if (move && phoneLayout) phoneReview.open();
-    setPreview(move);
+    setPreview(move ? { move, analysis } : null);
   }
   function play(move: Move) {
     if (!game || activeFlight) return;
@@ -1054,14 +1058,16 @@ export default function App() {
                         "Choose a move to preview"
                       )}
                     </span>
-                    <button
-                      className="board-review-play"
-                      type="button"
-                      disabled={!preview || !!activeFlight}
-                      onClick={() => preview && play(preview)}
-                    >
-                      <span className="button primary">Play</span>
-                    </button>
+                    {!movePreview?.analysis && (
+                      <button
+                        className="board-review-play"
+                        type="button"
+                        disabled={!preview || !!activeFlight}
+                        onClick={() => preview && play(preview)}
+                      >
+                        <span className="button primary">Play</span>
+                      </button>
+                    )}
                   </div>
                 )}
                 {!collapsibleBoardHelp && boardLegend}
