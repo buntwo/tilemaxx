@@ -43,10 +43,12 @@ import type { useReplyAnalysis } from "../useReplyAnalysis";
 import type { BoardOddsProgress } from "../useSolver";
 import type { ShortlistEntry } from "../../shared/move-shortlist";
 import {
+  coversRequiredSquares,
   defaultSortDescending,
   moveComparator,
   type MoveResults,
   type MoveSort,
+  type RequiredSquares,
   type ShortlistOptions,
 } from "../../shared/move-results";
 import {
@@ -90,6 +92,8 @@ export default function Results({
   size,
   bingoRules,
   preview,
+  requiredSquares,
+  squareFilterControl,
   onPreview,
   phoneLayout = false,
   onPlay,
@@ -126,6 +130,8 @@ export default function Results({
   size: number;
   bingoRules: BingoRules;
   preview: Move | null;
+  requiredSquares?: RequiredSquares;
+  squareFilterControl?: ReactElement;
   onPreview: (m: Move | null, analysis?: boolean) => void;
   phoneLayout?: boolean;
   onPlay: (m: Move) => void;
@@ -175,9 +181,6 @@ export default function Results({
     checkedBoardOdds?.bagSize === replyAnalysis.bagSize
       ? checkedBoardOdds
       : undefined;
-  const bingoCount = resultSet?.bingoCount ?? 0;
-  const formattedBingoCount = bingoCount.toLocaleString();
-  const bingoLabel = `${formattedBingoCount} ${bingoCount === 1 ? "bingo" : "bingos"}`;
   const targetIds = useMemo(
     () => new Set(replyAnalysis.target.map(({ id }) => id)),
     [replyAnalysis.target],
@@ -304,7 +307,11 @@ export default function Results({
     inspectedDefense?.key === analysisKey ? inspectedDefense : undefined;
   const filteredShortlist = shortlist
     .map(({ move }) => move)
-    .filter((move) => move.word.includes(filter.trim().toUpperCase()))
+    .filter(
+      (move) =>
+        move.word.includes(filter.trim().toUpperCase()) &&
+        (!requiredSquares || coversRequiredSquares(move, requiredSquares)),
+    )
     .sort(
       moveComparator({ sort, reversed, rackOdds, boardOdds, replyDeltas }) ??
         (() => 0),
@@ -313,6 +320,7 @@ export default function Results({
     resultSet,
     {
       filter,
+      requiredSquares,
       sort: shortlistActive || sort === "shortlist" ? "score" : sort,
       reversed: !shortlistActive && reversed,
       offset: shortlistActive
@@ -328,6 +336,16 @@ export default function Results({
   const total = shortlistActive ? filteredShortlist.length : page.total;
   const start = shortlistActive ? 0 : page.start;
   const visible = shortlistActive ? filteredShortlist : page.visible;
+  const pagePending = shortlistActive
+    ? shortlistResult?.searchId !== searchId
+    : page.pending;
+  const bingoCount = requiredSquares
+    ? shortlistActive
+      ? filteredShortlist.filter((move) => isBingo(bingoRules, move.tiles.length)).length
+      : page.bingoCount
+    : resultSet?.bingoCount ?? 0;
+  const formattedBingoCount = bingoCount.toLocaleString();
+  const bingoLabel = `${formattedBingoCount} ${bingoCount === 1 ? "bingo" : "bingos"}`;
   useEffect(() => {
     setAnalyzing(false);
     setCandidates([]);
@@ -346,7 +364,12 @@ export default function Results({
     if (scroller.current) scroller.current.scrollTop = 0;
     setLocked(null);
     scoreTooltip.close();
-  }, [resultSet, filter, sort, reversed, shortlistOnly]);
+  }, [resultSet, filter, requiredSquares, sort, reversed, shortlistOnly]);
+  useEffect(() => {
+    setInspectedReply(undefined);
+    if (requiredSquares)
+      setCandidates((current) => current.filter((move) => coversRequiredSquares(move, requiredSquares)));
+  }, [requiredSquares]);
   useEffect(() => {
     if (phoneLayout && !preview) setLocked(null);
   }, [phoneLayout, preview]);
@@ -387,7 +410,7 @@ export default function Results({
     );
   }
   const hasBingoControls = !!(analysisGame && onBoardOdds && onCancelBoardOdds);
-  const showFilters = !!totalMoves && !busy && !error;
+  const showFilters = !!resultSet && !!(totalMoves || requiredSquares) && !busy && !error;
   const viewPicker = analysisGame && (
     <div
       className="result-view-picker"
@@ -412,7 +435,7 @@ export default function Results({
           setSort("shortlist");
         }}
       >
-        Shortlist <span>{shortlist.length}</span>
+        Shortlist <span>{requiredSquares ? filteredShortlist.length : shortlist.length}</span>
       </button>
     </div>
   );
@@ -486,7 +509,9 @@ export default function Results({
                 {formattedBingoCount}
               </span>
             )}
-            <span className="count-badge">{totalMoves.toLocaleString()}</span>
+            <span className="count-badge" title={requiredSquares ? "Moves covering the selected squares" : undefined}>
+              {requiredSquares && pagePending ? "…" : (requiredSquares ? total : totalMoves).toLocaleString()}
+            </span>
           </div>
         )}
         {exchangeAction}
@@ -497,14 +522,14 @@ export default function Results({
             aria-expanded={analyzing}
             disabled={
               !analyzing &&
-              (shortlistActive ? !total : page.pending || page.unavailable)
+              (!total || pagePending || (!shortlistActive && page.unavailable))
             }
             onClick={() => {
               if (!analyzing)
                 setCandidates(
                   shortlistActive
                     ? filteredShortlist.slice(0, ANALYSIS_LIMIT)
-                    : [preview ?? page.head[0] ?? resultSet!.head[0]],
+                    : [preview ?? page.head[0]],
                 );
               setLocked(null);
               onPreview(null);
@@ -516,10 +541,11 @@ export default function Results({
           </button>
         )}
       </header>
-      {showFilters && (!collapsibleSearch || !hasBingoControls) && (
+      {showFilters && (!collapsibleSearch || !hasBingoControls || !totalMoves) && (
         <div className="result-filters">
           {viewPicker}
           {searchField}
+          {squareFilterControl}
           {collapsibleSearch && searchToggle}
         </div>
       )}
@@ -550,7 +576,7 @@ export default function Results({
               replyEnabled && <ReplySettings analysis={replyAnalysis} />
             }
             toolbarStart={collapsibleSearch && viewPicker}
-            toolbarEnd={collapsibleSearch && searchToggle}
+            toolbarEnd={collapsibleSearch && <>{squareFilterControl}{searchToggle}</>}
             searchField={collapsibleSearch && searchField}
             rackOdds={rackOdds}
             rackOddsPending={rackOddsPending}
@@ -625,11 +651,7 @@ export default function Results({
             Find moves
           </button>
         </div>
-      ) : (
-          shortlistActive
-            ? shortlistResult?.searchId !== searchId
-            : page.pending
-        ) ? (
+      ) : pagePending ? (
         <div className="results-empty" role="status">
           <LoaderCircle className="spin" size={24} />
           <p>Loading move list…</p>
@@ -637,11 +659,15 @@ export default function Results({
       ) : !total ? (
         <div className="results-empty">
           <Search size={30} />
-          <h3>{filter ? "No matching words" : "No legal moves found"}</h3>
+          <h3>{totalMoves ? "No matching words" : "No legal moves found"}</h3>
           <p>
-            {filter
-              ? "Try a different word or clear the filter."
-              : "Check your rack and board, or try a different dictionary."}
+            {!totalMoves
+              ? "Check your rack and board, or try a different dictionary."
+              : requiredSquares
+                ? "Change the selected squares or clear the square filter."
+                : filter
+                  ? "Try a different word or clear the filter."
+                  : "Try the All moves view."}
           </p>
         </div>
       ) : (

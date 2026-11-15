@@ -84,14 +84,14 @@ class SolverWorker {
       request,
       request.template,
     );
-    const result = new MoveResultIndex(moves);
+    const result = new MoveResultIndex(moves, request.template);
     this.results.set(request.id, result);
     queueMicrotask(() => {
       this.onmessage?.({
         data: {
           kind: "moves",
           id: request.id,
-          results: result.summary(request.id, request.template),
+          results: result.summary(request.id),
           warnings: [],
           elapsed: 1,
           exchange: this.exchangeRequest(request),
@@ -2174,6 +2174,51 @@ test("phone results preview on the game board and tapping the side rack resumes 
   await user.keyboard("{Enter}");
   await screen.findByRole("heading", { name: "No legal moves found" });
   expect(reviewing()).toBe(false);
+});
+
+test.each(["phone", "desktop"])("%s square selection filters moves without editing the board", async (layout) => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === (layout === "phone" ? "(max-width: 650px)" : "(min-width: 1000px)"),
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const user = await start();
+  await typeRack(user, "CATS");
+  await user.keyboard("{Enter}");
+  const catRows = () => screen.findAllByRole("button", { name: /^CAT, / });
+  const original = await catRows();
+  expect(original.some((row) => /down/.test(row.getAttribute("aria-label")!))).toBe(true);
+  const filter = () => screen.getByRole("button", { name: "Filter moves by squares" });
+  await user.click(filter());
+  expect(document.activeElement).toBe(cell("H8: DW, start"));
+  await user.keyboard("{Enter}");
+  await user.click(cell("I8: empty"));
+  expect(cell("I8: empty").getAttribute("aria-pressed")).toBe("true");
+  expect((await catRows()).every((row) => /across/.test(row.getAttribute("aria-label")!))).toBe(true);
+  expect(current().board.every((letter) => !letter)).toBe(true);
+  expect((entry() as HTMLInputElement).disabled).toBe(true);
+
+  const diagonal = screen.getByRole("button", { name: /^I9:/ });
+  await user.click(diagonal);
+  expect(await screen.findByRole("heading", { name: "No matching words" })).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Analyze" }) as HTMLButtonElement).disabled).toBe(true);
+  await user.click(diagonal);
+  const [match] = await catRows();
+  await user.click(screen.getByRole("button", { name: "Done" }));
+  expect(filter().getAttribute("aria-pressed")).toBe("false");
+  await act(() => match.focus());
+  expect(document.querySelector('.board-entry [data-cell="113"].ghost.move-filter-square')).toBeTruthy();
+
+  await user.click(filter());
+  await user.click(screen.getByRole("button", { name: "Clear" }));
+  expect(await catRows()).toHaveLength(original.length);
+  await user.click(cell("I8: empty"));
+  await user.keyboard("{Escape}");
+  expect(filter().getAttribute("aria-pressed")).toBe("false");
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("A");
+  expect(current().board[112]).toBe("A");
+  expect(document.querySelector(".board-entry .move-filter-square")).toBeNull();
 });
 
 test("score tracking records typed opponent moves and solver plays across undo, redo and saving", async () => {
