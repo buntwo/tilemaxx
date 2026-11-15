@@ -1,10 +1,10 @@
-# Tilemaxx
+# Tilemaxx — Self-hosted Scrabble solver
 
-**See what you can play in Scrabble.** Copy in the board and your rack, then browse legal moves, compare scores, and preview where the tiles would go.
+Enter your rack and board, or import the board from a Scrabble GO or Wordfeud screenshot. Find legal moves, preview where the tiles go, and compare scores and bingo odds.
 
-Tilemaxx runs on your own computer or home server. Open it in a browser on your computer or phone, and pick up the same game on either device.
+Run Tilemaxx locally or deploy it with Docker Compose. Open it in a browser on your computer or phone and pick up the same game on either device.
 
-[Run locally](#run-locally) · [Deploy with Docker](#deploy-with-docker) · [Word lists](#word-lists)
+[Run locally](#run-locally) · [Deploy with Docker Compose](#deploy-with-docker-compose) · [Word lists](#word-lists)
 
 ![Tilemaxx on desktop. The Scrabble board previews a 76-point MOLARITY play next to the rack, ranked moves, and estimated opponent replies.](docs/screenshots/find-moves.webp)
 
@@ -68,9 +68,9 @@ Tilemaxx ships with **Wordnik (2021)** and **ENABLE**, so you can try it right a
 
 Imported lists are available to every profile on the server. Existing games keep their selected list. See [THIRD_PARTY.md](THIRD_PARTY.md) for sources and licenses.
 
-## Deploy with Docker
+## Deploy with Docker Compose
 
-These steps work on a Synology NAS or another host with Git and Docker Compose. Run them from the folder where you keep your Compose projects.
+On a host with Git and Docker Compose, run these commands from the folder where you keep your Compose projects.
 
 ```sh
 git clone https://github.com/buntwo/tilemaxx.git
@@ -103,7 +103,7 @@ docker compose ps
 
 The script fast-forwards the checkout and rebuilds using your local `compose.yaml`. It supports both `docker compose` and standalone `docker-compose`. Your settings and bind-mounted `data/` stay in place.
 
-#### Schedule updates on Synology
+#### Schedule updates with DSM Task Scheduler
 
 Run `./update.sh` once on the NAS to deploy the current checkout and get the scheduled updater. In **Control Panel → Task Scheduler → Create → Scheduled Task → User-defined script**, set your preferred interval and run this command with the absolute path to your Tilemaxx checkout:
 
