@@ -1,33 +1,29 @@
-# Tilemaxx — Self-hosted Scrabble solver
+# Tilemaxx
 
-Enter your rack and board, or import the board from a Scrabble GO or Wordfeud screenshot. Find legal moves, preview where the tiles go, and compare scores and bingo odds.
+**Spot the bingo you almost missed.** Tilemaxx is a self-hosted Scrabble solver. Enter your board and rack, or start from a screenshot, then preview your best moves and see what your opponent could play back.
 
-Run Tilemaxx locally or deploy it with Docker Compose. Open it in a browser on your computer or phone and pick up the same game on either device.
+[Run locally](#run-locally) · [Docker Compose](#deploy-with-docker-compose) · [Word lists](#word-lists)
 
-[Run locally](#run-locally) · [Deploy with Docker Compose](#deploy-with-docker-compose) · [Word lists](#word-lists)
+![Tilemaxx previews the 86-point REALIZED bingo next to the ranked move list, rack, and opponent reply estimates.](docs/screenshots/find-moves.webp)
 
-![Tilemaxx on desktop. The Scrabble board previews a 76-point MOLARITY play next to the rack, ranked moves, and estimated opponent replies.](docs/screenshots/find-moves.webp)
+## Find your next move
 
-## Try your first position
-
-1. Open **First game** or choose **New game** to select a layout and word list.
-2. Select a board square and type the letters already in play. For a Scrabble GO or Wordfeud screenshot, use the image button above the board and review the letters and premium squares. For an early randomized Wordfeud board, you can enter the first one or two play totals to check premiums hidden under tiles.
-3. Enter your rack letters and select **Find moves**. On desktop, hover to preview a move and click to play it. On your phone, tap to preview and then tap **Play**.
-
-After making the move in your actual game, enter the tiles you drew and your opponent’s next move to keep Tilemaxx up to date.
+1. Choose a board and word list.
+2. Type the played tiles or import a Scrabble GO or Wordfeud screenshot and review the result.
+3. Enter your rack and select **Find moves**. Hover over a move on desktop or tap it on your phone to preview it.
 
 ## Beyond the highest score
 
-Open **UI guide** from the Workspace menu for annotated screenshots and a searchable list of names. The [text guide](docs/ui-guide.md) is also available in this repository.
-
-- **Compare alternatives.** The **Shortlist** surfaces plays worth a closer look. See which tiles each move leaves on your rack, estimate your odds of a bingo (using all your tiles), and check what your opponent might play back.
-- **Review your games.** Track scores, revisit a turn with its original board and rack, or use **Review game** to find missed bingos and large score gaps.
-- **Play on different boards.** Choose Scrabble, Super Scrabble, Words With Friends, Wordfeud, NYT Crossplay, or Lexulous. Each preset includes its English tile bag and scoring. Use **Board studio** to design your own.
+- **Compare plays.** Check rack leave, bingo odds, and where strong replies could land. With an empty bag, calculate the best endgame line.
+- **Pick up on another device.** Boards, racks, and tracked scores save to your local server. Review turns with their original board and rack.
+- **Choose your rules.** Play on Scrabble, Super Scrabble, Words With Friends, Wordfeud, NYT Crossplay, or Lexulous layouts, or build your own.
 
 <p>
-  <a href="docs/screenshots/phone-preview.webp"><img src="docs/screenshots/phone-preview.webp" width="300" alt="Phone view with a move preview, score breakdown control, and Play button above the board."></a>
-  <a href="docs/screenshots/reply-heatmap.webp"><img src="docs/screenshots/reply-heatmap.webp" width="285" alt="Reply heatmap showing where the opponent’s highest-scoring replies can place tiles, with example replies for a selected square."></a>
+  <a href="docs/screenshots/phone-preview.webp"><img src="docs/screenshots/phone-preview.webp" width="258" alt="Phone view with REALIZED previewed on the board and a Play button below it."></a>
+  <a href="docs/screenshots/reply-heatmap.webp"><img src="docs/screenshots/reply-heatmap.webp" width="326" alt="Opponent reply heatmap after REALIZED, with example replies for a selected square."></a>
 </p>
+
+Open **UI guide** from the Workspace menu for annotated screenshots or read the [UI guide](docs/ui-guide.md).
 
 <details>
 <summary>Board, rack, and game controls</summary>
