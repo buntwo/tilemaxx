@@ -3280,10 +3280,15 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
   const yourRack = panel.getByRole("group", { name: "Your rack tiles" });
   const opponentRack = () =>
     panel.queryByRole("img", { name: "Opponent rack: J, J, blank" });
-  expect(
-    await panel.findByRole("img", { name: "Opponent rack: J, J, blank" }),
-  ).toBe(yourRack.nextElementSibling);
-  expect(panel.queryByText("Opponent rack")).toBeNull();
+  const expectLabeledRacks = () => {
+    const you = panel.getByText("You");
+    const opponent = panel.getByText("Opponent");
+    expect(you.nextElementSibling).toBe(yourRack);
+    expect(yourRack.nextElementSibling).toBe(opponent);
+    expect(opponent.nextElementSibling).toBe(opponentRack());
+  };
+  await panel.findByRole("img", { name: "Opponent rack: J, J, blank" });
+  expectLabeledRacks();
   expect(screen.getByRole("heading", { name: "Possible moves - Endgame" })).toBeTruthy();
 
   await user.click(panel.getByText("Rack tools"));
@@ -3294,7 +3299,7 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   await screen.findAllByRole("button", { name: /^CAT, / });
   expect(!!yourRack.closest(".phone-move-review")).toBe(phone);
-  expect(opponentRack()).toBe(yourRack.nextElementSibling);
+  expectLabeledRacks();
   await user.click(screen.getByText("Options", { selector: "summary" }));
   await user.click(screen.getByText("Reply settings", { selector: "summary" }));
   const bag = screen.getByRole("spinbutton", { name: "Tiles in bag" });
@@ -3303,12 +3308,14 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
     screen.getByRole("button", { name: "Update reply analysis" }),
   );
   expect(opponentRack()).toBeNull();
+  expect(panel.queryByText("You")).toBeNull();
+  expect(panel.queryByText("Opponent")).toBeNull();
   expect(screen.getByRole("heading", { name: "Possible moves" })).toBeTruthy();
   await user.clear(bag);
   await user.click(
     screen.getByRole("button", { name: "Update reply analysis" }),
   );
-  expect(opponentRack()).toBe(yourRack.nextElementSibling);
+  expectLabeledRacks();
   expect(screen.getByRole("heading", { name: "Possible moves - Endgame" })).toBeTruthy();
   expect(screen.queryByText("Bag assumed empty")).toBeNull();
 

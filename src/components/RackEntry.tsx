@@ -341,11 +341,11 @@ export default function RackEntry({
   return (
     <div
       className="rack-entry"
-      style={{
-        "--rack-size": capacity,
-        "--shown-rack-tiles": capacity + opponentRack.length,
-      } as CSSProperties}
+      style={{ "--rack-size": capacity } as CSSProperties}
     >
+      {opponentRack && (
+        <small className="rack-owner-label" aria-hidden="true">You</small>
+      )}
       <div
         ref={rack}
         className="rack-tiles"
