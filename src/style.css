@@ -3770,9 +3770,10 @@ label + label {
   inherits: true;
   initial-value: 1;
 }
-/* One animation per board keeps new preview squares on the same beat. */
+/* The main board and rack inherit one pulse. Other boards run their own. */
 @media (prefers-reduced-motion: no-preference) {
-  .board-grid.has-move-preview {
+  .workspace-grid:has(> .board-column > .board-panel .has-move-preview),
+  .board-grid.has-move-preview:not(.workspace-grid > .board-column > .board-panel *) {
     animation: preview-tile-pulse 2s ease-in-out infinite;
   }
 }
@@ -3780,16 +3781,20 @@ label + label {
   0%, 100% { --preview-tile-light: 100%; --preview-tile-scale: 1; }
   50% { --preview-tile-light: 0%; --preview-tile-scale: 0.93; }
 }
-.square.occupied.ghost {
+.square.occupied.ghost,
+.rack-tile.move-preview .rack-face {
   --preview-dark: #598c65;
   --preview-tint: #a8d5b1;
   --preview-edge: #2b6040;
   isolation: isolate;
-  background: var(--cell);
-  box-shadow: none;
   color: #06150e;
 }
-.square.occupied.ghost.blank {
+.square.occupied.ghost {
+  background: var(--cell);
+  box-shadow: none;
+}
+.square.occupied.ghost.blank,
+.rack-tile.move-preview .rack-face.blank {
   --preview-dark: #648fb8;
   --preview-tint: #b3d2ed;
   --preview-edge: #355e83;
@@ -3798,7 +3803,8 @@ label + label {
 .square.occupied.ghost.blank .tile-letter {
   color: inherit;
 }
-.square.occupied.ghost::before {
+.square.occupied.ghost::before,
+.rack-tile.move-preview .rack-face::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -3810,7 +3816,8 @@ label + label {
   box-shadow: inset 0 -2px var(--preview-edge);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .square.occupied.ghost::before {
+  .square.occupied.ghost::before,
+  .rack-tile.move-preview .rack-face::before {
     transform: scale(var(--preview-tile-scale, 1));
   }
 }
@@ -4016,13 +4023,9 @@ label + label {
   color: #fff1de;
   box-shadow: none;
 }
-.rack-entry .rack-tile.move-preview .rack-face {
-  background: color-mix(in srgb, #86c292 45%, var(--tile));
-  box-shadow: inset 0 0 0 2px #46815a;
-}
-.rack-entry .rack-tile.move-preview .rack-face.blank {
-  background: color-mix(in srgb, #78a9d7 35%, var(--blank-tile));
-  box-shadow: inset 0 0 0 2px #4b80a8;
+.rack-tile.move-preview .rack-face {
+  background: none;
+  box-shadow: none;
 }
 .rack-tile[data-rack-sliding] .rack-slot > :not(.rack-slot-window, .rack-face.empty) {
   visibility: hidden;
