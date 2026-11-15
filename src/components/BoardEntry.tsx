@@ -151,12 +151,13 @@ export function BoardInput({
     ? "Type a blank’s letter"
     : atEnd
       ? historyControls
-        ? "Choose a square"
+        ? "Board edge"
         : "Board edge — choose another square"
       : "Type to enter";
   const status = cursor
     ? `${cursor} · ${instruction}`
     : "Tap a square and type";
+  const help = <BoardEntryHelp id={helpId} hidden={hideHelp} />;
   const toggleMark = moveFilter?.onToggle;
 
   function focus() {
@@ -422,8 +423,9 @@ export function BoardInput({
           </button>
           {historyControls}
         </div>
-        <BoardEntryHelp id={helpId} hidden={hideHelp} />
+        {!historyControls && help}
       </div>
+      {historyControls && help}
     </div>
   );
 }

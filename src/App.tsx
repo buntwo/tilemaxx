@@ -726,7 +726,7 @@ function Tilemaxx() {
       </button>
     </>
   );
-  const mobileBoardHistory = phoneBoardControls && (
+  const boardModeHistory = game && (
     <div className="board-mode-history">{boardHistoryControls}</div>
   );
   const boardToolbar = game && (
@@ -1098,7 +1098,6 @@ function Tilemaxx() {
                   onChange={update}
                   onSelect={editPosition}
                   historyControls={
-                    phoneBoardControls &&
                     !phoneReview.showing &&
                     !squareFilter.selecting &&
                     boardHistoryControls
@@ -1119,7 +1118,7 @@ function Tilemaxx() {
                       squareFilter.clear();
                       setPreview(null);
                     }}
-                    historyControls={mobileBoardHistory}
+                    historyControls={boardModeHistory}
                   />
                 ) : phoneReview.showing && (
                   <div className="board-review-actions">
@@ -1132,7 +1131,7 @@ function Tilemaxx() {
                         "Choose a move to preview"
                       )}
                     </span>
-                    {mobileBoardHistory}
+                    {boardModeHistory}
                     {!movePreview?.analysis && (
                       <button
                         className="board-review-play"
@@ -1171,17 +1170,6 @@ function Tilemaxx() {
                   exchangeBagConfirmed={replyAnalysis.bagConfirmed}
                   preview={preview}
                   flyingRack={activeFlight}
-                  historyControls={
-                    !phoneBoardControls && (
-                      <div
-                        className="rack-history-actions"
-                        role="group"
-                        aria-label="Undo and redo"
-                      >
-                        {boardHistoryControls}
-                      </div>
-                    )
-                  }
                 />
                 <OpponentRack
                   rack={replyAnalysis.opponentRack}
