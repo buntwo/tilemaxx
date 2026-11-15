@@ -66,7 +66,7 @@ Tilemaxx ships with **Wordnik (2021)** and **ENABLE**, so you can try it right a
 - **CSW24, NWL, and other lists.** Use **Word lists → Import word list** with a text file you have permission to use, with one word per line. Tilemaxx accepts words from 2 to 25 letters and removes duplicates.
 - **Words With Friends.** The layout is available as a preset. The bundled ENABLE list differs from the current Words With Friends lexicon.
 
-Imported lists are available to every profile on the server. Existing games keep their selected list. See [THIRD_PARTY.md](THIRD_PARTY.md) for sources and licenses.
+Imported lists are available to every profile on the server. To remove one, use its trash button in **Word lists**. If a saved game uses that list, choose a different list in the game first. See [THIRD_PARTY.md](THIRD_PARTY.md) for sources and licenses.
 
 ## Deploy with Docker Compose
 

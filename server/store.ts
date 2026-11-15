@@ -5,6 +5,8 @@ import {
   readdirSync,
   writeFileSync,
   existsSync,
+  renameSync,
+  rmSync,
 } from "node:fs";
 import { join, basename } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -28,8 +30,19 @@ import { defaultDictionary } from "../shared/dictionaries";
 import { type z } from "zod";
 import { type screenshotExampleSchema } from "./validation";
 
+const removingSuffix = ".tilemaxx-removing";
+
+function cleanRemovedDictionary(path: string) {
+  try {
+    rmSync(path, { force: true });
+  } catch (error) {
+    console.warn("Could not clean up a removed word list.", error);
+  }
+}
+
 export function createStore(directory: string, root: string) {
-  mkdirSync(join(directory, "dictionaries"), { recursive: true });
+  const dictionaryDirectory = join(directory, "dictionaries");
+  mkdirSync(dictionaryDirectory, { recursive: true });
   const db = new DatabaseSync(join(directory, "tilewise.sqlite"));
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
     CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY,name TEXT NOT NULL);
@@ -74,12 +87,26 @@ export function createStore(directory: string, root: string) {
     const path = join(root, "public", "dictionaries", `${id}.txt`);
     if (existsSync(path)) registerDictionary(id, name, path, description, true);
   }
-  for (const file of readdirSync(join(directory, "dictionaries")).filter((f) =>
+  const dictionaryFiles = db.prepare("SELECT id,file FROM dictionaries");
+  // A rename stages removal until SQLite commits. On restart, a row that
+  // still exists means the interrupted removal must be rolled back.
+  const registeredFiles = new Set(
+    dictionaryFiles.all().map((row) => basename(row.file as string)),
+  );
+  for (const file of readdirSync(dictionaryDirectory)) {
+    if (!file.endsWith(`.txt${removingSuffix}`)) continue;
+    const original = file.slice(0, -removingSuffix.length);
+    const path = join(dictionaryDirectory, original);
+    const staged = join(dictionaryDirectory, file);
+    if (registeredFiles.has(original) && !existsSync(path))
+      renameSync(staged, path);
+    else cleanRemovedDictionary(staged);
+  }
+  for (const file of readdirSync(dictionaryDirectory).filter((f) =>
     f.endsWith(".txt"),
   )) {
-    const path = join(directory, "dictionaries", file);
-    const existing = db
-      .prepare("SELECT id,file FROM dictionaries")
+    const path = join(dictionaryDirectory, file);
+    const existing = dictionaryFiles
       .all()
       .find((row) => basename(row.file as string) === file);
     if (existing) {
@@ -358,10 +385,52 @@ export function createStore(directory: string, root: string) {
           "No words found. Use a text file with one English word per line.",
         );
       const id = randomUUID(),
-        file = join(directory, "dictionaries", `${id}.txt`);
+        file = join(dictionaryDirectory, `${id}.txt`);
       writeFileSync(file, words.join("\n") + "\n");
       registerDictionary(id, name, file, "Imported word list");
       return dictionaries().find((d) => d.id === id)!;
+    },
+    deleteDictionary(id: string) {
+      let staged: { from: string; to: string } | undefined;
+      let result;
+      try {
+        result = transaction(() => {
+          const row = db
+            .prepare("SELECT data,file FROM dictionaries WHERE id=?")
+            .get(id);
+          if (!row) return { status: "missing" } as const;
+          if ((JSON.parse(row.data as string) as Dictionary).builtin)
+            return { status: "builtin" } as const;
+
+          const usage = db
+            .prepare(
+              `SELECT count(*) AS count, min(json_extract(data, '$.name')) AS name
+               FROM games WHERE json_extract(data, '$.dictionaryId')=?`,
+            )
+            .get(id)!;
+          const count = usage.count as number;
+          if (count)
+            return {
+              status: "in-use",
+              count,
+              name: usage.name as string,
+            } as const;
+
+          const path = join(dictionaryDirectory, basename(row.file as string));
+          if (existsSync(path)) {
+            const next = path + removingSuffix;
+            renameSync(path, next);
+            staged = { from: path, to: next };
+          }
+          db.prepare("DELETE FROM dictionaries WHERE id=?").run(id);
+          return { status: "deleted" } as const;
+        });
+      } catch (error) {
+        if (staged) renameSync(staged.to, staged.from);
+        throw error;
+      }
+      if (staged) cleanRemovedDictionary(staged.to);
+      return result;
     },
   };
 }

@@ -27,7 +27,6 @@ import {
   Smartphone,
   Sun,
   Undo2,
-  Upload,
   Wifi,
   X,
   Archive,
@@ -53,6 +52,7 @@ import BoardStudio from "./components/BoardStudio";
 import ScreenshotImport from "./components/ScreenshotImport";
 import { importBoard } from "../shared/screenshot";
 import Modal from "./components/Modal";
+import WordLists from "./components/WordLists";
 import Results from "./components/Results";
 import GamePicker from "./components/GamePicker";
 import {
@@ -1549,78 +1549,12 @@ export default function App() {
         </Modal>
       )}
       {dialog === "dictionaries" && (
-        <Modal
-          title="A word for every game."
-          subtitle="Choose a dictionary per game. Imported lists are available on all your devices."
+        <WordLists
+          dictionaries={data.dictionaries}
+          selectedId={game?.dictionaryId}
           onClose={() => setDialog(null)}
-        >
-          <div className="dictionary-list">
-            {data.dictionaries.map((d) => (
-              <div key={d.id}>
-                <span className="dictionary-icon">
-                  <BookOpen size={20} />
-                </span>
-                <div>
-                  <strong>
-                    {d.name}
-                    <span className="small muted">
-                      {d.count.toLocaleString()} words
-                    </span>
-                  </strong>
-                  <p>{d.description}</p>
-                </div>
-                {game?.dictionaryId === d.id && <Check size={18} />}
-              </div>
-            ))}
-          </div>
-          <div className="import-box">
-            <h3>Bring your own word list</h3>
-            <p>
-              A .txt file with one English word per line. You can import NWL,
-              other Collins editions, or your own house dictionary.
-            </p>
-            <label
-              className={`button secondary file-button ${formBusy ? "disabled" : ""}`}
-            >
-              <Upload size={16} />
-              {formBusy ? "Importing…" : "Import word list"}
-              <input
-                type="file"
-                accept=".txt,text/plain"
-                disabled={formBusy}
-                aria-label="Import word list"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  void action(async () => {
-                    if (file.size > 12_000_000)
-                      throw new Error(
-                        "Please choose a text file smaller than 12 MB.",
-                      );
-                    const dictionary = await store.importDictionary(
-                      file.name.replace(/\.txt$/i, ""),
-                      await file.text(),
-                    );
-                    notify(
-                      `${dictionary.name} imported: ${dictionary.count.toLocaleString()} words.`,
-                    );
-                  });
-                  e.target.value = "";
-                }}
-              />
-            </label>
-            {error && (
-              <p className="error" role="alert">
-                {error}
-              </p>
-            )}
-          </div>
-          <p className="small muted">
-            ENABLE and Wordnik are open word-game lists. Their contents differ
-            from official tournament lists and the current Words With Friends
-            dictionary.
-          </p>
-        </Modal>
+          onNotify={notify}
+        />
       )}
       {dialog === "help" && (
         <Modal

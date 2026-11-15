@@ -2693,6 +2693,11 @@ label + label {
   color: var(--muted);
   margin-top: 5px;
 }
+.dictionary-list .dictionary-remove {
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
 .import-box {
   padding: 20px;
   margin-top: 22px;
