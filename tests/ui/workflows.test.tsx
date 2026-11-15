@@ -805,6 +805,11 @@ async function start() {
 }
 const entry = () => screen.getByRole("textbox", { name: "Type on board" });
 const cell = (name: string) => screen.getByRole("button", { name });
+const trackedScore = () => screen.getByRole("group", { name: "Tracked score" });
+const scoreTotals = (badge = trackedScore()) =>
+  badge.querySelector(".game-score-totals")?.textContent;
+const scoreDelta = (badge = trackedScore()) =>
+  badge.querySelector(".game-score-delta");
 const rackTile = (i: number) =>
   screen.getByRole("button", { name: new RegExp(`^Rack tile ${i}:`) });
 async function typeRack(
@@ -1815,9 +1820,8 @@ test("new games start with score tracking on even after an earlier opt-out", asy
 
   await createGame("Untracked opponent", false);
   await createGame("Tracked opponent", true);
-  expect(screen.getByRole("group", { name: "Tracked score" }).textContent).toBe(
-    "0–0",
-  );
+  expect(scoreTotals()).toBe("0–0");
+  expect(scoreDelta()?.textContent).toBe("0");
 });
 
 test("game options archive the current game and open a blank game with today's date", async () => {
@@ -1949,6 +1953,11 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
   expect(badge("Unfinished opponent").getAttribute("data-outcome")).toBe("archived");
   expect(within(row("Untracked opponent")).queryByRole("group", { name: "Tracked score" })).toBeNull();
   expect(store.getSnapshot().games.finished).toBeUndefined();
+  await user.click(row("Finished opponent"));
+  await screen.findByRole("heading", { name: "Finished opponent" });
+  await waitFor(() => expect(scoreTotals()).toBe("304–276"));
+  expect(scoreDelta()?.textContent).toBe("+28");
+  expect(scoreDelta()?.className).toBe("game-score-delta");
 });
 
 test("archived games filter by opponent while honoring the selected sort", async () => {
@@ -2444,16 +2453,19 @@ test("entering the opponent's final tile updates the score and ends the game on 
     TILE_SYMBOLS.map((symbol) => [symbol, Number("ACQST".includes(symbol))]),
   );
   const user = await start();
-  const badge = () => screen.getByRole("group", { name: "Tracked score" });
-  await waitFor(() => expect(badge().textContent).toBe("20–10"));
-  expect(badge().getAttribute("data-outcome")).toBe("playing");
-  expect(badge().classList.contains("value-good")).toBe(false);
+  await waitFor(() => expect(scoreTotals()).toBe("20–10"));
+  expect(trackedScore().getAttribute("data-outcome")).toBe("playing");
+  expect(trackedScore().classList.contains("value-good")).toBe(false);
+  expect(scoreDelta()?.textContent).toBe("+10");
+  expect(scoreDelta()?.classList.contains("value-good")).toBe(true);
   expect(screen.getByText("Lead by 10").classList.contains("value-good")).toBe(true);
   await user.click(cell("K8: empty"));
   await user.keyboard("S");
-  expect(badge().textContent).toBe("10–26");
-  expect(badge().getAttribute("data-outcome")).toBe("loss");
-  expect(badge().classList.contains("value-bad")).toBe(true);
+  expect(scoreTotals()).toBe("10–26");
+  expect(trackedScore().getAttribute("data-outcome")).toBe("loss");
+  expect(trackedScore().classList.contains("value-bad")).toBe(true);
+  expect(scoreDelta()?.textContent).toBe("−16");
+  expect(scoreDelta()?.className).toBe("game-score-delta");
   expect(screen.getByRole("heading", { name: "Game over" })).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Find moves" })).toBeNull();
   expect(current().trackedMoves?.at(-1)).toMatchObject({ word: "CATS", player: "opponent", score: 6 });
@@ -2461,11 +2473,13 @@ test("entering the opponent's final tile updates the score and ends the game on 
   expect(remote.games[0].scoring?.end).toEqual({ out: "opponent", rackPoints: 10 });
   await user.click(cell("Undo"));
   expect(current().board[115]).toBe("");
-  expect(badge().textContent).toBe("20–10");
-  expect(badge().getAttribute("data-outcome")).toBe("playing");
+  expect(scoreTotals()).toBe("20–10");
+  expect(trackedScore().getAttribute("data-outcome")).toBe("playing");
+  expect(scoreDelta()?.textContent).toBe("+10");
   await user.click(cell("Redo"));
-  expect(badge().textContent).toBe("10–26");
-  expect(badge().getAttribute("data-outcome")).toBe("loss");
+  expect(scoreTotals()).toBe("10–26");
+  expect(trackedScore().getAttribute("data-outcome")).toBe("loss");
+  expect(scoreDelta()?.textContent).toBe("−16");
 });
 
 test("phone rack entry reveals the tiles above the keyboard and restores the page when it closes", async () => {
@@ -2658,7 +2672,8 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   expect(tracking().checked).toBe(true);
   const titleScore = () =>
     screen.queryByRole("group", { name: "Tracked score" });
-  expect(titleScore()?.textContent).toBe("0–0");
+  expect(scoreTotals()).toBe("0–0");
+  expect(scoreDelta()?.textContent).toBe("0");
   const heading = cell("Game options").closest(".game-heading");
   expect(heading?.contains(titleScore())).toBe(true);
   expect(titleScore()?.closest(".game-title-row, .board-toolbar")).toBeNull();
@@ -2688,7 +2703,9 @@ test("score tracking records typed opponent moves and solver plays across undo, 
     best: 6,
     bingos: 0,
   });
-  expect(titleScore()?.textContent).toBe("6–10");
+  expect(scoreTotals()).toBe("6–10");
+  expect(scoreDelta()?.textContent).toBe("−4");
+  expect(scoreDelta()?.classList.contains("value-bad")).toBe(true);
   expect(scores().getByText(/Avg 10\.0/)).toBeTruthy();
   await user.click(scores().getByText("Tracked move history"));
   const moves = () =>
@@ -2709,19 +2726,19 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   await user.click(cell("Undo"));
   expect(current().scoring?.opponent.points).toBe(10);
   expect(current().scoring?.you.points).toBe(0);
-  expect(titleScore()?.textContent).toBe("0–10");
+  expect(scoreTotals()).toBe("0–10");
   expect(current().board.slice(112, 116)).toEqual(["C", "A", "T", ""]);
   expect(moves().getAllByRole("row").slice(1)).toHaveLength(1);
   await user.click(cell("Undo"));
   expect(current().board.every((tile) => !tile)).toBe(true);
-  expect(titleScore()?.textContent).toBe("0–0");
+  expect(scoreTotals()).toBe("0–0");
   expect(scores().queryByText("CAT · 10 pts")).toBeNull();
   await user.click(cell("Redo"));
   expect(current().board.slice(112, 116)).toEqual(["C", "A", "T", ""]);
-  expect(titleScore()?.textContent).toBe("0–10");
+  expect(scoreTotals()).toBe("0–10");
   await user.click(cell("Redo"));
   expect(current().board.slice(112, 116)).toEqual(["C", "A", "T", "S"]);
-  expect(titleScore()?.textContent).toBe("6–10");
+  expect(scoreTotals()).toBe("6–10");
   await user.click(tracking());
   expect(tracking().checked).toBe(false);
   expect(titleScore()).toBeNull();
@@ -2734,27 +2751,26 @@ test("score tracking records typed opponent moves and solver plays across undo, 
 test("the board blank control corrects recorded scores and saves with undo and redo", async () => {
   const user = await start();
   const scores = within(screen.getByRole("region", { name: "Game scores" }));
-  const titleScore = () => screen.getByRole("group", { name: "Tracked score" }).textContent;
   await user.click(cell("H8: DW, start"));
   await user.keyboard("CAT");
   await typeRack(user, "S");
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   await user.click(await screen.findByRole("button", { name: /^CATS, / }));
-  expect(titleScore()).toBe("6–10");
+  expect(scoreTotals()).toBe("6–10");
   await user.click(scores.getByText("Tracked move history"));
   const points = () => within(scores.getByRole("table", { name: "Tracked moves" }))
     .getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[2].textContent);
   await user.click(cell("H8: C, start"));
   await user.click(cell("Blank tile: off"));
   expect(cell("H8: C blank, start")).toBeTruthy();
-  expect(titleScore()).toBe("3–4");
+  expect(scoreTotals()).toBe("3–4");
   expect(points()).toEqual(["3", "4"]);
   expect(scores.queryByRole("button", { name: "Keep as correction" })).toBeNull();
   await user.click(cell("Undo"));
-  expect(titleScore()).toBe("6–10");
+  expect(scoreTotals()).toBe("6–10");
   expect(points()).toEqual(["6", "10"]);
   await user.click(cell("Redo"));
-  expect(titleScore()).toBe("3–4");
+  expect(scoreTotals()).toBe("3–4");
   expect(points()).toEqual(["3", "4"]);
   await store.flush();
   await act(() => store.refresh());

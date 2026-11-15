@@ -907,8 +907,9 @@ label + label {
 }
 .game-title-score {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex-shrink: 0;
   padding: 4px 8px;
   border-radius: 6px;
@@ -918,12 +919,24 @@ label + label {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.game-title-score [aria-hidden] {
+.game-score-totals {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1;
+}
+.game-score-totals [aria-hidden] {
   opacity: 0.7;
 }
 .game-title-score[data-outcome="playing"] {
-  background: light-dark(#dbeafa, #263d52);
-  color: light-dark(#254f77, #bddaf5);
+  background: light-dark(#e8e8e9, #3a3a3d);
+  color: light-dark(#353539, #e5e5e8);
+}
+.game-score-delta {
+  color: light-dark(#55565b, #c4c5cb);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.15;
 }
 .game-title-score.value-good {
   background: light-dark(#e1f0e6, #294439);
@@ -4988,7 +5001,7 @@ label + label {
 .game-scoreboard {
   justify-content: center;
   min-width: 94px;
-  min-height: 36px;
+  min-height: 47px;
   font-size: clamp(20px, 2vw, 26px);
   line-height: 1;
 }
@@ -5084,7 +5097,12 @@ label + label {
 }
 .phone-layout .game-heading-details { flex: 1; }
 .phone-layout .game-heading h1 { font-size: clamp(21px, 6vw, 25px); }
-.phone-layout .game-heading .game-title-score:not(.game-scoreboard) { font-size: 16px; }
+.phone-layout .game-heading .game-title-score:not(.game-scoreboard) {
+  justify-content: center;
+  min-height: 39px;
+  padding-inline: 6px;
+  font-size: 16px;
+}
 .phone-layout .game-title-meta { margin-top: 0; }
 .phone-layout .game-actions { flex: none; }
 .phone-layout .manage-button { min-width: 44px; min-height: 44px; }
