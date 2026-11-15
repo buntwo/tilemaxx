@@ -292,10 +292,7 @@ test("reply rows resolve individually and compare against the highest score afte
   expect(
     screen.getAllByRole("img", { name: /^Checking replies after/ }),
   ).toHaveLength(2);
-  await user.selectOptions(
-    screen.getByRole("combobox", { name: "Sort moves" }),
-    "word",
-  );
+  await user.click(screen.getByRole("button", { name: "Sort by word" }));
   const row = rows().find((element) =>
     element.getAttribute("aria-label")?.startsWith("CAT,"),
   )!;
@@ -439,12 +436,11 @@ test("rack odds sort every move and board odds rank checked moves separately", a
     rows().map((row) => row.getAttribute("aria-label")?.split(",")[0]),
   ).toEqual(["AT", "CATS", "CAT"]);
 });
-test("sort by word, length, tiles, leave and blanks; filter without losing original results", async () => {
+test("column headings sort moves and filters preserve the original results", async () => {
   const { user } = setup();
-  const sort = screen.getByRole("combobox", { name: "Sort moves" });
+  expect(screen.queryByRole("combobox", { name: "Sort moves" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Sort by word" }));
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^AT,/);
-  expect(sort).toHaveProperty("value", "word");
   await user.click(screen.getByRole("button", { name: "Sort by word" }));
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
   await user.click(screen.getByRole("button", { name: "Sort by points" }));
@@ -453,14 +449,8 @@ test("sort by word, length, tiles, leave and blanks; filter without losing origi
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^AT,/);
   await user.click(screen.getByRole("button", { name: "Sort by points" }));
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
-  for (const by of ["length", "tiles", "score"]) {
-    await user.selectOptions(sort, by);
-    expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
-  }
-  for (const by of ["leave", "blanks"]) {
-    await user.selectOptions(sort, by);
-    expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
-  }
+  await user.click(screen.getByRole("button", { name: "Sort by rack leave" }));
+  expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
   await user.type(
     screen.getByRole("textbox", { name: "Filter moves" }),
     "CATS",

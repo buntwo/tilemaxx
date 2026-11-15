@@ -17,7 +17,6 @@ export default function BingoOddsControls({
   moves,
   manualMoves,
   settings,
-  sortControl,
   toolbarStart,
   toolbarEnd,
   searchField,
@@ -38,7 +37,6 @@ export default function BingoOddsControls({
   moves: Move[];
   manualMoves?: Move[];
   settings?: ReactNode;
-  sortControl?: ReactNode;
   toolbarStart?: ReactNode;
   toolbarEnd?: ReactNode;
   searchField?: ReactNode;
@@ -84,7 +82,6 @@ export default function BingoOddsControls({
     <div className="bingo-odds-controls">
       <div className="bingo-odds-actions">
         {toolbarStart}
-        {sortControl}
         <div className="bingo-odds-utilities">
           <details className="bingo-odds-settings">
             <summary>Options</summary>

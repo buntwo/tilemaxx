@@ -1790,23 +1790,6 @@ label + label {
   font-size: 10px;
   background: none;
 }
-.sort-select {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0 6px 0 9px;
-  gap: 2px;
-  color: var(--muted);
-}
-.sort-select select {
-  font-size: 10px;
-  background: transparent;
-  border: 0;
-  padding: 9px 3px;
-  max-width: 113px;
-}
 .results-empty {
   min-height: 385px;
   display: flex;
@@ -3046,15 +3029,6 @@ label + label {
   .search-input {
     flex-basis: 110px;
   }
-  .sort-select {
-    padding-left: 6px;
-  }
-  .sort-select svg {
-    width: 12px;
-  }
-  .sort-select select {
-    max-width: 90px;
-  }
   .results-empty {
     min-height: 335px;
   }
@@ -3337,16 +3311,6 @@ label + label {
   }
   .search-input input::placeholder {
     font-size: 12px;
-  }
-  .sort-select {
-    padding: 0 6px 0 9px;
-  }
-  .sort-select select {
-    font-size: 12px;
-    max-width: 115px;
-  }
-  .sort-select svg {
-    width: 15px;
   }
   .results-empty {
     min-height: 260px;
@@ -4696,11 +4660,6 @@ label + label {
 .result-filters .result-view-picker button { white-space: nowrap; }
 .result-filters .search-input { flex: 1 1 95px; min-width: 0; }
 .result-filters .search-input input { min-width: 0; width: 100%; }
-:is(.result-filters, .bingo-odds-actions) .sort-select {
-  flex: 0 1 auto;
-  min-height: 30px;
-}
-.bingo-odds-actions .sort-select select { padding-block: 5px; }
 .result-columns { height: auto; min-height: 32px; padding-block: 2px; }
 .result-column-sort {
   display: inline-flex;
@@ -4753,12 +4712,6 @@ label + label {
 }
 .inline-reply h3 { margin: 0 0 6px; font-size: 13px; }
 .inline-reply-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-@container (max-width: 390px) {
-  :is(.result-filters, .bingo-odds-actions) .sort-select select {
-    max-width: 82px;
-  }
-  :is(.result-filters, .bingo-odds-actions) .sort-select svg { display: none; }
-}
 
 /* Keep the board, rack and first move rows in view in a desktop game. */
 .compact-game .main-content {
@@ -5022,12 +4975,6 @@ label + label {
 .compact-game .bingo-odds-actions {
   gap: 5px 6px;
 }
-.compact-game .bingo-odds-actions .sort-select { padding-inline: 4px 2px; }
-.compact-game .bingo-odds-actions .sort-select svg { display: none; }
-.compact-game .bingo-odds-actions .sort-select select {
-  field-sizing: content;
-  max-width: 85px;
-}
 .compact-game .bingo-odds-actions .result-view-picker {
   padding: 0;
   flex-wrap: nowrap;
@@ -5125,7 +5072,6 @@ label + label {
   .compact-game .bingo-odds-actions .result-view-picker button,
   .compact-game .bingo-odds-actions > .button { padding-inline: 4px; }
   .compact-game .bingo-odds-actions > .button { font-size: 10px; }
-  .compact-game .bingo-odds-actions .sort-select select { max-width: 62px; }
 }
 
 .import-review-modes {
