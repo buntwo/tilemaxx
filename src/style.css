@@ -921,6 +921,10 @@ label + label {
 .game-title-score [aria-hidden] {
   opacity: 0.7;
 }
+.game-title-score[data-outcome="playing"] {
+  background: light-dark(#dbeafa, #263d52);
+  color: light-dark(#254f77, #bddaf5);
+}
 .game-title-score.value-good {
   background: light-dark(#e1f0e6, #294439);
 }
