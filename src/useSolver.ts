@@ -37,6 +37,8 @@ export function useSolver(positionKey: string) {
   const [boardOddsProgress, setBoardOddsProgress] = useState<BoardOddsProgress>();
   const [liveBoardOdds, setLiveBoardOdds] = useState<BoardOddsResult>();
   const [boardOddsError, setBoardOddsError] = useState("");
+  const [exchangeAdvicePending, setExchangeAdvicePending] = useState(false);
+  const [queriesPending, setQueriesPending] = useState(false);
   const worker = useRef<Worker | null>(null);
   const oddsWorker = useRef<Worker | null>(null);
   const exchangeWorker = useRef<Worker | null>(null);
@@ -47,9 +49,16 @@ export function useSolver(positionKey: string) {
   const saved = useRef(new Map<string, Snapshot>());
   const restore = useRef<string | null>(null);
 
+  function clearQueries() {
+    for (const complete of queries.current.values()) complete();
+    queries.current.clear();
+    setQueriesPending(false);
+  }
+
   function stopExchangeAdvice() {
     exchangeWorker.current?.terminate();
     exchangeWorker.current = null;
+    setExchangeAdvicePending(false);
   }
 
   function checkExchange(
@@ -67,6 +76,7 @@ export function useSolver(positionKey: string) {
         },
       );
       exchangeWorker.current = active;
+      setExchangeAdvicePending(true);
       active.onmessage = ({ data }: MessageEvent<ExchangeAdviceMessage>) => {
         if (exchangeWorker.current !== active) return;
         stopExchangeAdvice();
@@ -105,8 +115,7 @@ export function useSolver(positionKey: string) {
     if (visibleSearch.current === undefined && !saved.current.size) {
       worker.current?.terminate();
       worker.current = null;
-      for (const complete of queries.current.values()) complete();
-      queries.current.clear();
+      clearQueries();
     } else {
       worker.current?.postMessage({
         kind: "cancel",
@@ -160,8 +169,7 @@ export function useSolver(positionKey: string) {
       oddsWorker.current?.terminate();
       stopExchangeAdvice();
       worker.current = oddsWorker.current = null;
-      for (const complete of queries.current.values()) complete();
-      queries.current.clear();
+      clearQueries();
     },
     [],
   );
@@ -177,6 +185,7 @@ export function useSolver(positionKey: string) {
       if (message.kind === "page" || message.kind === "shortlist") {
         const complete = queries.current.get(message.id);
         queries.current.delete(message.id);
+        if (!queries.current.size) setQueriesPending(false);
         complete?.(message);
         return;
       }
@@ -227,8 +236,7 @@ export function useSolver(positionKey: string) {
       worker.current = null;
       solving.current = visibleSearch.current = undefined;
       saved.current.clear();
-      for (const complete of queries.current.values()) complete();
-      queries.current.clear();
+      clearQueries();
       setSnapshot(emptySnapshot);
       setBusy("");
       setRackOddsPending(false);
@@ -353,10 +361,12 @@ export function useSolver(positionKey: string) {
         if (!active) return resolve(undefined);
         const id = ++nextId.current;
         queries.current.set(id, resolve);
+        setQueriesPending(true);
         try {
           active.postMessage({ ...request, id });
         } catch {
           queries.current.delete(id);
+          if (!queries.current.size) setQueriesPending(false);
           resolve(undefined);
         }
       }),
@@ -406,6 +416,14 @@ export function useSolver(positionKey: string) {
       current.boardOdds ??
       (snapshotKey === positionKey ? liveBoardOdds : undefined),
     busy,
+    calculating: !!(
+      busy ||
+      rackOddsPending ||
+      defenseProgress !== undefined ||
+      boardOddsProgress ||
+      exchangeAdvicePending ||
+      queriesPending
+    ),
     error,
     rackOddsPending,
     defenseProgress,

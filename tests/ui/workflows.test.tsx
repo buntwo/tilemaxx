@@ -400,6 +400,8 @@ test.each(["narrow", "wide"])("%s results stream bingo odds after replies finish
   await typeRack(user, "CATS");
   await user.keyboard("{Enter}");
   await screen.findByRole("button", { name: "Sort by points" });
+  const indicator = document.querySelector<HTMLElement>(".calculation-indicator");
+  expect(indicator?.dataset.phase).toBe("active");
   expect(screen.queryByRole("combobox", { name: "Sort moves" })).toBeNull();
   const manualCheck = screen.queryByRole("button", {
     name: "Check bingo after your play",
@@ -418,6 +420,7 @@ test.each(["narrow", "wide"])("%s results stream bingo odds after replies finish
   }
   finishReplies(0);
   expect(checks).toHaveLength(1);
+  expect(indicator?.dataset.phase).toBe("active");
   const { worker, request } = checks[0];
   expect(request.bagSize).toBe(replies[0].request.bagSize);
   expect(request.candidates).toHaveLength(20);

@@ -20,6 +20,7 @@ import { saveScreenshotExample } from "../screenshot-example";
 import { findBoard } from "../detect-board";
 import Modal from "./Modal";
 import ScreenshotPremiumReview from "./ScreenshotPremiumReview";
+import { useGameCalculation } from "./GameCalculations";
 
 export default function ScreenshotImport({
   template,
@@ -52,6 +53,7 @@ export default function ScreenshotImport({
   const original = useRef<Recognition | null>(null);
   const [busy, setBusy] = useState(""),
     [error, setError] = useState("");
+  useGameCalculation(!!busy);
   const task = useRef<AbortController | null>(null),
     url = useRef(""),
     fileVersion = useRef(0);

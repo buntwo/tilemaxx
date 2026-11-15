@@ -35,6 +35,7 @@ import {
 import { version } from "../package.json";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
 import BoardEntry, { BoardEntryHelp } from "./components/BoardEntry";
+import { GameCalculations } from "./components/GameCalculations";
 import GameWorkspace, { usePhoneMoveReview } from "./components/GameWorkspace";
 import RackEntry, { type RackEntryHandle } from "./components/RackEntry";
 import ExchangeSuggestion from "./components/ExchangeSuggestion";
@@ -187,6 +188,14 @@ function useMediaQuery(query: string) {
 }
 
 export default function App() {
+  return (
+    <GameCalculations>
+      <Tilemaxx />
+    </GameCalculations>
+  );
+}
+
+function Tilemaxx() {
   const desktopGame = useMediaQuery("(min-width: 1000px)");
   const phoneLayout = useMediaQuery("(max-width: 650px)");
   const boardPanel = useRef<HTMLElement>(null);
@@ -1125,6 +1134,7 @@ export default function App() {
                 fetchPage={solver.page}
                 fetchShortlist={solver.shortlist}
                 busy={busy}
+                calculating={solver.calculating}
                 elapsed={solver.elapsed}
                 error={solver.error}
                 size={game.template.size}
