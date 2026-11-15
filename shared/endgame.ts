@@ -13,6 +13,7 @@ type SearchResult =
 export class EndgameSearchLimitError extends Error {}
 
 export const DEFAULT_ENDGAME_POSITION_LIMIT = 1_500;
+export const SCRABBLE_SCORELESS_TURN_LIMIT = 6;
 
 export function rackPoints(rack: string, rules: BoardTemplate["rules"]) {
   return [...rack].reduce(
@@ -62,7 +63,7 @@ export function solveEmptyBag(
     alpha: number,
     beta: number,
   ): SearchResult {
-    if (scoreless >= 6)
+    if (scoreless >= SCRABBLE_SCORELESS_TURN_LIMIT)
       return { bound: "exact", spread: value(other) - value(own), line: [] };
     checkTime();
     const key = `${position.join(".")}|${own}|${other}|${scoreless}`;

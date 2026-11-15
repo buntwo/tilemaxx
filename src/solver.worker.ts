@@ -1,19 +1,65 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
-import { solvePosition, inspectBoard } from "../shared/solver";
+import {
+  solvePosition,
+  inspectBoard,
+  SearchLimitError,
+} from "../shared/solver";
 import { RackBingoIndex, checkBoardBingo } from "../shared/bingo-odds";
 import { checkPremiumDefense } from "../shared/premium-defense";
 import { MOVE_CACHE_LIMIT, MoveResultIndex } from "../shared/move-results";
 import { exchangeAdvicePlays } from "../shared/exchange-advice";
+import {
+  prepareEndgameEstimate,
+  type EndgameEstimate,
+} from "../shared/endgame-estimate";
 import type { SolverMessage, SolverRequest } from "./solver-messages";
 
 const results = new Map<number, MoveResultIndex>();
 let activeSolve: { id: number; abort: AbortController } | undefined;
+let activeEndgame: { id: number; abort: AbortController } | undefined;
 let dictionary:
   | { id: string; lexicon: Lexicon; bingo: RackBingoIndex }
   | undefined;
 
 const post = (message: SolverMessage) => self.postMessage(message);
 const yieldToQueries = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+const ENDGAME_ESTIMATE_TIME_MS = 2_500;
+const ENDGAME_ESTIMATE_MOVES = 4_000;
+const ENDGAME_ESTIMATE_MOVE_MS = 80;
+
+async function rankEndgame(
+  request: Extract<SolverRequest, { kind: "endgame" }>,
+  lexicon: Lexicon,
+  signal: AbortSignal,
+) {
+  const { searchId, id } = request;
+  const result = results.get(searchId);
+  if (!result) return;
+  const estimate = prepareEndgameEstimate(lexicon, { ...request, bagSize: 0 });
+  const estimates = new Map<string, EndgameEstimate>();
+  let slice = performance.now();
+  const deadline = slice + ENDGAME_ESTIMATE_TIME_MS;
+  for (const move of result.moves.slice(0, ENDGAME_ESTIMATE_MOVES)) {
+    if (signal.aborted || results.get(searchId) !== result) return;
+    const now = performance.now();
+    if (now >= deadline) break;
+    try {
+      estimates.set(
+        move.id,
+        estimate(move, Math.min(deadline, now + ENDGAME_ESTIMATE_MOVE_MS)),
+      );
+    } catch (error) {
+      if (!(error instanceof SearchLimitError)) throw error;
+    }
+    if (performance.now() - slice >= 12) {
+      await yieldToQueries();
+      slice = performance.now();
+    }
+  }
+  if (signal.aborted || results.get(searchId) !== result) return;
+  return result.setEndgame(id, estimates);
+}
 
 self.onmessage = async (event: MessageEvent<SolverRequest>) => {
   const request = event.data;
@@ -23,6 +69,9 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       return;
     case "cancel":
       if (activeSolve?.id === request.searchId) activeSolve.abort.abort();
+      return;
+    case "cancel-endgame":
+      if (activeEndgame?.id === request.id) activeEndgame.abort.abort();
       return;
     case "page":
       post({
@@ -40,10 +89,14 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       return;
   }
   const { id, dictionaryId, board, template } = request;
-  const abort = request.kind === "solve" ? new AbortController() : undefined;
-  if (abort) {
+  const abort =
+    request.kind === "board-odds" ? undefined : new AbortController();
+  if (abort && request.kind === "solve") {
     activeSolve?.abort.abort();
     activeSolve = { id, abort };
+  } else if (abort && request.kind === "endgame") {
+    activeEndgame?.abort.abort();
+    activeEndgame = { id, abort };
   }
   try {
     let index = dictionary;
@@ -68,6 +121,11 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       };
     }
     const { lexicon, bingo } = index;
+    if (request.kind === "endgame") {
+      const ranking = await rankEndgame(request, lexicon, abort!.signal);
+      if (!abort?.signal.aborted) post({ id, kind: "endgame", ranking });
+      return;
+    }
     if (request.kind === "board-odds") {
       const odds = checkBoardBingo(
         lexicon,
@@ -144,11 +202,14 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     const message =
       error instanceof Error ? error.message : "The solver could not finish.";
     post(
-      request.kind === "board-odds"
-        ? { id, kind: "board-odds", error: message }
-        : { id, kind: "solve-error", error: message },
+      request.kind === "endgame"
+        ? { id, kind: "endgame" }
+        : request.kind === "board-odds"
+          ? { id, kind: "board-odds", error: message }
+          : { id, kind: "solve-error", error: message },
     );
   } finally {
     if (activeSolve?.id === id) activeSolve = undefined;
+    if (activeEndgame?.id === id) activeEndgame = undefined;
   }
 };

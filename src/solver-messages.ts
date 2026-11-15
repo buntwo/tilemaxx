@@ -1,6 +1,7 @@
 import type { BoardOdds, BoardOddsResult, RackOdds } from "../shared/bingo-odds";
 import type { BoardTemplate, Move, Position } from "../shared/model";
 import type {
+  EndgameRanking,
   MovePage,
   MoveQuery,
   MoveResults,
@@ -22,6 +23,11 @@ export type SolverRequest =
       candidates: Move[];
       bagSize: number;
     })
+  | (PositionRequest & {
+      kind: "endgame";
+      searchId: number;
+      scorelessTurns: number;
+    })
   | { kind: "page"; id: number; searchId: number; query: MoveQuery }
   | {
       kind: "shortlist";
@@ -30,7 +36,8 @@ export type SolverRequest =
       options: ShortlistOptions;
     }
   | { kind: "discard"; searchId: number }
-  | { kind: "cancel"; searchId: number };
+  | { kind: "cancel"; searchId: number }
+  | { kind: "cancel-endgame"; id: number };
 
 type SolverUpdate =
   | {
@@ -56,4 +63,5 @@ type SolverUpdate =
 export type SolverMessage =
   | (SolverUpdate & { id: number })
   | { kind: "page"; id: number; page?: MovePage }
-  | { kind: "shortlist"; id: number; shortlist?: ShortlistEntry[] };
+  | { kind: "shortlist"; id: number; shortlist?: ShortlistEntry[] }
+  | { kind: "endgame"; id: number; ranking?: EndgameRanking };

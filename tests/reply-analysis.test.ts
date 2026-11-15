@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { prepareEndgameEstimate } from "../shared/endgame-estimate";
 import { Lexicon } from "../shared/lexicon";
 import { emptyBoard, type Move } from "../shared/model";
 import { placeTiles } from "../shared/move-analysis";
@@ -218,6 +219,81 @@ test("known racks separate the raw reply from going-out adjustments", () => {
     out.score + 20,
   );
   assert.equal(placeTiles(board, opens)[7], "I");
+});
+
+test("empty-bag estimates rank a lower-scoring block above a premium go-out", () => {
+  const { template, board, lexicon } = fixture("TIQZ", 2);
+  template.premiums[7] = "DL";
+  const rack = "IZ";
+  const moves = solve(lexicon, board, rack, template);
+  const opens = moves.find((move) => move.tiles[0].index === 7)!;
+  const blocks = moves.find((move) => move.tiles[0].index === 9)!;
+  assert.ok(opens.score > blocks.score);
+  const estimate = prepareEndgameEstimate(lexicon, {
+    board,
+    rack,
+    template,
+    bagSize: 0,
+    scorelessTurns: 0,
+  });
+  assert.deepEqual(estimate(opens, Infinity), {
+    spread: -50,
+    reply: { word: "QI", score: 33, goesOut: true },
+  });
+  assert.deepEqual(estimate(blocks, Infinity), {
+    spread: -29,
+    reply: { word: "QI", score: 11, goesOut: true },
+  });
+});
+
+test("empty-bag estimates apply rack adjustments when we go out or play the sixth scoreless turn", () => {
+  const out = fixture("TIQ", 2);
+  const [candidate] = solve(out.lexicon, out.board, "I", out.template);
+  const estimate = prepareEndgameEstimate(out.lexicon, {
+    ...out,
+    rack: "I",
+    bagSize: 0,
+    scorelessTurns: 0,
+  });
+  assert.deepEqual(estimate(candidate, Infinity), {
+    spread: candidate.score + 20,
+  });
+
+  const scoreless = fixture("??ZA", 2);
+  scoreless.board[8] = "t";
+  const [zero] = solve(
+    scoreless.lexicon,
+    scoreless.board,
+    "?Z",
+    scoreless.template,
+  );
+  assert.equal(zero.score, 0);
+  const estimateScoreless = prepareEndgameEstimate(scoreless.lexicon, {
+    ...scoreless,
+    rack: "?Z",
+    bagSize: 0,
+    scorelessTurns: 5,
+  });
+  assert.deepEqual(estimateScoreless(zero, Infinity), { spread: -9 });
+});
+
+test("the estimate looks through an opponent pass to our next go-out", () => {
+  const { template, board, lexicon } = fixture("TAZQJ", 2, ["AT", "ZA"]);
+  const rack = "AZ";
+  const candidate = solve(lexicon, board, rack, template).find(
+    (move) => move.id === "7:A",
+  )!;
+  const estimate = prepareEndgameEstimate(lexicon, {
+    board,
+    rack,
+    template,
+    bagSize: 0,
+    scorelessTurns: 0,
+  });
+  assert.deepEqual(estimate(candidate, Infinity), {
+    spread: 71,
+    reply: undefined,
+  });
 });
 
 test("Crossplay can reply after you empty your rack without charging leftover tiles", () => {

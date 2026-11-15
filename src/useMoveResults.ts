@@ -28,6 +28,7 @@ export function useMoveResults(
     rackOdds,
     boardOdds,
     replyDeltas,
+    endgameId,
   } = query;
   const searchId = results?.searchId;
   const key = useMemo(
@@ -41,6 +42,7 @@ export function useMoveResults(
         rackOdds,
         boardOdds,
         replyDeltas,
+        endgameId,
       ]),
     [
       searchId,
@@ -51,6 +53,7 @@ export function useMoveResults(
       rackOdds,
       boardOdds,
       replyDeltas,
+      endgameId,
     ],
   );
   const [received, setReceived] = useState<{ key: string; page?: MovePage }>();
@@ -61,6 +64,7 @@ export function useMoveResults(
     !filter.trim() &&
     !requiredSquares?.indices.length &&
     sort === "score" &&
+    endgameId === undefined &&
     !reversed;
   const head = page?.head ?? (initial ? results.head : []);
   const total = page?.total ?? (initial ? results.total : 0);
@@ -98,6 +102,7 @@ export function useMoveResults(
       rackOdds,
       boardOdds,
       replyDeltas,
+      endgameId,
     }).then(settle, () => settle());
     return () => {
       current = false;
@@ -115,6 +120,7 @@ export function useMoveResults(
     rackOdds,
     boardOdds,
     replyDeltas,
+    endgameId,
   ]);
 
   return {
@@ -123,6 +129,7 @@ export function useMoveResults(
     head,
     start: Math.max(start, slice?.offset ?? 0),
     visible,
+    endgame: page?.endgame,
     pending: needsPage && !page && !initial,
     unavailable,
   };

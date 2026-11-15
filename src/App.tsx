@@ -259,6 +259,7 @@ function Tilemaxx() {
     signature,
     solver.results?.head ?? null,
     workspace === "games" && !!game && !busy && !solver.error,
+    { searchId: solver.results?.searchId, rank: solver.rankEndgame },
   );
   const activeFlight =
     workspace === "games" && flight?.destination === signature
