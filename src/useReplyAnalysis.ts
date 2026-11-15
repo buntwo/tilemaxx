@@ -57,6 +57,7 @@ export function useReplyAnalysis(
     key: string;
     ranking?: EndgameRanking;
   }>();
+  const [skippedEstimate, setSkippedEstimate] = useState<string>();
   const worker = useRef<Worker | null>(null);
   const activeDetail = useRef<{ id: number; key: string } | undefined>(
     undefined,
@@ -76,7 +77,7 @@ export function useReplyAnalysis(
   const runKey = JSON.stringify([positionKey, bagSize, scorelessTurns]);
   const searchId = endgame?.searchId;
   const rank = endgame?.rank;
-  const estimateKey =
+  const eligibleEstimate =
     rank &&
     searchId !== undefined &&
     enabled &&
@@ -87,6 +88,8 @@ export function useReplyAnalysis(
     game?.template.rules === "scrabble"
       ? JSON.stringify([searchId, runKey])
       : undefined;
+  const estimateKey =
+    eligibleEstimate === skippedEstimate ? undefined : eligibleEstimate;
   const estimateRun =
     estimateKey && estimateResult?.key === estimateKey
       ? estimateResult
@@ -276,6 +279,7 @@ export function useReplyAnalysis(
     scorelessTurns,
     ranking,
     estimatingEndgame: !!estimateKey && !estimateRun,
+    skipEndgameEstimate: () => setSkippedEstimate(estimateKey),
     endgameEstimateUnavailable: !!estimateRun && !ranking?.checked,
     setOptions: (bagSize: number, scorelessTurns: number) =>
       setSettings((current) =>

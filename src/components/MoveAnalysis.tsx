@@ -29,6 +29,8 @@ type WorkerMessage =
   | { error: string };
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 const points = (value: number) => value.toFixed(1);
+const tone = (value = 0) =>
+  value > 0 ? "analysis-good" : value < 0 ? "analysis-bad" : undefined;
 
 function formatFinalScore(
   endgame: EndgameLine | null | undefined,
@@ -39,8 +41,8 @@ function formatFinalScore(
   const opponent = totals.opponent + endgame.points.opponent;
   const margin = you - opponent;
   const outcome =
-    margin > 0 ? `Win by ${margin}` : margin < 0 ? `Loss by ${-margin}` : "Tie";
-  return `${you}–${opponent} · ${outcome}`;
+    margin > 0 ? `Win by ${margin}` : margin < 0 ? `Lose by ${-margin}` : "Tie";
+  return { label: `${you}–${opponent} · ${outcome}`, margin };
 }
 
 export default function MoveAnalysis({
@@ -353,22 +355,41 @@ export default function MoveAnalysis({
                     {forecast.endgameLimit && <p>{forecast.endgameLimit}</p>}
                     {forecast.endgame && (
                       <div className="analysis-endgame">
-                        <p>
+                        <p className={tone(forecast.endgame.spread)}>
                           Optimal endgame swing{" "}
                           {forecast.endgame.spread > 0 ? "+" : ""}
                           {forecast.endgame.spread}
                         </p>
-                        {finalScore && <p>Final score {finalScore}</p>}
-                        <ol>
-                          {forecast.endgame.line.map((step, turn) => (
-                            <li key={turn}>
-                              {turn % 2 ? "Opponent" : "You"} ·{" "}
-                              {step
-                                ? `${step.word} ${position(step)} · ${step.score} pts`
-                                : "Pass"}
-                            </li>
-                          ))}
-                        </ol>
+                        {finalScore && (
+                          <p className={tone(finalScore.margin)}>
+                            Final score {finalScore.label}
+                          </p>
+                        )}
+                        <table
+                          className="analysis-line"
+                          aria-label="Optimal endgame line"
+                        >
+                          <thead>
+                            <tr>
+                              <th scope="col">Player</th>
+                              <th scope="col">Play</th>
+                              <th scope="col">Position</th>
+                              <th scope="col">Points</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {forecast.endgame.line.map((step, turn) => (
+                              <tr key={turn}>
+                                <th scope="row">
+                                  {turn % 2 ? "Opponent" : "You"}
+                                </th>
+                                <td>{step?.word ?? "Pass"}</td>
+                                <td>{step ? position(step) : "—"}</td>
+                                <td>{step?.score ?? 0}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                     {exampleReply && (
@@ -439,6 +460,7 @@ function Comparison({
   const rows: {
     label: string;
     display: (forecast: MoveForecast, index: number) => ReactNode;
+    rating?: (forecast: MoveForecast) => number | undefined;
   }[] = [
     {
       label: "Leave · Draw",
@@ -451,32 +473,47 @@ function Comparison({
           {percent(f.bingo)} {f.exact && <small>exact</small>}
         </>
       ),
+      rating: compare((f) => f.bingo, percent),
     },
     {
       label: "Bingo after opponent reply",
       display: (f) => percent(f.models[model].nextBingo),
+      rating: compare((f) => f.models[model].nextBingo, percent),
     },
-    { label: "40+ reply available", display: (f) => percent(f.bigAvailable) },
+    {
+      label: "40+ reply available",
+      display: (f) => percent(f.bigAvailable),
+      rating: compare((f) => f.bigAvailable, percent, -1),
+    },
     {
       label: "Opponent bingo available",
       display: (f) => percent(f.bingoAvailable),
+      rating: compare((f) => f.bingoAvailable, percent, -1),
     },
-    { label: "Average best reply", display: (f) => points(f.bestReply) },
+    {
+      label: "Average best reply",
+      display: (f) => points(f.bestReply),
+      rating: compare((f) => f.bestReply, points, -1),
+    },
     {
       label: "40+ reply played",
       display: (f) => percent(f.models[model].bigReply),
+      rating: compare((f) => f.models[model].bigReply, percent, -1),
     },
     {
       label: "Average reply played",
       display: (f) => points(f.models[model].replyScore),
+      rating: compare((f) => f.models[model].replyScore, points, -1),
     },
     {
       label: "Your next score",
       display: (f) => points(f.models[model].nextScore),
+      rating: compare((f) => f.models[model].nextScore, points),
     },
     {
       label: "Expected point swing",
       display: (f) => points(f.models[model].swing),
+      rating: (f) => Number(points(f.models[model].swing)),
     },
   ];
   if (result.forecasts.length > 1)
@@ -484,22 +521,40 @@ function Comparison({
       {
         label: "40+ threat removed",
         display: (f, i) => (i ? percent(f.bigThreatRemoved) : "—"),
+        rating: (f) => Math.round(f.bigThreatRemoved * 100),
       },
       {
         label: "40+ threat opened",
         display: (f, i) => (i ? percent(f.bigThreatOpened) : "—"),
+        rating: (f) => -Math.round(f.bigThreatOpened * 100),
       },
     );
   if (result.forecasts.some((f) => f.endgame !== undefined))
     rows.push({
       label: "Optimal endgame swing",
       display: (f) => f.endgame?.spread ?? "—",
+      rating: (f) => f.endgame?.spread,
     });
   if (totals)
     rows.push({
       label: "Final score (you–opponent)",
-      display: (f) => formatFinalScore(f.endgame, totals) ?? "—",
+      display: (f) => formatFinalScore(f.endgame, totals)?.label ?? "—",
+      rating: (f) => formatFinalScore(f.endgame, totals)?.margin,
     });
+
+  function compare(
+    read: (forecast: MoveForecast) => number,
+    format: (value: number) => string,
+    direction = 1,
+  ) {
+    const reference = read(result.forecasts[0]);
+    return (forecast: MoveForecast) => {
+      const value = read(forecast);
+      return format(value) === format(reference)
+        ? 0
+        : direction * (value - reference);
+    };
+  }
 
   return (
     <div className="analysis-table-wrap">
@@ -521,11 +576,13 @@ function Comparison({
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ label, display }) => (
+          {rows.map(({ label, display, rating }) => (
             <tr key={label}>
               <th scope="row">{label}</th>
               {result.forecasts.map((f, i) => (
-                <td key={f.move.id}>{display(f, i)}</td>
+                <td key={f.move.id} className={tone(rating?.(f))}>
+                  {display(f, i)}
+                </td>
               ))}
             </tr>
           ))}
