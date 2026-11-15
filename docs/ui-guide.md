@@ -15,7 +15,7 @@
 | **Move preview** | The highlighted tiles on the board for a suggested play. The phone **preview bar** shows the word, points, and **Play** button. |
 | **Your rack** | The rack editor and Find moves button below the board. |
 | **Rack tools** | The rack controls for holding tiles and planning an exchange. **Optimal Exchange** compares swaps. **Simulate exchange** shows the expected score, bingo chance, and sample plays for a swap. |
-| **Opponent rack** | The inferred rack below yours when the bag is empty. |
+| **Opponent rack** | The inferred tiles centered directly below yours when the bag is empty. In a phone move preview both racks stack vertically beside the board. |
 | **Unseen tiles** | The expandable tile counts below the racks. It includes tiles in the bag and on other racks. |
 | **Game scores** | The score tracking panel with totals, lead or result, and any opponent move waiting to be recorded. |
 | **Tracked move history** | The scored turn list inside Game scores. Select a word to open **Turn review**, or select **Review game** for missed opportunities across turns. |
@@ -26,7 +26,7 @@
 
 | Name | Where to find it |
 | --- | --- |
-| **Possible moves** | The entire results panel next to the board on desktop or below the rack on a phone. |
+| **Possible moves** | The entire results panel next to the board on desktop or below the board and racks on a phone. The heading reads **Possible moves - Endgame** when the bag count is zero. |
 | **Move filters** | The Shortlist and All moves switch, word search, and square filter above the results list. |
 | **Move list** | The sortable table of suggestions. A **move row** is one suggestion, and a **column header** controls sorting. PTS is the play’s score. The smaller number underneath is the gap from the top score. |
 | **Reply delta** | The move-list number showing the change in the opponent’s reply score against the reference move. A lower opponent reply is favorable. |

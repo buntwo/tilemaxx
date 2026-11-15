@@ -1,32 +1,21 @@
-export default function OpponentRack({
-  rack,
-  assumed,
-}: {
-  rack: string;
-  assumed: boolean;
-}) {
+export default function OpponentRack({ rack }: { rack: string }) {
   if (!rack) return null;
+  const tiles = [...rack];
   return (
-    <div className="opponent-rack">
-      <div className="opponent-rack-label">
-        <strong>Opponent rack</strong>
-        <small>{assumed ? "Bag assumed empty" : "Bag empty"}</small>
-      </div>
-      <div
-        className="opponent-rack-tiles"
-        role="img"
-        aria-label={`Opponent rack: ${[...rack].map((tile) => (tile === "?" ? "blank" : tile)).join(", ")}`}
-      >
-        {[...rack].map((tile, index) => (
-          <span
-            className={tile === "?" ? "blank" : undefined}
-            key={index}
-            aria-hidden="true"
-          >
-            {tile}
-          </span>
-        ))}
-      </div>
+    <div
+      className="opponent-rack-tiles"
+      role="img"
+      aria-label={`Opponent rack: ${tiles.map((tile) => (tile === "?" ? "blank" : tile)).join(", ")}`}
+    >
+      {tiles.map((tile, index) => (
+        <span
+          className={tile === "?" ? "blank" : undefined}
+          key={index}
+          aria-hidden="true"
+        >
+          {tile}
+        </span>
+      ))}
     </div>
   );
 }

@@ -110,7 +110,7 @@ export const guideFigures: GuideFigure[] = [
         x: 323,
         y: 172,
         name: "Your rack",
-        hint: "The rack moves beside the board while you preview.",
+        hint: "The rack moves beside the board while you preview. In an endgame, the opponent’s tiles stack below yours.",
       },
       {
         x: 128,
@@ -132,7 +132,7 @@ export const guideFigures: GuideFigure[] = [
         x: 187,
         y: 39,
         name: "Possible moves",
-        hint: "The full results panel, including the controls and detail box.",
+        hint: "The results panel reads Possible moves - Endgame when the bag is empty.",
       },
       {
         x: 182,
