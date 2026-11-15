@@ -89,8 +89,13 @@ function setup(
   vi.stubGlobal("matchMedia", () => ({ matches: !mobile }));
   const onPlay = vi.fn(),
     onPreview = vi.fn();
+  const bingoRules = {
+    ...PRESETS[0],
+    rackSize: options.rackSize ?? 7,
+    bingo: options.bingoBonus ?? 50,
+  };
   const index = new MoveResultIndex(options.moves ?? moves);
-  const results = index.summary(0);
+  const results = index.summary(0, bingoRules);
   const fetchPage =
     options.fetchPage ?? vi.fn(async (_id, query) => index.page(query));
   const fetchShortlist = vi.fn(async (_id, options) =>
@@ -114,11 +119,7 @@ function setup(
         elapsed={4}
         error=""
         size={options.size ?? 15}
-        bingoRules={{
-          rackSize: options.rackSize ?? 7,
-          bingo: options.bingoBonus ?? 50,
-          rules: "scrabble",
-        }}
+        bingoRules={bingoRules}
         rackOdds={options.rackOdds}
         boardOdds={boardOdds}
         analysisGame={options.analysisGame}
@@ -148,6 +149,32 @@ function setup(
   return { onPlay, onPreview, user: userEvent.setup() };
 }
 const rows = () => screen.getAllByRole("button", { name: /points,/ });
+
+test("the header omits the bingo count when no moves are bingos", () => {
+  setup();
+  expect(screen.queryByRole("img", { name: /bingos?/i })).toBeNull();
+});
+
+test("the header counts bingos outside the visible page and across placements", async () => {
+  const nonBingos = Array.from({ length: 66 }, (_, i) => ({
+    ...moves[1],
+    id: `non-bingo-${i}`,
+  }));
+  const { user } = setup(true, {
+    rackSize: 4,
+    moves: [
+      ...nonBingos,
+      { ...moves[0], score: 9 },
+      { ...moves[0], id: "d", col: 6, score: 8 },
+    ],
+  });
+  const badge = screen.getByRole("img", { name: "2 bingos" });
+  expect(badge.previousElementSibling?.textContent).toBe("68");
+  expect(screen.queryByRole("button", { name: /^CATS,/ })).toBeNull();
+  await user.type(screen.getByRole("textbox", { name: "Filter moves" }), "ZZZ");
+  await screen.findByRole("heading", { name: "No matching words" });
+  expect(screen.getByRole("img", { name: "2 bingos" })).toBe(badge);
+});
 
 test("scrolling and filtering use worker pages and ignore out-of-order results", async () => {
   const longList = Array.from({ length: 200 }, (_, i) => ({
@@ -536,6 +563,7 @@ test("bingo uses tiles placed and the template rack size, not word length or an 
   );
   expect(rows()[1].querySelector(".bingo-badge")).toBeNull();
   expect(rows()[1].classList.contains("bingo")).toBe(false);
+  expect(screen.getByRole("img", { name: "1 bingo" })).toBeTruthy();
 });
 
 test("bingo remains identified during a phone preview and plays the same move", async () => {

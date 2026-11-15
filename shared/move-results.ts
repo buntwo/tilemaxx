@@ -1,5 +1,5 @@
 import type { BoardOddsResult, RackOdds } from "./bingo-odds";
-import type { Move } from "./model";
+import { isBingo, type BingoRules, type Move } from "./model";
 import { leaveValue } from "./move-analysis";
 import { shortlistMoves } from "./move-shortlist";
 
@@ -23,6 +23,7 @@ export type MoveSort =
 export interface MoveResults {
   searchId: number;
   total: number;
+  bingoCount: number;
   head: Move[];
 }
 
@@ -119,10 +120,15 @@ export class MoveResultIndex {
 
   constructor(private readonly moves: readonly Move[]) {}
 
-  summary(searchId: number): MoveResults {
+  summary(searchId: number, bingoRules: BingoRules): MoveResults {
+    let bingoCount = 0;
+    for (const move of this.moves) {
+      if (isBingo(bingoRules, move.tiles.length)) bingoCount++;
+    }
     return {
       searchId,
       total: this.moves.length,
+      bingoCount,
       head: this.moves.slice(0, MOVE_HEAD_SIZE),
     };
   }
