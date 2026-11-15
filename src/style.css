@@ -2909,6 +2909,15 @@ label + label {
   max-width: 760px;
   margin-inline: auto;
 }
+.archive-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.archive-count {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .archive-panel {
   padding: clamp(14px, 3vw, 24px);
 }
