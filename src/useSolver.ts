@@ -283,12 +283,7 @@ export function useSolver(positionKey: string) {
     }
   }
 
-  function runBoardOdds(
-    game: Game,
-    candidates: Move[],
-    bagSize: number,
-    incremental = false,
-  ) {
+  function runBoardOdds(game: Game, candidates: Move[], bagSize: number) {
     if (
       solving.current !== undefined ||
       oddsWorker.current ||
@@ -313,13 +308,12 @@ export function useSolver(positionKey: string) {
         if (message.kind === "board-odds-progress") {
           const { checked, moveId, odds } = message;
           setBoardOddsProgress({ checked, total, bagSize });
-          if (incremental)
-            setLiveBoardOdds((current) => ({
-              checked,
-              total,
-              bagSize,
-              byMove: { ...current?.byMove, [moveId]: odds },
-            }));
+          setLiveBoardOdds((current) => ({
+            checked,
+            total,
+            bagSize,
+            byMove: { ...current?.byMove, [moveId]: odds },
+          }));
         } else if (message.kind === "board-odds") {
           stopBoardOdds();
           setSnapshot((current) => ({ ...current, boardOdds: message.odds }));

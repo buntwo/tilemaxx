@@ -422,19 +422,19 @@ test("rack odds sort every move and board odds rank checked moves separately", a
   expect(rows()[0].getAttribute("aria-label")).toContain(
     "bingo draw 5%, bingo after your play ≈80%",
   );
-  await user.click(
-    screen.getByRole("button", { name: "Sort by bingo draw odds" }),
-  );
+  const chooseLeaveSort = async (name: string) => {
+    await user.click(screen.getByLabelText("Sort by leave or bingo odds"));
+    await user.click(screen.getByRole("button", { name }));
+  };
+  await chooseLeaveSort("Sort by bingo draw odds");
   expect(
     rows().map((row) => row.getAttribute("aria-label")?.split(",")[0]),
   ).toEqual(["CAT", "AT", "CATS"]);
-  const afterPlay = () =>
-    screen.getByRole("button", { name: "Sort by bingo odds after play" });
-  await user.click(afterPlay());
+  await chooseLeaveSort("Sort by bingo odds after play");
   expect(
     rows().map((row) => row.getAttribute("aria-label")?.split(",")[0]),
   ).toEqual(["CATS", "AT", "CAT"]);
-  await user.click(afterPlay());
+  await chooseLeaveSort("Sort by bingo odds after play");
   expect(
     rows().map((row) => row.getAttribute("aria-label")?.split(",")[0]),
   ).toEqual(["AT", "CATS", "CAT"]);
@@ -625,6 +625,7 @@ test("bingo check follows the displayed sort, reverse order and filter, up to 20
   const check = () =>
     screen.getByRole("button", { name: "Check bingo after your play" });
   const sort = () => screen.getByRole("button", { name: "Sort by word" });
+  await user.click(screen.getByText("Options", { selector: "summary" }));
   await user.click(sort());
   await waitFor(() =>
     expect(rows()[0].getAttribute("aria-label")).toMatch(/^AT,/),
@@ -676,7 +677,9 @@ test("shortlist bingo check keeps the lower-scoring recommendation and respects 
     rackOdds: { byLeave: { Z: 0.01, X: 0.2 }, exact: true, bagSize: 89 },
     onBoardOdds,
   });
+  onBoardOdds.mockClear();
   await user.click(await screen.findByRole("button", { name: "Shortlist 2" }));
+  await user.click(screen.getByText("Options", { selector: "summary" }));
   const check = screen.getByRole("button", {
     name: "Check bingo after your play",
   });

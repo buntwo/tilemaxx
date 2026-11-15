@@ -1906,7 +1906,7 @@ label + label {
 .result-score, .result-points-heading { grid-column: points; text-align: right; }
 .result-reply-heading, .result-reply-metric, .result-defense-action { grid-column: reply; }
 .result-reply-heading { text-align: center; }
-.result-leave { grid-column: leave; }
+.result-leave, .result-leave-heading { grid-column: leave; }
 .result-coordinate, .result-position-heading { grid-column: position; }
 @container (max-width: 390px) {
   .result-columns, .result-row, .result-slot {
@@ -2335,9 +2335,6 @@ label + label {
   letter-spacing: 0.5px;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.result-columns .result-leave {
-  font-size: 8px;
 }
 .result-score {
   font-size: 15px;
@@ -4601,10 +4598,6 @@ label + label {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.with-bingo-odds .result-columns .result-leave > span {
-  letter-spacing: 0.35px;
-  text-align: left;
-}
 .result-draw-odds,
 .result-board-odds {
   color: var(--primary);
@@ -4615,6 +4608,11 @@ label + label {
 .result-board-odds {
   color: var(--text);
   font-size: 10px;
+}
+.result-odds-label {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 500;
 }
 .bingo-odds-controls {
   margin: 0 12px 6px;
@@ -4720,7 +4718,34 @@ label + label {
 }
 .result-column-sort:not(:disabled):hover,
 .result-column-sort[aria-pressed="true"] { color: var(--primary); }
-.result-columns .result-leave { gap: 0; }
+.result-leave-sort { position: relative; width: max-content; }
+.result-leave-sort > summary {
+  min-height: 26px;
+  list-style: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.result-leave-sort > summary::-webkit-details-marker { display: none; }
+.result-leave-sort-options {
+  position: absolute;
+  z-index: 6;
+  top: 100%;
+  right: 0;
+  min-width: max-content;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.result-leave-sort-options .result-column-sort {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+.result-leave-sort-options .result-column-sort:disabled { opacity: 0.5; }
 .inline-reply {
   padding: 10px 12px 13px;
   border-top: 1px solid var(--line);

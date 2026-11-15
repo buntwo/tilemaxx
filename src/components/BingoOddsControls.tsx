@@ -1,21 +1,23 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   BOARD_ODDS_LIMIT,
   type BoardOddsResult,
   type RackOdds,
 } from "../../shared/bingo-odds";
 import { type Game, type Move } from "../../shared/model";
-import { unseenTiles } from "../../shared/tile-pool";
 import type { BoardOddsProgress } from "../useSolver";
-
-type AutomaticCheck = { searchId: number; bagSize: number; ready: boolean };
 
 export default function BingoOddsControls({
   game,
+  searchId,
+  bagSize,
+  minimumBag,
+  repliesPending,
+  invalid,
   moves,
+  manualMoves,
   settings,
   sortControl,
-  automatic,
   toolbarStart,
   toolbarEnd,
   searchField,
@@ -28,10 +30,15 @@ export default function BingoOddsControls({
   onCancel,
 }: {
   game: Game;
+  searchId: number;
+  bagSize: number;
+  minimumBag: number;
+  repliesPending: boolean;
+  invalid: boolean;
   moves: Move[];
+  manualMoves?: Move[];
   settings?: ReactNode;
   sortControl?: ReactNode;
-  automatic?: AutomaticCheck;
   toolbarStart?: ReactNode;
   toolbarEnd?: ReactNode;
   searchField?: ReactNode;
@@ -43,83 +50,79 @@ export default function BingoOddsControls({
   onCheck: (moves: Move[], bagSize: number) => void;
   onCancel: () => void;
 }) {
-  const { total, excess } = unseenTiles(game, game.template);
-  const assumedBag = Math.max(0, total - game.template.rackSize);
-  const [override, setOverride] = useState("");
-  const bag =
-    automatic?.bagSize ?? (override === "" ? assumedBag : Number(override));
-  const valid = Number.isInteger(bag) && bag >= assumedBag && bag <= total;
   const lastCheck = useRef<string>(undefined);
-  const canCheck = !!moves.length && !rackOddsPending && valid && !excess.length;
+  const canCheck = !rackOddsPending && !invalid;
   useEffect(() => {
-    if (!automatic) return;
     if (progress) {
-      if (progress.bagSize !== bag) onCancel();
+      if (progress.bagSize !== bagSize) onCancel();
       return;
     }
-    const key = `${automatic.searchId}:${bag}`;
+    const key = `${searchId}:${bagSize}`;
     if (
-      !automatic.ready ||
+      repliesPending ||
       !canCheck ||
+      !moves.length ||
       lastCheck.current === key ||
-      boardOdds?.bagSize === bag
+      boardOdds?.bagSize === bagSize
     )
       return;
     lastCheck.current = key;
-    onCheck(moves.slice(0, BOARD_ODDS_LIMIT), bag);
-  }, [automatic, bag, boardOdds, canCheck, moves, onCancel, onCheck, progress]);
-
-  const cancelCheck = (
-    <button type="button" className="button secondary" onClick={onCancel}>
-      Cancel bingo check
-    </button>
-  );
-  const completedCheck = boardOdds && !progress && (
-    <span className="bingo-odds-status" role="status">
-      Bingo after your play · {boardOdds.checked} / {boardOdds.total} moves
-      {boardOdds.checked < boardOdds.total && " · search limit reached"}
-    </span>
-  );
+    onCheck(moves.slice(0, BOARD_ODDS_LIMIT), bagSize);
+  }, [
+    bagSize,
+    boardOdds,
+    canCheck,
+    moves,
+    onCancel,
+    onCheck,
+    progress,
+    repliesPending,
+    searchId,
+  ]);
 
   return (
     <div className="bingo-odds-controls">
       <div className="bingo-odds-actions">
         {toolbarStart}
-        {!automatic &&
-          (progress ? (
-            <>
-              {cancelCheck}
-              <span className="analysis-counter" role="status">
-                {progress.checked} / {progress.total} checked
-              </span>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="button secondary"
-              disabled={!canCheck}
-              onClick={() => onCheck(moves.slice(0, BOARD_ODDS_LIMIT), bag)}
-            >
-              Check bingo after your play
-            </button>
-          ))}
         {sortControl}
         <div className="bingo-odds-utilities">
           <details className="bingo-odds-settings">
             <summary>Options</summary>
             <div className="bingo-odds-options">
+              {progress ? (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={onCancel}
+                >
+                  Cancel bingo check
+                </button>
+              ) : (
+                manualMoves && (
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={!canCheck || !manualMoves.length}
+                    onClick={() =>
+                      onCheck(manualMoves.slice(0, BOARD_ODDS_LIMIT), bagSize)
+                    }
+                  >
+                    Check bingo after your play
+                  </button>
+                )
+              )}
               <p>
                 <strong>Bingo draw %</strong> is the chance your refilled rack
                 spells a {game.template.rackSize}-letter dictionary word. The
                 bag estimate updates with the board and rack. It sets aside up
                 to {game.template.rackSize} unseen tiles for one opponent and
-                leaves the rest in the bag ({assumedBag} right now).
+                leaves the rest in the bag (estimated {minimumBag} right now).
               </p>
               <p>
-                <strong>Bingo after your play</strong>{" "}
-                {automatic
-                  ? `checks up to ${BOARD_ODDS_LIMIT} of the highest-scoring moves after reply analysis finishes.`
-                  : `checks the first ${BOARD_ODDS_LIMIT} moves in your current list, including the shortlist.`}{" "}
+                <strong>Bingo after your play</strong> automatically checks up
+                to {BOARD_ODDS_LIMIT} of the highest-scoring moves after reply
+                analysis finishes.{" "}
+                {manualMoves && "A manual check uses the current list. "}
                 It counts refills that allow a bingo on the board before the
                 opponent replies. An ≈ marks an estimate based on up to 200
                 sampled refills.
@@ -128,31 +131,13 @@ export default function BingoOddsControls({
                 <strong>Bingo after opponent reply</strong> in Analyze checks
                 again after simulating the opponent’s move.
               </p>
-              {!automatic && (
-                <>
-                  <label>
-                    Tiles in bag for this check
-                    <input
-                      type="number"
-                      min={assumedBag}
-                      max={total}
-                      inputMode="numeric"
-                      placeholder={String(assumedBag)}
-                      value={override}
-                      disabled={!!progress}
-                      onChange={(event) => setOverride(event.target.value)}
-                    />
-                  </label>
-                  {!valid && (
-                    <p className="error">
-                      Enter a count from {assumedBag} to {total}.
-                    </p>
-                  )}
-                </>
-              )}
-              {automatic && (progress ? cancelCheck : completedCheck)}
-              {boardOdds && (
-                <p>This check used {boardOdds.bagSize} tiles in the bag.</p>
+              {boardOdds && !progress && (
+                <p>
+                  Checked {boardOdds.checked} / {boardOdds.total} moves with{" "}
+                  {boardOdds.bagSize} tiles in the bag.
+                  {boardOdds.checked < boardOdds.total &&
+                    " Search limit reached."}
+                </p>
               )}
               {settings}
             </div>
@@ -161,12 +146,6 @@ export default function BingoOddsControls({
         </div>
       </div>
       {searchField}
-      {!automatic && completedCheck}
-      {!automatic && rackOddsPending && (
-        <span className="bingo-odds-status" role="status">
-          Calculating bingo draws…
-        </span>
-      )}
       {rackOdds?.error && (
         <p className="bingo-odds-status" role="status">
           {rackOdds.error}
