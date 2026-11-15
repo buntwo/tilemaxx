@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import { LoaderCircle } from "lucide-react";
-import { pendingOpponentPlay, tracksScores } from "../../shared/game-scoring";
+import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { coordinate, type Game, type Move } from "../../shared/model";
 import { placeTiles } from "../../shared/move-analysis";
 import type { MoveDefense } from "../../shared/premium-defense";
@@ -26,21 +26,10 @@ export function signedPoints(points: number, decimals = 0) {
   return Number(value) === 0 ? value : `${points < 0 ? "−" : "+"}${value}`;
 }
 
-export function replyScoreTotals(game: Game) {
-  const scoring = game.scoring;
-  if (!scoring || !tracksScores(game)) return;
-  const pending = pendingOpponentPlay(game);
-  if (scoring.pendingBase && !pending) return;
-  return {
-    you: scoring.you.points,
-    opponent: scoring.opponent.points + (pending?.score ?? 0),
-  };
-}
-
 function endgameScores(
   move: Move,
   result: ExactReply,
-  scores?: ReturnType<typeof replyScoreTotals>,
+  scores?: ReturnType<typeof scoreTotalsAtPosition>,
 ) {
   if (!scores) return;
   const after = { you: scores.you + move.score, opponent: scores.opponent };
@@ -70,7 +59,7 @@ export function ReplyCell({
 }: {
   move: Move;
   result: ReplyResult;
-  scores?: ReturnType<typeof replyScoreTotals>;
+  scores?: ReturnType<typeof scoreTotalsAtPosition>;
 }) {
   const delta = result.difference;
   const tone =
@@ -290,7 +279,7 @@ function ExactReplyDetails({
   result: ExactReply;
   analysis: Analysis;
 }) {
-  const totals = replyScoreTotals(game);
+  const totals = scoreTotalsAtPosition(game);
   const scores = endgameScores(move, result, totals);
   const { reply, highest, ends } = result;
   const afterMargin = scores && scores.after.you - scores.after.opponent;
