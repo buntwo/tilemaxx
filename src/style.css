@@ -2426,23 +2426,18 @@ label + label {
 .workspace-footer {
   border-top: 1px solid var(--line);
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 9px;
   color: var(--muted);
   padding: 18px 0 25px;
   margin-top: 20px;
 }
-.workspace-footer-notes {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
 .game-id {
   display: flex;
   align-items: center;
-  align-self: flex-end;
-  max-width: 100%;
+  min-width: 0;
   gap: 8px;
   font-size: 11px;
 }
@@ -3422,6 +3417,7 @@ label + label {
     max-width: none;
   }
   .workspace-footer {
+    justify-content: flex-end;
     width: 100%;
     max-width: 480px;
     padding: 4px 0 0;
@@ -3429,14 +3425,10 @@ label + label {
     margin-inline: auto;
   }
   .game-id {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 2px 6px;
+    gap: 4px;
+    font-size: inherit;
   }
-  .game-id code { grid-column: 1; }
   .game-id .icon-button {
-    grid-column: 2;
-    grid-row: 1 / span 2;
     width: 44px;
     height: 44px;
   }

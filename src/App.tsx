@@ -1227,13 +1227,9 @@ function Tilemaxx() {
         )}
         {(!phoneLayout || openId) && (
           <footer className="workspace-footer">
-            {!phoneLayout && (
-              <div className="workspace-footer-notes">
-                <span>Less guessing. More good words.</span>
-                <span>Tilemaxx · Local & personal</span>
-              </div>
-            )}
+            {!phoneLayout && <span>Less guessing. More good words.</span>}
             {openId && <GameId id={openId} onNotice={notify} />}
+            {!phoneLayout && <span>Tilemaxx · Local & personal</span>}
           </footer>
         )}
       </main>
