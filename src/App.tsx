@@ -56,6 +56,7 @@ import BoardStudio from "./components/BoardStudio";
 import ScreenshotImport from "./components/ScreenshotImport";
 import { hasCustomPremiums, importBoard } from "../shared/screenshot";
 import Modal from "./components/Modal";
+import MoveWord from "./components/MoveWord";
 import WordLists from "./components/WordLists";
 import Results from "./components/Results";
 import GamePicker from "./components/GamePicker";
@@ -1125,7 +1126,7 @@ function Tilemaxx() {
                     <span aria-live="polite">
                       {preview ? (
                         <>
-                          <strong>{preview.word}</strong> · {preview.score} pts
+                          <strong><MoveWord move={preview} rules={game.template} /></strong> · {preview.score} pts
                         </>
                       ) : (
                         "Choose a move to preview"

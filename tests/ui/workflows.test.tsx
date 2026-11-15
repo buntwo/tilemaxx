@@ -289,10 +289,11 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
       rack: "CATS",
       scoring: {
         you: { points: 100, moves: 4, best: 25, bingos: 0 },
-        opponent: { points: 150, moves: 4, best: 45, bingos: 0 },
+        opponent: { points: 200, moves: 4, best: 50, bingos: 0 },
       },
       template: {
         ...game.template,
+        rackSize: 4,
         tileCounts: Object.fromEntries(
           TILE_SYMBOLS.map((symbol) => [symbol, Number("ACSTZ".includes(symbol))]),
         ),
@@ -311,29 +312,31 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
   expect(requests[0].endgameBudgetMultiplier).toBe(1);
   const card = screen.getByRole("article", { name: /^Analysis for CATS / });
   expect(card.querySelectorAll("summary")).toHaveLength(1);
-  await user.click(within(card).getByText(/^CATS .* details$/));
+  await user.click(card.querySelector("summary")!);
   expect(
     within(card)
-      .getByText("Optimal endgame swing +32")
+      .getByText("Optimal endgame swing +82")
       .classList.contains("analysis-good"),
   ).toBe(true);
   const line = within(
     within(card).getByRole("table", { name: "Optimal endgame line" }),
   );
   expect(line.getByRole("rowheader", { name: "You" })).toBeTruthy();
-  expect(line.getByRole("cell", { name: "CATS" })).toBeTruthy();
-  expect(line.getByRole("cell", { name: "12" })).toBeTruthy();
+  const word = within(line.getByRole("cell", { name: /CATS/ }));
+  expect(word.getByRole("img", { name: "Bingo" })).toBeTruthy();
+  expect(word.getByText("CATS").classList.contains("bingo-move-word")).toBe(true);
+  expect(line.getByRole("cell", { name: "62" })).toBeTruthy();
   const comparison = within(
     screen.getByRole("table", { name: "Move comparison" }),
   );
   expect(
     comparison
-      .getByRole("cell", { name: "122–140 · Lose by 18" })
+      .getByRole("cell", { name: "172–190 · Lose by 18" })
       .classList.contains("analysis-bad"),
   ).toBe(true);
   expect(
     within(card)
-      .getByText("Final score 122–140 · Lose by 18")
+      .getByText("Final score 172–190 · Lose by 18")
       .classList.contains("analysis-bad"),
   ).toBe(true);
 

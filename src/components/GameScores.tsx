@@ -1,6 +1,11 @@
 import { useState } from "react";
-import { ChevronDown, Pencil, Plus, Trophy } from "lucide-react";
-import { trackedMoveHistory, type Game, type Player } from "../../shared/model";
+import { ChevronDown, Pencil, Plus } from "lucide-react";
+import {
+  isBingo,
+  trackedMoveHistory,
+  type Game,
+  type Player,
+} from "../../shared/model";
 import {
   correctTrackedMove,
   displayedGameScoring,
@@ -11,6 +16,7 @@ import {
   tracksScores,
 } from "../../shared/game-scoring";
 import Modal from "./Modal";
+import MoveWord, { BingoBadge } from "./MoveWord";
 import ScoreBreakdown from "./ScoreBreakdown";
 import TurnReview from "./TurnReview";
 
@@ -61,6 +67,10 @@ export default function GameScores({
   const moves = history
     .map((move, index) => ({
       ...move,
+      bingo:
+        move.bingo ??
+        (move.review !== undefined &&
+          isBingo(game.template, move.review.tiles.length)),
       number: index + 1,
       total: (totals[move.player] += move.score),
     }))
@@ -117,7 +127,8 @@ export default function GameScores({
                   <>
                     Opponent move ·{" "}
                     <strong>
-                      {play.word} · {play.score} pts
+                      <MoveWord word={play.word} bingo={play.bingo} /> ·{" "}
+                      {play.score} pts
                     </strong>
                   </>
                 ) : (
@@ -187,7 +198,13 @@ export default function GameScores({
                             aria-label={`Review move ${move.number}: ${move.word}`}
                             onClick={() => setReview(move.number - 1)}
                           >
-                            {move.word}
+                            <span
+                              className={
+                                move.bingo ? "bingo-move-word" : undefined
+                              }
+                            >
+                              {move.word}
+                            </span>
                           </button>{" "}
                           <small className="score-move-total">
                             ({move.total})
@@ -198,14 +215,7 @@ export default function GameScores({
                     <td className="score-move-points">
                       {move.score}
                       {move.bingo && (
-                        <span
-                          className="bingo-badge score-history-bingo"
-                          role="img"
-                          aria-label="Bingo"
-                          title="Bingo"
-                        >
-                          <Trophy size={12} aria-hidden="true" />
-                        </span>
+                        <BingoBadge className="score-history-bingo" />
                       )}
                     </td>
                     <td>
@@ -220,7 +230,13 @@ export default function GameScores({
                             aria-label={`Review move ${move.number}: ${move.word}`}
                             onClick={() => setReview(move.number - 1)}
                           >
-                            {move.word}
+                            <span
+                              className={
+                                move.bingo ? "bingo-move-word" : undefined
+                              }
+                            >
+                              {move.word}
+                            </span>
                           </button>
                         </div>
                       )}
@@ -307,6 +323,7 @@ export default function GameScores({
                   {moves.map((move) => (
                     <option key={move.number} value={move.number - 1}>
                       Before #{move.number} {move.word}
+                      {move.bingo ? " · 🏆 Bingo" : ""}
                     </option>
                   ))}
                 </select>

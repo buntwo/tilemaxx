@@ -21,6 +21,7 @@ import {
 } from "../../shared/move-analysis";
 import Board from "./Board";
 import Modal from "./Modal";
+import MoveWord from "./MoveWord";
 import { useGameCalculation } from "./GameCalculations";
 
 type WorkerMessage =
@@ -178,7 +179,8 @@ export default function MoveAnalysis({
             onClick={() => onRemove(move)}
             aria-label={`Remove ${move.word} at ${position(move)} from comparison`}
           >
-            {move.word} {position(move)} <X size={12} />
+            <MoveWord move={move} rules={game.template} /> {position(move)}{" "}
+            <X size={12} />
           </button>
         ))}
       </div>
@@ -326,6 +328,7 @@ export default function MoveAnalysis({
             model={model}
             position={position}
             totals={totals}
+            rules={game.template}
           />
           <div className="analysis-cards">
             {result.forecasts.map((forecast) => {
@@ -341,7 +344,8 @@ export default function MoveAnalysis({
                 >
                   <details>
                     <summary>
-                      {move.word} {position(move)} details
+                      <MoveWord move={move} rules={game.template} />{" "}
+                      {position(move)} details
                     </summary>
                     {!!forecast.bingoDraws.length && (
                       <p>
@@ -383,7 +387,16 @@ export default function MoveAnalysis({
                                 <th scope="row">
                                   {turn % 2 ? "Opponent" : "You"}
                                 </th>
-                                <td>{step?.word ?? "Pass"}</td>
+                                <td>
+                                  {step ? (
+                                    <MoveWord
+                                      move={step}
+                                      rules={game.template}
+                                    />
+                                  ) : (
+                                    "Pass"
+                                  )}
+                                </td>
                                 <td>{step ? position(step) : "—"}</td>
                                 <td>{step?.score ?? 0}</td>
                               </tr>
@@ -400,7 +413,8 @@ export default function MoveAnalysis({
                       >
                         Preview{" "}
                         {reply.example ? "modeled reply" : "available threat"}{" "}
-                        {exampleReply.word} · {exampleReply.score} pts
+                        <MoveWord move={exampleReply} rules={game.template} /> ·{" "}
+                        {exampleReply.score} pts
                       </button>
                     )}
                   </details>
@@ -430,8 +444,19 @@ export default function MoveAnalysis({
       </details>
       {example && (
         <Modal
-          title={`${example.reply.word} · ${example.reply.score} points`}
-          subtitle={`Example opponent reply after ${example.move.word} at ${position(example.move)}.`}
+          title={
+            <>
+              <MoveWord move={example.reply} rules={game.template} /> ·{" "}
+              {example.reply.score} points
+            </>
+          }
+          subtitle={
+            <>
+              Example opponent reply after{" "}
+              <MoveWord move={example.move} rules={game.template} /> at{" "}
+              {position(example.move)}.
+            </>
+          }
           onClose={() => setExample(undefined)}
         >
           <Board
@@ -451,11 +476,13 @@ function Comparison({
   model,
   position,
   totals,
+  rules,
 }: {
   result: AnalysisResult;
   model: OpponentModel;
   position: (move: Move) => string;
   totals: ReturnType<typeof scoreTotalsAtPosition>;
+  rules: Game["template"];
 }) {
   const rows: {
     label: string;
@@ -564,7 +591,7 @@ function Comparison({
             <th scope="col">Metric</th>
             {result.forecasts.map(({ move }, i) => (
               <th key={move.id} scope="col">
-                {move.word}
+                <MoveWord move={move} rules={rules} />
                 <small>
                   {position(move)} · {move.score} pts
                 </small>

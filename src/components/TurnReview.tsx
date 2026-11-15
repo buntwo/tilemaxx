@@ -1,11 +1,28 @@
 import { useMemo, useState } from "react";
 import { scorePlacement } from "../../shared/game-scoring";
-import { coordinate, type Game, type Move } from "../../shared/model";
+import {
+  coordinate,
+  isBingo,
+  type BingoRules,
+  type Game,
+  type Move,
+} from "../../shared/model";
 import { reviewTurns, type ReviewSummary } from "../../shared/turn-review";
 import Board from "./Board";
 import Modal from "./Modal";
+import MoveWord from "./MoveWord";
 import ScoreBreakdown from "./ScoreBreakdown";
 import { usePractice } from "./usePractice";
+
+function turnBingo(
+  turn: ReturnType<typeof reviewTurns>[number],
+  rules: BingoRules,
+) {
+  return (
+    turn.move.bingo ??
+    (!!turn.position && isBingo(rules, turn.position.tiles.length))
+  );
+}
 
 export default function TurnReview({
   game,
@@ -52,9 +69,14 @@ export default function TurnReview({
   return (
     <Modal
       title={
-        turn
-          ? `Review move ${turn.index + 1} · ${turn.move.word}`
-          : "Review game"
+        turn ? (
+          <>
+            Review move {turn.index + 1} ·{" "}
+            <MoveWord word={turn.move.word} bingo={turnBingo(turn, template)} />
+          </>
+        ) : (
+          "Review game"
+        )
       }
       subtitle="Review only. Your live board and rack stay in place."
       wide
@@ -68,7 +90,8 @@ export default function TurnReview({
             </button>
             <p>
               {turn.move.player === "you" ? "You" : "Opponent"} ·{" "}
-              {turn.move.score} recorded pts{turn.move.bingo ? " · Bingo" : ""}
+              {turn.move.score} recorded pts
+              {turnBingo(turn, template) ? " · Bingo" : ""}
             </p>
             {position ? (
               <>
@@ -124,7 +147,10 @@ export default function TurnReview({
                               aria-pressed={preview?.id === move.id}
                               onClick={() => setPreview(move)}
                             >
-                              <strong>{move.word}</strong> · {move.score} pts ·{" "}
+                              <strong>
+                                <MoveWord move={move} rules={template} />
+                              </strong>{" "}
+                              · {move.score} pts ·{" "}
                               {coordinate(
                                 move.row * game.template.size + move.col,
                                 game.template.size,
@@ -180,19 +206,28 @@ export default function TurnReview({
                           className="button secondary"
                           onClick={() => choose(item.index)}
                         >
-                          Move {item.index + 1} · {item.word}
+                          Move {item.index + 1} ·{" "}
+                          <MoveWord
+                            word={item.word}
+                            bingo={turnBingo(turns[item.index], template)}
+                          />
                         </button>
                         {item.bingo && (
                           <p>
-                            Missed bingo · <strong>{item.bingo.word}</strong>{" "}
+                            Missed bingo ·{" "}
+                            <strong>
+                              <MoveWord move={item.bingo} rules={template} />
+                            </strong>{" "}
                             for {item.bingo.score}
                           </p>
                         )}
                         {item.gap >= 8 && item.best && (
                           <p>
                             +{item.gap} immediate points ·{" "}
-                            <strong>{item.best.word}</strong> for{" "}
-                            {item.best.score} vs. {item.score}
+                            <strong>
+                              <MoveWord move={item.best} rules={template} />
+                            </strong>{" "}
+                            for {item.best.score} vs. {item.score}
                           </p>
                         )}
                         {item.replyRisk && (
@@ -201,8 +236,14 @@ export default function TurnReview({
                             {Math.round(item.replyRisk.actual * 100)}% of
                             samples, versus{" "}
                             {Math.round(item.replyRisk.alternative * 100)}%
-                            after <strong>{item.replyRisk.word}</strong> (
-                            {item.replyRisk.trials} samples).
+                            after{" "}
+                            <strong>
+                              <MoveWord
+                                word={item.replyRisk.word}
+                                bingo={item.replyRisk.bingo}
+                              />
+                            </strong>{" "}
+                            ({item.replyRisk.trials} samples).
                           </p>
                         )}
                       </li>
