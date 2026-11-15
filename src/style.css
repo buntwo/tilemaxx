@@ -4690,8 +4690,7 @@ label + label {
 .analysis-endgame {
   margin: 6px 0 8px;
 }
-.analysis-endgame summary {
-  cursor: pointer;
+.analysis-endgame > p {
   font-weight: 650;
 }
 .analysis-endgame ol {
