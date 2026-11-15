@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { GameStore } from "../src/store";
-import { type Game, emptyBoard } from "../shared/model";
+import {
+  archiveGame,
+  emptyBoard,
+  newGameFromSettings,
+  type Game,
+} from "../shared/model";
 import {
   cacheGameIndex,
   cacheOpenGame,
@@ -87,6 +92,65 @@ test("editing during an in-flight save preserves newer input and advances its re
     assert.equal(client.drafts.size, 0);
     assert.equal(client.snapshot.games.g.rack, "CATS");
     assert.equal(client.snapshot.data!.games[0].revision, 2);
+  } finally {
+    cleanup();
+  }
+});
+test("archive and start waits for an in-flight save and a newer queued edit", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    let finish!: (r: Response) => void;
+    let latest = game;
+    const requests: Array<[string, unknown]> = [];
+    const startedOn = "2026-11-15";
+    globalThis.fetch = async (_url, options) => {
+      const body = JSON.parse(options!.body as string);
+      requests.push([options!.method!, body]);
+      if (options?.method === "PUT") {
+        latest = { ...body, revision: body.revision + 1 };
+        return requests.length === 1
+          ? new Promise((resolve) => (finish = resolve))
+          : response(latest);
+      }
+      return response(
+        {
+          archived: { ...archiveGame(latest), revision: latest.revision + 1 },
+          created: {
+            ...newGameFromSettings(latest, startedOn),
+            id: "fresh",
+            revision: 0,
+            updatedAt: "",
+          },
+        },
+        201,
+      );
+    };
+    client.update({ ...game, rack: "CAT" });
+    const saving = client.flush();
+    client.update({ ...game, rack: "CATS" });
+    const archiving = client.archiveAndStartNewGame(game.id, startedOn);
+    assert.deepEqual(
+      requests.map(([method]) => method),
+      ["PUT"],
+    );
+    finish(response(latest));
+    await saving;
+    const created = await archiving;
+    assert.deepEqual(
+      requests.map(([method]) => method),
+      ["PUT", "PUT", "POST"],
+    );
+    assert.deepEqual(requests[2][1], { revision: 2, startedOn });
+    assert.equal(client.snapshot.games.g.archivedState?.rack, "CATS");
+    assert.equal(client.snapshot.games[created.id].rack, "");
+    assert.deepEqual(
+      client.snapshot.data!.games.map(({ id, archived }) => [id, archived]),
+      [
+        ["g", true],
+        ["fresh", false],
+      ],
+    );
+    assert.deepEqual(client.snapshot.pending, []);
   } finally {
     cleanup();
   }

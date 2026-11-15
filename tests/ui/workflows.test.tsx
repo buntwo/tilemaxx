@@ -14,7 +14,14 @@ import { GameStore, store } from "../../src/store";
 import { summarizeGame } from "../../shared/game-index";
 import { PRESETS } from "../../shared/presets";
 import { importBoard } from "../../shared/screenshot";
-import { emptyBoard, type AppState, type Game } from "../../shared/model";
+import {
+  archiveGame,
+  emptyBoard,
+  localDate,
+  newGameFromSettings,
+  type AppState,
+  type Game,
+} from "../../shared/model";
 import { Lexicon } from "../../shared/lexicon";
 import { solve, solvePosition } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
@@ -555,6 +562,28 @@ beforeEach(() => {
       const body = options?.body ? JSON.parse(options.body as string) : null;
       if (url === "/api/state/index") {
         value = { ...remote, games: remote.games.map(summarizeGame) };
+      } else if (
+        url.endsWith("/archive-and-start") &&
+        options?.method === "POST"
+      ) {
+        const original = remote.games.find(
+          ({ id }) => id === url.split("/").at(-2),
+        )!;
+        const archived = {
+          ...archiveGame(original),
+          revision: original.revision + 1,
+        };
+        const created = {
+          ...newGameFromSettings(original, body.startedOn),
+          id: `g${remote.games.length}`,
+          revision: 0,
+          updatedAt: "",
+        };
+        remote.games = remote.games.map((game) =>
+          game.id === original.id ? archived : game,
+        );
+        remote.games.push(created);
+        value = { archived, created };
       } else if (url.startsWith("/api/games/") && options?.method === "GET") {
         value = remote.games.find(({ id }) => id === url.split("/").at(-1));
       } else if (
@@ -606,7 +635,9 @@ beforeEach(() => {
         const id = url.split("/").at(-1);
         if (remote.games.some((game) => game.dictionaryId === id))
           return new Response(
-            JSON.stringify({ error: "Choose a different list in that game first." }),
+            JSON.stringify({
+              error: "Choose a different list in that game first.",
+            }),
             { status: 409 },
           );
         remote.dictionaries = remote.dictionaries.filter(
@@ -1653,6 +1684,60 @@ test("new games start with score tracking on even after an earlier opt-out", asy
   expect(screen.getByRole("group", { name: "Tracked score" }).textContent).toBe(
     "0–0",
   );
+});
+
+test("game options archive the current game and open a blank game with today's date", async () => {
+  const original = {
+    ...game(),
+    revision: 1,
+    platform: "Scrabble GO",
+    startedOn: "2026-10-08",
+    notes: "Keep these with the original game",
+    trackScores: false,
+  };
+  original.board[112] = "A";
+  remote.games[0] = original;
+  const user = await start();
+  await waitFor(() => expect(current().revision).toBe(1));
+  await typeRack(user, "CAT");
+  await user.click(cell("Game options"));
+  const options = () => within(screen.getByRole("dialog"));
+  expect(options().getByRole("button", { name: /^Archive game/ })).toBeTruthy();
+  await user.click(
+    options().getByRole("button", { name: /^Archive & start new game/ }),
+  );
+  await screen.findByText("Game archived. New game started.");
+  expect(localStorage.getItem("tilewise:game")).toBe("g1");
+  const [archived, fresh] = remote.games;
+  expect(archived.archivedBoard?.[112]).toBe("A");
+  expect(archived.archivedState?.rack).toBe("CAT");
+  expect(archived.notes).toBe(original.notes);
+  expect(fresh).toMatchObject({
+    name: original.name,
+    platform: original.platform,
+    startedOn: localDate(),
+    template: original.template,
+    dictionaryId: original.dictionaryId,
+    trackScores: false,
+    rack: "",
+    past: [],
+    future: [],
+  });
+  expect(fresh.board.every((tile) => !tile)).toBe(true);
+  expect(document.querySelector(".board-entry .square.occupied")).toBeNull();
+  expect(fresh.notes).toBeUndefined();
+  await user.click(cell("Archived games"));
+  const archive = within(
+    screen.getByRole("region", { name: "Archived games" }),
+  );
+  await user.click(archive.getByRole("button", { name: /^First game/ }));
+  await user.click(cell("Game options"));
+  expect(
+    options().getByRole("button", { name: /^Move to My games/ }),
+  ).toBeTruthy();
+  expect(
+    options().queryByRole("button", { name: /^Archive & start new game/ }),
+  ).toBeNull();
 });
 
 test("multiple games retain separate racks and word lists", async () => {

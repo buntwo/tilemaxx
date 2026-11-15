@@ -85,6 +85,7 @@ import {
   type Move,
   archiveGame,
   emptyBoard,
+  localDate,
   orderGames,
   redo,
   remember,
@@ -1739,9 +1740,10 @@ function Tilemaxx() {
           title="Game options"
           subtitle={game.name}
           onClose={() => setDialog(null)}
+          closeDisabled={formBusy}
         >
-          <div className="game-option-list">
-            <button onClick={() => openDialog("rename")}>
+          <div className="game-option-list" aria-busy={formBusy}>
+            <button disabled={formBusy} onClick={() => openDialog("rename")}>
               <Pencil size={19} />
               <span>
                 <strong>Edit game details</strong>
@@ -1773,6 +1775,7 @@ function Tilemaxx() {
               <ArrowUpRight size={16} />
             </button>
             <button
+              disabled={formBusy}
               onClick={() => {
                 update(
                   game.archived
@@ -1803,7 +1806,31 @@ function Tilemaxx() {
               </span>
               <ArrowUpRight size={16} />
             </button>
+            {!game.archived && (
+              <button
+                disabled={formBusy}
+                onClick={() =>
+                  void action(async () => {
+                    const created = await store.archiveAndStartNewGame(
+                      game.id,
+                      localDate(),
+                    );
+                    chooseGame(created.id);
+                    setDialog(null);
+                    notify("Game archived. New game started.");
+                  })
+                }
+              >
+                <Plus size={19} />
+                <span>
+                  <strong>Archive &amp; start new game</strong>
+                  <small>Play the same opponent again with a blank board.</small>
+                </span>
+                <ArrowUpRight size={16} />
+              </button>
+            )}
             <button
+              disabled={formBusy}
               onClick={() => {
                 update({
                   ...game,
@@ -1833,7 +1860,7 @@ function Tilemaxx() {
               <ArrowUpRight size={16} />
             </button>
           </div>
-          {error && <p className="error">{error}</p>}
+          {error && <p className="error" role="alert">{error}</p>}
         </Modal>
       )}
     </div>

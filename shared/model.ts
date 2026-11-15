@@ -133,6 +133,27 @@ export function archiveGame(game: Game): Game {
   };
 }
 
+export function newGameFromSettings(
+  game: Game,
+  startedOn: string,
+): Omit<Game, "id" | "revision" | "updatedAt"> {
+  return {
+    profileId: game.profileId,
+    name: game.name,
+    platform: game.platform,
+    startedOn,
+    trackScores: game.trackScores,
+    template: game.template,
+    originalPremiums: game.originalPremiums,
+    dictionaryId: game.dictionaryId,
+    board: emptyBoard(game.template.size),
+    rack: "",
+    past: [],
+    future: [],
+    archived: false,
+  };
+}
+
 export function restoreArchivedGame(game: Game): Game {
   if (!game.archived || !game.archivedBoard) return game;
   if (!game.archivedState) {

@@ -82,7 +82,7 @@ export class GameStore {
   deletedGames = new Set<string>();
   deletedProfiles = new Set<string>();
   deletedTemplates = new Set<string>();
-  busy = false;
+  private flushing?: Promise<void>;
   refreshing = false;
   timer: ReturnType<typeof setTimeout> | undefined;
   constructor() {
@@ -442,9 +442,15 @@ export class GameStore {
       this.refreshing = false;
     }
   }
-  async flush() {
-    if (this.busy || !this.drafts.size) return;
-    this.busy = true;
+  flush(): Promise<void> {
+    if (!this.flushing && this.drafts.size) {
+      this.flushing = this.flushDrafts().finally(() => {
+        this.flushing = undefined;
+      });
+    }
+    return this.flushing ?? Promise.resolve();
+  }
+  private async flushDrafts() {
     try {
       for (const [id] of this.drafts) {
         if (this.snapshot.conflicts[id] || this.snapshot.saveErrors[id])
@@ -513,7 +519,6 @@ export class GameStore {
         this.emit();
       }
     } finally {
-      this.busy = false;
       this.emit();
       if (
         this.snapshot.online &&
@@ -526,18 +531,56 @@ export class GameStore {
   }
   async createGame(game: Omit<Game, "id" | "revision" | "updatedAt">) {
     const saved = await api<Game>("/games", "POST", game);
-    if (this.deletedProfiles.has(saved.profileId))
-      throw new Error("This profile was deleted.");
-    this.confirmGame(saved);
-    this.rememberOpenedGame(saved.id);
-    this.snapshot.games = { ...this.snapshot.games, [saved.id]: saved };
-    this.snapshot.data = {
-      ...this.snapshot.data!,
-      games: [...this.snapshot.data!.games, summarizeGame(saved)],
-    };
+    this.recordCreatedGame(saved);
     this.persist();
     this.emit();
     return saved;
+  }
+  private recordCreatedGame(saved: Game) {
+    if (this.deletedProfiles.has(saved.profileId))
+      throw new Error("This profile was deleted.");
+    if (!this.confirmGame(saved)) return;
+    this.rememberOpenedGame(saved.id);
+    const data = this.snapshot.data!;
+    const summary = this.confirmedSummaries.get(saved.id)!;
+    this.snapshot.games = { ...this.snapshot.games, [saved.id]: saved };
+    this.snapshot.data = {
+      ...data,
+      games: data.games.some((game) => game.id === saved.id)
+        ? data.games.map((game) => (game.id === saved.id ? summary : game))
+        : [...data.games, summary],
+    };
+  }
+  async archiveAndStartNewGame(id: string, startedOn: string) {
+    if (this.drafts.has(id)) {
+      await this.flush();
+      // A save that started before the last edit can leave a newer draft queued.
+      if (this.drafts.has(id) && this.snapshot.online) await this.flush();
+    }
+    if (this.snapshot.conflicts[id])
+      throw new Error("Resolve this game's sync conflict before archiving it.");
+    if (this.drafts.has(id))
+      throw new Error(
+        this.snapshot.saveErrors[id] ||
+          this.snapshot.error ||
+          "Save your changes before archiving this game.",
+      );
+    const game = this.snapshot.games[id];
+    if (!game || this.deletedGames.has(id)) throw new Error("Game not found.");
+    const { archived, created } = await api<{ archived: Game; created: Game }>(
+      `/games/${encodeURIComponent(id)}/archive-and-start`,
+      "POST",
+      { revision: game.revision, startedOn },
+    ).catch((error: Error & { status?: number }) => {
+      if (error.status === 409 || error.status === 404) void this.refresh();
+      throw error;
+    });
+    this.recordCreatedGame(created);
+    if (this.confirmGame(archived) && !this.drafts.has(id))
+      this.replace(archived, this.confirmedSummaries.get(id));
+    this.persist();
+    this.emit();
+    return created;
   }
   private forgetGame(id: string) {
     this.deletedGames.add(id);
