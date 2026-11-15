@@ -1453,29 +1453,31 @@ label + label {
   font-weight: 700;
   letter-spacing: -0.1px;
 }
+:is(.dl, .tl, .ql, .dw, .tw, .qw) {
+  color: #fff;
+}
+.premium-label,
+.start-bonus,
+.brush:is(.dl, .tl, .ql, .dw, .tw, .qw) {
+  text-shadow: 0 0 1px #000a, 0 1px 2px #000a;
+}
 .dw {
   background: var(--dw);
-  color: var(--dw-ink);
 }
 .tw {
   background: var(--tw);
-  color: var(--tw-ink);
 }
 .dl {
   background: var(--dl);
-  color: var(--dl-ink);
 }
 .tl {
   background: var(--tl);
-  color: var(--tl-ink);
 }
 .ql {
   background: var(--ql);
-  color: var(--ql-ink);
 }
 .qw {
   background: var(--qw);
-  color: var(--qw-ink);
 }
 .square.occupied {
   transition: none;
