@@ -57,6 +57,7 @@ export default function BingoOddsControls({
     }
     const key = `${searchId}:${bagSize}`;
     if (
+      bagSize === 0 ||
       repliesPending ||
       !canCheck ||
       !moves.length ||
@@ -86,55 +87,63 @@ export default function BingoOddsControls({
           <details className="bingo-odds-settings">
             <summary>Options</summary>
             <div className="bingo-odds-options">
-              {progress ? (
-                <button
-                  type="button"
-                  className="button secondary"
-                  onClick={onCancel}
-                >
-                  Cancel bingo check
-                </button>
-              ) : (
-                manualMoves && (
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={!canCheck || !manualMoves.length}
-                    onClick={() =>
-                      onCheck(manualMoves.slice(0, BOARD_ODDS_LIMIT), bagSize)
-                    }
-                  >
-                    Check bingo after your play
-                  </button>
-                )
-              )}
-              <p>
-                <strong>Bingo draw %</strong> is the chance your refilled rack
-                spells a {game.template.rackSize}-letter dictionary word. The
-                bag estimate updates with the board and rack. It sets aside up
-                to {game.template.rackSize} unseen tiles for one opponent and
-                leaves the rest in the bag (estimated {minimumBag} right now).
-              </p>
-              <p>
-                <strong>Bingo after your play</strong> automatically checks up
-                to {BOARD_ODDS_LIMIT} of the highest-scoring moves after reply
-                analysis finishes.{" "}
-                {manualMoves && "A manual check uses the current list. "}
-                It counts refills that allow a bingo on the board before the
-                opponent replies. An ≈ marks an estimate based on up to 200
-                sampled refills.
-              </p>
-              <p>
-                <strong>Bingo after opponent reply</strong> in Analyze checks
-                again after simulating the opponent’s move.
-              </p>
-              {boardOdds && !progress && (
-                <p>
-                  Checked {boardOdds.checked} / {boardOdds.total} moves with{" "}
-                  {boardOdds.bagSize} tiles in the bag.
-                  {boardOdds.checked < boardOdds.total &&
-                    " Search limit reached."}
-                </p>
+              {bagSize > 0 && (
+                <>
+                  {progress ? (
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={onCancel}
+                    >
+                      Cancel bingo check
+                    </button>
+                  ) : (
+                    manualMoves && (
+                      <button
+                        type="button"
+                        className="button secondary"
+                        disabled={!canCheck || !manualMoves.length}
+                        onClick={() =>
+                          onCheck(
+                            manualMoves.slice(0, BOARD_ODDS_LIMIT),
+                            bagSize,
+                          )
+                        }
+                      >
+                        Check bingo after your play
+                      </button>
+                    )
+                  )}
+                  <p>
+                    <strong>Bingo draw %</strong> is the chance your refilled
+                    rack spells a {game.template.rackSize}-letter dictionary
+                    word. The bag estimate updates with the board and rack. It
+                    sets aside up to {game.template.rackSize} unseen tiles for
+                    one opponent and leaves the rest in the bag (estimated{" "}
+                    {minimumBag} right now).
+                  </p>
+                  <p>
+                    <strong>Bingo after your play</strong> automatically checks
+                    up to {BOARD_ODDS_LIMIT} of the highest-scoring moves after
+                    reply analysis finishes.{" "}
+                    {manualMoves && "A manual check uses the current list. "}
+                    It counts refills that allow a bingo on the board before the
+                    opponent replies. An ≈ marks an estimate based on up to 200
+                    sampled refills.
+                  </p>
+                  <p>
+                    <strong>Bingo after opponent reply</strong> in Analyze
+                    checks again after simulating the opponent’s move.
+                  </p>
+                  {boardOdds && !progress && (
+                    <p>
+                      Checked {boardOdds.checked} / {boardOdds.total} moves with{" "}
+                      {boardOdds.bagSize} tiles in the bag.
+                      {boardOdds.checked < boardOdds.total &&
+                        " Search limit reached."}
+                    </p>
+                  )}
+                </>
               )}
               {settings}
             </div>
@@ -143,12 +152,12 @@ export default function BingoOddsControls({
         </div>
       </div>
       {searchField}
-      {rackOdds?.error && (
+      {bagSize > 0 && rackOdds?.error && (
         <p className="bingo-odds-status" role="status">
           {rackOdds.error}
         </p>
       )}
-      {error && (
+      {bagSize > 0 && error && (
         <p className="error" role="alert">
           {error}
         </p>

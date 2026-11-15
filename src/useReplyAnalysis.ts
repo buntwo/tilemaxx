@@ -15,6 +15,7 @@ import type { Game, Move } from "../shared/model";
 import { MOVE_CACHE_LIMIT, type EndgameRanking } from "../shared/move-results";
 import { unseenTiles } from "../shared/tile-pool";
 import type { RankEndgame } from "./useSolver";
+import { useEndgameLines } from "./useEndgameLines";
 
 type WorkerMessage = {
   id: number;
@@ -153,15 +154,24 @@ export function useReplyAnalysis(
     bagSize === 0 && pool && !invalid
       ? pool.tiles.map(({ symbol, count }) => symbol.repeat(count)).join("")
       : "";
-  const position: ReplyPosition | undefined = game && {
-    board: game.board,
-    rack: game.rack,
-    template: game.template,
-    bagSize,
-    scorelessTurns,
-    opponentHasFinalTurn,
-  };
+  const position = useMemo<ReplyPosition | undefined>(
+    () => game && {
+      board: game.board,
+      rack: game.rack,
+      template: game.template,
+      bagSize,
+      scorelessTurns,
+      opponentHasFinalTurn,
+    },
+    [game?.board, game?.rack, game?.template, bagSize, scorelessTurns, opponentHasFinalTurn],
+  );
   const dictionaryId = game?.dictionaryId;
+  const cachedEndgame = useEndgameLines(
+    estimateRun ? moveList : undefined,
+    position,
+    dictionaryId,
+    runKey,
+  );
 
   useEffect(() => {
     setSummary(undefined);
@@ -256,8 +266,14 @@ export function useReplyAnalysis(
   }, [moveList, runKey, dictionaryId, invalid]);
 
   function requestDetail(candidate: Move, options: ReplyDetailOptions) {
-    if (!worker.current || !reference || !position || !dictionaryId) return;
     const key = `${options.kind}:${candidate.id}`;
+    const line = options.kind === "reply-line" ? cachedEndgame(candidate.id) : undefined;
+    if (line) {
+      activeDetail.current = undefined;
+      setDetail({ key, runKey, pending: false, line });
+      return;
+    }
+    if (!worker.current || !reference || !position || !dictionaryId) return;
     const id = ++requestId.current;
     activeDetail.current = { id, key };
     setDetail((previous) => ({
@@ -293,6 +309,7 @@ export function useReplyAnalysis(
     crossplay,
     scorelessTurns,
     opponentHasFinalTurn,
+    cachedEndgame,
     ranking,
     estimatingEndgame: !!estimateKey && !estimateRun,
     skipEndgameEstimate: () => setSkippedEstimate(estimateKey),

@@ -23,7 +23,7 @@ import {
   isEndgameBudgetMultiplier,
   placeTiles,
 } from "../../shared/move-analysis";
-import { scoreTone } from "../score-tone";
+import { finalMarginLabel, scoreTone } from "../score-tone";
 import Board from "./Board";
 import Modal from "./Modal";
 import MoveWord from "./MoveWord";
@@ -44,9 +44,7 @@ function formatFinalScore(
   const you = totals.you + endgame.points.you;
   const opponent = totals.opponent + endgame.points.opponent;
   const margin = you - opponent;
-  const outcome =
-    margin > 0 ? `Win by ${margin}` : margin < 0 ? `Lose by ${-margin}` : "Tie";
-  return { label: `${you}–${opponent} · ${outcome}`, margin };
+  return { label: `${you}–${opponent} · ${finalMarginLabel(margin)}`, margin };
 }
 
 export default function MoveAnalysis({
@@ -58,7 +56,10 @@ export default function MoveAnalysis({
   game: Game;
   candidates: Move[];
   onRemove: (move: Move) => void;
-  endgameSettings: EndgameSettings;
+  endgameSettings: EndgameSettings & {
+    bagSize: number;
+    cachedEndgame: (moveId: string) => EndgameLine | undefined;
+  };
 }) {
   const { total, excess } = unseenTiles(game, game.template);
   const minBag = Math.max(0, total - game.template.rackSize);
@@ -118,7 +119,7 @@ export default function MoveAnalysis({
     setError("");
     setExample(undefined);
     return stop;
-  }, [key, bagText, inferenceKey, scoreless, endgameBudget]);
+  }, [key, bagText, inferenceKey, scoreless, opponentHasFinalTurn, endgameBudget]);
 
   function run(trials: number) {
     setError("");
@@ -149,6 +150,16 @@ export default function MoveAnalysis({
         setError("The analysis stopped unexpectedly. Try again.");
       };
     }
+    const cachedEndgames =
+      endgame &&
+      bagSize === endgameSettings.bagSize &&
+      scoreless === endgameSettings.scorelessTurns &&
+      opponentHasFinalTurn === endgameSettings.opponentHasFinalTurn
+        ? Object.fromEntries(candidates.flatMap(({ id }) => {
+            const line = endgameSettings.cachedEndgame(id);
+            return line ? [[id, line]] : [];
+          }))
+        : undefined;
     worker.current.postMessage({
       dictionaryId: game.dictionaryId,
       board: game.board,
@@ -162,6 +173,7 @@ export default function MoveAnalysis({
       scorelessTurns: endgame && streak ? scoreless : 0,
       opponentHasFinalTurn,
       endgameBudgetMultiplier: endgame ? endgameBudget : undefined,
+      cachedEndgames,
     } satisfies AnalysisRequest & { dictionaryId: string });
   }
 

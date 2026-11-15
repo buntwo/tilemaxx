@@ -99,19 +99,16 @@ test("paired opponent racks reveal a blocked 40+ threat and an exact endgame lin
   );
   const across = legal.find((move) => move.direction === "across")!;
   const down = legal.find((move) => move.direction === "down")!;
-  const result = analyzeMoves(
-    dict,
-    {
-      board,
-      rack,
-      template: layout,
-      candidates: [across, down],
-      bagSize: 0,
-      trials: 10,
-      seed: 18,
-    },
-    new Set(),
-  );
+  const request = {
+    board,
+    rack,
+    template: layout,
+    candidates: [across, down],
+    bagSize: 0,
+    trials: 10,
+    seed: 18,
+  };
+  const result = analyzeMoves(dict, request, new Set());
   const [open, block] = result.forecasts;
   assert.equal(open.bigAvailable, 1);
   assert.equal(open.availableExample?.score, 44);
@@ -122,6 +119,14 @@ test("paired opponent racks reveal a blocked 40+ threat and an exact endgame lin
   assert.equal(open.endgame?.spread, across.score - 44 - 2);
   assert.equal(open.endgame?.line[1]?.word, "AZ");
   assert.ok(block.endgame!.spread > open.endgame!.spread);
+
+  const [cached, searched] = analyzeMoves(
+    dict,
+    { ...request, cachedEndgames: { [across.id]: open.endgame! } },
+    new Set(),
+  ).forecasts;
+  assert.strictEqual(cached.endgame, open.endgame);
+  assert.deepEqual(searched.endgame, block.endgame);
 });
 
 test("Analyze returns a full line for every ruleset with an empty bag", () => {
