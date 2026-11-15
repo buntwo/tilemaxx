@@ -70,6 +70,10 @@ function formatOdds(chance: number, exact: boolean) {
   return exact ? value : `≈${value}`;
 }
 
+function canHoverWithMouse(pointerType: string) {
+  return pointerType === "mouse" && matchMedia("(any-hover: hover)").matches;
+}
+
 export default function Results({
   results: resultSet,
   exchangeAction,
@@ -746,23 +750,22 @@ export default function Results({
                     style={{ top: (start + offset) * moveRowHeight }}
                     onPointerEnter={(e) => {
                       if (
-                        !analyzing &&
-                        !locked &&
-                        e.pointerType === "mouse" &&
-                        matchMedia("(min-width:651px)").matches
+                        analyzing ||
+                        locked ||
+                        !canHoverWithMouse(e.pointerType)
                       )
-                        onPreview(m);
-                      if (
-                        searchId !== undefined &&
-                        reply &&
-                        e.pointerType === "mouse" &&
-                        !analyzing &&
-                        !locked
-                      )
+                        return;
+                      onPreview(m);
+                      if (searchId !== undefined && reply)
                         setInspectedReply({ id: m.id, searchId });
                     }}
                     onPointerLeave={(e) => {
-                      if (e.pointerType === "mouse" && !locked) onPreview(null);
+                      if (
+                        !analyzing &&
+                        !locked &&
+                        canHoverWithMouse(e.pointerType)
+                      )
+                        onPreview(null);
                     }}
                   >
                     <button
@@ -798,10 +801,7 @@ export default function Results({
                           return;
                         }
                         if (
-                          (pointer.current === "mouse" &&
-                            e.detail > 0 &&
-                            matchMedia("(min-width:651px) and (hover:hover)")
-                              .matches) ||
+                          (e.detail > 0 && canHoverWithMouse(pointer.current)) ||
                           locked === m.id
                         ) {
                           setLocked(null);
@@ -972,10 +972,10 @@ export default function Results({
           <span>Choose up to three moves to analyze</span>
         ) : (
           <>
-            <span className="desktop-hint">
+            <span className="hover-hint">
               Hover to preview · right-click or P to pin/unpin · click to play
             </span>
-            <span className="mobile-hint">
+            <span className="tap-hint">
               Tap to preview · tap again to play
             </span>
           </>
