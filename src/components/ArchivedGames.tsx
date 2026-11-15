@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowLeft, ArrowRight, Pencil } from "lucide-react";
 import { opponentNameMatches, type GameSummary } from "../../shared/game-index";
 import { FullMoveHistoryIcon, GameMetadata } from "./GameDetails";
+import GameScoreBadge, { describeGameScore } from "./GameScoreBadge";
 import LayoutThumbnail from "./LayoutThumbnail";
 
 export type ArchiveSort = "date" | "opponent";
@@ -86,6 +87,9 @@ export default function ArchivedGames({
                   <li key={game.id}>
                     <button
                       className="archive-open"
+                      aria-description={
+                        game.score ? describeGameScore(game.score) : undefined
+                      }
                       onClick={() => onOpen(game.id)}
                     >
                       <LayoutThumbnail
@@ -101,7 +105,8 @@ export default function ArchivedGames({
                           <GameMetadata game={game} />
                         </small>
                       </span>
-                      <ArrowRight size={16} />
+                      {game.score && <GameScoreBadge score={game.score} />}
+                      <ArrowRight className="archive-arrow" size={16} />
                     </button>
                     <button
                       className="icon-button"

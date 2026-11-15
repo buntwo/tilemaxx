@@ -53,6 +53,30 @@ export function displayedGameScoring(game: Game): GameScoring | undefined {
   return archivedScore?.end ? archivedScore : game.scoring;
 }
 
+export type GameScoreSummary = {
+  you: number;
+  opponent: number;
+  outcome: "playing" | "archived" | "win" | "loss" | "tie";
+};
+
+export function summarizeGameScore(
+  game: Game,
+  scoring = displayedGameScoring(game),
+): GameScoreSummary | null {
+  if (!tracksScores(game)) return null;
+  const { you, opponent } = gameScoreTotals(scoring);
+  const outcome = !scoring?.end
+    ? game.archived
+      ? "archived"
+      : "playing"
+    : you === opponent
+      ? "tie"
+      : you > opponent
+        ? "win"
+        : "loss";
+  return { you, opponent, outcome };
+}
+
 export function setScoreTracking(game: Game, enabled: boolean): Game {
   const scoring = game.scoring ?? emptyScoring(isImportedPosition(game));
   return {

@@ -560,6 +560,12 @@ test("upgrading SQLite recovers saved rack-outs once for active and archived gam
     const archived = store.getGame(archive.id)!;
     assert.deepEqual(archived.archivedState?.scoring?.end, { out: "you", rackPoints: 10 });
     assert.deepEqual(gameScoreTotals(archived.scoring), { you: 36, opponent: 0 });
+    store.db
+      .prepare("UPDATE game_summaries SET data=json_remove(data, '$.score') WHERE id=?")
+      .run(archive.id);
+    const summary = store.index().games.find(({ id }) => id === archive.id);
+    assert.equal(summary?.revision, archived.revision);
+    assert.deepEqual(summary?.score, { you: 36, opponent: 0, outcome: "win" });
     assert.deepEqual(gameScoreTotals(store.getGame(pending.id)?.scoring), { you: 10, opponent: 26 });
     assert.deepEqual(
       store.getGame(incomplete.id),

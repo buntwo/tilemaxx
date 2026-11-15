@@ -345,7 +345,7 @@ export class GameStore {
       const remote = await api<GameIndex>("/state/index");
       remote.games = remote.games.map((game) => {
         const known = this.confirmedSummaries.get(game.id);
-        const current = known && known.revision >= game.revision ? known : game;
+        const current = known && known.revision > game.revision ? known : game;
         if (!this.deletedGames.has(game.id))
           this.confirmedSummaries.set(game.id, current);
         const draft = this.drafts.get(game.id);

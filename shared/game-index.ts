@@ -1,4 +1,9 @@
 import { trackedMoveHistory, type AppState, type Game } from "./model";
+import {
+  displayedGameScoring,
+  summarizeGameScore,
+  type GameScoreSummary,
+} from "./game-scoring";
 import { reviewTurns } from "./turn-review";
 
 export const thumbnailKinds = [
@@ -23,7 +28,11 @@ export type GameSummary = Pick<
   | "startedOn"
   | "archived"
   | "revision"
-> & { thumbnail: GameThumbnail; fullMoveHistory: boolean };
+> & {
+  thumbnail: GameThumbnail;
+  fullMoveHistory: boolean;
+  score: GameScoreSummary | null;
+};
 
 export type GameIndex = Omit<AppState, "games"> & { games: GameSummary[] };
 
@@ -71,6 +80,7 @@ export function summarizeGame(game: Game): GameSummary {
     template,
     board,
   } = game;
+  const scoring = archived ? displayedGameScoring(game) : undefined;
   return {
     id,
     profileId,
@@ -80,6 +90,7 @@ export function summarizeGame(game: Game): GameSummary {
     archived,
     revision,
     fullMoveHistory: hasFullMoveHistory(game),
+    score: scoring ? summarizeGameScore(game, scoring) : null,
     thumbnail: {
       size: template.size,
       squares: template.premiums
