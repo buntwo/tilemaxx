@@ -2365,7 +2365,10 @@ test("the phone layout keeps settings, the build version, board help and move fi
   await user.click(menu);
   const sidebar = within(screen.getByRole("complementary"));
   const theme = sidebar.getByRole("group", { name: "Color theme" });
-  expect(sidebar.getByText(`v${version}`)).toBe(theme.nextElementSibling);
+  const settingsButton = sidebar.getByRole("button", { name: "Workspace settings" });
+  expect(settingsButton.textContent).toBe("");
+  expect(settingsButton.parentElement).toBe(theme.nextElementSibling);
+  expect(settingsButton.nextElementSibling).toBe(sidebar.getByText(`v${version}`));
   await user.click(within(theme).getByRole("button", { name: "dark theme" }));
   expect(document.documentElement.dataset.theme).toBe("dark");
   await user.click(sidebar.getByRole("button", { name: "My games" }));

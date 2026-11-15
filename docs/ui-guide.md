@@ -5,7 +5,7 @@
 | Name | Where to find it |
 | --- | --- |
 | **Workspace menu** | The desktop sidebar or the menu button on a phone. It contains the profile picker, My games, Archived games, Board studio, Word lists, UI guide, and theme controls. |
-| **Workspace settings** | At the bottom of the Workspace menu. Control rack highlighting, preview pulsing, and the animation when playing a move. These choices apply to all games in the current browser. |
+| **Workspace settings** | The gear below the theme controls, beside the version number. Control rack highlighting, preview pulsing, and the animation when playing a move. These choices apply to all games in the current browser. |
 | **Game header** | The game name, tracked score, and Game options at the top. Open the name to use the **Game picker** and its opponent filter. |
 | **Game options** | The menu beside the game name. It includes game details, duplication, **End game**, and archiving. On phones it also holds Board help, Import screenshot, and Move history. |
 | **End game** | Record a final score or mark the game finished without a score. **Deduct unplayed tiles** is available when the bag is empty and the rules call for rack deductions. Use **Undo** to resume. |
