@@ -1687,6 +1687,12 @@ label + label {
 .results-title h2 {
   font-size: 15px;
 }
+.result-counts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
 .count-badge {
   font-size: 10px;
   padding: 4px 7px;
@@ -1694,6 +1700,12 @@ label + label {
   border-radius: 4px;
   color: var(--primary);
   font-variant-numeric: tabular-nums;
+}
+.result-bingo-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 800;
 }
 .result-filters {
   display: flex;
@@ -2310,11 +2322,14 @@ label + label {
   margin-right: 6px;
   padding: 2px 4px;
   border-radius: 4px;
-  color: #62460b;
-  background: #f5df9e;
   font-size: 8px;
   font-weight: 800;
   vertical-align: middle;
+}
+.bingo-badge,
+.result-bingo-count {
+  color: #62460b;
+  background: #f5df9e;
 }
 .result-word {
   font-size: 14px;
@@ -4377,7 +4392,7 @@ label + label {
   gap: 8px;
   flex-wrap: wrap;
 }
-.results-title:has(.analysis-toggle) .count-badge {
+.results-title:has(.analysis-toggle) .result-counts {
   margin-left: auto;
 }
 .results-title.has-exchange-advice {
@@ -4416,7 +4431,7 @@ label + label {
   :root[data-theme="system"] .results-exchange-advice:hover { background: #865525; }
 }
 @container (max-width: 460px) {
-  .has-exchange-advice .count-badge { display: none; }
+  .has-exchange-advice .result-counts:not(:has(.result-bingo-count)) { display: none; }
 }
 @container (max-width: 400px) {
   .has-exchange-advice .heading-with-icon svg { display: none; }

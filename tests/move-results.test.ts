@@ -11,8 +11,9 @@ test("the worker index keeps all placements while sending bounded windows", () =
   const moves = solve(lexicon, emptyBoard(15), "CATS??", PRESETS[0]);
   assert.ok(moves.length > MOVE_PAGE_SIZE);
   const index = new MoveResultIndex(moves);
-  const result = index.summary(1);
+  const result = index.summary(1, PRESETS[0]);
   assert.equal(result.total, moves.length);
+  assert.equal(result.bingoCount, 0);
   assert.deepEqual(result.head, moves.slice(0, 30));
   const end = index.page({ filter: "", sort: "score", offset: moves.length });
   assert.equal(end.total, moves.length);

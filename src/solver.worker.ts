@@ -96,7 +96,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     post({
       id,
       kind: "moves",
-      results: result.summary(id),
+      results: result.summary(id, template),
       warnings,
       elapsed,
       exchange: exchangePlays && {

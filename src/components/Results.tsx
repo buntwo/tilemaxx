@@ -162,6 +162,9 @@ export default function Results({
   const [shortlistOnly, setShortlistOnly] = useState(false);
   const shortlistActive = shortlistOnly && !!analysisGame;
   const totalMoves = resultSet?.total ?? 0;
+  const bingoCount = resultSet?.bingoCount ?? 0;
+  const formattedBingoCount = bingoCount.toLocaleString();
+  const bingoLabel = `${formattedBingoCount} ${bingoCount === 1 ? "bingo" : "bingos"}`;
   const targetIds = useMemo(
     () => new Set(replyAnalysis.target.map(({ id }) => id)),
     [replyAnalysis.target],
@@ -479,7 +482,20 @@ export default function Results({
           <h2>Possible moves</h2>
         </div>
         {resultSet && (
-          <span className="count-badge">{totalMoves.toLocaleString()}</span>
+          <div className="result-counts">
+            <span className="count-badge">{totalMoves.toLocaleString()}</span>
+            {bingoCount > 0 && (
+              <span
+                className="count-badge result-bingo-count"
+                role="img"
+                aria-label={bingoLabel}
+                title={bingoLabel}
+              >
+                <Trophy size={11} aria-hidden="true" />
+                {formattedBingoCount}
+              </span>
+            )}
+          </div>
         )}
         {exchangeAction}
         {analysisGame && !!totalMoves && !busy && !error && (

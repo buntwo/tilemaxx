@@ -89,7 +89,7 @@ class SolverWorker {
         data: {
           kind: "moves",
           id: request.id,
-          results: result.summary(request.id),
+          results: result.summary(request.id, request.template),
           warnings: [],
           elapsed: 1,
           exchange: this.exchangeRequest(request),
