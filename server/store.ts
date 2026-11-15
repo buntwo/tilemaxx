@@ -213,6 +213,7 @@ export function createStore(directory: string, root: string) {
     const game = {
       ...input,
       startedOn: input.startedOn ?? localDate(),
+      trackScores: input.trackScores ?? true,
       id: randomUUID(),
       revision: 0,
       updatedAt: new Date().toISOString(),
