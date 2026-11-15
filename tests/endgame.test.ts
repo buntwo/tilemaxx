@@ -1,15 +1,219 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { EndgameSearchLimitError, solveEmptyBag } from "../shared/endgame";
+import {
+  EndgameSearchLimitError,
+  solveEmptyBag,
+  type EndgameLine,
+} from "../shared/endgame";
 import { Lexicon } from "../shared/lexicon";
 import { placeTiles } from "../shared/move-analysis";
-import { emptyBoard } from "../shared/model";
+import { emptyBoard, tileScore, type Board, type Move } from "../shared/model";
 import { PRESETS } from "../shared/presets";
 import { SearchLimitError, solve } from "../shared/solver";
 
 const template = PRESETS[0];
 const board = emptyBoard(template.size);
 const [candidate] = solve(new Lexicon(["AT"]), board, "ATBCDEF", template);
+
+const smallTemplate = {
+  ...template,
+  size: 7,
+  start: 24,
+  premiums: Array<"">(49).fill(""),
+};
+const smallLexicon = new Lexicon([
+  "AN",
+  "AS",
+  "AT",
+  "CAT",
+  "CATS",
+  "NA",
+  "SCAN",
+]);
+const searchSmall = (board: Board, rack: string) =>
+  solve(smallLexicon, board, rack, smallTemplate, {}, { unsorted: true });
+const points = (rack: string) =>
+  [...rack].reduce((sum, tile) => sum + tileScore(tile, "scrabble"), 0);
+
+interface SmallPosition {
+  board: Board;
+  racks: [string, string];
+  candidate: Move;
+  priorScoreless: number;
+}
+
+function smallPosition(
+  rack: string,
+  opponent: string,
+  word: string,
+  priorScoreless = 0,
+  board = emptyBoard(7),
+): SmallPosition {
+  const candidate = searchSmall(board, rack).find(
+    (move) => move.word === word && move.direction === "across",
+  );
+  assert.ok(candidate);
+  return { board, racks: [rack, opponent], candidate, priorScoreless };
+}
+
+// Score every continuation in the first player's perspective, with no pruning
+// or cached values. Track different orders of the same moves for the fixture.
+function exhaustive(position: SmallPosition) {
+  const orders = new Map<string, string>();
+  let transposition = false;
+  function play(
+    board: Board,
+    racks: [string, string],
+    player: 0 | 1,
+    scoreless: number,
+    move: Move | null,
+    history: string[],
+  ): number {
+    const sign = player === 0 ? 1 : -1;
+    const other = player === 0 ? 1 : 0;
+    const score = sign * (move?.score ?? 0);
+    if (move && !move.leave) return score + sign * 2 * points(racks[other]);
+    if (move) {
+      board = placeTiles(board, move);
+      racks = [...racks];
+      racks[player] = move.leave;
+      history = [...history, move.id];
+    }
+    scoreless = score ? 0 : scoreless + 1;
+    if (scoreless === 6) return score + points(racks[1]) - points(racks[0]);
+
+    const key = JSON.stringify([
+      board,
+      racks,
+      other,
+      scoreless,
+      [...history].sort(),
+    ]);
+    const order = history.join("|");
+    const previous = orders.get(key);
+    if (previous === undefined) orders.set(key, order);
+    else if (previous !== order) transposition = true;
+    const replies = [...searchSmall(board, racks[other]), null].map((next) =>
+      play(board, racks, other, scoreless, next, history),
+    );
+    return score + (other === 0 ? Math.max(...replies) : Math.min(...replies));
+  }
+  const spread = play(
+    position.board,
+    position.racks,
+    0,
+    position.priorScoreless,
+    position.candidate,
+    [],
+  );
+  return { spread, transposition };
+}
+
+function replay(position: SmallPosition, result: EndgameLine) {
+  assert.equal(result.line[0], position.candidate);
+  const racks = [...position.racks];
+  let { board, priorScoreless: scoreless } = position;
+  let spread = 0;
+  let ended = false;
+  for (const [turn, move] of result.line.entries()) {
+    assert.equal(ended, false, "Line continues after the game ended");
+    const player = turn % 2;
+    const sign = player ? -1 : 1;
+    if (move) {
+      const legal = searchSmall(board, racks[player]).find(
+        (option) => option.id === move.id,
+      );
+      assert.deepEqual(move, legal);
+      spread += sign * move.score;
+      racks[player] = move.leave;
+      board = placeTiles(board, move);
+      if (!move.leave) {
+        spread += sign * 2 * points(racks[1 - player]);
+        ended = true;
+      }
+    }
+    scoreless = move?.score ? 0 : scoreless + 1;
+    if (!ended && scoreless === 6) {
+      spread += points(racks[1]) - points(racks[0]);
+      ended = true;
+    }
+  }
+  assert.equal(ended, true, "Line stops before the game ended");
+  assert.equal(spread, result.spread);
+}
+
+test("pruned endgames agree with exhaustive play and return complete lines", () => {
+  const blankBoard = emptyBoard(7);
+  blankBoard[24] = "a";
+  const fixtures = [
+    {
+      name: "opening play goes out",
+      position: smallPosition("AT", "KQ", "AT"),
+      spread: 32,
+    },
+    {
+      name: "pass before tied plays that go out",
+      position: smallPosition("ATN", "ZZ", "AT"),
+      spread: 44,
+      tied: true,
+    },
+    {
+      name: "six passes",
+      position: smallPosition("ATQ", "ZZ", "AT"),
+      spread: 12,
+    },
+    {
+      name: "going out with a blank",
+      position: smallPosition("AT?", "QZ", "AT"),
+      spread: 44,
+    },
+    {
+      name: "zero-point play is the sixth scoreless turn",
+      position: smallPosition("?K", "Q", "AT", 5, blankBoard),
+      spread: 5,
+    },
+    {
+      name: "different move orders reach the same position",
+      position: smallPosition("ATAA", "SCN", "AT"),
+      spread: -11,
+      transposition: true,
+    },
+  ];
+  for (const { name, position, spread, tied, transposition } of fixtures) {
+    const reference = exhaustive(position);
+    assert.equal(reference.spread, spread, name);
+    if (transposition) assert.equal(reference.transposition, true, name);
+
+    const { board, candidate, racks, priorScoreless } = position;
+    if (tied) {
+      const continuations = searchSmall(
+        placeTiles(board, candidate),
+        candidate.leave,
+      );
+      assert.ok(
+        continuations.filter((move) => !move.leave && move.score === 2).length >
+          1,
+      );
+    }
+    for (const reverse of [false, true]) {
+      const result = solveEmptyBag(
+        board,
+        candidate,
+        racks[1],
+        smallTemplate,
+        priorScoreless,
+        (board, rack) => {
+          const moves = searchSmall(board, rack);
+          return reverse ? moves.reverse() : moves;
+        },
+        placeTiles,
+        { timeLimitMs: Infinity },
+      );
+      assert.equal(result.spread, reference.spread, name);
+      replay(position, result);
+    }
+  }
+});
 
 test("endgame reports the overall deadline, positions visited, and elapsed time", (t) => {
   let now = 0;
@@ -91,4 +295,32 @@ test("endgame identifies a single-position move-generation limit", (t) => {
       ),
     /2,000 ms move-generation limit at a single position after visiting 1 position/,
   );
+});
+
+test("endgame identifies the move generator's node and move caps", (t) => {
+  t.mock.method(performance, "now", () => 0);
+  for (const [reason, limit] of [
+    ["nodes", "2,000,000-node limit"],
+    ["moves", "150,000-move limit"],
+  ] as const) {
+    assert.throws(
+      () =>
+        solveEmptyBag(
+          board,
+          candidate,
+          "TINGLOS",
+          template,
+          0,
+          () => {
+            throw new SearchLimitError(reason);
+          },
+          placeTiles,
+          { timeLimitMs: 2_500 },
+        ),
+      {
+        name: "Error",
+        message: `Endgame search reached the move generator’s ${limit} at a single position after visiting 1 position (0 ms elapsed).`,
+      },
+    );
+  }
 });
