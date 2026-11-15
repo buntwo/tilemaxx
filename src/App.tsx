@@ -26,6 +26,7 @@ import {
   Redo2,
   Save,
   Search,
+  Settings,
   Smartphone,
   Sun,
   Undo2,
@@ -60,6 +61,9 @@ import Modal from "./components/Modal";
 import MoveWord from "./components/MoveWord";
 import WordLists from "./components/WordLists";
 import UiGuide from "./components/UiGuide";
+import WorkspaceSettings, {
+  useWorkspacePreferences,
+} from "./components/WorkspaceSettings";
 import Results from "./components/Results";
 import GamePicker from "./components/GamePicker";
 import {
@@ -112,6 +116,7 @@ type Dialog =
   | "board-help"
   | "help"
   | "ui-guide"
+  | "workspace-settings"
   | "rename"
   | "delete"
   | "end-game"
@@ -225,6 +230,7 @@ function Tilemaxx() {
     [toast, setToast] = useState(""),
     [error, setError] = useState("");
   const [theme, setTheme] = useState(saved("tilewise:theme", "system"));
+  const [preferences, setPreferences] = useWorkspacePreferences();
   const [movePreview, setPreview] = useState<{
     move: Move;
     analysis: boolean;
@@ -511,12 +517,9 @@ function Tilemaxx() {
     if (!game || activeFlight) return;
     try {
       const next = playTrackedMove(game, move, replyAnalysis.bagSize);
-      const motion = prepareTileFlight(
-        game,
-        move,
-        rackPanel.current,
-        boardPanel.current,
-      );
+      const motion = preferences.animatePlayedTiles
+        ? prepareTileFlight(game, move, rackPanel.current, boardPanel.current)
+        : undefined;
       solver.rememberResults();
       setFlight(
         motion && {
@@ -790,6 +793,7 @@ function Tilemaxx() {
   return (
     <div
       className={`app-shell${compactGame ? " compact-game" : ""}${phoneLayout ? " phone-layout" : ""}`}
+      data-static-previews={preferences.pulseMovePreviews ? undefined : true}
       data-premium-palette={premiumPalette(
         workspace === "games" ? game?.platform : undefined,
       )}
@@ -848,6 +852,14 @@ function Tilemaxx() {
           Use on another device
         </button>
         <div className="sidebar-bottom">
+          <button
+            className="nav-link workspace-settings-link"
+            type="button"
+            onClick={() => openDialog("workspace-settings")}
+          >
+            <Settings size={17} aria-hidden="true" />
+            Workspace settings
+          </button>
           {collapsibleBoardHelp ? (
             saveAndTheme
           ) : (
@@ -1179,7 +1191,7 @@ function Tilemaxx() {
                   exchangeAdvice={solver.exchangeAdvice}
                   exchangeBag={replyAnalysis.bagSize}
                   exchangeBagConfirmed={replyAnalysis.bagConfirmed}
-                  preview={preview}
+                  preview={preferences.highlightRackPreview ? preview : null}
                   flyingRack={activeFlight}
                 />
                 <OpponentRack
@@ -1690,6 +1702,13 @@ function Tilemaxx() {
       )}
       {dialog === "ui-guide" && (
         <UiGuide phoneLayout={phoneLayout} onClose={() => setDialog(null)} />
+      )}
+      {dialog === "workspace-settings" && (
+        <WorkspaceSettings
+          preferences={preferences}
+          onChange={setPreferences}
+          onClose={() => setDialog(null)}
+        />
       )}
       {dialog === "help" && (
         <Modal
