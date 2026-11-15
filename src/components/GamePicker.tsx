@@ -8,7 +8,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronRight, GripVertical } from "lucide-react";
-import type { GameSummary } from "../../shared/game-index";
+import { opponentNameMatches, type GameSummary } from "../../shared/game-index";
 
 import { FullMoveHistoryIcon, GameMetadata } from "./GameDetails";
 import LayoutThumbnail from "./LayoutThumbnail";
@@ -61,10 +61,9 @@ export default function GamePicker({
   const list = useRef<HTMLDivElement>(null);
   const focusOptionOnOpen = useRef(false);
   const id = useId();
-  const filter = query.trim().toLocaleLowerCase();
   const visibleGames = games
     .map((option, index) => ({ option, index }))
-    .filter(({ option }) => option.name.toLocaleLowerCase().includes(filter));
+    .filter(({ option }) => opponentNameMatches(option.name, query));
   const drag = useRef<{
     pointer: number;
     from: number;
@@ -406,7 +405,7 @@ export default function GamePicker({
                     selected={option.id === game?.id}
                   />
                 </button>
-                {!filter && games.length > 1 && (
+                {!query.trim() && games.length > 1 && (
                   <button
                     type="button"
                     role="menuitem"

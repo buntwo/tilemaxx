@@ -2891,9 +2891,19 @@ label + label {
   margin-top: 6px;
   color: var(--muted);
 }
-.archive-sort {
+.archive-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px 14px;
   margin-bottom: 12px;
-  max-width: 230px;
+}
+.archive-filter {
+  flex: 1 1 200px;
+  font-size: 16px;
+}
+.archive-sort {
+  flex: 0 1 230px;
 }
 .archive-view {
   max-width: 760px;

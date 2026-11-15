@@ -27,6 +27,10 @@ export type GameSummary = Pick<
 
 export type GameIndex = Omit<AppState, "games"> & { games: GameSummary[] };
 
+export function opponentNameMatches(name: string, query: string): boolean {
+  return name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+}
+
 function hasFullMoveHistory(game: Game): boolean {
   const position =
     game.archived && game.archivedBoard

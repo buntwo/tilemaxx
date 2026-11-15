@@ -1698,6 +1698,54 @@ test("multiple games retain separate racks and word lists", async () => {
   expect(dictionary().value).toBe("other");
 });
 
+test("archived games filter by opponent while honoring the selected sort", async () => {
+  remote.games.push(
+    {
+      ...game(),
+      id: "recent",
+      name: "Sam Cooke",
+      archived: true,
+      startedOn: "2026-05-12",
+    },
+    {
+      ...game(),
+      id: "older",
+      name: "Alex Sampson",
+      archived: true,
+      startedOn: "2026-04-20",
+    },
+    {
+      ...game(),
+      id: "other",
+      name: "Morgan",
+      platform: "Sam",
+      archived: true,
+      startedOn: "2026-06-01",
+    },
+  );
+  const user = await start();
+  await act(() => store.refresh());
+  await user.click(cell("Archived games"));
+  const archive = within(screen.getByRole("region", { name: "Archived games" }));
+  const search = archive.getByRole("searchbox", { name: "Filter by opponent" });
+  const sort = archive.getByRole("combobox", { name: "Sort by" });
+  const names = () =>
+    archive
+      .queryAllByRole("listitem")
+      .map((row) => row.querySelector("strong")?.textContent);
+
+  await user.type(search, " sAm ");
+  expect(names()).toEqual(["Sam Cooke", "Alex Sampson"]);
+  await user.selectOptions(sort, "opponent");
+  expect(names()).toEqual(["Alex Sampson", "Sam Cooke"]);
+  expect(search).toHaveProperty("value", " sAm ");
+  await user.type(search, "Z");
+  expect(names()).toHaveLength(0);
+  expect(archive.getByRole("status").textContent).toBe("No matching games.");
+  await user.clear(search);
+  expect(names()).toEqual(["Alex Sampson", "Morgan", "Sam Cooke"]);
+});
+
 test("dates are editable, the keyboard picker shows active games, and the sidebar opens archived games", async () => {
   const user = await start();
   const archivedBoard = emptyBoard(15);
