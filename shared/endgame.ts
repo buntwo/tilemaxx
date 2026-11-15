@@ -20,7 +20,63 @@ type SearchResult =
 export class EndgameSearchLimitError extends Error {}
 
 export const DEFAULT_ENDGAME_POSITION_LIMIT = 1_500;
-export const SCRABBLE_SCORELESS_TURN_LIMIT = 6;
+
+interface EndgameStreak {
+  limit: number;
+  passesOnly?: boolean;
+}
+
+export const endgameStreaks: Record<
+  BoardTemplate["rules"],
+  EndgameStreak | undefined
+> = {
+  scrabble: { limit: 6 },
+  wwf: { limit: 3 },
+  wordfeud: { limit: 3, passesOnly: true },
+  lexulous: { limit: 2, passesOnly: true },
+  crossplay: undefined,
+};
+
+export interface EndgameSettings {
+  // Wordfeud and Lexulous count only passes toward this streak.
+  scorelessTurns: number;
+  opponentHasFinalTurn?: boolean;
+}
+
+export function nextEndgameStreak(
+  rule: EndgameStreak,
+  streak: number,
+  move: Move | null,
+) {
+  return (rule.passesOnly ? move : move?.score) ? 0 : streak + 1;
+}
+
+export function validEndgameStreak(
+  rules: BoardTemplate["rules"],
+  streak: number,
+) {
+  return (
+    Number.isInteger(streak) &&
+    streak >= 0 &&
+    streak < (endgameStreaks[rules]?.limit ?? 1)
+  );
+}
+
+export function crossplayFinalRound(
+  candidate: Move,
+  replies?: Move[],
+): EndgameLine {
+  const reply = replies?.reduce<Move | null>(
+    (best, move) => (!best || move.score > best.score ? move : best),
+    null,
+  );
+  const opponent = reply?.score ?? 0;
+  return {
+    spread: candidate.score - opponent,
+    line: reply === undefined ? [candidate] : [candidate, reply],
+    points: { you: candidate.score, opponent },
+  };
+}
 
 export function rackPoints(rack: string, rules: BoardTemplate["rules"]) {
   return [...rack].reduce(
@@ -35,7 +91,7 @@ export function solveEmptyBag(
   candidate: Move,
   opponent: string,
   template: BoardTemplate,
-  priorScoreless: number,
+  { scorelessTurns, opponentHasFinalTurn = true }: EndgameSettings,
   search: (board: Board, rack: string, deadline: number) => Move[],
   place: (board: Board, move: Move) => Board,
   {
@@ -87,31 +143,11 @@ export function solveEmptyBag(
     }
     return { spread, line, points };
   }
-  function turn(
-    position: Board,
-    own: string,
-    other: string,
-    scoreless: number,
-    alpha: number,
-    beta: number,
-  ): SearchResult {
-    if (scoreless >= SCRABBLE_SCORELESS_TURN_LIMIT)
-      return { bound: "exact", spread: value(other) - value(own), line: [] };
-    checkTime();
-    const key = `${position.join(".")}|${own}|${other}|${scoreless}`;
-    const cached = cache.get(key);
-    if (
-      cached &&
-      (cached.bound === "exact" ||
-        (cached.bound === "upper" && cached.spread <= alpha) ||
-        (cached.bound === "lower" && cached.spread >= beta))
-    )
-      return cached;
+  function findMoves(position: Board, rack: string) {
     if (states === positionLimit) stop("its position limit");
     states++;
-    let moves: Move[];
     try {
-      moves = search(position, own, deadline);
+      return search(position, rack, deadline);
     } catch (error) {
       if (!(error instanceof SearchLimitError)) throw error;
       if (error.reason === "time") {
@@ -130,6 +166,37 @@ export function solveEmptyBag(
         );
       stop("a move-generation limit at a single position");
     }
+  }
+  const rule = endgameStreaks[template.rules];
+  if (!rule) {
+    checkTime();
+    const replies = opponentHasFinalTurn
+      ? findMoves(place(board, candidate), opponent)
+      : undefined;
+    checkTime();
+    return crossplayFinalRound(candidate, replies);
+  }
+  const turn = (
+    position: Board,
+    own: string,
+    other: string,
+    scoreless: number,
+    alpha: number,
+    beta: number,
+  ): SearchResult => {
+    if (scoreless >= rule.limit)
+      return { bound: "exact", spread: value(other) - value(own), line: [] };
+    checkTime();
+    const key = `${position.join(".")}|${own}|${other}|${scoreless}`;
+    const cached = cache.get(key);
+    if (
+      cached &&
+      (cached.bound === "exact" ||
+        (cached.bound === "upper" && cached.spread <= alpha) ||
+        (cached.bound === "lower" && cached.spread >= beta))
+    )
+      return cached;
+    const moves = findMoves(position, own);
     const outBonus = 2 * value(other);
     const priority = (move: Move) => move.score + (move.leave ? 0 : outBonus);
     const ordered: (Move | null)[] = [...moves].sort(
@@ -147,7 +214,7 @@ export function solveEmptyBag(
               move ? place(position, move) : position,
               other,
               move?.leave ?? own,
-              score ? 0 : scoreless + 1,
+              nextEndgameStreak(rule, scoreless, move),
               score - beta,
               score - alpha,
             );
@@ -172,14 +239,14 @@ export function solveEmptyBag(
       : { bound: "upper", spread: bestSpread };
     cache.set(key, result);
     return result;
-  }
+  };
   if (!candidate.leave)
     return finish(candidate.score + 2 * value(opponent), []);
   const result = turn(
     place(board, candidate),
     [...opponent].sort().join(""),
     candidate.leave,
-    candidate.score ? 0 : priorScoreless + 1,
+    nextEndgameStreak(rule, scorelessTurns, candidate),
     -Infinity,
     Infinity,
   );

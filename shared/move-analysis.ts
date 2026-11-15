@@ -14,8 +14,12 @@ import { unseenTiles } from "./tile-pool";
 import {
   DEFAULT_ENDGAME_POSITION_LIMIT,
   EndgameSearchLimitError,
+  endgameStreaks,
+  nextEndgameStreak,
   solveEmptyBag,
+  validEndgameStreak,
   type EndgameLine,
+  type EndgameSettings,
 } from "./endgame";
 
 export const ANALYSIS_LIMIT = 3;
@@ -41,14 +45,13 @@ export function endgameAnalysisLimits(multiplier: number, moves: number) {
   };
 }
 
-export interface AnalysisRequest extends Position {
+export interface AnalysisRequest extends Position, Partial<EndgameSettings> {
   template: BoardTemplate;
   candidates: Move[];
   bagSize: number;
   trials: number;
   seed: number;
   previousBoard?: Board;
-  scorelessTurns?: number;
   endgameBudgetMultiplier?: number;
 }
 export interface ReplyForecast {
@@ -271,6 +274,7 @@ export function analyzeMoves(
   maxMs = request.trials > ANALYSIS_TRIALS ? 12_000 : 8_000,
 ): AnalysisResult {
   const { board, rack, template, candidates, bagSize, trials, seed } = request;
+  const { scorelessTurns = 0, opponentHasFinalTurn = true } = request;
   const unseen = unseenTiles({ board, rack }, template);
   if (unseen.excess.length)
     throw new Error(
@@ -291,14 +295,8 @@ export function analyzeMoves(
   }
   if (!Number.isInteger(trials) || trials < 1 || trials > REFINED_TRIALS)
     throw new Error("Invalid number of trials.");
-  if (
-    request.scorelessTurns !== undefined &&
-    (!Number.isInteger(request.scorelessTurns) ||
-      request.scorelessTurns < 0 ||
-      request.scorelessTurns > 5)
-  ) {
-    throw new Error("Enter zero to five prior scoreless turns.");
-  }
+  if (!validEndgameStreak(template.rules, scorelessTurns))
+    throw new Error("Enter a valid number of prior passes or scoreless turns.");
   const multiplier = request.endgameBudgetMultiplier ?? 1;
   if (!isEndgameBudgetMultiplier(multiplier))
     throw new Error(
@@ -310,7 +308,7 @@ export function analyzeMoves(
   );
   const deadline = performance.now() + maxMs;
   const bingoTiles = minimumBingoTiles(template);
-  const crossplay = template.rules === "crossplay";
+  const rule = endgameStreaks[template.rules];
   // The boards used by analysis are immutable snapshots.
   const prepared = new WeakMap<Board, ReturnType<typeof prepareSolver>>();
   function prepare(position: Board, until: number) {
@@ -381,12 +379,16 @@ export function analyzeMoves(
 
   const entries = candidates.map((move) => {
     const leave = rackLetters(move.leave);
+    const streak = rule ? nextEndgameStreak(rule, scorelessTurns, move) : 0;
     return {
       move,
       leave,
       board: placeTiles(board, move),
       drawSize: Math.min(bagSize, template.rackSize - leave.length),
-      goesOut: !crossplay && bagSize === 0 && leave.length === 0,
+      streak,
+      endsAfterPlay:
+        !bagSize &&
+        (rule ? !leave || streak >= rule.limit : !opponentHasFinalTurn),
       exact: null as { bingo: number; draws: string[] } | null,
       bingo: 0,
       bingoDraws: new Map<string, number>(),
@@ -409,7 +411,7 @@ export function analyzeMoves(
   const drawLists = entries.map((entry) =>
     !inferWeight &&
     entry.drawSize <= 2 &&
-    !entry.goesOut &&
+    !entry.endsAfterPlay &&
     entry.leave.length + entry.drawSize >= bingoTiles
       ? weightedDraws(pool, entry.drawSize)
       : [],
@@ -418,7 +420,10 @@ export function analyzeMoves(
   let drawsChecked = 0;
   if (drawTotal) progress({ phase: "draws", completed: 0, total: drawTotal });
   for (const [i, entry] of entries.entries()) {
-    if (entry.leave.length + entry.drawSize < bingoTiles || entry.goesOut) {
+    if (
+      entry.leave.length + entry.drawSize < bingoTiles ||
+      entry.endsAfterPlay
+    ) {
       entry.exact = { bingo: 0, draws: [] };
       continue;
     }
@@ -477,7 +482,7 @@ export function analyzeMoves(
         const bagAfter = bagSize - entry.drawSize;
         const replies =
           entry.knownReplies ??
-          (entry.goesOut ? [] : search(entry.board, opponent, deadline));
+          (entry.endsAfterPlay ? [] : search(entry.board, opponent, deadline));
         if (!bagSize) entry.knownReplies = replies;
         let strongest: Move | null = null,
           replyBingo = false;
@@ -496,8 +501,12 @@ export function analyzeMoves(
           let forecast = forecasts.get(key);
           if (!forecast) {
             const opponentWentOut =
-              !crossplay && !!reply && !bagAfter && !reply.leave;
-            if (entry.goesOut || opponentWentOut || (crossplay && !bagSize)) {
+              rule && !!reply && !bagAfter && !reply.leave;
+            const finalTurn =
+              !bagSize &&
+              (!rule ||
+                nextEndgameStreak(rule, entry.streak, reply) >= rule.limit);
+            if (entry.endsAfterPlay || opponentWentOut || finalTurn) {
               forecast = { score: 0, bingo: false };
             } else {
               let position = entry.board;
@@ -588,8 +597,7 @@ export function analyzeMoves(
     throw new Error(
       "The last-play model assigned too little weight to these samples.",
     );
-  const searchEndgames =
-    !bagSize && template.rules === "scrabble" && opponentRackSize > 0;
+  const searchEndgames = !bagSize && (opponentRackSize > 0 || !rule);
   const endgameLimits = endgameAnalysisLimits(multiplier, entries.length);
   if (searchEndgames)
     progress({ phase: "endgames", completed: 0, total: entries.length });
@@ -624,7 +632,7 @@ export function analyzeMoves(
             entry.move,
             pool.join(""),
             template,
-            request.scorelessTurns ?? 0,
+            { scorelessTurns, opponentHasFinalTurn },
             search,
             placeTiles,
             endgameLimits,

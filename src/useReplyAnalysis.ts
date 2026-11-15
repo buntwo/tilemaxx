@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   REPLY_LIMIT,
-  replyScorelessLimit,
   type ReplyDetailOptions,
   type ReplyPosition,
   type ReplyRequest,
   type ReplyResult,
 } from "../shared/reply-analysis";
-import type { EndgameLine } from "../shared/endgame";
+import {
+  endgameStreaks,
+  type EndgameLine,
+  type EndgameSettings,
+} from "../shared/endgame";
 import type { Game, Move } from "../shared/model";
 import { MOVE_CACHE_LIMIT, type EndgameRanking } from "../shared/move-results";
 import { unseenTiles } from "../shared/tile-pool";
@@ -47,7 +50,7 @@ export function useReplyAnalysis(
   endgame?: { searchId: number | undefined; rank: RankEndgame },
 ) {
   const [settings, setSettings] = useState<
-    Record<string, { bagSize: number; scorelessTurns: number }>
+    Record<string, { bagSize: number } & EndgameSettings>
   >({});
   const [summary, setSummary] = useState<Summary>();
   const cache = useRef(new Map<Move[], Summary>());
@@ -73,8 +76,16 @@ export function useReplyAnalysis(
   const confirmed = !!options;
   const bagSize = options?.bagSize ?? minimumBag;
   const scorelessTurns = options?.scorelessTurns ?? 0;
+  const opponentHasFinalTurn = options?.opponentHasFinalTurn ?? true;
+  const crossplay = game?.template.rules === "crossplay";
+  const streak = game && endgameStreaks[game.template.rules];
   const invalid = !!pool?.excess.length;
-  const runKey = JSON.stringify([positionKey, bagSize, scorelessTurns]);
+  const runKey = JSON.stringify([
+    positionKey,
+    bagSize,
+    scorelessTurns,
+    opponentHasFinalTurn,
+  ]);
   const searchId = endgame?.searchId;
   const rank = endgame?.rank;
   const eligibleEstimate =
@@ -84,8 +95,8 @@ export function useReplyAnalysis(
     moves?.length &&
     bagSize === 0 &&
     !invalid &&
-    pool?.total &&
-    game?.template.rules === "scrabble"
+    pool &&
+    (pool.total || crossplay)
       ? JSON.stringify([searchId, runKey])
       : undefined;
   const estimateKey =
@@ -108,11 +119,14 @@ export function useReplyAnalysis(
     function finish(ranking?: EndgameRanking) {
       if (!abort.signal.aborted) setEstimateResult({ key, ranking });
     }
-    void rank(searchId, game, scorelessTurns, abort.signal).then(finish, () =>
-      finish(),
-    );
+    void rank(
+      searchId,
+      game,
+      { scorelessTurns, opponentHasFinalTurn },
+      abort.signal,
+    ).then(finish, () => finish());
     return () => abort.abort();
-  }, [rank, searchId, estimateKey, scorelessTurns]);
+  }, [rank, searchId, estimateKey, scorelessTurns, opponentHasFinalTurn]);
   const cached = moveList && cache.current.get(moveList);
   const current =
     summary?.moveList === moveList && summary?.runKey === runKey
@@ -146,6 +160,7 @@ export function useReplyAnalysis(
     template: game.template,
     bagSize,
     scorelessTurns,
+    opponentHasFinalTurn,
   };
   const dictionaryId = game?.dictionaryId;
 
@@ -275,20 +290,30 @@ export function useReplyAnalysis(
     bagAssumedEmpty,
     bagConfirmed: confirmed,
     opponentRack,
-    maxScorelessTurns: game ? replyScorelessLimit(game.template) - 1 : 5,
+    maxScorelessTurns: (streak?.limit ?? 1) - 1,
+    passesOnly: !!streak?.passesOnly,
+    crossplay,
     scorelessTurns,
+    opponentHasFinalTurn,
     ranking,
     estimatingEndgame: !!estimateKey && !estimateRun,
     skipEndgameEstimate: () => setSkippedEstimate(estimateKey),
     endgameEstimateUnavailable: !!estimateRun && !ranking?.checked,
-    setOptions: (bagSize: number, scorelessTurns: number) =>
+    setOptions: (
+      bagSize: number,
+      scorelessTurns: number,
+      opponentHasFinalTurn = true,
+    ) =>
       setSettings((current) =>
         Object.fromEntries(
           [
             ...Object.entries(current).filter(
               ([key]) => key !== (positionKey ?? ""),
             ),
-            [positionKey ?? "", { bagSize, scorelessTurns }],
+            [
+              positionKey ?? "",
+              { bagSize, scorelessTurns, opponentHasFinalTurn },
+            ],
           ].slice(-(MOVE_CACHE_LIMIT + 1)),
         ),
       ),

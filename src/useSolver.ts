@@ -14,6 +14,7 @@ import type {
 import { MOVE_CACHE_LIMIT } from "../shared/move-results";
 import type { ShortlistEntry } from "../shared/move-shortlist";
 import type { SolverMessage, SolverRequest } from "./solver-messages";
+import type { EndgameSettings } from "../shared/endgame";
 
 type Snapshot = {
   results: MoveResults | null;
@@ -32,7 +33,7 @@ type QueryReply = Extract<
 export type RankEndgame = (
   searchId: number,
   game: Game,
-  scorelessTurns: number,
+  settings: EndgameSettings,
   signal: AbortSignal,
 ) => Promise<EndgameRanking | undefined>;
 export type BoardOddsProgress = Omit<BoardOddsResult, "byMove">;
@@ -423,7 +424,7 @@ export function useSolver(positionKey: string) {
     [query],
   );
   const rankEndgame = useCallback<RankEndgame>(
-    async (searchId, game, scorelessTurns, signal) => {
+    async (searchId, game, settings, signal) => {
       const { dictionaryId, board, rack, template } = game;
       const result = await query(
         {
@@ -433,7 +434,7 @@ export function useSolver(positionKey: string) {
           board,
           rack,
           template,
-          scorelessTurns,
+          ...settings,
         },
         signal,
       );

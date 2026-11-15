@@ -608,6 +608,7 @@ export default function Results({
           game={analysisGame}
           candidates={candidates}
           onRemove={toggleCandidate}
+          endgameSettings={replyAnalysis}
         />
       )}
       {busy ? (

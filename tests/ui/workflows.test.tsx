@@ -27,6 +27,7 @@ import { solve, solvePosition } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
 import type { ReplyRequest } from "../../shared/reply-analysis";
 import { MoveResultIndex } from "../../shared/move-results";
+import { prepareEndgameEstimate } from "../../shared/endgame-estimate";
 import type { SolverMessage, SolverRequest } from "../../src/solver-messages";
 import type { PracticeRequest } from "../../src/practice.worker";
 import { simulateExchange } from "../../shared/exchange";
@@ -357,6 +358,104 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
   });
   expect(screen.queryByRole("spinbutton", { name: /Endgame budget/ })).toBeNull();
 });
+
+test.each(["wordfeud", "crossplay"] as const)(
+  "%s ranks empty-bag moves and passes its endgame settings to Analyze",
+  async (rules) => {
+    const lexicon = new Lexicon([
+      "AT",
+      "CAT",
+      "CATS",
+      "ACT",
+      "DOG",
+      "RAT",
+      "ART",
+      "TAR",
+    ]);
+    const ranks: Extract<SolverRequest, { kind: "endgame" }>[] = [];
+    const analyses: AnalysisRequest[] = [];
+    class VariantWorker extends SolverWorker {
+      postMessage(request: SolverRequest | AnalysisRequest) {
+        if (!("kind" in request)) {
+          analyses.push(request);
+          const result = analyzeMoves(lexicon, request, new Set());
+          queueMicrotask(() => this.onmessage?.({ data: { result } }));
+        } else if (request.kind === "endgame") {
+          ranks.push(request);
+          const index = this.results.get(request.searchId)!;
+          const estimate = prepareEndgameEstimate(lexicon, {
+            ...request,
+            bagSize: 0,
+          });
+          const ranking = index.setEndgame(
+            request.id,
+            new Map(
+              index.moves.map((move) => [move.id, estimate(move, Infinity)]),
+            ),
+          );
+          queueMicrotask(() =>
+            this.onmessage?.({
+              data: { kind: "endgame", id: request.id, ranking },
+            }),
+          );
+        } else super.postMessage(request);
+      }
+    }
+    vi.stubGlobal("Worker", VariantWorker);
+    const user = await start();
+    const base = current();
+    act(() =>
+      store.update({
+        ...base,
+        rack: "CATS",
+        template: {
+          ...base.template,
+          rules,
+          rackSize: 4,
+          tileCounts: Object.fromEntries(
+            TILE_SYMBOLS.map((tile) => [tile, Number("ACSTZ".includes(tile))]),
+          ),
+        },
+      }),
+    );
+    await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+    await screen.findByRole("button", {
+      name: /sort by estimated endgame swing/i,
+    });
+    expect(ranks.at(-1)?.template.rules).toBe(rules);
+    await user.click(screen.getByText("Options", { selector: "summary" }));
+    await user.click(
+      screen.getByText("Reply settings", { selector: "summary" }),
+    );
+    if (rules === "wordfeud") {
+      const passes = screen.getByRole<HTMLInputElement>("spinbutton", {
+        name: "Prior consecutive passes",
+      });
+      expect(passes.max).toBe("2");
+      fireEvent.change(passes, { target: { value: "2" } });
+    } else {
+      await user.click(
+        screen.getByRole("checkbox", { name: "Opponent has a final turn" }),
+      );
+    }
+    await user.click(
+      screen.getByRole("button", { name: "Update reply analysis" }),
+    );
+    await screen.findByRole("button", {
+      name: /sort by estimated endgame swing/i,
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    await user.click(screen.getByRole("button", { name: "Run analysis" }));
+    await screen.findByRole("button", { name: "Refine estimates" });
+    if (rules === "wordfeud") {
+      expect(ranks.at(-1)?.scorelessTurns).toBe(2);
+      expect(analyses[0].scorelessTurns).toBe(2);
+    } else {
+      expect(ranks.at(-1)?.opponentHasFinalTurn).toBe(false);
+      expect(analyses[0].opponentHasFinalTurn).toBe(false);
+    }
+  },
+);
 
 test("a new game defaults to imported WOW24 even from another dictionary", async () => {
   const user = await start();
