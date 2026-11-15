@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useState } from "react";
 import { History } from "lucide-react";
 import {
   localDate,
@@ -46,8 +46,26 @@ export function GameMetadata({
   );
 }
 
+const platforms = [
+  "Scrabble GO",
+  RULE_NAMES.wwf,
+  RULE_NAMES.wordfeud,
+  RULE_NAMES.crossplay,
+  RULE_NAMES.lexulous,
+  "In person",
+];
+
 export function GameDetailFields({ game }: { game?: Game }) {
-  const platforms = useId();
+  const savedPlatform = game?.platform ?? "";
+  const [platform, setPlatform] = useState(() =>
+    savedPlatform && !platforms.includes(savedPlatform)
+      ? "other"
+      : savedPlatform,
+  );
+  const [customPlatform, setCustomPlatform] = useState(() =>
+    platform === "other" ? savedPlatform : "",
+  );
+  const isOther = platform === "other";
   return (
     <>
       <label>
@@ -62,22 +80,31 @@ export function GameDetailFields({ game }: { game?: Game }) {
       </label>
       <label>
         Platform
-        <input
-          name="platform"
-          list={platforms}
-          maxLength={80}
-          defaultValue={game?.platform}
-          placeholder="Choose or type a platform"
-        />
-        <datalist id={platforms}>
-          <option value="Scrabble GO" />
-          <option value="Words With Friends" />
-          <option value={RULE_NAMES.wordfeud} />
-          <option value={RULE_NAMES.crossplay} />
-          <option value={RULE_NAMES.lexulous} />
-          <option value="In person" />
-        </datalist>
+        <select
+          name={isOther ? undefined : "platform"}
+          value={platform}
+          onChange={(event) => setPlatform(event.currentTarget.value)}
+        >
+          <option value="">No platform</option>
+          {platforms.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+          <option value="other">Other…</option>
+        </select>
       </label>
+      {isOther && (
+        <label>
+          Custom platform
+          <input
+            name="platform"
+            maxLength={80}
+            value={customPlatform}
+            onChange={(event) => setCustomPlatform(event.currentTarget.value)}
+          />
+        </label>
+      )}
       <label>
         Date
         <input

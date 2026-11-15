@@ -1297,7 +1297,10 @@ test("multiple games retain separate racks and word lists", async () => {
     screen.getByRole("textbox", { name: "Opponent" }),
     "Second game",
   );
-  await user.type(screen.getByLabelText("Platform"), "Scrabble GO");
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "Platform" }),
+    "Scrabble GO",
+  );
   await user.click(screen.getByRole("button", { name: "Create game" }));
   await screen.findByRole("heading", { name: /Second game/ });
   expect(
@@ -1419,7 +1422,14 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   const edit = within(screen.getByRole("dialog"));
   await user.clear(edit.getByLabelText("Opponent"));
   await user.type(edit.getByLabelText("Opponent"), "Sam");
-  await user.type(edit.getByLabelText("Platform"), "Club night");
+  await user.selectOptions(
+    edit.getByRole("combobox", { name: "Platform" }),
+    "other",
+  );
+  await user.type(
+    edit.getByRole("textbox", { name: "Custom platform" }),
+    "Club night",
+  );
   await user.type(edit.getByLabelText("Notes"), "Review the endgame.");
   fireEvent.change(edit.getByLabelText("Date"), {
     target: { value: "2026-06-01" },
@@ -1435,6 +1445,22 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
     archived: true,
     notes: "Review the endgame.",
   });
+  await user.click(
+    archived().getByRole("button", { name: "Edit game with Sam" }),
+  );
+  const reopened = within(await screen.findByRole("dialog"));
+  const platformPicker = await reopened.findByRole("combobox", {
+    name: "Platform",
+  });
+  const customPlatform = () =>
+    reopened.getByRole("textbox", { name: "Custom platform" });
+  expect(platformPicker).toHaveProperty("value", "other");
+  expect(customPlatform()).toHaveProperty("value", "Club night");
+  await user.selectOptions(platformPicker, "Wordfeud");
+  expect(reopened.queryByRole("textbox", { name: "Custom platform" })).toBeNull();
+  await user.selectOptions(platformPicker, "other");
+  expect(customPlatform()).toHaveProperty("value", "Club night");
+  await user.click(reopened.getByRole("button", { name: "Close dialog" }));
   await user.click(
     archived().getByRole("button", { name: /Sam.*Club night.*2026/ }),
   );
