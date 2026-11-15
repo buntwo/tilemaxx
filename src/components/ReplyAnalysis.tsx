@@ -13,7 +13,7 @@ import {
   type ReplyDistribution,
   type ReplyResult,
 } from "../../shared/reply-analysis";
-import { scoreTone } from "../score-tone";
+import { scoreTone, signedPoints } from "../score-tone";
 import type { useReplyAnalysis } from "../useReplyAnalysis";
 import Board from "./Board";
 import Modal from "./Modal";
@@ -22,11 +22,6 @@ import { PremiumReplyNote } from "./PremiumDefense";
 import ReplyHeatmap from "./ReplyHeatmap";
 
 type Analysis = ReturnType<typeof useReplyAnalysis>;
-
-export function signedPoints(points: number, decimals = 0) {
-  const value = Math.abs(points).toFixed(decimals);
-  return Number(value) === 0 ? value : `${points < 0 ? "−" : "+"}${value}`;
-}
 
 function endgameScores(
   move: Move,

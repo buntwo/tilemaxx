@@ -575,7 +575,7 @@ function Tilemaxx() {
   const collapsibleBoardHelp = compactGame || phoneLayout;
   const menuInTitle = phoneLayout && workspace === "games";
   const headlineScore = game && (
-    <GameScoreBadge score={summarizeGameScore(game)} prominent={compactGame} />
+    <GameScoreBadge score={summarizeGameScore(game)} prominent={compactGame} showMargin />
   );
   const menuButton = (
     <button

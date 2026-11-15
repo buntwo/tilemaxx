@@ -1,4 +1,5 @@
 import type { GameScoreSummary } from "../../shared/game-scoring";
+import { scoreTone, signedPoints } from "../score-tone";
 
 const status = {
   archived: "Archived game",
@@ -15,9 +16,11 @@ export function describeGameScore(score: GameScoreSummary) {
 export default function GameScoreBadge({
   score,
   prominent = false,
+  showMargin = false,
 }: {
   score: GameScoreSummary | null;
   prominent?: boolean;
+  showMargin?: boolean;
 }) {
   if (!score) return null;
   const margin = score.you - score.opponent;
@@ -34,7 +37,11 @@ export default function GameScoreBadge({
         : margin < 0
           ? `You trail by ${-margin}`
           : "Tied"
-      : status[score.outcome];
+      : showMargin && margin
+        ? `${status[score.outcome]}. ${Math.abs(margin)}-point ${margin > 0 ? "lead" : "deficit"}.`
+        : status[score.outcome];
+  const marginTone =
+    score.outcome === "playing" ? scoreTone(margin) : undefined;
   return (
     <span
       className={["game-title-score", prominent && "game-scoreboard", tone]
@@ -46,9 +53,19 @@ export default function GameScoreBadge({
       title={description}
       data-outcome={score.outcome}
     >
-      <span aria-label="Your score">{score.you}</span>
-      <span aria-hidden="true">–</span>
-      <span aria-label="Opponent score">{score.opponent}</span>
+      <span className="game-score-totals">
+        <span aria-label="Your score">{score.you}</span>
+        <span aria-hidden="true">–</span>
+        <span aria-label="Opponent score">{score.opponent}</span>
+      </span>
+      {showMargin && (
+        <span
+          className={`game-score-delta${marginTone ? ` ${marginTone}` : ""}`}
+          aria-hidden="true"
+        >
+          {signedPoints(margin)}
+        </span>
+      )}
     </span>
   );
 }

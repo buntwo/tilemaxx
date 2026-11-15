@@ -30,7 +30,7 @@ import {
 import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
-import { scoreTone } from "../score-tone";
+import { scoreTone, signedPoints } from "../score-tone";
 import MoveAnalysis from "./MoveAnalysis";
 import MoveWord, { BingoBadge } from "./MoveWord";
 import BingoOddsControls from "./BingoOddsControls";
@@ -63,7 +63,6 @@ import ReplyHeatmapDialog, {
   ReplyCell,
   ReplyPreview,
   ReplySettings,
-  signedPoints,
 } from "./ReplyAnalysis";
 
 function formatOdds(chance: number, exact: boolean) {
