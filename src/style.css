@@ -917,7 +917,22 @@ label + label {
   font-variant-numeric: tabular-nums;
 }
 .game-title-score [aria-hidden] {
-  color: var(--muted);
+  opacity: 0.7;
+}
+.game-title-score[data-outcome="playing"] {
+  background: light-dark(#dbeafa, #263d52);
+  color: light-dark(#254f77, #bddaf5);
+}
+.game-title-score[data-outcome="loss"] {
+  background: light-dark(#f5dfdf, #523033);
+  color: light-dark(#8a3838, #ffd0ce);
+}
+.game-title-score:is([data-outcome="tie"], [data-outcome="archived"]) {
+  background: light-dark(#e9ecea, #38433d);
+  color: var(--text);
+}
+.game-over {
+  padding: 14px;
 }
 .game-picker-trigger {
   display: flex;
@@ -5009,6 +5024,11 @@ label + label {
   margin: 0;
 }
 .board-help-content .direct-entry-help { font-size: 11px; }
+.board-help-dialog .direct-entry-help { font-size: 13px; }
+.board-help-dialog .board-legend {
+  justify-content: flex-start;
+  padding-inline: 0;
+}
 
 .phone-layout .main-content { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 .phone-layout .sidebar { overflow-y: auto; }
@@ -5027,24 +5047,50 @@ label + label {
 }
 .phone-layout .game-heading-details { flex: 1; }
 .phone-layout .game-heading h1 { font-size: clamp(21px, 6vw, 25px); }
+.phone-layout .game-title-score:not(.game-scoreboard) { font-size: 16px; }
 .phone-layout .game-title-meta { margin-top: 0; }
 .phone-layout .game-actions { flex: none; }
 .phone-layout .manage-button { min-width: 44px; min-height: 44px; }
 .phone-layout .archived-game-back { margin-top: 4px; }
-.phone-layout .board-toolbar { padding: 0 4px 0 9px; gap: 2px; }
-.phone-layout .board-toolbar > div:first-child { flex: 1; min-width: 0; gap: 2px; }
-.phone-layout .board-toolbar .board-name { display: block; overflow-wrap: anywhere; }
-.phone-layout .board-toolbar :is(.board-size, .board-name svg, .toolbar-divider) { display: none; }
-.phone-layout .board-actions { flex: none; }
-.phone-layout .board-toolbar .icon-button { width: 38px; height: 40px; }
-.phone-layout .board-help { position: static; }
 .phone-layout .board-panel { position: relative; overflow: visible; }
-.phone-layout .board-help-content { left: 8px; right: 8px; top: 40px; width: auto; }
 .phone-layout .board-panel .board-wrap { padding-block: 4px 2px; }
-.phone-layout .board-panel .direct-entry-tools { margin: 3px 9px 0; padding: 0; }
-.phone-layout .board-panel .direct-entry-actions { margin-left: auto; gap: 8px; }
-.phone-layout .board-panel .direct-entry-actions > button { min-height: 40px; }
-.phone-layout .board-panel .direct-entry-status { font-size: 10px; }
+.phone-layout .board-panel .direct-entry-tools { margin: 3px 5px 0; padding: 0; }
+.phone-layout .board-panel .direct-entry-actions { margin-left: auto; gap: 1px; }
+.phone-layout .board-panel .direct-entry-actions > button,
+.phone-layout .board-review-history > button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.phone-layout .direct-entry-actions > .text-button { padding-inline: 4px; }
+.phone-layout .with-board-history { flex-wrap: nowrap; gap: 2px; }
+.phone-layout .with-board-history .direct-entry-status {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 10px;
+}
+.board-entry-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.phone-layout .board-undo { position: relative; }
+.phone-layout .board-undo::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  border-left: 1px solid var(--line);
+}
+.board-review-history {
+  display: flex;
+  flex: none;
+  margin-left: auto;
+}
 .phone-layout .rack-panel { margin-top: 8px; padding: 6px 10px 5px; }
 .phone-layout .rack-panel .rack-tiles { margin: 4px auto 3px; }
 .phone-layout .rack-entry-actions .text-button { min-height: 40px; }
@@ -5139,9 +5185,6 @@ label + label {
 }
 .board-review-play:hover:not(:disabled) > .button {
   background: var(--primary-hover);
-}
-@container (max-width: 340px) {
-  .phone-move-review .board-toolbar .board-name { display: none; }
 }
 .phone-layout .bingo-odds-actions { gap: 4px 6px; justify-content: space-between; }
 .phone-layout .bingo-odds-actions .result-view-picker { padding: 0; }

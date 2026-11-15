@@ -1,5 +1,5 @@
 import { remember, trackedMoveHistory, type Board, type Game } from "./model";
-import { trackBoardEdit } from "./game-scoring";
+import { recordOpponentRackOut, trackBoardEdit } from "./game-scoring";
 
 type EditKind = "enter" | "erase" | "blank";
 
@@ -58,7 +58,8 @@ export class BoardEditHistory {
         ];
       }
     }
-    this.group = { kind, game: next };
-    return next;
+    const recorded = recordOpponentRackOut(next, { mergeBoardUndo: true });
+    this.group = recorded === next ? { kind, game: next } : null;
+    return recorded;
   }
 }

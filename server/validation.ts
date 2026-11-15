@@ -114,6 +114,12 @@ const scoringSchema = z.object({
   opponent: score,
   pendingBase: z.array(cell).max(625).optional(),
   imported: z.boolean().optional(),
+  end: z
+    .object({
+      out: z.enum(["you", "opponent"]),
+      rackPoints: z.number().int().nonnegative(),
+    })
+    .optional(),
 });
 const review = z
   .object({

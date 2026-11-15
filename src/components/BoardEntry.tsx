@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { ArrowDown, ArrowRight, Trash2 } from "lucide-react";
 import Board from "./Board";
 import { BoardEditHistory } from "../../shared/board-entry";
@@ -29,6 +36,7 @@ export default function BoardEntry({
   onChange,
   onSelect,
   moveFilter,
+  historyControls,
 }: {
   game: Game;
   hideHelp?: boolean;
@@ -37,6 +45,7 @@ export default function BoardEntry({
   onChange: (game: Game) => void;
   onSelect: () => void;
   moveFilter?: MoveFilterSelection;
+  historyControls?: ReactNode;
 }) {
   const history = useRef(new BoardEditHistory());
   const wordScores = useCallback(
@@ -53,6 +62,7 @@ export default function BoardEntry({
       wordScores={displayBoard ? undefined : wordScores}
       onSelect={onSelect}
       moveFilter={moveFilter}
+      historyControls={historyControls}
       onBreak={() => history.current.reset()}
       onChange={(board, kind) => {
         if (displayBoard) return;
@@ -78,6 +88,7 @@ export function BoardInput({
   hideHelp = false,
   wordScores,
   moveFilter,
+  historyControls,
 }: {
   board: BoardState;
   archivedBoard?: BoardState;
@@ -93,6 +104,7 @@ export function BoardInput({
   hideHelp?: boolean;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
   moveFilter?: MoveFilterSelection;
+  historyControls?: ReactNode;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [focused, setFocused] = useState(false);
@@ -134,6 +146,10 @@ export function BoardInput({
   const n = template.size;
   const tile = selected === null ? "" : board[selected];
   const isBlank = Boolean(tile && tile === tile.toLowerCase());
+  const cursor = focused && selected !== null ? coordinate(selected, n) : "";
+  const status = cursor
+    ? `${cursor} · ${pendingBlank ? "Type a blank’s letter" : atEnd ? "Board edge — choose another square" : "Type to enter"}`
+    : "Tap a square and type";
   const toggleMark = moveFilter?.onToggle;
 
   function focus() {
@@ -238,13 +254,19 @@ export function BoardInput({
   }
 
   return (
-    <div className={`board-entry${toggleMark ? " selecting-move-squares" : ""}`}>
+    <div
+      className={`board-entry${toggleMark ? " selecting-move-squares" : ""}`}
+    >
       <Board
         template={template}
         board={board}
         archivedBoard={archivedBoard}
         preview={preview}
-        selected={(focused || onCursorChange) && !preview && !toggleMark ? selected : null}
+        selected={
+          (focused || onCursorChange) && !preview && !toggleMark
+            ? selected
+            : null
+        }
         markedSquares={moveFilter?.marks}
         selectingSquares={!!toggleMark}
         onSelect={toggleMark ?? select}
@@ -342,11 +364,18 @@ export function BoardInput({
           }
         }}
       />
-      <div className="direct-entry-tools">
+      <div
+        className={`direct-entry-tools${historyControls ? " with-board-history" : ""}`}
+      >
         <div className="direct-entry-status" role="status">
-          {!focused || selected === null
-            ? "Tap a square and type"
-            : `${coordinate(selected, n)} · ${pendingBlank ? "Type a blank’s letter" : atEnd ? "Board edge — choose another square" : "Type to enter"}`}
+          {historyControls ? (
+            <>
+              <span className="board-entry-announcement">{status}</span>
+              <span aria-hidden="true">{cursor}</span>
+            </>
+          ) : (
+            status
+          )}
         </div>
         <div className="direct-entry-actions">
           <button
@@ -369,11 +398,14 @@ export function BoardInput({
           <button
             className={`text-button ${pendingBlank || isBlank ? "active" : ""}`}
             disabled={selected === null}
+            aria-label={`Blank tile: ${pendingBlank || isBlank ? "on" : "off"}`}
             aria-pressed={pendingBlank || isBlank}
             onPointerDown={(e) => e.preventDefault()}
             onClick={toggleBlank}
           >
-            Blank tile: {pendingBlank || isBlank ? "on" : "off"}
+            {historyControls
+              ? "Blank"
+              : `Blank tile: ${pendingBlank || isBlank ? "on" : "off"}`}
           </button>
           <button
             className="icon-button"
@@ -388,6 +420,7 @@ export function BoardInput({
           >
             <Trash2 size={15} />
           </button>
+          {historyControls}
         </div>
         <BoardEntryHelp id={helpId} hidden={hideHelp} />
       </div>

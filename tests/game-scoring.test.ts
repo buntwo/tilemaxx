@@ -6,9 +6,12 @@ import { summarizeGame } from "../shared/game-index";
 import {
   boardWordsAt,
   correctTrackedMove,
+  emptyScoring,
+  gameScoreTotals,
   pendingOpponentPlay,
   playTrackedMove,
   recordOpponentPlay,
+  recordOpponentRackOut,
   setScoreTracking,
   tracksScores,
   treatBoardEditAsCorrection,
@@ -28,6 +31,7 @@ import {
 import { PRESETS } from "../shared/presets";
 import { importBoard } from "../shared/screenshot";
 import { solve } from "../shared/solver";
+import { TILE_SYMBOLS } from "../shared/tile-pool";
 
 function fixture(): Game {
   return {
@@ -45,6 +49,120 @@ function fixture(): Game {
     archived: false,
   };
 }
+
+function rackOutFixture(rack: string): Game {
+  const game = fixture();
+  const { start } = game.template;
+  game.board.splice(start, 3, "C", "A", "T");
+  game.rack = rack;
+  game.scoring = emptyScoring();
+  game.scoring.you.points = 20;
+  game.scoring.opponent.points = 10;
+  game.template = {
+    ...game.template,
+    tileCounts: Object.fromEntries(
+      TILE_SYMBOLS.map((tile) => [tile, Number("ACQST".includes(tile))]),
+    ),
+  };
+  return game;
+}
+
+test("entering an opponent rack-out records their play and finish in one undo step", () => {
+  const game = rackOutFixture("Q");
+  const { start } = game.template;
+  game.board[start + 2] = "";
+  const history = new BoardEditHistory();
+  const partial = [...game.board];
+  partial[start + 2] = "T";
+  const entered = history.apply(game, partial, "enter");
+  assert.equal(entered.scoring?.end, undefined);
+  const board = [...partial];
+  board[start + 3] = "S";
+  const finished = history.apply(entered, board, "enter");
+  assert.deepEqual(finished.scoring?.end, { out: "opponent", rackPoints: 10 });
+  assert.deepEqual(gameScoreTotals(finished.scoring), {
+    you: 10,
+    opponent: 26,
+  });
+  assert.equal(finished.scoring?.pendingBase, undefined);
+  assert.deepEqual(
+    trackedMoveHistory(finished).map(({ word, player, score }) => [
+      word,
+      player,
+      score,
+    ]),
+    [["CATS", "opponent", 6]],
+  );
+  assert.equal(finished.past.length, 1);
+
+  const restored = undo(finished);
+  assert.deepEqual(restored.board, game.board);
+  assert.deepEqual(restored.scoring, game.scoring);
+  assert.deepEqual(trackedMoveHistory(restored), []);
+  const redone = redo(restored);
+  assert.deepEqual(redone.scoring, finished.scoring);
+  assert.deepEqual(trackedMoveHistory(redone), trackedMoveHistory(finished));
+  const stored = gameSchema.parse(
+    JSON.parse(JSON.stringify(archiveGame(finished))),
+  );
+  assert.deepEqual(stored.scoring?.end, finished.scoring?.end);
+  assert.deepEqual(stored.archivedState?.scoring?.end, finished.scoring?.end);
+});
+
+test("opponent rack-out waits for complete valid counts and a scoreable play", () => {
+  const game = rackOutFixture("");
+  const board = [...game.board];
+  board[game.template.start + 3] = "S";
+  const entered = new BoardEditHistory().apply(game, board, "enter");
+  assert.equal(entered.scoring?.end, undefined);
+  assert.equal(pendingOpponentPlay(entered)?.word, "CATS");
+  for (const position of [
+    { ...entered, rack: "QQ" },
+    { ...entered, rack: "Q", archived: true },
+    { ...entered, rack: "Q", trackScores: false },
+    {
+      ...entered,
+      rack: "Q",
+      template: { ...entered.template, rules: "crossplay" as const },
+    },
+  ]) {
+    assert.equal(recordOpponentRackOut(position), position);
+  }
+  const disconnected = [...game.board];
+  disconnected[0] = "S";
+  const invalid = new BoardEditHistory().apply(
+    { ...game, rack: "Q" },
+    disconnected,
+    "enter",
+  );
+  assert.equal(invalid.scoring?.end, undefined);
+  assert.equal(pendingOpponentPlay(invalid), null);
+  const finished = recordOpponentRackOut({ ...entered, rack: "Q" });
+  assert.deepEqual(finished.scoring?.end, { out: "opponent", rackPoints: 10 });
+  assert.equal(recordOpponentRackOut(finished), finished);
+});
+
+test("playing out uses the actual remaining rack and respects a known nonempty bag", () => {
+  const game = rackOutFixture("S");
+  const move = solve(
+    new Lexicon(["CATS"]),
+    game.board,
+    game.rack,
+    game.template,
+  ).find((move) => move.tiles[0].index === game.template.start + 3)!;
+  assert.ok(move);
+  const finished = playTrackedMove(game, move, 0);
+  assert.deepEqual(finished.scoring?.end, { out: "you", rackPoints: 10 });
+  assert.deepEqual(gameScoreTotals(finished.scoring), { you: 36, opponent: 0 });
+  assert.equal(undo(finished).scoring?.end, undefined);
+  assert.throws(() => playTrackedMove(finished, move), /game has ended/);
+  assert.equal(playTrackedMove(game, move, 1).scoring?.end, undefined);
+  const held = playTrackedMove(
+    { ...game, rack: "S..Q", excludedRackSlots: [3] },
+    move,
+  );
+  assert.equal(held.scoring?.end, undefined);
+});
 
 test("the full history badge requires tracked plays from an empty board to the saved position", () => {
   const game = { ...fixture(), rack: "CAT" };

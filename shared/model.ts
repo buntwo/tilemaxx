@@ -59,6 +59,7 @@ export interface GameScoring {
   opponent: PlayerScore;
   pendingBase?: Board;
   imported?: boolean;
+  end?: { out: Player; rackPoints: number };
 }
 export interface HistoryEntry extends Position {
   // Present on the undo boundary of a layout change.
