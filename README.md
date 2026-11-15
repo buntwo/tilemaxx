@@ -18,7 +18,7 @@ After making the move in your actual game, enter the tiles you drew and your opp
 
 ## Beyond the highest score
 
-The [UI guide](docs/ui-guide.md) names the panels, controls, and analysis views.
+Open **UI guide** from the Workspace menu for annotated screenshots and a searchable list of names. The [text guide](docs/ui-guide.md) is also available in this repository.
 
 - **Compare alternatives.** The **Shortlist** surfaces plays worth a closer look. See which tiles each move leaves on your rack, estimate your odds of a bingo (using all your tiles), and check what your opponent might play back.
 - **Review your games.** Track scores, revisit a turn with its original board and rack, or use **Review game** to find missed bingos and large score gaps.

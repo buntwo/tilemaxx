@@ -1,0 +1,177 @@
+.ui-guide .modal-heading {
+  margin-bottom: 14px;
+}
+
+.ui-guide-search {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 5px 8px;
+  align-items: center;
+  max-width: 360px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ui-guide-search > span {
+  grid-column: 1 / -1;
+}
+
+.ui-guide-search svg {
+  color: var(--primary);
+}
+.ui-guide-search input {
+  min-height: 36px;
+}
+
+.ui-guide-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 20px;
+}
+
+.ui-guide-views .button {
+  min-height: 34px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.ui-guide-views button[aria-pressed="true"] {
+  color: var(--surface);
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.ui-guide-figure {
+  margin: 0;
+}
+
+.ui-guide-figure-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 8px;
+}
+
+.ui-guide h3 {
+  font-size: 16px;
+}
+
+.ui-guide-zoom {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  min-height: 32px;
+}
+
+.ui-guide-image-scroll {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--sidebar);
+}
+
+.ui-guide-image {
+  position: relative;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.ui-guide-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.ui-guide-marker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: clamp(16px, 2.8vw, 24px);
+  aspect-ratio: 1;
+  border: 1px solid #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  background: #183f33;
+  box-shadow: 0 1px 4px #0006;
+  font-size: clamp(10px, 1.4vw, 12px);
+  font-weight: 750;
+  pointer-events: none;
+}
+
+.ui-guide-figure ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr));
+  gap: 8px 16px;
+  margin: 12px 0 0;
+  padding-left: 23px;
+  font-size: 13px;
+}
+
+.ui-guide-figure li::marker {
+  color: var(--primary);
+  font-weight: 750;
+}
+
+.ui-guide-figure li span {
+  display: block;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.ui-guide-glossary {
+  display: grid;
+  gap: 18px;
+}
+.ui-guide-glossary dl {
+  margin: 6px 0 0;
+}
+.ui-guide-glossary dl div {
+  display: grid;
+  grid-template-columns: minmax(135px, 25%) 1fr;
+  gap: 6px 14px;
+  border-top: 1px solid var(--line);
+  padding: 8px 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.ui-guide-glossary dt {
+  font-weight: 700;
+}
+.ui-guide-glossary dd {
+  margin: 0;
+}
+
+@media (min-width: 850px) {
+  .ui-guide-figure-narrow {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: start;
+    column-gap: 16px;
+  }
+
+  .ui-guide-figure-narrow .ui-guide-figure-header {
+    grid-column: 1 / -1;
+  }
+
+  .ui-guide-figure-narrow ol {
+    grid-template-columns: 1fr;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 650px) {
+  .ui-guide .modal-inner {
+    padding: 14px;
+  }
+  .ui-guide-views .button {
+    min-height: 40px;
+  }
+  .ui-guide-glossary dl div {
+    grid-template-columns: 1fr;
+  }
+}

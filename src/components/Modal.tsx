@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 export default function Modal({
   title,
@@ -18,6 +18,7 @@ export default function Modal({
   className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const el = ref.current!;
     el.showModal();
@@ -27,6 +28,7 @@ export default function Modal({
   return (
     <dialog
       ref={ref}
+      aria-labelledby={titleId}
       className={`modal ${wide ? "wide" : ""} ${className}`}
       onCancel={(e) => {
         e.preventDefault();
@@ -39,7 +41,7 @@ export default function Modal({
       <div className="modal-inner">
         <header className="modal-heading">
           <div>
-            <h2>{title}</h2>
+            <h2 id={titleId}>{title}</h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
           <button

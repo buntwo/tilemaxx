@@ -2305,6 +2305,42 @@ test("word lists confirm removal, display a conflict and update the game selecto
   expect((picker as HTMLSelectElement).value).toBe("test");
 });
 
+test.each([false, true])("the workspace menu opens the illustrated guide (phone %s)", async (phone) => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(max-width: 650px)" ? phone : query === "(min-width: 1000px)" && !phone,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const user = await start();
+  if (phone)
+    await user.click(screen.getByRole("button", { name: "Open workspace menu" }));
+  const menu = within(screen.getByRole("complementary", { name: "Workspace menu" }));
+  await user.click(menu.getByRole("button", { name: "UI guide" }));
+
+  const guide = within(screen.getByRole("dialog", { name: "UI guide" }));
+  expect(guide.getByRole("img").getAttribute("alt")).toMatch(
+    phone ? /selected JILT/ : /workspace menu, board, rack/,
+  );
+  await user.click(guide.getByRole("button", { name: "Possible moves" }));
+  expect(guide.getByRole("img", { name: /Reply after JANTY/ })).toBeTruthy();
+  expect(guide.getByText("Reply details")).toBeTruthy();
+  await user.click(guide.getByRole("button", { name: "Enlarge image" }));
+  expect(guide.getByRole("region", { name: /enlarged/ })).toBeTruthy();
+  await user.click(guide.getByRole("button", { name: "Fit image" }));
+
+  const search = guide.getByRole("searchbox", { name: "Find a UI name" });
+  await user.type(search, "preview bar");
+  expect(guide.getByText("preview bar")).toBeTruthy();
+  expect(guide.queryByRole("img")).toBeNull();
+  await user.clear(search);
+  await user.type(search, "unmatched name");
+  expect(guide.getByRole("status").textContent).toBe("No matching UI names.");
+  await user.click(guide.getByRole("button", { name: "All names" }));
+  expect(guide.getByText("Screenshot import", { exact: true })).toBeTruthy();
+  await user.click(guide.getByRole("button", { name: "Close dialog" }));
+  expect(screen.queryByRole("dialog", { name: "UI guide" })).toBeNull();
+});
+
 test("the phone layout keeps settings, the build version, board help and move filtering accessible", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === "(max-width: 650px)",
