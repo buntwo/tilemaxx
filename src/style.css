@@ -5076,7 +5076,7 @@ label + label {
 }
 .phone-layout .board-panel .board-wrap { padding-block: 4px 2px; }
 .board-panel .with-board-history {
-  margin-inline: 4px;
+  margin-inline: 2px;
   flex-wrap: nowrap;
   gap: 2px;
 }
@@ -5095,11 +5095,12 @@ label + label {
   padding-inline: 2px;
 }
 .with-board-history .direct-entry-status {
+  --board-status-line-height: 12px;
   min-width: 0;
-  padding-inline-start: 6px;
+  padding-inline-start: calc((var(--board-strip-control-height) - var(--board-status-line-height)) / 2);
   overflow: hidden;
   font-size: 10px;
-  line-height: 1.2;
+  line-height: var(--board-status-line-height);
 }
 .board-undo { position: relative; }
 :is(.board-undo, .board-redo):not(:disabled) { color: var(--primary); }
