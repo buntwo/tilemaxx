@@ -770,8 +770,6 @@ function Tilemaxx() {
         >
           <ImagePlus size={17} />
         </button>
-        {boardHistoryControls}
-        <span className="toolbar-divider" />
         <button
           className="icon-button"
           aria-label="Move history"
@@ -1173,6 +1171,17 @@ function Tilemaxx() {
                   exchangeBagConfirmed={replyAnalysis.bagConfirmed}
                   preview={preview}
                   flyingRack={activeFlight}
+                  historyControls={
+                    !phoneBoardControls && (
+                      <div
+                        className="rack-history-actions"
+                        role="group"
+                        aria-label="Undo and redo"
+                      >
+                        {boardHistoryControls}
+                      </div>
+                    )
+                  }
                 />
                 <OpponentRack
                   rack={replyAnalysis.opponentRack}

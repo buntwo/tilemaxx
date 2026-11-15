@@ -1436,11 +1436,6 @@ label + label {
 .board-actions {
   gap: 2px !important;
 }
-.toolbar-divider {
-  height: 18px;
-  border-right: 1px solid var(--line);
-  margin: 0 4px;
-}
 .board-wrap {
   padding: 14px 18px 6px 10px;
   container-type: inline-size;
@@ -4005,7 +4000,6 @@ label + label {
 }
 .phone-layout .move-square-controls .text-button {
   min-width: 44px;
-  min-height: 44px;
 }
 .direct-entry-tools {
   margin: 8px 16px 0;
@@ -4187,6 +4181,17 @@ label + label {
 }
 .rack-entry-actions > :last-child {
   margin-left: auto;
+}
+.rack-history-actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+}
+.rack-entry-actions:has(.rack-history-actions) :is(.rack-entry-help, .rack-exchange-advice) {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: normal;
 }
 .rack-entry-actions .rack-exchange-advice {
   min-height: 32px;
@@ -5055,30 +5060,33 @@ label + label {
 .phone-layout .game-actions { flex: none; }
 .phone-layout .manage-button { min-width: 44px; min-height: 44px; }
 .phone-layout .archived-game-back { margin-top: 4px; }
-.phone-layout .board-panel { position: relative; overflow: visible; }
+.phone-layout .board-panel {
+  position: relative;
+  overflow: visible;
+  padding-bottom: 2px;
+}
 .phone-layout .board-panel .board-wrap { padding-block: 4px 2px; }
-.phone-layout .board-panel .direct-entry-tools { margin: 3px 5px 0; padding: 0; }
-.phone-layout .board-panel .direct-entry-actions { margin-left: auto; gap: 1px; }
-.phone-layout .board-panel .direct-entry-actions > button,
-.phone-layout .board-mode-history > button {
-  min-width: 44px;
-  min-height: 44px;
+.phone-layout .board-panel .direct-entry-tools { margin-inline: 4px; }
+.phone-layout .board-panel .direct-entry-actions {
+  flex: none;
+  margin-left: auto;
+  gap: 1px;
+  white-space: nowrap;
+}
+.phone-layout :is(.direct-entry-actions, .board-mode-history) > button {
+  min-width: 36px;
 }
 .phone-layout .direct-entry-actions > .text-button { padding-inline: 4px; }
+.phone-layout .direct-entry-actions > .direction-button {
+  gap: 3px;
+  padding-inline: 2px;
+}
 .phone-layout .with-board-history { flex-wrap: nowrap; gap: 2px; }
 .phone-layout .with-board-history .direct-entry-status {
   min-width: 0;
   overflow: hidden;
   font-size: 10px;
-}
-.board-entry-announcement {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  line-height: 1.2;
 }
 .phone-layout .board-undo { position: relative; }
 .phone-layout :is(.board-undo, .board-redo):not(:disabled) { color: var(--primary); }
@@ -5086,8 +5094,8 @@ label + label {
   content: "";
   position: absolute;
   left: 0;
-  top: 12px;
-  bottom: 12px;
+  top: 8px;
+  bottom: 8px;
   border-left: 1px solid var(--line);
 }
 .board-mode-history {
@@ -5231,14 +5239,24 @@ label + label {
   grid-template-columns: var(--game-workspace-columns);
   gap: var(--game-workspace-gap);
 }
-.compact-game .board-panel { padding: 5px 9px 3px; }
+.compact-game .board-panel { padding: 5px 9px 2px; }
 .compact-game .board-panel .board-wrap { padding: 1px 5px 2px 0; }
-.compact-game .board-panel .direct-entry-tools {
-  margin-block: 3px 0;
-  padding-block: 0;
+:is(.compact-game, .phone-layout) .board-panel {
+  --board-strip-control-height: 32px;
 }
-.compact-game .board-panel .direct-entry-tools .icon-button {
-  width: 27px;
+:is(.compact-game, .phone-layout) .board-panel
+  :is(.direct-entry-tools, .move-square-controls, .board-review-actions) {
+  margin-block: 0;
+  padding-block: 0;
+  min-height: calc(var(--board-strip-control-height) + 1px);
+  border-top: 1px solid var(--line);
+}
+:is(.compact-game, .phone-layout) .board-panel
+  :is(.direct-entry-actions, .move-square-controls, .board-mode-history, .board-review-actions) > button {
+  min-height: var(--board-strip-control-height);
+}
+.compact-game .rack-history-actions .icon-button {
+  width: 28px;
   height: 27px;
 }
 .compact-game .rack-panel {
