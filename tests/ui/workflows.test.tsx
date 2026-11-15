@@ -154,6 +154,27 @@ test("compare mode selects moves without playing and switches model without reru
   expect(screen.queryByRole("article", { name: /^Analysis for/ })).toBeNull();
 });
 
+test("Analyze keeps one set of move controls while the list scrolls", async () => {
+  const user = await start();
+  await typeRack(user, "CATS?");
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  await user.click(await screen.findByRole("button", { name: "Analyze" }));
+  const analysis = screen.getByLabelText("Move analysis");
+  const moves = screen.getByLabelText("Suggested moves");
+  await user.hover(within(moves).getAllByRole("button", { name: /^CATS, / })[0]);
+
+  for (const position of [580, 1160, 1740]) {
+    moves.scrollTop = position;
+    await act(() => {
+      fireEvent.scroll(moves);
+    });
+    expect(screen.getAllByRole("group", { name: "Move list view" })).toHaveLength(
+      1,
+    );
+    expect(screen.getByLabelText("Move analysis")).toBe(analysis);
+  }
+});
+
 test("analysis counter follows worker progress and disappears on cancel", async () => {
   let analysisWorker: SolverWorker | undefined;
   class DeferredAnalysisWorker extends SolverWorker {

@@ -548,7 +548,7 @@ export default function Results({
         onBoardOdds &&
         onCancelBoardOdds && (
           <BingoOddsControls
-            key={analysisKey}
+            key={`bingo-odds:${analysisKey}`}
             game={analysisGame}
             moves={
               phoneLayout
@@ -584,7 +584,7 @@ export default function Results({
         )}
       {analyzing && analysisGame && !busy && (
         <MoveAnalysis
-          key={analysisKey}
+          key={`move-analysis:${analysisKey}`}
           game={analysisGame}
           candidates={candidates}
           onRemove={toggleCandidate}
