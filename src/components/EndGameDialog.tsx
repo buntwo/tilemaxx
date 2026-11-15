@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   endGameManually,
   gameScoreTotals,
@@ -30,6 +30,7 @@ export default function EndGameDialog({
   const [outcome, setOutcome] = useState<GameOutcome | "">("");
   const [deductUnplayed, setDeductUnplayed] = useState(true);
   const [archive, setArchive] = useState(true);
+  const deductionNoteId = useId();
   const scores =
     you !== "" &&
     opponent !== "" &&
@@ -38,8 +39,17 @@ export default function EndGameDialog({
       ? { you: Number(you), opponent: Number(opponent) }
       : undefined;
   const rackPoints = bagEmpty ? unplayedRackPoints(game) : undefined;
-  const showDeduction = !!(rackPoints?.you || rackPoints?.opponent);
-  const deductions = deductUnplayed && showDeduction ? rackPoints : undefined;
+  const deductionNote =
+    game.template.rules === "crossplay"
+      ? "Crossplay doesn’t deduct unplayed tiles."
+      : !bagEmpty
+        ? "Available when the bag is empty."
+        : !rackPoints
+          ? "Check the board and rack tile counts."
+          : !rackPoints.you && !rackPoints.opponent
+            ? "No unplayed tile points to deduct."
+            : undefined;
+  const deductions = deductUnplayed && !deductionNote ? rackPoints : undefined;
   const finalScores =
     scores && deductions
       ? {
@@ -103,15 +113,20 @@ export default function EndGameDialog({
             <option value="tie">Tie</option>
           </select>
         </label>
-        {showDeduction && (
-          <label className="score-checkbox">
-            <input
-              type="checkbox"
-              checked={deductUnplayed}
-              onChange={(event) => setDeductUnplayed(event.target.checked)}
-            />
-            Deduct unplayed tiles
-          </label>
+        <label className="score-checkbox">
+          <input
+            type="checkbox"
+            checked={!!deductions}
+            disabled={!!deductionNote}
+            aria-describedby={deductionNote ? deductionNoteId : undefined}
+            onChange={(event) => setDeductUnplayed(event.target.checked)}
+          />
+          Deduct unplayed tiles
+        </label>
+        {deductionNote && (
+          <p className="score-checkbox-note" id={deductionNoteId}>
+            {deductionNote}
+          </p>
         )}
         <label className="score-checkbox">
           <input

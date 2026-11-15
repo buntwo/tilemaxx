@@ -8,8 +8,8 @@
 | **Workspace settings** | The gear below the theme controls, beside the version number. Control rack highlighting, preview pulsing, and the animation when playing a move. These choices apply to all games in the current browser. |
 | **Game header** | The game name, tracked score, and Game options at the top. Open the name to use the **Game picker** and its opponent filter. |
 | **Game options** | The menu beside the game name. It includes game details, duplication, **End game**, and archiving. On phones it also holds Board help, Import screenshot, and Move history. |
-| **End game** | Record a final score or mark the game finished without a score. **Archive game** starts checked. **Deduct unplayed tiles** starts checked when the bag is empty and the rules call for rack deductions. Clear **Archive game** to keep the game in **My games**, where **Undo** can resume it. |
-| **Game board** | The editable letter and premium grid. The **board control strip** is the row directly below it with the direction, blank, erase, Undo, and Redo controls. |
+| **End game** | Record a final score or mark the game finished without a score. **Archive game** starts checked. **Deduct unplayed tiles** starts checked when deductions apply and is disabled otherwise. Clear **Archive game** to keep the game in **My games**, where **Undo** can resume it. |
+| **Game board** | The editable letter and premium grid. With your rack entered, press **Enter** while typing on the board to find moves. The **board control strip** is the row directly below the board with the direction, blank, erase, Undo, and Redo controls. |
 | **Board help** | The premium-square legend and board-entry instructions. |
 | **Word score badge** | The points that appear beside a board word when you hover over a tile or hold it on a phone. |
 | **Move preview** | The highlighted tiles on the board for a suggested play. The phone **preview bar** shows the word, points, and **Play** button. |
