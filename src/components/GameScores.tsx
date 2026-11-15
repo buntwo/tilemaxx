@@ -190,89 +190,87 @@ export default function GameScores({
           <ChevronDown size={16} aria-hidden="true" />
         </summary>
         {moves.length ? (
-          <div className="score-history-scroll">
-            <table aria-label="Tracked moves">
-              <thead>
-                <tr>
-                  <th scope="col" aria-label="Move number">
-                    #
-                  </th>
-                  <th scope="col">You</th>
-                  <th scope="col">Pts</th>
-                  <th scope="col">Opponent</th>
+          <table aria-label="Tracked moves">
+            <thead>
+              <tr>
+                <th scope="col" aria-label="Move number">
+                  #
+                </th>
+                <th scope="col">You</th>
+                <th scope="col">Pts</th>
+                <th scope="col">Opponent</th>
+              </tr>
+            </thead>
+            <tbody>
+              {moves.map((move) => (
+                <tr key={move.number}>
+                  <td className="score-move-number">
+                    <button
+                      type="button"
+                      className="score-edit-move"
+                      aria-label={`Edit move ${move.number}: ${move.word}`}
+                      onClick={() => openEditor(move.number - 1)}
+                    >
+                      {move.number}
+                      <Pencil size={11} aria-hidden="true" />
+                    </button>
+                  </td>
+                  <td>
+                    {move.player === "you" && (
+                      <div className="score-move-play">
+                        <button
+                          type="button"
+                          className="score-review-link"
+                          aria-label={`Review move ${move.number}: ${move.word}`}
+                          onClick={() => setReview(move.number - 1)}
+                        >
+                          <span
+                            className={
+                              move.bingo ? "bingo-move-word" : undefined
+                            }
+                          >
+                            {move.word}
+                          </span>
+                        </button>{" "}
+                        <small className="score-move-total">
+                          ({move.total})
+                        </small>
+                      </div>
+                    )}
+                  </td>
+                  <td className="score-move-points">
+                    {move.score}
+                    {move.bingo && (
+                      <BingoBadge className="score-history-bingo" />
+                    )}
+                  </td>
+                  <td>
+                    {move.player === "opponent" && (
+                      <div className="score-move-play">
+                        <small className="score-move-total">
+                          ({move.total})
+                        </small>{" "}
+                        <button
+                          type="button"
+                          className="score-review-link"
+                          aria-label={`Review move ${move.number}: ${move.word}`}
+                          onClick={() => setReview(move.number - 1)}
+                        >
+                          <span
+                            className={
+                              move.bingo ? "bingo-move-word" : undefined
+                            }
+                          >
+                            {move.word}
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {moves.map((move) => (
-                  <tr key={move.number}>
-                    <td className="score-move-number">
-                      <button
-                        type="button"
-                        className="score-edit-move"
-                        aria-label={`Edit move ${move.number}: ${move.word}`}
-                        onClick={() => openEditor(move.number - 1)}
-                      >
-                        {move.number}
-                        <Pencil size={11} aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      {move.player === "you" && (
-                        <div className="score-move-play">
-                          <button
-                            type="button"
-                            className="score-review-link"
-                            aria-label={`Review move ${move.number}: ${move.word}`}
-                            onClick={() => setReview(move.number - 1)}
-                          >
-                            <span
-                              className={
-                                move.bingo ? "bingo-move-word" : undefined
-                              }
-                            >
-                              {move.word}
-                            </span>
-                          </button>{" "}
-                          <small className="score-move-total">
-                            ({move.total})
-                          </small>
-                        </div>
-                      )}
-                    </td>
-                    <td className="score-move-points">
-                      {move.score}
-                      {move.bingo && (
-                        <BingoBadge className="score-history-bingo" />
-                      )}
-                    </td>
-                    <td>
-                      {move.player === "opponent" && (
-                        <div className="score-move-play">
-                          <small className="score-move-total">
-                            ({move.total})
-                          </small>{" "}
-                          <button
-                            type="button"
-                            className="score-review-link"
-                            aria-label={`Review move ${move.number}: ${move.word}`}
-                            onClick={() => setReview(move.number - 1)}
-                          >
-                            <span
-                              className={
-                                move.bingo ? "bingo-move-word" : undefined
-                              }
-                            >
-                              {move.word}
-                            </span>
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         ) : (
           <p>No tracked moves yet.</p>
         )}

@@ -1310,13 +1310,9 @@ label + label {
 .score-history[open] summary svg {
   transform: rotate(180deg);
 }
-.score-history-scroll {
-  margin: 8px 0 0;
-  max-height: 300px;
-  overflow: auto;
-}
 .score-history table {
   width: 100%;
+  margin-top: 8px;
   table-layout: fixed;
   border-collapse: collapse;
   text-align: left;
@@ -1328,9 +1324,6 @@ label + label {
   border-bottom: 1px solid var(--line);
 }
 .score-history th {
-  position: sticky;
-  top: 0;
-  background: var(--surface);
   color: var(--muted);
 }
 .score-history th:first-child,
