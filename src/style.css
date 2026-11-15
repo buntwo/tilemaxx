@@ -4524,6 +4524,11 @@ label + label {
 .analysis-controls input {
   max-width: 90px;
 }
+.analysis-budget-hint {
+  color: var(--muted);
+  font-size: 11px;
+  padding: 0 0 8px;
+}
 .analysis-running {
   display: flex;
   flex-wrap: wrap;
@@ -4622,13 +4627,6 @@ label + label {
 }
 .analysis-option input {
   accent-color: var(--primary);
-}
-.analysis-option select {
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 4px;
 }
 .analysis-endgame {
   margin: 6px 0 8px;

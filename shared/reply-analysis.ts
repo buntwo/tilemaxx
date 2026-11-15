@@ -403,6 +403,6 @@ export function replyEndgameLine(
       return solver.solve(rack, limit(deadline), { unsorted: true });
     },
     placeTiles,
-    timeLimitMs,
+    { timeLimitMs },
   );
 }

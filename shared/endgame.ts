@@ -8,7 +8,7 @@ export interface EndgameLine {
 
 export class EndgameSearchLimitError extends Error {}
 
-const POSITION_LIMIT = 1_500;
+export const DEFAULT_ENDGAME_POSITION_LIMIT = 1_500;
 
 export function rackPoints(rack: string, rules: BoardTemplate["rules"]) {
   return [...rack].reduce(
@@ -26,7 +26,13 @@ export function solveEmptyBag(
   priorScoreless: number,
   search: (board: Board, rack: string, deadline: number) => Move[],
   place: (board: Board, move: Move) => Board,
-  timeLimitMs: number,
+  {
+    timeLimitMs,
+    positionLimit = DEFAULT_ENDGAME_POSITION_LIMIT,
+  }: {
+    timeLimitMs: number;
+    positionLimit?: number;
+  },
 ): EndgameLine {
   const value = (rack: string) => rackPoints(rack, template.rules);
   const cache = new Map<string, EndgameLine>();
@@ -55,7 +61,7 @@ export function solveEmptyBag(
     const key = `${position.join(".")}|${own}|${other}|${scoreless}`;
     const cached = cache.get(key);
     if (cached) return cached;
-    if (states === POSITION_LIMIT) stop("its position limit");
+    if (states === positionLimit) stop("its position limit");
     states++;
     let moves: Move[];
     try {
