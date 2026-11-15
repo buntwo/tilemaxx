@@ -16,10 +16,10 @@ import {
   recordOpponentPlay,
   recordOpponentRackOut,
   scoreTotalsAtPosition,
-  scoresAfterRackDeductions,
   setScoreTracking,
   tracksScores,
   treatBoardEditAsCorrection,
+  unplayedRackPoints,
 } from "../shared/game-scoring";
 import { Lexicon } from "../shared/lexicon";
 import {
@@ -70,15 +70,15 @@ test("manual game results preserve board history and round-trip through saves, u
   };
   game.scoring.you.points = 7;
   game.scoring.opponent.points = 15;
-  const scores = scoresAfterRackDeductions(game, gameScoreTotals(game.scoring));
-  assert.deepEqual(scores, { you: -3, opponent: 14 });
+  assert.deepEqual(unplayedRackPoints(game), { you: 10, opponent: 1 });
   assert.equal(
-    scoresAfterRackDeductions(
-      { ...game, template: { ...game.template, rules: "crossplay" } },
-      gameScoreTotals(game.scoring),
-    ),
+    unplayedRackPoints({
+      ...game,
+      template: { ...game.template, rules: "crossplay" },
+    }),
     undefined,
   );
+  const scores = { you: -3, opponent: 14 };
   const ended = endGameManually(game, { manual: true, scores, outcome: "win" });
   const saved = gameSchema.parse(JSON.parse(JSON.stringify(ended)));
   assert.deepEqual(gameScoreTotals(saved.scoring), scores);

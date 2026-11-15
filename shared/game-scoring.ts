@@ -588,23 +588,16 @@ export function scoreTotalsAtPosition(game: Game) {
   };
 }
 
-export function scoresAfterRackDeductions(
-  game: Game,
-  totals: Record<Player, number>,
-) {
+export function unplayedRackPoints(game: Game) {
   if (game.template.rules === "crossplay") return;
   const { total, excess, tiles } = unseenTiles(game, game.template);
   if (excess.length || total > game.template.rackSize) return;
   return {
-    you:
-      totals.you -
-      [...rackLetters(game.rack)].reduce(
-        (points, tile) => points + tileScore(tile, game.template.rules),
-        0,
-      ),
-    opponent:
-      totals.opponent -
-      tiles.reduce((points, tile) => points + tile.count * tile.score, 0),
+    you: [...rackLetters(game.rack)].reduce(
+      (points, tile) => points + tileScore(tile, game.template.rules),
+      0,
+    ),
+    opponent: tiles.reduce((points, tile) => points + tile.count * tile.score, 0),
   };
 }
 
