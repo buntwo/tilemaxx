@@ -54,10 +54,17 @@ export default function GamePicker({
   onReorder: (ids: string[]) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const search = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
+  const focusOptionOnOpen = useRef(false);
   const id = useId();
+  const filter = query.trim().toLocaleLowerCase();
+  const visibleGames = games
+    .map((option, index) => ({ option, index }))
+    .filter(({ option }) => option.name.toLocaleLowerCase().includes(filter));
   const drag = useRef<{
     pointer: number;
     from: number;
@@ -89,13 +96,24 @@ export default function GamePicker({
     setDragPreview(undefined);
   }
 
+  function closePicker() {
+    setOpen(false);
+    setQuery("");
+  }
+
+  function updateQuery(value: string) {
+    cancelDrag();
+    if (list.current) list.current.scrollTop = 0;
+    setQuery(value);
+  }
+
   useEffect(() => {
     if (!open) {
       cancelDrag();
       return;
     }
     const outside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      if (!root.current?.contains(event.target as Node)) closePicker();
     };
     document.addEventListener("pointerdown", outside);
     return () => document.removeEventListener("pointerdown", outside);
@@ -113,14 +131,19 @@ export default function GamePicker({
 
   useEffect(() => {
     if (!open) return;
-    const selected = list.current?.querySelector<HTMLButtonElement>(
-      '[aria-checked="true"]',
-    );
-    (selected ?? list.current?.querySelector("button"))?.focus();
+    if (focusOptionOnOpen.current) {
+      focusOptionOnOpen.current = false;
+      const selected = list.current?.querySelector<HTMLButtonElement>(
+        '[aria-checked="true"]',
+      );
+      (selected ?? list.current?.querySelector("button"))?.focus();
+    } else if (!window.matchMedia?.("(pointer: coarse)").matches) {
+      search.current?.focus();
+    }
   }, [open]);
 
   function choose(id: string) {
-    setOpen(false);
+    closePicker();
     onChoose(id);
     trigger.current?.focus();
   }
@@ -220,10 +243,20 @@ export default function GamePicker({
     void reorder(active.from, active.to);
   }
   function handleKeys(event: KeyboardEvent<HTMLDivElement>) {
+    if (
+      !open ||
+      event.defaultPrevented ||
+      event.nativeEvent.isComposing ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey
+    )
+      return;
+    const inSearch = event.target === search.current;
     const options = [
-      ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+      ...(list.current?.querySelectorAll<HTMLButtonElement>(
         '[role="menuitemradio"]',
-      ),
+      ) ?? []),
     ];
     const current = options.indexOf(
       document.activeElement as HTMLButtonElement,
@@ -231,22 +264,37 @@ export default function GamePicker({
     switch (event.key) {
       case "Escape":
         event.preventDefault();
-        setOpen(false);
+        closePicker();
         trigger.current?.focus();
+        break;
+      case "Enter":
+        if (inSearch) {
+          event.preventDefault();
+          if (visibleGames[0]) choose(visibleGames[0].option.id);
+        }
         break;
       case "ArrowDown":
       case "ArrowUp":
         event.preventDefault();
-        options[
-          (current + (event.key === "ArrowDown" ? 1 : -1) + options.length) %
-            options.length
-        ]?.focus();
+        if (current === -1) {
+          options.at(event.key === "ArrowDown" ? 0 : -1)?.focus();
+        } else {
+          const next = current + (event.key === "ArrowDown" ? 1 : -1);
+          (options[next] ?? search.current)?.focus();
+        }
         break;
       case "Home":
       case "End":
+        if (inSearch) break;
         event.preventDefault();
         options.at(event.key === "Home" ? 0 : -1)?.focus();
         break;
+      default:
+        if (!inSearch && event.key.length === 1 && event.key !== " ") {
+          event.preventDefault();
+          search.current?.focus();
+          updateQuery(query + event.key);
+        }
     }
   }
 
@@ -254,8 +302,13 @@ export default function GamePicker({
     <div
       className="game-title-picker"
       ref={root}
+      onKeyDown={handleKeys}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+        if (
+          event.relatedTarget &&
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          closePicker();
       }}
     >
       <h1 aria-label={game?.name}>
@@ -271,10 +324,14 @@ export default function GamePicker({
             aria-haspopup="menu"
             aria-controls={open ? id : undefined}
             ref={trigger}
-            onClick={() => setOpen(!open)}
+            onClick={() => (open ? closePicker() : setOpen(true))}
             onKeyDown={(event) => {
-              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              if (
+                !open &&
+                (event.key === "ArrowDown" || event.key === "ArrowUp")
+              ) {
                 event.preventDefault();
+                focusOptionOnOpen.current = true;
                 setOpen(true);
               }
             }}
@@ -303,71 +360,87 @@ export default function GamePicker({
         )}
       </h1>
       {open && games.length > 0 && (
-        <div
-          className="game-picker-menu"
-          role="menu"
-          aria-label="Active games"
-          id={id}
-          ref={list}
-          onKeyDown={handleKeys}
-        >
-          {games.map((option, index) => (
-            <div
-              role="none"
-              key={option.id}
-              className="game-picker-option"
-              data-selected={option.id === game?.id || undefined}
-              data-dragging={drop?.from === index || undefined}
-              data-drop={
-                drop?.to === index && drop.from !== index
-                  ? drop.from < index
-                    ? "after"
-                    : "before"
-                  : undefined
-              }
-            >
-              <button
-                type="button"
-                role="menuitemradio"
-                tabIndex={-1}
-                aria-checked={option.id === game?.id}
-                onClick={() => choose(option.id)}
+        <div className="game-picker-menu">
+          <input
+            className="game-picker-search"
+            ref={search}
+            type="search"
+            aria-label="Filter by opponent"
+            aria-controls={id}
+            placeholder="Filter by opponent"
+            value={query}
+            onChange={(event) => updateQuery(event.currentTarget.value)}
+          />
+          <div
+            className="game-picker-results"
+            role="menu"
+            aria-label="Active games"
+            id={id}
+            ref={list}
+          >
+            {visibleGames.map(({ option, index }) => (
+              <div
+                role="none"
+                key={option.id}
+                className="game-picker-option"
+                data-selected={option.id === game?.id || undefined}
+                data-dragging={drop?.from === index || undefined}
+                data-drop={
+                  drop?.to === index && drop.from !== index
+                    ? drop.from < index
+                      ? "after"
+                      : "before"
+                    : undefined
+                }
               >
-                <GamePickerLabel
-                  game={option}
-                  number={index + 1}
-                  selected={option.id === game?.id}
-                />
-              </button>
-              {games.length > 1 && (
                 <button
                   type="button"
-                  role="menuitem"
-                  className="game-picker-grip"
-                  aria-label={`Reorder ${option.name}`}
-                  title="Drag to reorder or use the arrow keys"
-                  aria-disabled={saving || undefined}
-                  onPointerDown={(event) => startDrag(event, index)}
-                  onPointerMove={moveDrag}
-                  onPointerUp={finishDrag}
-                  onPointerCancel={cancelDrag}
-                  onLostPointerCapture={cancelDrag}
-                  onKeyDown={(event) => {
-                    if (event.key !== "ArrowDown" && event.key !== "ArrowUp")
-                      return;
-                    event.preventDefault();
-                    event.stopPropagation();
-                    void reorder(
-                      index,
-                      index + (event.key === "ArrowDown" ? 1 : -1),
-                    );
-                  }}
+                  role="menuitemradio"
+                  tabIndex={-1}
+                  aria-checked={option.id === game?.id}
+                  onClick={() => choose(option.id)}
                 >
-                  <GripVertical size={18} aria-hidden="true" />
+                  <GamePickerLabel
+                    game={option}
+                    number={index + 1}
+                    selected={option.id === game?.id}
+                  />
                 </button>
-              )}
-            </div>
-          ))}
+                {!filter && games.length > 1 && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="game-picker-grip"
+                    aria-label={`Reorder ${option.name}`}
+                    title="Drag to reorder or use the arrow keys"
+                    aria-disabled={saving || undefined}
+                    onPointerDown={(event) => startDrag(event, index)}
+                    onPointerMove={moveDrag}
+                    onPointerUp={finishDrag}
+                    onPointerCancel={cancelDrag}
+                    onLostPointerCapture={cancelDrag}
+                    onKeyDown={(event) => {
+                      if (event.key !== "ArrowDown" && event.key !== "ArrowUp")
+                        return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void reorder(
+                        index,
+                        index + (event.key === "ArrowDown" ? 1 : -1),
+                      );
+                    }}
+                  >
+                    <GripVertical size={18} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {visibleGames.length === 0 && (
+            <p className="game-picker-empty" role="status">
+              No matching games.
+            </p>
+          )}
           {error && (
             <p role="alert" className="error game-picker-error">
               {error}

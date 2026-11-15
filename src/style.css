@@ -968,16 +968,34 @@ label + label {
 .game-picker-menu {
   position: absolute;
   z-index: 12;
+  display: flex;
+  flex-direction: column;
   top: calc(100% + 5px);
   left: 0;
   width: min(340px, calc(100vw - 44px));
   max-height: min(330px, 60vh);
-  overflow-y: auto;
   padding: 5px;
   border: 1px solid var(--line);
   border-radius: 9px;
   background: var(--surface);
   box-shadow: 0 8px 22px #0003;
+}
+.game-picker-search {
+  flex: none;
+  margin-bottom: 5px;
+  padding: 7px 8px;
+  font-size: 16px;
+}
+.game-picker-search:focus-visible {
+  outline-offset: -2px;
+}
+.game-picker-results {
+  overflow-y: auto;
+}
+.game-picker-empty {
+  margin: 6px 8px 8px;
+  color: var(--muted);
+  font-size: 13px;
 }
 .game-picker-menu button,
 .game-picker-drag-label {

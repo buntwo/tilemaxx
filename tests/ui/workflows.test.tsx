@@ -2467,6 +2467,57 @@ test("hovering a move highlights the first available copy of each rack tile it u
   expect(highlighted()).toEqual([1, 2, 3]);
 });
 
+test("typing in the game picker filters active games by opponent name", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(min-width: 1000px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  remote.games.push(
+    { ...game(), id: "second", name: "Jo Smith", platform: "Wordfeud" },
+    { ...game(), id: "third", name: "Jo Smith", platform: "Scrabble GO" },
+    { ...game(), id: "archived", name: "Jo Smith", archived: true },
+  );
+  const user = await start();
+  await act(() => store.refresh());
+  const trigger = cell("Switch game");
+  const options = () => screen.queryAllByRole("menuitemradio");
+  const search = () =>
+    screen.getByRole<HTMLInputElement>("searchbox", {
+      name: "Filter by opponent",
+    });
+  await user.click(trigger);
+  expect(document.activeElement).toBe(search());
+  await user.keyboard("sMiTh");
+  expect(options()).toHaveLength(2);
+  expect(options()[0].textContent).toMatch(/^2Jo SmithWordfeud/);
+  expect(options()[1].textContent).toMatch(/^3Jo SmithScrabble GO/);
+  expect(screen.queryByRole("menuitem", { name: /Reorder/ })).toBeNull();
+
+  await user.keyboard("x{ArrowDown}{Enter}");
+  expect(screen.getByText("No matching games.").getAttribute("role")).toBe(
+    "status",
+  );
+  expect(options()).toHaveLength(0);
+  await user.keyboard("{Backspace}{ArrowDown}{ArrowDown}{Enter}");
+  expect(await screen.findByRole("heading", { name: "Jo Smith" })).toBeTruthy();
+  expect(localStorage.getItem("tilewise:game")).toBe("third");
+
+  trigger.focus();
+  await user.keyboard("{ArrowDown}");
+  expect(search().value).toBe("");
+  expect(options()).toHaveLength(3);
+  await user.keyboard("F");
+  expect(document.activeElement).toBe(search());
+  expect(options()).toHaveLength(1);
+  expect(options()[0].getAttribute("aria-checked")).toBe("false");
+  await user.keyboard("{Escape}");
+  expect(
+    screen.queryByRole("searchbox", { name: "Filter by opponent" }),
+  ).toBeNull();
+  expect(document.activeElement).toBe(trigger);
+});
+
 test("reordering My games saves the profile order without switching games", async () => {
   remote.games.push({ ...game(), id: "second", name: "Second game" });
   await store.refresh();
