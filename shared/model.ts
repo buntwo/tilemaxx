@@ -61,6 +61,12 @@ export interface GameScoring {
   imported?: boolean;
   end?: { out: Player; rackPoints: number };
 }
+export const BOARD_EDIT_LABELS = {
+  enter: "Entered board letters",
+  erase: "Erased board letters",
+  blank: "Changed blank tile",
+} as const;
+
 export interface HistoryEntry extends Position {
   // Present on the undo boundary of a layout change.
   premiums?: Premium[];

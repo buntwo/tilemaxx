@@ -53,6 +53,59 @@ function fixture(): Game {
   };
 }
 
+test("recording a pending turn folds separate board edits into one scored move after saving", () => {
+  const game = fixture();
+  const { start } = game.template;
+  const edits = new BoardEditHistory();
+  const board = [...game.board];
+  board.splice(start, 3, "C", "A", "Q");
+  const typo = edits.apply(game, [...board], "enter");
+  board[start + 2] = "";
+  const erased = edits.apply(typo, [...board], "erase");
+  board[start + 2] = "T";
+  const entered = edits.apply(erased, board, "enter");
+  const pending = gameSchema.parse(
+    JSON.parse(JSON.stringify({ ...entered, rack: "S" })),
+  );
+  assert.equal(pending.past.length, 3);
+
+  const recorded = recordOpponentPlay(pending);
+  assert.deepEqual(
+    recorded.past.map(({ label }) => label),
+    ["CAT"],
+  );
+  assert.deepEqual(undo(recorded).board, game.board);
+  assert.deepEqual(undo(recorded).scoring, game.scoring);
+
+  const move = solve(
+    new Lexicon(["CATS"]),
+    pending.board,
+    "S",
+    game.template,
+  ).find((move) => move.tiles[0].index === start + 3)!;
+  assert.ok(move);
+  const played = playTrackedMove(pending, move);
+  assert.deepEqual(
+    played.past.map(({ label }) => label),
+    ["CAT", "CATS"],
+  );
+  const afterOpponent = undo(played);
+  assert.deepEqual(afterOpponent.board, pending.board);
+  assert.equal(afterOpponent.rack, "S");
+  assert.deepEqual(gameScoreTotals(afterOpponent.scoring), {
+    you: 0,
+    opponent: 10,
+  });
+  const beforeOpponent = undo(afterOpponent);
+  assert.deepEqual(beforeOpponent.board, game.board);
+  assert.equal(beforeOpponent.rack, game.rack);
+  assert.deepEqual(trackedMoveHistory(beforeOpponent), []);
+  const restored = redo(redo(beforeOpponent));
+  assert.deepEqual(restored.board, played.board);
+  assert.deepEqual(restored.scoring, played.scoring);
+  assert.deepEqual(trackedMoveHistory(restored), trackedMoveHistory(played));
+});
+
 test("legacy rack-outs can be recovered from a recorded final play and a matching position", () => {
   const game = rackOutFixture("S");
   const move = solve(
@@ -192,6 +245,11 @@ test("opponent rack-out waits for complete valid counts and a scoreable play", (
   const finished = recordOpponentRackOut({ ...entered, rack: "Q" });
   assert.deepEqual(finished.scoring?.end, { out: "opponent", rackPoints: 10 });
   assert.equal(recordOpponentRackOut(finished), finished);
+  assert.equal(finished.past.length, 1);
+  const restored = undo(finished);
+  assert.deepEqual(restored.board, game.board);
+  assert.deepEqual(restored.scoring, game.scoring);
+  assert.deepEqual(redo(restored).scoring, finished.scoring);
 });
 
 test("playing out uses the actual remaining rack and respects a known nonempty bag", () => {
@@ -504,6 +562,10 @@ test("a grouped letter replacement and a pending opponent play are tracked separ
   assert.equal(edited.scoring?.opponent.moves, 1);
   const recorded = recordOpponentPlay(edited);
   assert.equal(recorded.scoring?.opponent.moves, 2);
+  const reverted = undo(recorded);
+  assert.deepEqual(reverted.board, edited.board);
+  assert.deepEqual(reverted.trackedMoves, edited.trackedMoves);
+  assert.deepEqual(undo(reverted).board, pending.board);
   assert.deepEqual(
     scoreTotalsAtPosition(edited),
     gameScoreTotals(recorded.scoring),
@@ -543,21 +605,41 @@ test("bingo corrections use retained snapshots and leave previous scoring sessio
   }
 });
 
-test("older saves can recover both moves from undo history and then persist the correction", () => {
+test("score corrections recover turns from both undo formats when review positions are missing", () => {
   const legacy = crossedCat();
   delete legacy.trackedMoves;
   for (const entry of legacy.past) delete entry.review;
   const board = [...legacy.board];
   board[113] = "t";
-  const corrected = new BoardEditHistory().apply(legacy, board, "blank");
-  assert.deepEqual(
-    trackedMoveHistory(corrected).map(({ score }) => score),
-    [8, 7],
-  );
-  assert.deepEqual(
-    trackedMoveHistory(undo(corrected)).map(({ score }) => score),
-    [10, 8],
-  );
+  const opponent = legacy.past.at(-1)!;
+  const { label, player, score, bingo, ...before } = opponent;
+  const split = {
+    ...legacy,
+    past: [
+      ...legacy.past.slice(0, -1),
+      { ...before, label: "Entered board letters" },
+      {
+        ...before,
+        label,
+        player,
+        score,
+        bingo,
+        board: legacy.board,
+        scoring: { ...before.scoring!, pendingBase: before.board },
+      },
+    ],
+  };
+  for (const position of [legacy, split]) {
+    const corrected = new BoardEditHistory().apply(position, board, "blank");
+    assert.deepEqual(
+      trackedMoveHistory(corrected).map(({ score }) => score),
+      [8, 7],
+    );
+    assert.deepEqual(
+      trackedMoveHistory(undo(corrected)).map(({ score }) => score),
+      [10, 8],
+    );
+  }
   const { past, ...withoutUndoHistory } = legacy;
   const unknown = new BoardEditHistory().apply(
     { ...withoutUndoHistory, past: [] },

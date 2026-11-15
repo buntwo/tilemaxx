@@ -1,4 +1,5 @@
 import {
+  BOARD_EDIT_LABELS,
   applyMove,
   archiveGame,
   bingoPoints,
@@ -268,13 +269,13 @@ export function reviewTurns(game: Game) {
         : snapshot;
       return { move, index, position };
     }
-    const before =
-      move.player === "you" ? entry.board : entry.scoring?.pendingBase;
-    if (!before) return { move, index };
-    const after =
-      move.player === "opponent"
-        ? entry.board
-        : (game.past[pastIndex + 1]?.board ?? game.board);
+    // Older opponent score entries captured the board after typing the move.
+    const pendingBase =
+      move.player === "opponent" ? entry.scoring?.pendingBase : undefined;
+    const before = pendingBase ?? entry.board;
+    const after = pendingBase
+      ? entry.board
+      : (game.past[pastIndex + 1]?.board ?? game.board);
     const breakdown = scorePlacement(before, after, {
       ...game.template,
       premiums: historicalPremiums[pastIndex],
@@ -619,32 +620,37 @@ function opponentRackOut(game: Game) {
     return rackOutResult(game, "opponent");
 }
 
-export function recordOpponentRackOut(
-  game: Game,
-  { mergeBoardUndo = false }: { mergeBoardUndo?: boolean } = {},
-) {
+export function recordOpponentRackOut(game: Game) {
   const end = opponentRackOut(game);
-  if (!end) return game;
-  const recorded = recordOpponentPlay(game, end);
-  const before = mergeBoardUndo ? game.past.at(-1) : undefined;
-  if (recorded === game || !before) return recorded;
-  // From board entry, the tiles and their recorded score share one undo step.
-  const move = recorded.past.at(-1)!;
-  return {
-    ...recorded,
-    past: [
-      ...game.past.slice(0, -1),
-      {
-        ...before,
-        label: move.label,
-        player: move.player,
-        score: move.score,
-        bingo: move.bingo,
-        review: move.review,
-        at: move.at,
-      },
-    ],
-  };
+  return end ? recordOpponentPlay(game, end) : game;
+}
+
+const boardEditLabels = new Set<string>(Object.values(BOARD_EDIT_LABELS));
+
+function opponentEntryStart(game: Game, base: Board): number | undefined {
+  for (let i = game.past.length - 1; i >= 0; i--) {
+    const entry = game.past[i];
+    // Preserve separate history for score corrections and unrelated edits.
+    if (
+      !boardEditLabels.has(entry.label) ||
+      entry.player ||
+      entry.premiums ||
+      entry.trackedMoves
+    )
+      return;
+    const pending = entry.scoring?.pendingBase;
+    if (!pending) {
+      if (base.every((tile, index) => tile === entry.board[index])) return i;
+      return;
+    }
+    if (
+      !base.every(
+        (tile, index) =>
+          tile === pending[index] && (!tile || tile === entry.board[index]),
+      )
+    )
+      return;
+  }
 }
 
 function addScore(
@@ -672,16 +678,32 @@ export function recordOpponentPlay(
   const play = pendingOpponentPlay(game);
   if (!play) return game;
   const base = game.scoring!.pendingBase!;
-  return {
-    ...game,
-    ...remember(game, play.word, play.score, "opponent", play.bingo, {
+  const history = remember(
+    game,
+    play.word,
+    play.score,
+    "opponent",
+    play.bingo,
+    {
       board: base.map((tile, index) => (tile ? game.board[index] : "")),
       dictionaryId: game.dictionaryId,
       premiums: game.template.premiums,
       tiles: game.board.flatMap((letter, index) =>
         letter && !base[index] ? [{ index, letter }] : [],
       ),
-    }),
+    },
+  );
+  const start = opponentEntryStart(game, base);
+  if (start !== undefined) {
+    const { label, player, score, bingo, review, at } = history.past.at(-1)!;
+    history.past = [
+      ...game.past.slice(0, start),
+      { ...game.past[start], label, player, score, bingo, review, at },
+    ];
+  }
+  return {
+    ...game,
+    ...history,
     scoring: {
       ...addScore(game.scoring!, "opponent", play),
       ...(end && { end }),
