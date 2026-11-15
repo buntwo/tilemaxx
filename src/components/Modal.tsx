@@ -5,6 +5,7 @@ export default function Modal({
   subtitle,
   children,
   onClose,
+  closeDisabled = false,
   wide = false,
   className = "",
 }: {
@@ -12,6 +13,7 @@ export default function Modal({
   subtitle?: string;
   children: ReactNode;
   onClose: () => void;
+  closeDisabled?: boolean;
   wide?: boolean;
   className?: string;
 }) {
@@ -28,10 +30,10 @@ export default function Modal({
       className={`modal ${wide ? "wide" : ""} ${className}`}
       onCancel={(e) => {
         e.preventDefault();
-        onClose();
+        if (!closeDisabled) onClose();
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (!closeDisabled && e.target === e.currentTarget) onClose();
       }}
     >
       <div className="modal-inner">
@@ -42,6 +44,7 @@ export default function Modal({
           </div>
           <button
             className="icon-button"
+            disabled={closeDisabled}
             aria-label="Close dialog"
             onClick={onClose}
           >

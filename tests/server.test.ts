@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createStore } from "../server/store";
 import { createApp } from "../server/app";
-import type { AppState, Game } from "../shared/model";
+import { emptyBoard, type AppState, type Game } from "../shared/model";
+import { emptyScoring } from "../shared/game-scoring";
 import { type GameIndex, summarizeGame } from "../shared/game-index";
 import { PRESETS } from "../shared/presets";
 
@@ -345,6 +346,124 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
     assert.equal(store.dictionaries().length, 3);
   } finally {
     server.close();
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("archive and start saves the original and creates one fresh game in one transaction", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilewise-archive-test-"));
+  const store = createStore(dir, process.cwd());
+  const server = createApp(store).listen(0, "127.0.0.1");
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const { port } = server.address() as { port: number };
+  const [initial] = store.state().games;
+  const layout = PRESETS.find(({ id }) => id === "wordfeud")!;
+  const template = { ...layout, premiums: [...layout.premiums] };
+  template.premiums[0] = "DW";
+  const board = emptyBoard(template.size);
+  board[template.start] = "A";
+  const original = store.saveGame({
+    ...initial,
+    board,
+    dictionaryId: "enable",
+    name: "Sam",
+    platform: "Wordfeud",
+    startedOn: "2026-11-01",
+    notes: "Notes for the first match",
+    rack: "CTS",
+    past: [
+      {
+        board: emptyBoard(template.size),
+        rack: "",
+        label: "Previous board",
+        at: "2026-11-01T00:00:00.000Z",
+      },
+    ],
+    excludedRackSlots: [0],
+    template,
+    originalPremiums: layout.premiums,
+    trackScores: false,
+    scoring: emptyScoring(),
+    trackedMoves: [{ player: "you", word: "AT", score: 4, at: "2026-11-01" }],
+  })!;
+  const startedOn = "2026-11-15";
+  const archiveAndStart = (revision: number, date = startedOn) =>
+    fetch(
+      `http://127.0.0.1:${port}/api/games/${original.id}/archive-and-start`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revision, startedOn: date }),
+      },
+    );
+  try {
+    assert.equal(
+      (await archiveAndStart(original.revision, "not a date")).status,
+      400,
+    );
+    const stale = await archiveAndStart(initial.revision);
+    assert.equal(stale.status, 409);
+    assert.equal((await stale.json()).game.revision, original.revision);
+
+    store.db.exec(`CREATE TRIGGER fail_new_game BEFORE INSERT ON games
+      BEGIN SELECT RAISE(ABORT, 'Failed to insert'); END`);
+    assert.throws(
+      () =>
+        store.archiveAndStartNewGame(original.id, original.revision, startedOn),
+      /Failed to insert/,
+    );
+    assert.deepEqual(store.getGame(original.id), original);
+    assert.deepEqual(store.index().games, [summarizeGame(original)]);
+    store.db.exec("DROP TRIGGER fail_new_game");
+
+    const results = await Promise.all([
+      archiveAndStart(original.revision),
+      archiveAndStart(original.revision),
+    ]);
+    assert.deepEqual(results.map(({ status }) => status).sort(), [201, 409]);
+    const { archived, created }: { archived: Game; created: Game } =
+      await results.find(({ status }) => status === 201)!.json();
+    assert.equal(archived.id, original.id);
+    assert.equal(archived.startedOn, original.startedOn);
+    assert.equal(archived.notes, original.notes);
+    assert.deepEqual(archived.board, original.board);
+    assert.deepEqual(archived.archivedBoard, original.board);
+    assert.deepEqual(archived.archivedState?.past, original.past);
+    assert.deepEqual(
+      archived.archivedState?.trackedMoves,
+      original.trackedMoves,
+    );
+    assert.equal(archived.archivedState?.rack, original.rack);
+    assert.notEqual(created.id, original.id);
+    assert.equal(created.profileId, original.profileId);
+    assert.equal(created.name, original.name);
+    assert.equal(created.platform, original.platform);
+    assert.equal(created.startedOn, startedOn);
+    assert.equal(created.dictionaryId, original.dictionaryId);
+    assert.equal(created.trackScores, false);
+    assert.deepEqual(created.template, template);
+    assert.deepEqual(created.originalPremiums, layout.premiums);
+    assert.deepEqual(created.board, emptyBoard(template.size));
+    assert.equal(created.rack, "");
+    assert.equal(created.archived, false);
+    assert.deepEqual(created.past, []);
+    assert.deepEqual(created.future, []);
+    for (const field of [
+      "notes",
+      "scoring",
+      "trackedMoves",
+      "excludedRackSlots",
+      "archivedBoard",
+      "archivedState",
+    ] as const)
+      assert.equal(created[field], undefined);
+    assert.deepEqual(store.index().games, [
+      summarizeGame(archived),
+      summarizeGame(created),
+    ]);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     store.db.close();
     rmSync(dir, { recursive: true, force: true });
   }

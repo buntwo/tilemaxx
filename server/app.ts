@@ -117,6 +117,33 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
     res.json(game);
   });
+  app.post("/api/games/:id/archive-and-start", (req, res) => {
+    const { revision, startedOn } = z
+      .object({
+        revision: z.number().int().nonnegative(),
+        startedOn: z.iso.date(),
+      })
+      .parse(req.body);
+    const result = store.archiveAndStartNewGame(
+      req.params.id,
+      revision,
+      startedOn,
+    );
+    if (result.status === "missing") {
+      res.status(404).json({ error: "Game not found." });
+    } else if (result.status === "conflict") {
+      res.status(409).json({
+        error: result.game.archived
+          ? "This game has already been archived."
+          : "This game was updated on another device. Try again with the latest version.",
+        game: result.game,
+      });
+    } else {
+      res
+        .status(201)
+        .json({ archived: result.archived, created: result.created });
+    }
+  });
   app.put("/api/games/:id", (req, res) => {
     const game = gameSchema.parse(req.body),
       current = store.getGame(req.params.id);

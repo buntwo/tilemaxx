@@ -16,8 +16,10 @@ import {
   type Game,
   type Profile,
   type BoardTemplate,
+  archiveGame,
   emptyBoard,
   localDate,
+  newGameFromSettings,
 } from "../shared/model";
 import {
   summarizeGame,
@@ -207,7 +209,7 @@ export function createStore(directory: string, root: string) {
     ],
     dictionaries: dictionaries(),
   });
-  function createGame(
+  function insertGame(
     input: Omit<Game, "id" | "revision" | "updatedAt">,
   ): Game {
     const game = {
@@ -218,15 +220,29 @@ export function createStore(directory: string, root: string) {
       revision: 0,
       updatedAt: new Date().toISOString(),
     };
-    transaction(() => {
-      db.prepare("INSERT INTO games VALUES (?,?,?)").run(
-        game.id,
-        0,
-        JSON.stringify(game),
-      );
-      saveSummary(game);
-    });
+    db.prepare("INSERT INTO games VALUES (?,?,?)").run(
+      game.id,
+      game.revision,
+      JSON.stringify(game),
+    );
+    saveSummary(game);
     return game;
+  }
+  function createGame(input: Parameters<typeof insertGame>[0]) {
+    return transaction(() => insertGame(input));
+  }
+  function writeGame(game: Game): Game | undefined {
+    const saved = {
+      ...game,
+      revision: game.revision + 1,
+      updatedAt: new Date().toISOString(),
+    };
+    const result = db
+      .prepare("UPDATE games SET revision=?,data=? WHERE id=? AND revision=?")
+      .run(saved.revision, JSON.stringify(saved), game.id, game.revision);
+    if (!result.changes) return undefined;
+    saveSummary(saved);
+    return saved;
   }
   if (db.prepare("PRAGMA user_version").get()?.user_version === 0) {
     if (!profiles().length) {
@@ -336,20 +352,18 @@ export function createStore(directory: string, root: string) {
       db.prepare("DELETE FROM games WHERE id=?").run(id);
     },
     saveGame(game: Game): Game | undefined {
-      const saved = {
-        ...game,
-        revision: game.revision + 1,
-        updatedAt: new Date().toISOString(),
-      };
+      return transaction(() => writeGame(game));
+    },
+    archiveAndStartNewGame(id: string, revision: number, startedOn: string) {
       return transaction(() => {
-        const result = db
-          .prepare(
-            "UPDATE games SET revision=?,data=? WHERE id=? AND revision=?",
-          )
-          .run(saved.revision, JSON.stringify(saved), game.id, game.revision);
-        if (!result.changes) return undefined;
-        saveSummary(saved);
-        return saved;
+        const game = getGame(id);
+        if (!game) return { status: "missing" } as const;
+        if (game.archived || game.revision !== revision)
+          return { status: "conflict", game } as const;
+        const archived = writeGame(archiveGame(game));
+        if (!archived) return { status: "conflict", game } as const;
+        const created = insertGame(newGameFromSettings(game, startedOn));
+        return { status: "created", archived, created } as const;
       });
     },
     saveTemplate(template: BoardTemplate) {
