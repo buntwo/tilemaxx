@@ -1,0 +1,85 @@
+:root,
+[data-premium-palette="default"] {
+  --dl: light-dark(#bfdbe2, #345d66);
+  --dl-ink: light-dark(#294956, #e7f6f9);
+  --tl: light-dark(#80b0c0, #497e90);
+  --tl-ink: light-dark(#163d4d, #000);
+  --dw: light-dark(#edc2b6, #754b45);
+  --dw-ink: light-dark(#67342a, #ffebe4);
+  --tw: light-dark(#d78476, #a35d51);
+  --tw-ink: light-dark(#2f1510, #fff9f7);
+}
+
+:root {
+  --ql: #b9a1e2;
+  --ql-ink: #0c1410;
+  --qw: #694581;
+  --qw-ink: #fff;
+}
+
+[data-premium-palette="wordfeud"] {
+  --dl: #6b8e50;
+  --dl-ink: #0c1410;
+  --tl: #1f6091;
+  --tl-ink: #fff;
+  --dw: #c8730e;
+  --dw-ink: #0c1410;
+  --tw: #94272f;
+  --tw-ink: #fff;
+}
+
+[data-premium-palette="scrabble-go"] {
+  --dl: #86c6fa;
+  --dl-ink: #0c1410;
+  --tl: #0066a7;
+  --tl-ink: #fff;
+  --dw: #fc7863;
+  --dw-ink: #0c1410;
+}
+
+[data-premium-palette="words-with-friends"] {
+  --dl: #46a4d5;
+  --dl-ink: #0c1410;
+  --tl: #a2bc62;
+  --tl-ink: #0c1410;
+  --dw: #ed6e61;
+  --dw-ink: #0c1410;
+  --tw: #f4a34e;
+  --tw-ink: #0c1410;
+}
+
+[data-premium-palette="crossplay"] {
+  --dl: #f4e8c6;
+  --dl-ink: #685221;
+  --tl: #dee9cf;
+  --tl-ink: #3d552a;
+  --dw: #dce4f5;
+  --dw-ink: #3a4f77;
+  --tw: #e5d9ec;
+  --tw-ink: #702577;
+}
+
+[data-premium-palette="lexulous"] {
+  --dl: #b5d1ff;
+  --dl-ink: #0c1410;
+  --tl: #3066c6;
+  --tl-ink: #fff;
+  --dw: #ffb7b8;
+  --dw-ink: #0c1410;
+  --tw: #cf040c;
+  --tw-ink: #fff;
+}
+
+[data-premium-palette="in-person"] {
+  --dl: #b5d7ed;
+  --dl-ink: #0c1410;
+  --tl: #3575a9;
+  --tl-ink: #fff;
+  --dw: #efb6c1;
+  --dw-ink: #0c1410;
+}
+
+:is([data-premium-palette="scrabble-go"], [data-premium-palette="in-person"]) {
+  --tw: #c23b43;
+  --tw-ink: #fff;
+}

@@ -1285,6 +1285,66 @@ test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters
   ).toBeTruthy();
 });
 
+test("existing games and their thumbnails use platform palettes independently of layout", async () => {
+  const template = PRESETS.find(({ id }) => id === "wordfeud")!;
+  const first = { ...game(), revision: 1, template, platform: "WWF" };
+  remote.games = [
+    first,
+    { ...first, id: "club", name: "Club night", platform: "Local club" },
+    {
+      ...first,
+      id: "archive",
+      name: "Archived match",
+      platform: "In person",
+      archived: true,
+    },
+  ];
+  const user = await start();
+  const palette = (element: Element | null) =>
+    element
+      ?.closest("[data-premium-palette]")
+      ?.getAttribute("data-premium-palette");
+  const board = () => document.querySelector(".board-entry .board-grid");
+  await waitFor(() => expect(palette(board())).toBe("words-with-friends"));
+  expect(board()?.getAttribute("aria-label")).toBe("Wordfeud board");
+
+  await user.click(screen.getByRole("button", { name: "Switch game" }));
+  const picker = within(screen.getByRole("menu", { name: "Active games" }));
+  expect(
+    palette(
+      picker
+        .getByRole("menuitemradio", { name: /^First game/ })
+        .querySelector("svg.board-thumbnail"),
+    ),
+  ).toBe("words-with-friends");
+  const club = picker.getByRole("menuitemradio", { name: /^Club night/ });
+  expect(palette(club.querySelector("svg.board-thumbnail"))).toBe("default");
+  await user.click(club);
+  await waitFor(() => expect(palette(board())).toBe("default"));
+
+  await user.click(screen.getByRole("button", { name: "Game options" }));
+  await user.click(screen.getByRole("button", { name: /^Edit game details/ }));
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "Platform" }),
+    "Scrabble GO",
+  );
+  await user.click(screen.getByRole("button", { name: "Save details" }));
+  expect(palette(board())).toBe("scrabble-go");
+  expect(board()?.getAttribute("aria-label")).toBe("Wordfeud board");
+  await act(() => store.flush());
+  expect(remote.games.find(({ id }) => id === "club")?.template).toEqual(
+    template,
+  );
+
+  await user.click(screen.getByRole("button", { name: "Archived games" }));
+  const archive = screen.getByRole("button", { name: /^Archived match/ });
+  expect(palette(archive.querySelector("svg.board-thumbnail"))).toBe(
+    "in-person",
+  );
+  await user.click(archive);
+  await waitFor(() => expect(palette(board())).toBe("in-person"));
+});
+
 test("the board toolbar labels imported premiums and follows undo and redo", async () => {
   const template = PRESETS.find(({ id }) => id === "wordfeud")!;
   const premiums = [...template.premiums];

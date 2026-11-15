@@ -75,6 +75,7 @@ import { defaultDictionary } from "../shared/dictionaries";
 import { DEFENSE_LIMIT } from "../shared/premium-defense";
 import { useSolver } from "./useSolver";
 import { store, useStore } from "./store";
+import { premiumPalette } from "./premium-palettes";
 import {
   type BoardTemplate,
   type Game,
@@ -727,6 +728,9 @@ export default function App() {
   return (
     <div
       className={`app-shell${compactGame ? " compact-game" : ""}${phoneLayout ? " phone-layout" : ""}`}
+      data-premium-palette={premiumPalette(
+        workspace === "games" ? game?.platform : undefined,
+      )}
     >
       {sidebar && (
         <div className="sidebar-scrim" onClick={() => setSidebar(false)} />
