@@ -118,12 +118,14 @@ export function BoardInput({
   const [atEnd, setAtEnd] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const focusing = useRef(false);
+  const shiftHeld = useRef(false);
   const breakHistory = useRef(onBreak);
   breakHistory.current = onBreak;
   const resetHistory = () => breakHistory.current?.();
   useEffect(() => {
     const reset = () => {
       breakHistory.current?.();
+      shiftHeld.current = false;
       setFocused(false);
       setPendingBlank(false);
     };
@@ -298,7 +300,7 @@ export function BoardInput({
         value={SENTINEL}
         autoComplete="off"
         autoCorrect="off"
-        autoCapitalize="characters"
+        autoCapitalize="off"
         enterKeyHint={onSolve ? "search" : undefined}
         spellCheck={false}
         onFocus={() => {
@@ -309,6 +311,7 @@ export function BoardInput({
         }}
         onBlur={() => {
           resetHistory();
+          shiftHeld.current = false;
           setFocused(false);
           setPendingBlank(false);
         }}
@@ -323,7 +326,11 @@ export function BoardInput({
           e.preventDefault();
           enter(e.clipboardData.getData("text"));
         }}
+        onKeyUp={(e) => {
+          if (e.key === "Shift") shiftHeld.current = false;
+        }}
         onKeyDown={(e) => {
+          if (e.key === "Shift") shiftHeld.current = true;
           if (e.nativeEvent.isComposing || e.metaKey || e.ctrlKey || e.altKey)
             return;
           if (
@@ -369,7 +376,8 @@ export function BoardInput({
               break;
             case "Enter":
               if (e.repeat) break;
-              if (e.shiftKey) toggleDirection();
+              // iOS auto-capitalization can set shiftKey on the Search key.
+              if (e.shiftKey && shiftHeld.current) toggleDirection();
               else if (onSolve) {
                 e.currentTarget.blur();
                 onSolve();

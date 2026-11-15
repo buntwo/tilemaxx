@@ -968,6 +968,23 @@ test("Enter on the board finds moves using the just-entered play and existing ra
   expect(current().rack).toBe("S");
 });
 
+test("a phone keyboard’s Shift flag on Enter still finds moves on the first press", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const user = await start();
+  await typeRack(user, "S");
+  await user.click(cell("H8: DW, start"));
+  expect(entry().getAttribute("autocapitalize")).toBe("off");
+  await user.keyboard("cat");
+  fireEvent.keyDown(entry(), { key: "Enter", shiftKey: true });
+
+  expect(cell("Toggle entry direction").textContent).toContain("Across");
+  expect(await screen.findByRole("button", { name: /^CATS, / })).toBeTruthy();
+});
+
 test("repeat tap toggles direction and controls preserve the same input focus", async () => {
   const user = await start();
   await user.click(cell("C3: DW"));
