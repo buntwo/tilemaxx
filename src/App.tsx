@@ -66,13 +66,15 @@ import {
   readGameDetails,
 } from "./components/GameDetails";
 import ArchivedGames, { type ArchiveSort } from "./components/ArchivedGames";
-import GameScores, { GameScoreBadge } from "./components/GameScores";
+import GameScoreBadge from "./components/GameScoreBadge";
+import GameScores from "./components/GameScores";
 import {
   emptyScoring,
   playTrackedMove,
   recordOpponentPlay,
   recordOpponentRackOut,
   setScoreTracking,
+  summarizeGameScore,
   treatBoardEditAsCorrection,
 } from "../shared/game-scoring";
 import { defaultDictionary } from "../shared/dictionaries";
@@ -569,7 +571,7 @@ function Tilemaxx() {
   const collapsibleBoardHelp = compactGame || phoneLayout;
   const menuInTitle = phoneLayout && workspace === "games";
   const headlineScore = game && (
-    <GameScoreBadge game={game} prominent={compactGame} />
+    <GameScoreBadge score={summarizeGameScore(game)} prominent={compactGame} />
   );
   const menuButton = (
     <button

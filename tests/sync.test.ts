@@ -463,6 +463,27 @@ test("a permanently rejected draft leaves other games online and retries only af
   }
 });
 
+test("polling refreshes an older cached summary at the same game revision", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    const score = { you: 300, opponent: 280, outcome: "win" };
+    const { score: _score, ...cached } = summarizeGame({ ...game, archived: true });
+    const index = { ...client.snapshot.data!, games: [cached] };
+    cacheGameIndex(JSON.stringify(index));
+    localStorage.removeItem("tilewise:cache");
+    const reloaded = new GameStore();
+    globalThis.fetch = async (url) => {
+      assert.equal(url, "/api/state/index");
+      return response({ ...index, games: [{ ...cached, score }] });
+    };
+    await reloaded.refresh();
+    assert.deepEqual(reloaded.snapshot.data?.games[0].score, score);
+    assert.deepEqual(reloaded.snapshot.games, {});
+  } finally {
+    cleanup();
+  }
+});
+
 test("polling only loads full histories for watched games with a new revision", async () => {
   const { client, game, cleanup } = setup();
   try {

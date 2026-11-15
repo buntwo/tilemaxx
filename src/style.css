@@ -2985,6 +2985,9 @@ label + label {
 .archive-open:hover {
   background: var(--soft);
 }
+.phone-layout .archive-open:has(.game-title-score) .archive-arrow {
+  display: none;
+}
 @media (min-width: 1500px) {
   .main-content {
     padding: 0 55px;
@@ -5047,7 +5050,7 @@ label + label {
 }
 .phone-layout .game-heading-details { flex: 1; }
 .phone-layout .game-heading h1 { font-size: clamp(21px, 6vw, 25px); }
-.phone-layout .game-title-score:not(.game-scoreboard) { font-size: 16px; }
+.phone-layout .game-heading .game-title-score:not(.game-scoreboard) { font-size: 16px; }
 .phone-layout .game-title-meta { margin-top: 0; }
 .phone-layout .game-actions { flex: none; }
 .phone-layout .manage-button { min-width: 44px; min-height: 44px; }

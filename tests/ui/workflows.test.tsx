@@ -1801,6 +1801,35 @@ test("multiple games retain separate racks and word lists", async () => {
   expect(dictionary().value).toBe("other");
 });
 
+test("archive rows show saved tracked scores and outcome colors from summaries", async () => {
+  const player = (points: number) => ({ points, moves: 1, best: points, bingos: 0 });
+  const scoring = { you: player(300), opponent: player(280) };
+  const finished = archiveGame({
+    ...game(),
+    id: "finished",
+    name: "Finished opponent",
+    scoring: { ...scoring, end: { out: "you", rackPoints: 4 } },
+  });
+  remote.games.push(
+    { ...finished, scoring: { ...scoring, you: player(350) } },
+    { ...game(), id: "unfinished", name: "Unfinished opponent", archived: true, scoring },
+    { ...game(), id: "untracked", name: "Untracked opponent", archived: true, trackScores: false },
+  );
+  const user = await start();
+  await act(() => store.refresh());
+  await user.click(cell("Archived games"));
+  const archive = within(screen.getByRole("region", { name: "Archived games" }));
+  const row = (name: string) => archive.getByRole("button", { name: new RegExp(`^${name}`) });
+  const badge = (name: string) => within(row(name)).getByRole("group", { name: "Tracked score" });
+  expect(badge("Finished opponent").textContent).toBe("304–276");
+  expect(badge("Finished opponent").getAttribute("data-outcome")).toBe("win");
+  expect(row("Finished opponent").getAttribute("aria-description")).toContain("You won");
+  expect(badge("Unfinished opponent").textContent).toBe("300–280");
+  expect(badge("Unfinished opponent").getAttribute("data-outcome")).toBe("archived");
+  expect(within(row("Untracked opponent")).queryByRole("group", { name: "Tracked score" })).toBeNull();
+  expect(store.getSnapshot().games.finished).toBeUndefined();
+});
+
 test("archived games filter by opponent while honoring the selected sort", async () => {
   remote.games.push(
     {

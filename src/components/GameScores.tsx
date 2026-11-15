@@ -14,50 +14,6 @@ import Modal from "./Modal";
 import ScoreBreakdown from "./ScoreBreakdown";
 import TurnReview from "./TurnReview";
 
-export function GameScoreBadge({
-  game,
-  prominent,
-}: {
-  game: Game;
-  prominent: boolean;
-}) {
-  if (!tracksScores(game)) return null;
-  const scoring = displayedGameScoring(game);
-  const { you, opponent } = gameScoreTotals(scoring);
-  const outcome = !scoring?.end
-    ? game.archived
-      ? "archived"
-      : "playing"
-    : you === opponent
-      ? "tie"
-      : you > opponent
-        ? "win"
-        : "loss";
-  const status = {
-    archived: "Archived game",
-    playing: "Game in progress",
-    tie: "Tie game",
-    win: "You won",
-    loss: "You lost",
-  }[outcome];
-  return (
-    <span
-      className={
-        prominent ? "game-title-score game-scoreboard" : "game-title-score"
-      }
-      role="group"
-      aria-label="Tracked score"
-      aria-description={status}
-      title={status}
-      data-outcome={outcome}
-    >
-      <span aria-label="Your score">{you}</span>
-      <span aria-hidden="true">–</span>
-      <span aria-label="Opponent score">{opponent}</span>
-    </span>
-  );
-}
-
 export default function GameScores({
   game,
   onToggle,
