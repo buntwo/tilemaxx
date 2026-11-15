@@ -56,10 +56,19 @@ export function MoveSquareFilterControls({
 }) {
   return (
     <div className="move-square-controls">
-      <span role="status">
+      <span
+        role="status"
+        aria-label={
+          !count && historyControls
+            ? "Mark squares a word must cover"
+            : undefined
+        }
+      >
         {count
           ? `${count} ${count === 1 ? "square" : "squares"} selected`
-          : "Mark squares a word must cover"}
+          : historyControls
+            ? "Mark squares"
+            : "Mark squares a word must cover"}
       </span>
       <button
         className="text-button"

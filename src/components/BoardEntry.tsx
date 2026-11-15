@@ -147,8 +147,15 @@ export function BoardInput({
   const tile = selected === null ? "" : board[selected];
   const isBlank = Boolean(tile && tile === tile.toLowerCase());
   const cursor = focused && selected !== null ? coordinate(selected, n) : "";
+  const instruction = pendingBlank
+    ? "Type a blank’s letter"
+    : atEnd
+      ? historyControls
+        ? "Choose a square"
+        : "Board edge — choose another square"
+      : "Type to enter";
   const status = cursor
-    ? `${cursor} · ${pendingBlank ? "Type a blank’s letter" : atEnd ? "Board edge — choose another square" : "Type to enter"}`
+    ? `${cursor} · ${instruction}`
     : "Tap a square and type";
   const toggleMark = moveFilter?.onToggle;
 
@@ -368,14 +375,7 @@ export function BoardInput({
         className={`direct-entry-tools${historyControls ? " with-board-history" : ""}`}
       >
         <div className="direct-entry-status" role="status">
-          {historyControls ? (
-            <>
-              <span className="board-entry-announcement">{status}</span>
-              <span aria-hidden="true">{cursor}</span>
-            </>
-          ) : (
-            status
-          )}
+          {status}
         </div>
         <div className="direct-entry-actions">
           <button

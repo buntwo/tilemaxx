@@ -2229,11 +2229,13 @@ test("the phone layout keeps settings, the build version, board help and move fi
   const undo = main.getByRole("button", { name: "Undo" });
   const redo = main.getByRole("button", { name: "Redo" });
   const entryTools = undo.closest(".direct-entry-actions");
+  expect(main.getByText("Tap a square and type").closest(".direct-entry-tools")).toBeTruthy();
   expect(entryTools?.contains(redo)).toBe(true);
   expect(entryTools?.contains(main.getByRole("button", { name: "Toggle entry direction" }))).toBe(true);
   expect(entryTools?.contains(main.getByRole("button", { name: "Blank tile: off" }))).toBe(true);
   await user.click(cell("H8: DW, start"));
   await user.keyboard("C");
+  expect(main.getByText("I8 · Type to enter")).toBeTruthy();
   await user.click(undo);
   expect(current().board[112]).toBe("");
   await user.click(redo);
@@ -2499,6 +2501,11 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   const heading = cell("Game options").closest(".game-heading");
   expect(heading?.contains(titleScore())).toBe(true);
   expect(titleScore()?.closest(".game-title-row, .board-toolbar")).toBeNull();
+  const rack = within(screen.getByRole("region", { name: "Your rack" }));
+  const history = within(rack.getByRole("group", { name: "Undo and redo" }));
+  expect(history.getByRole("button", { name: "Undo" })).toBeTruthy();
+  expect(history.getByRole("button", { name: "Redo" })).toBeTruthy();
+  expect(heading?.querySelector(".board-undo, .board-redo")).toBeNull();
 
   await user.click(cell("H8: DW, start"));
   await user.keyboard("CAQ{Backspace}T");
