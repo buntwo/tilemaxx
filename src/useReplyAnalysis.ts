@@ -9,8 +9,9 @@ import {
 } from "../shared/reply-analysis";
 import type { EndgameLine } from "../shared/endgame";
 import type { Game, Move } from "../shared/model";
-import { MOVE_CACHE_LIMIT } from "../shared/move-results";
+import { MOVE_CACHE_LIMIT, type EndgameRanking } from "../shared/move-results";
 import { unseenTiles } from "../shared/tile-pool";
+import type { RankEndgame } from "./useSolver";
 
 type WorkerMessage = {
   id: number;
@@ -43,6 +44,7 @@ export function useReplyAnalysis(
   positionKey: string | undefined,
   moves: Move[] | null,
   enabled: boolean,
+  endgame?: { searchId: number | undefined; rank: RankEndgame },
 ) {
   const [settings, setSettings] = useState<
     Record<string, { bagSize: number; scorelessTurns: number }>
@@ -51,6 +53,10 @@ export function useReplyAnalysis(
   const cache = useRef(new Map<Move[], Summary>());
   const details = useRef(new WeakMap<Move[], Detail>());
   const [detail, setDetail] = useState<Detail>();
+  const [estimateResult, setEstimateResult] = useState<{
+    key: string;
+    ranking?: EndgameRanking;
+  }>();
   const worker = useRef<Worker | null>(null);
   const activeDetail = useRef<{ id: number; key: string } | undefined>(
     undefined,
@@ -66,8 +72,44 @@ export function useReplyAnalysis(
   const confirmed = !!options;
   const bagSize = options?.bagSize ?? minimumBag;
   const scorelessTurns = options?.scorelessTurns ?? 0;
-  const moveList = enabled && moves?.length ? moves : undefined;
+  const invalid = !!pool?.excess.length;
   const runKey = JSON.stringify([positionKey, bagSize, scorelessTurns]);
+  const searchId = endgame?.searchId;
+  const rank = endgame?.rank;
+  const estimateKey =
+    rank &&
+    searchId !== undefined &&
+    enabled &&
+    moves?.length &&
+    bagSize === 0 &&
+    !invalid &&
+    pool?.total &&
+    game?.template.rules === "scrabble"
+      ? JSON.stringify([searchId, runKey])
+      : undefined;
+  const estimateRun =
+    estimateKey && estimateResult?.key === estimateKey
+      ? estimateResult
+      : undefined;
+  const ranking = estimateRun?.ranking;
+  const moveList =
+    enabled && moves?.length
+      ? ranking?.checked
+        ? ranking.head
+        : moves
+      : undefined;
+  useEffect(() => {
+    if (!rank || searchId === undefined || !estimateKey || !game) return;
+    const key = estimateKey;
+    const abort = new AbortController();
+    function finish(ranking?: EndgameRanking) {
+      if (!abort.signal.aborted) setEstimateResult({ key, ranking });
+    }
+    void rank(searchId, game, scorelessTurns, abort.signal).then(finish, () =>
+      finish(),
+    );
+    return () => abort.abort();
+  }, [rank, searchId, estimateKey, scorelessTurns]);
   const cached = moveList && cache.current.get(moveList);
   const current =
     summary?.moveList === moveList && summary?.runKey === runKey
@@ -75,13 +117,21 @@ export function useReplyAnalysis(
       : cached?.runKey === runKey
         ? cached
         : undefined;
-  // Solve results arrive in score order. Keep that order when the view is filtered or sorted.
-  const target = useMemo(
-    () => moveList?.slice(0, REPLY_LIMIT) ?? [],
-    [moveList],
-  );
-  const reference = target[0];
-  const invalid = !!pool?.excess.length;
+  // Give inline replies to the ranked suggestions while retaining the raw
+  // top-scoring play as the baseline for reply comparisons.
+  const target = useMemo(() => {
+    if (!moveList) return [];
+    const head = moveList.slice(0, REPLY_LIMIT);
+    if (moveList !== moves) {
+      const ids = new Set(head.map(({ id }) => id));
+      head.push(
+        ...(moves?.slice(0, REPLY_LIMIT).filter(({ id }) => !ids.has(id)) ??
+          []),
+      );
+    }
+    return head;
+  }, [moveList, moves]);
+  const reference = moveList && moves?.[0];
   const bagAssumedEmpty = bagSize === 0 && !confirmed && (pool?.total ?? 0) > 0;
   const opponentRack =
     bagSize === 0 && pool && !invalid
@@ -224,6 +274,9 @@ export function useReplyAnalysis(
     opponentRack,
     maxScorelessTurns: game ? replyScorelessLimit(game.template) - 1 : 5,
     scorelessTurns,
+    ranking,
+    estimatingEndgame: !!estimateKey && !estimateRun,
+    endgameEstimateUnavailable: !!estimateRun && !ranking?.checked,
     setOptions: (bagSize: number, scorelessTurns: number) =>
       setSettings((current) =>
         Object.fromEntries(

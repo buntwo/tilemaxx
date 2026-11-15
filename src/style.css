@@ -1933,8 +1933,9 @@ label + label {
 }
 .results-panel.with-reply-column {
   --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)
-    [reply] 62px [leave] var(--result-leave) [position] var(--result-position);
+    [reply] var(--result-reply, 62px) [leave] var(--result-leave) [position] var(--result-position);
 }
+.results-panel.with-endgame-estimates { --result-reply: 64px; }
 .result-columns,
 .result-row,
 .result-slot {
@@ -2095,6 +2096,15 @@ label + label {
 .reply-cell small {
   font-size: 10px;
   white-space: nowrap;
+}
+.endgame-estimate {
+  max-width: 100%;
+}
+.endgame-estimate small {
+  font-size: 9px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .reply-neutral { color: var(--muted); }
 .reply-mini {
@@ -5074,7 +5084,7 @@ label + label {
 @container (max-width: 390px) {
   .phone-move-review .with-reply-column :is(.result-columns, .result-row, .result-slot) {
     --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)
-      [reply] 48px [leave] var(--result-leave) [position] var(--result-position);
+      [reply] var(--result-reply, 48px) [leave] var(--result-leave) [position] var(--result-position);
   }
 }
 

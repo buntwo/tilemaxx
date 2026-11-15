@@ -38,6 +38,37 @@ test("the worker index keeps all placements while sending bounded windows", () =
   assert.deepEqual(index.shortlist({})[0]?.move, moves[0]);
 });
 
+test("endgame ranking includes lower-scoring moves outside the initial page and returns only visible estimates", () => {
+  const lexicon = new Lexicon(["AT", "CAT", "CATS", "CAST", "ACT", "SAT"]);
+  const moves = solve(lexicon, emptyBoard(15), "CATS??", PRESETS[0]);
+  const first = moves[0];
+  const last = moves.at(-1)!;
+  const index = new MoveResultIndex(moves, PRESETS[0]);
+  const ranked = index.setEndgame(
+    2,
+    new Map([
+      [first.id, { spread: -50 }],
+      [last.id, { spread: 15 }],
+    ]),
+  );
+  assert.equal(ranked.checked, 2);
+  assert.deepEqual(ranked.head.slice(0, 2), [last, first]);
+  assert.deepEqual(index.summary(1).head, moves.slice(0, 30));
+
+  const query = {
+    filter: "",
+    sort: "endgame" as const,
+    offset: 0,
+    endgameId: 2,
+  };
+  assert.equal(index.page(query).rows[0], last);
+  assert.equal(index.page({ ...query, reversed: true }).rows[0], first);
+  const raw = index.page({ ...query, sort: "score" });
+  assert.equal(raw.rows[0], first);
+  assert.deepEqual(raw.endgame, { [first.id]: { spread: -50 } });
+  assert.equal(index.page({ ...query, endgameId: 1 }).endgame, undefined);
+});
+
 test("square filtering finds every required square in the main word before paginating", () => {
   const lexicon = new Lexicon([
     "AT",

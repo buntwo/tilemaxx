@@ -5,6 +5,7 @@ import type { DefenseResults } from "../shared/premium-defense";
 import type { ExchangeAdvice } from "../shared/exchange-advice";
 import type { ExchangeAdviceMessage, PracticeRequest } from "./practice.worker";
 import type {
+  EndgameRanking,
   MovePage,
   MoveQuery,
   MoveResults,
@@ -24,7 +25,16 @@ type Snapshot = {
   exchangeAdvice?: ExchangeAdvice;
 };
 const emptySnapshot: Snapshot = { results: null, elapsed: 0, warnings: [] };
-type QueryReply = Extract<SolverMessage, { kind: "page" | "shortlist" }>;
+type QueryReply = Extract<
+  SolverMessage,
+  { kind: "page" | "shortlist" | "endgame" }
+>;
+export type RankEndgame = (
+  searchId: number,
+  game: Game,
+  scorelessTurns: number,
+  signal: AbortSignal,
+) => Promise<EndgameRanking | undefined>;
 export type BoardOddsProgress = Omit<BoardOddsResult, "byMove">;
 
 export function useSolver(positionKey: string) {
@@ -182,7 +192,11 @@ export function useSolver(positionKey: string) {
     worker.current = active;
     active.onmessage = ({ data: message }: MessageEvent<SolverMessage>) => {
       if (worker.current !== active) return;
-      if (message.kind === "page" || message.kind === "shortlist") {
+      if (
+        message.kind === "page" ||
+        message.kind === "shortlist" ||
+        message.kind === "endgame"
+      ) {
         const complete = queries.current.get(message.id);
         queries.current.delete(message.id);
         if (!queries.current.size) setQueriesPending(false);
@@ -354,20 +368,36 @@ export function useSolver(positionKey: string) {
     (
       request:
         | Omit<Extract<SolverRequest, { kind: "page" }>, "id">
-        | Omit<Extract<SolverRequest, { kind: "shortlist" }>, "id">,
+        | Omit<Extract<SolverRequest, { kind: "shortlist" }>, "id">
+        | Omit<Extract<SolverRequest, { kind: "endgame" }>, "id">,
+      signal?: AbortSignal,
     ) =>
       new Promise<QueryReply | undefined>((resolve) => {
         const active = worker.current;
-        if (!active) return resolve(undefined);
+        if (!active || signal?.aborted) return resolve(undefined);
         const id = ++nextId.current;
-        queries.current.set(id, resolve);
+        function complete(message?: QueryReply) {
+          signal?.removeEventListener("abort", onAbort);
+          resolve(message);
+        }
+        function onAbort() {
+          if (!queries.current.delete(id)) return;
+          if (!queries.current.size) setQueriesPending(false);
+          complete();
+          active?.postMessage({
+            kind: "cancel-endgame",
+            id,
+          } satisfies SolverRequest);
+        }
+        queries.current.set(id, complete);
+        signal?.addEventListener("abort", onAbort, { once: true });
         setQueriesPending(true);
         try {
           active.postMessage({ ...request, id });
         } catch {
           queries.current.delete(id);
           if (!queries.current.size) setQueriesPending(false);
-          resolve(undefined);
+          complete();
         }
       }),
     [],
@@ -389,6 +419,25 @@ export function useSolver(positionKey: string) {
     ): Promise<ShortlistEntry[] | undefined> => {
       const result = await query({ kind: "shortlist", searchId, options });
       return result?.kind === "shortlist" ? result.shortlist : undefined;
+    },
+    [query],
+  );
+  const rankEndgame = useCallback<RankEndgame>(
+    async (searchId, game, scorelessTurns, signal) => {
+      const { dictionaryId, board, rack, template } = game;
+      const result = await query(
+        {
+          kind: "endgame",
+          searchId,
+          dictionaryId,
+          board,
+          rack,
+          template,
+          scorelessTurns,
+        },
+        signal,
+      );
+      return result?.kind === "endgame" ? result.ranking : undefined;
     },
     [query],
   );
@@ -433,6 +482,7 @@ export function useSolver(positionKey: string) {
     cancelSearch: stopSearch,
     page,
     shortlist,
+    rankEndgame,
     runBoardOdds,
     cancelBoardOdds: stopBoardOdds,
     rememberResults,

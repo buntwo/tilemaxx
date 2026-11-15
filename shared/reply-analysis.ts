@@ -1,4 +1,8 @@
-import { rackPoints, solveEmptyBag } from "./endgame";
+import {
+  rackPoints,
+  SCRABBLE_SCORELESS_TURN_LIMIT,
+  solveEmptyBag,
+} from "./endgame";
 import type { Lexicon } from "./lexicon";
 import type { Board, BoardTemplate, Move, Position } from "./model";
 import { placeTiles, randomGenerator, sampleTiles } from "./move-analysis";
@@ -67,7 +71,9 @@ export interface ReplyPosition extends Position {
 }
 
 export const replyScorelessLimit = (template: BoardTemplate) =>
-  template.rules === "wwf" || template.rules === "wordfeud" ? 3 : 6;
+  template.rules === "wwf" || template.rules === "wordfeud"
+    ? 3
+    : SCRABBLE_SCORELESS_TURN_LIMIT;
 
 export type ReplyDetailOptions =
   | {

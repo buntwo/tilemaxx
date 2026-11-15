@@ -21,6 +21,7 @@ import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import { MoveResultIndex } from "../../shared/move-results";
 import { moveRowHeight, type FetchMovePage } from "../../src/useMoveResults";
 import { useReplyAnalysis } from "../../src/useReplyAnalysis";
+import type { RankEndgame } from "../../src/useSolver";
 const moves: Move[] = [
   {
     id: "a",
@@ -84,6 +85,7 @@ function setup(
     analysisGame?: Game;
     replyEnabled?: boolean;
     fetchPage?: FetchMovePage;
+    rankEndgame?: (index: MoveResultIndex) => RankEndgame;
     onBoardOdds?: (moves: Move[], bagSize: number) => BoardOddsResult | void;
   } = {},
 ) {
@@ -99,6 +101,7 @@ function setup(
   };
   const index = new MoveResultIndex(options.moves ?? moves, bingoRules);
   const results = index.summary(0);
+  const rank = options.rankEndgame?.(index);
   const fetchPage =
     options.fetchPage ?? vi.fn(async (_id, query) => index.page(query));
   const fetchShortlist = vi.fn(async (_id, options) =>
@@ -112,6 +115,7 @@ function setup(
       options.analysisGame?.id,
       results.head,
       options.replyEnabled ?? !!options.analysisGame,
+      rank && { searchId: results.searchId, rank },
     );
     return (
       <Results
@@ -351,6 +355,26 @@ test("reply rows resolve individually and compare against the highest score afte
   expect(onPlay).toHaveBeenCalledExactlyOnceWith(moves[1]);
 });
 
+const endgame: Game = {
+  id: "endgame",
+  name: "Endgame",
+  profileId: "p",
+  board: emptyBoard(15),
+  rack: "CATS",
+  template: {
+    ...PRESETS[0],
+    tileCounts: Object.fromEntries(
+      TILE_SYMBOLS.map((letter) => [letter, Number("CATSZ".includes(letter))]),
+    ),
+  },
+  dictionaryId: "test",
+  past: [],
+  future: [],
+  revision: 0,
+  updatedAt: "",
+  archived: false,
+};
+
 test("empty-bag replies start automatically and can be overridden", async () => {
   const requests: ReplyRequest[] = [];
   const terminate = vi.fn();
@@ -363,29 +387,7 @@ test("empty-bag replies start automatically and can be overridden", async () => 
       }
     },
   );
-  const game: Game = {
-    id: "endgame",
-    name: "Endgame",
-    profileId: "p",
-    board: emptyBoard(15),
-    rack: "CATS",
-    template: {
-      ...PRESETS[0],
-      tileCounts: Object.fromEntries(
-        TILE_SYMBOLS.map((letter) => [
-          letter,
-          Number("CATSZ".includes(letter)),
-        ]),
-      ),
-    },
-    dictionaryId: "test",
-    past: [],
-    future: [],
-    revision: 0,
-    updatedAt: "",
-    archived: false,
-  };
-  const { user } = setup(false, { analysisGame: game, replyEnabled: true });
+  const { user } = setup(false, { analysisGame: endgame, replyEnabled: true });
   expect(requests.map(({ bagSize }) => bagSize)).toEqual([0]);
   expect(screen.getByText("Bag assumed empty")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Bag is empty" })).toBeNull();
@@ -400,6 +402,74 @@ test("empty-bag replies start automatically and can be overridden", async () => 
   expect(requests.map(({ bagSize }) => bagSize)).toEqual([0, 1]);
   expect(terminate).toHaveBeenCalledOnce();
   expect(screen.queryByText("Bag assumed empty")).toBeNull();
+});
+
+test("empty-bag estimates rank moves automatically and ignore a canceled ranking", async () => {
+  vi.stubGlobal(
+    "Worker",
+    class {
+      terminate() {}
+      postMessage() {}
+    },
+  );
+  const pending: { signal: AbortSignal; publish: () => void }[] = [];
+  const { user } = setup(false, {
+    analysisGame: endgame,
+    rankEndgame: (index) => (_search, _game, _turns, signal) =>
+      new Promise((resolve) =>
+        pending.push({
+          signal,
+          publish: () =>
+            resolve(
+              index.setEndgame(
+                pending.length,
+                new Map([
+                  [
+                    "a",
+                    {
+                      spread: -41,
+                      reply: { word: "QI", score: 40, goesOut: true },
+                    },
+                  ],
+                  ["b", { spread: 5 }],
+                ]),
+              ),
+            ),
+        }),
+      ),
+  });
+  expect(screen.getByText("Estimating endgames…")).toBeTruthy();
+  expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
+  await user.click(screen.getByText("Reply settings"));
+  const setBag = async (value: string) => {
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Tiles in bag" }), {
+      target: { value },
+    });
+    await user.click(
+      screen.getByRole("button", { name: "Update reply analysis" }),
+    );
+  };
+  await setBag("1");
+  expect(pending[0].signal.aborted).toBe(true);
+  await act(async () => pending[0].publish());
+  expect(
+    screen.queryByRole("button", { name: "Sort by estimated endgame swing" }),
+  ).toBeNull();
+
+  await setBag("0");
+  await act(async () => pending[1].publish());
+  const swing = await screen.findByRole("button", {
+    name: "Sort by estimated endgame swing",
+  });
+  expect(swing.getAttribute("aria-pressed")).toBe("true");
+  expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
+  expect(screen.getByText("QI out")).toBeTruthy();
+  expect(screen.getByText("Estimated 2 of 3 moves")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Sort by points" }));
+  await waitFor(() =>
+    expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/),
+  );
+  expect(screen.getByText("QI out")).toBeTruthy();
 });
 test("rack odds sort every move and board odds rank checked moves separately", async () => {
   const { user } = setup(true, {
