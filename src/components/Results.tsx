@@ -31,6 +31,8 @@ import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import MoveAnalysis from "./MoveAnalysis";
 import BingoOddsControls from "./BingoOddsControls";
+import CalculationIndicator from "./CalculationIndicator";
+import { useGameCalculating } from "./GameCalculations";
 import { useMoveScoreTooltip } from "./MoveScoreTooltip";
 import PremiumDefense, {
   blockedReplyPoints,
@@ -82,6 +84,7 @@ export default function Results({
   fetchPage,
   fetchShortlist,
   busy,
+  calculating = false,
   elapsed,
   error,
   size,
@@ -117,6 +120,7 @@ export default function Results({
     options: ShortlistOptions,
   ) => Promise<ShortlistEntry[] | undefined>;
   busy: string;
+  calculating?: boolean;
   elapsed: number;
   error: string;
   size: number;
@@ -145,6 +149,7 @@ export default function Results({
   const [filter, setFilter] = useState(""),
     [scroll, setScroll] = useState(0),
     [locked, setLocked] = useState<string | null>(null);
+  const localCalculation = useGameCalculating();
   const scroller = useRef<HTMLDivElement>(null),
     pointer = useRef("mouse");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -458,7 +463,14 @@ export default function Results({
         className={`results-title${exchangeAction ? " has-exchange-advice" : ""}`}
       >
         <div className="heading-with-icon">
-          <Sparkles size={19} />
+          <CalculationIndicator
+            active={
+              calculating ||
+              localCalculation ||
+              replyAnalysis.pending ||
+              !!replyAnalysis.detail?.pending
+            }
+          />
           <h2>Possible moves</h2>
         </div>
         {resultSet && (

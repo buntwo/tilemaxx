@@ -11,6 +11,7 @@ import {
 } from "../../shared/model";
 import type { InferenceRequest } from "../screenshot-inference.worker";
 import Board from "./Board";
+import { useGameCalculation } from "./GameCalculations";
 
 export default function ScreenshotPremiumReview({
   board,
@@ -34,6 +35,7 @@ export default function ScreenshotPremiumReview({
   const [status, setStatus] = useState("");
   const worker = useRef<Worker>(null);
   const [checking, setChecking] = useState(false);
+  useGameCalculation(checking);
   useEffect(() => () => worker.current?.terminate(), []);
   const unknown = squares.filter((square) => square === null).length;
   const histories = useMemo(

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PracticeRequest } from "../practice.worker";
+import { useGameCalculation } from "./GameCalculations";
 
 export function usePractice<Result>() {
   const worker = useRef<Worker | null>(null);
@@ -9,6 +10,7 @@ export function usePractice<Result>() {
     total: number;
   }>();
   const [error, setError] = useState("");
+  useGameCalculation(!!progress);
   useEffect(
     () => () => {
       worker.current?.terminate();

@@ -16,6 +16,7 @@ import {
 } from "../../shared/move-analysis";
 import Board from "./Board";
 import Modal from "./Modal";
+import { useGameCalculation } from "./GameCalculations";
 
 type WorkerMessage =
   | { progress: AnalysisProgress }
@@ -42,6 +43,7 @@ export default function MoveAnalysis({
   const [result, setResult] = useState<AnalysisResult>();
   const [error, setError] = useState("");
   const [progress, setProgress] = useState<AnalysisProgress>();
+  useGameCalculation(!!progress);
   const [example, setExample] = useState<{ move: Move; reply: Move }>();
   const worker = useRef<Worker | null>(null);
   const seed = useRef(0);
