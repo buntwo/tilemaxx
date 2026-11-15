@@ -22,6 +22,7 @@ import type { ExchangeResult } from "../../shared/exchange";
 import type { OptimalExchangeResult } from "../../shared/optimal-exchange";
 import { Ban, Repeat2, Shuffle, SlidersHorizontal, Trophy } from "lucide-react";
 import { canAnimateTiles } from "./tile-motion";
+import { useRackKeyboard } from "./useRackKeyboard";
 import ExchangeAnalysis from "./ExchangeAnalysis";
 import OptimalExchange from "./OptimalExchange";
 import ExchangeSuggestion, { exchangeAdviceDetail } from "./ExchangeSuggestion";
@@ -89,7 +90,12 @@ export default function RackEntry({
   );
   const input = useRef<HTMLInputElement>(null);
   const rack = useRef<HTMLDivElement>(null);
-  const editingFromReview = useRef(false);
+  const trackKeyboardFocus = useRackKeyboard(
+    phoneLayout,
+    reviewing,
+    rack,
+    input,
+  );
   const slides = useRef(
     new Map<number, { letter: string; stop: () => void }>(),
   );
@@ -141,19 +147,6 @@ export default function RackEntry({
       });
   });
   useImperativeHandle(ref, () => ({ openSuggestedExchange }));
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    if (reviewing || !focused || !editingFromReview.current || !viewport) return;
-    function keepRackAboveKeyboard() {
-      const rect = rack.current?.getBoundingClientRect();
-      if (!rect || !viewport || viewport.scale !== 1) return;
-      const overlap = rect.bottom + 8 - (viewport.offsetTop + viewport.height);
-      if (overlap > 0) window.scrollBy({ top: overlap, behavior: "instant" });
-    }
-    keepRackAboveKeyboard();
-    viewport.addEventListener("resize", keepRackAboveKeyboard);
-    return () => viewport.removeEventListener("resize", keepRackAboveKeyboard);
-  }, [focused, reviewing]);
   useEffect(() => {
     const close = (event: PointerEvent) => {
       if (!tools.current?.contains(event.target as Node) && tools.current)
@@ -326,7 +319,6 @@ export default function RackEntry({
   function editFromReview(slot: number) {
     onReviewEdit?.();
     chooseMode("entry");
-    editingFromReview.current = true;
     focus(slot);
   }
   function openSuggestedExchange(reveal: boolean) {
@@ -443,12 +435,15 @@ export default function RackEntry({
         aria-describedby={helpId}
         value={SENTINEL}
         autoCapitalize="characters"
+        enterKeyHint="search"
         autoComplete="off"
         autoCorrect="off"
         spellCheck={false}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          trackKeyboardFocus();
+          setFocused(true);
+        }}
         onBlur={() => {
-          editingFromReview.current = false;
           setFocused(false);
           setSelectAll(false);
         }}
