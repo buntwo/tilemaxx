@@ -1596,6 +1596,81 @@ test("the phone layout keeps settings, the build version, board help and move fi
   expect(main.queryByRole("textbox", { name: "Filter moves" })).toBeNull();
 });
 
+test("phone rack entry reveals the tiles above the keyboard and restores the page when it closes", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const viewport = Object.assign(new EventTarget(), {
+    height: 760,
+    width: 390,
+    offsetTop: 0,
+    scale: 1,
+  });
+  vi.stubGlobal("visualViewport", viewport);
+  let scrollY = 120;
+  vi.spyOn(window, "scrollY", "get").mockImplementation(() => scrollY);
+  const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation((args) => {
+    scrollY += (args as ScrollToOptions).top!;
+  });
+  const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation((args) => {
+    scrollY = (args as ScrollToOptions).top!;
+  });
+
+  const user = await start();
+  const rack = screen.getByRole("group", { name: "Your rack tiles" });
+  vi.spyOn(rack, "getBoundingClientRect").mockImplementation(
+    () => new DOMRect(28, 640 - scrollY, 334, 52),
+  );
+  function resize(height: number, offsetTop = 0) {
+    viewport.height = height;
+    viewport.offsetTop = offsetTop;
+    viewport.dispatchEvent(new Event("resize"));
+  }
+
+  await typeRack(user, "CA");
+  const input = screen.getByRole("textbox", { name: "Rack letters" });
+  expect(input.getAttribute("enterkeyhint")).toBe("search");
+  resize(350, 40);
+  await waitFor(() => expect(scrollY).toBe(310));
+  expect(document.activeElement).toBe(input);
+
+  viewport.offsetTop = 20;
+  viewport.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(scrollY).toBe(330));
+  resize(760);
+  await waitFor(() =>
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({
+      top: 120,
+      behavior: "instant",
+    }),
+  );
+
+  resize(350, 40);
+  await waitFor(() => expect(scrollY).toBe(310));
+  fireEvent.touchMove(window);
+  scrollY = 280;
+  resize(760);
+  await act(
+    () => new Promise<void>((done) => requestAnimationFrame(() => done())),
+  );
+  expect(scrollTo).toHaveBeenCalledTimes(1);
+  expect(scrollY).toBe(280);
+
+  resize(350, 40);
+  await waitFor(() => expect(scrollBy).toHaveBeenCalledTimes(4));
+  await user.keyboard("T{Enter}");
+  await screen.findAllByRole("button", { name: /^CAT, / });
+  expect(document.activeElement).not.toBe(input);
+  resize(760);
+  await act(
+    () => new Promise<void>((done) => requestAnimationFrame(() => done())),
+  );
+  expect(scrollTo).toHaveBeenCalledTimes(1);
+  expect(rack.closest(".phone-move-review")).toBeTruthy();
+});
+
 test("phone results preview on the game board and tapping the side rack resumes editing", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === "(max-width: 650px)",
