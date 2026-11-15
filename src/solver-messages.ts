@@ -1,4 +1,4 @@
-import type { BoardOddsResult, RackOdds } from "../shared/bingo-odds";
+import type { BoardOdds, BoardOddsResult, RackOdds } from "../shared/bingo-odds";
 import type { BoardTemplate, Move, Position } from "../shared/model";
 import type {
   MovePage,
@@ -45,7 +45,12 @@ type SolverUpdate =
   | { kind: "defense"; defense?: DefenseResults; done?: boolean }
   | { kind: "defense-progress"; checked: number }
   | { kind: "rack-odds"; odds: RackOdds }
-  | { kind: "board-odds-progress"; checked: number }
+  | {
+      kind: "board-odds-progress";
+      checked: number;
+      moveId: string;
+      odds: BoardOdds;
+    }
   | { kind: "board-odds"; odds?: BoardOddsResult; error?: string };
 
 export type SolverMessage =

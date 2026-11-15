@@ -75,7 +75,8 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
         template,
         request.candidates,
         request.bagSize,
-        (checked) => post({ id, kind: "board-odds-progress", checked }),
+        (checked, moveId, odds) =>
+          post({ id, kind: "board-odds-progress", checked, moveId, odds }),
       );
       post({ id, kind: "board-odds", odds });
       return;

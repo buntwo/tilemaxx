@@ -4926,14 +4926,17 @@ label + label {
 @container (max-width: 340px) {
   .phone-move-review .board-toolbar .board-name { display: none; }
 }
-.phone-layout .bingo-odds-actions { gap: 4px 6px; }
+.phone-layout .bingo-odds-actions { gap: 4px 6px; justify-content: space-between; }
 .phone-layout .bingo-odds-actions .result-view-picker { padding: 0; }
 .phone-layout .bingo-odds-utilities { display: flex; gap: 6px; align-items: center; }
 .phone-layout .bingo-odds-utilities:has(details[open]) { display: contents; }
 .phone-layout .bingo-odds-settings[open] { order: 1; }
-.phone-move-review .bingo-odds-actions { column-gap: 5px; }
-.phone-move-review .bingo-odds-actions > .button { padding-inline: 6px; }
-.phone-move-review .sort-select select { field-sizing: content; }
+@container (max-width: 340px) {
+  .phone-layout .results-panel .results-title { gap: 6px; padding-inline: 8px; }
+  .phone-layout .results-title .heading-with-icon svg { display: none; }
+  .phone-layout .results-title .count-badge { padding-inline: 5px; }
+  .phone-layout .results-title .analysis-toggle { gap: 4px; padding-inline: 6px; }
+}
 @container (max-width: 390px) {
   .phone-move-review .with-reply-column :is(.result-columns, .result-row, .result-slot) {
     --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)

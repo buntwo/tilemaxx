@@ -25,6 +25,7 @@ type Snapshot = {
 };
 const emptySnapshot: Snapshot = { results: null, elapsed: 0, warnings: [] };
 type QueryReply = Extract<SolverMessage, { kind: "page" | "shortlist" }>;
+export type BoardOddsProgress = Omit<BoardOddsResult, "byMove">;
 
 export function useSolver(positionKey: string) {
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
@@ -33,10 +34,8 @@ export function useSolver(positionKey: string) {
   const [error, setError] = useState("");
   const [rackOddsPending, setRackOddsPending] = useState(false);
   const [defenseProgress, setDefenseProgress] = useState<number>();
-  const [boardOddsProgress, setBoardOddsProgress] = useState<{
-    checked: number;
-    total: number;
-  }>();
+  const [boardOddsProgress, setBoardOddsProgress] = useState<BoardOddsProgress>();
+  const [liveBoardOdds, setLiveBoardOdds] = useState<BoardOddsResult>();
   const [boardOddsError, setBoardOddsError] = useState("");
   const worker = useRef<Worker | null>(null);
   const oddsWorker = useRef<Worker | null>(null);
@@ -96,6 +95,7 @@ export function useSolver(positionKey: string) {
     oddsWorker.current?.terminate();
     oddsWorker.current = null;
     setBoardOddsProgress(undefined);
+    setLiveBoardOdds(undefined);
   }
 
   function stopSearch() {
@@ -283,7 +283,12 @@ export function useSolver(positionKey: string) {
     }
   }
 
-  function runBoardOdds(game: Game, candidates: Move[], bagSize: number) {
+  function runBoardOdds(
+    game: Game,
+    candidates: Move[],
+    bagSize: number,
+    incremental = false,
+  ) {
     if (
       solving.current !== undefined ||
       oddsWorker.current ||
@@ -292,7 +297,8 @@ export function useSolver(positionKey: string) {
       return;
     setSnapshot((current) => ({ ...current, boardOdds: undefined }));
     setBoardOddsError("");
-    setBoardOddsProgress({ checked: 0, total: candidates.length });
+    const total = candidates.length;
+    setBoardOddsProgress({ checked: 0, total, bagSize });
     try {
       const active = new Worker(
         new URL("./solver.worker.ts", import.meta.url),
@@ -305,10 +311,15 @@ export function useSolver(positionKey: string) {
       active.onmessage = ({ data: message }: MessageEvent<SolverMessage>) => {
         if (oddsWorker.current !== active || message.id !== id) return;
         if (message.kind === "board-odds-progress") {
-          setBoardOddsProgress({
-            checked: message.checked,
-            total: candidates.length,
-          });
+          const { checked, moveId, odds } = message;
+          setBoardOddsProgress({ checked, total, bagSize });
+          if (incremental)
+            setLiveBoardOdds((current) => ({
+              checked,
+              total,
+              bagSize,
+              byMove: { ...current?.byMove, [moveId]: odds },
+            }));
         } else if (message.kind === "board-odds") {
           stopBoardOdds();
           setSnapshot((current) => ({ ...current, boardOdds: message.odds }));
@@ -394,8 +405,12 @@ export function useSolver(positionKey: string) {
     }
   }
 
+  const current = snapshotKey === positionKey ? snapshot : emptySnapshot;
   return {
-    ...(snapshotKey === positionKey ? snapshot : emptySnapshot),
+    ...current,
+    boardOdds:
+      current.boardOdds ??
+      (snapshotKey === positionKey ? liveBoardOdds : undefined),
     busy,
     error,
     rackOddsPending,
