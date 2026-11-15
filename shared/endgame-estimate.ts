@@ -1,4 +1,9 @@
-import { rackPoints, SCRABBLE_SCORELESS_TURN_LIMIT } from "./endgame";
+import {
+  crossplayFinalRound,
+  endgameStreaks,
+  nextEndgameStreak,
+  rackPoints,
+} from "./endgame";
 import type { Lexicon } from "./lexicon";
 import type { Board, Move } from "./model";
 import { placeTiles } from "./move-analysis";
@@ -18,10 +23,15 @@ export function prepareEndgameEstimate(
   lexicon: Lexicon,
   position: ReplyPosition,
 ) {
-  const { board, template, scorelessTurns } = position;
+  const {
+    board,
+    template,
+    scorelessTurns,
+    opponentHasFinalTurn = true,
+  } = position;
   const { bagSize, pool } = replyPosition(position);
-  if (bagSize || template.rules !== "scrabble")
-    throw new Error("Endgame estimates require an empty Scrabble bag.");
+  if (bagSize) throw new Error("Endgame estimates require an empty bag.");
+  const rule = endgameStreaks[template.rules];
   const opponent = pool.join("");
   const points = new Map<string, number>();
   function value(rack: string) {
@@ -40,11 +50,25 @@ export function prepareEndgameEstimate(
     return solver.solve(rack, { maxMs }, { unsorted: true });
   }
   return (candidate: Move, deadline: number): EndgameEstimate => {
+    if (!rule) {
+      const replies = opponentHasFinalTurn
+        ? search(placeTiles(board, candidate), opponent, deadline)
+        : undefined;
+      const result = crossplayFinalRound(candidate, replies);
+      const reply = result.line[1];
+      return {
+        spread: result.spread,
+        exact: true,
+        reply: reply
+          ? { word: reply.word, score: reply.score, goesOut: false }
+          : undefined,
+      };
+    }
     if (!candidate.leave)
       return { spread: candidate.score + 2 * opponentPoints, exact: true };
     const yourPoints = value(candidate.leave);
-    const afterPlay = candidate.score ? 0 : scorelessTurns + 1;
-    if (afterPlay === SCRABBLE_SCORELESS_TURN_LIMIT)
+    const afterPlay = nextEndgameStreak(rule, scorelessTurns, candidate);
+    if (afterPlay >= rule.limit)
       return {
         spread: candidate.score + opponentPoints - yourPoints,
         exact: true,
@@ -72,7 +96,7 @@ export function prepareEndgameEstimate(
       // Passing on our next turn guarantees this upper bound within the
       // estimate, since the horizon values both racks at their point totals.
       const upper = score + yourPoints - leavePoints;
-      if (!score && afterPlay + 1 === SCRABBLE_SCORELESS_TURN_LIMIT)
+      if (nextEndgameStreak(rule, afterPlay, move) >= rule.limit)
         consider(upper, move);
       else options.push({ move, upper, leavePoints });
     }

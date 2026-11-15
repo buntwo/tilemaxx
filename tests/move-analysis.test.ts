@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Lexicon } from "../shared/lexicon";
+import { rackPoints } from "../shared/endgame";
 import { emptyBoard, type BoardTemplate } from "../shared/model";
 import { PRESETS } from "../shared/presets";
 import { solve } from "../shared/solver";
@@ -121,6 +122,52 @@ test("paired opponent racks reveal a blocked 40+ threat and an exact endgame lin
   assert.equal(open.endgame?.spread, across.score - 44 - 2);
   assert.equal(open.endgame?.line[1]?.word, "AZ");
   assert.ok(block.endgame!.spread > open.endgame!.spread);
+});
+
+test("Analyze returns a full line for every ruleset with an empty bag", () => {
+  const board = emptyBoard(5);
+  board[12] = "A";
+  const dict = new Lexicon(["AT", "AZ"]);
+  for (const rules of [
+    "scrabble",
+    "wwf",
+    "wordfeud",
+    "lexulous",
+    "crossplay",
+  ] as const) {
+    const layout = { ...template({ A: 1, T: 1, Z: 1 }), rules };
+    const [candidate] = solve(dict, board, "T", layout);
+    const request = {
+      board,
+      rack: "T",
+      template: layout,
+      candidates: [candidate],
+      bagSize: 0,
+      trials: 5,
+      seed: 4,
+    };
+    const [forecast] = analyzeMoves(dict, request, new Set()).forecasts;
+    const result = forecast.endgame;
+    assert.ok(result, rules);
+    if (rules === "crossplay") {
+      assert.equal(result.line[1]?.word, "AZ");
+      assert.equal(result.spread, candidate.score - result.line[1]!.score);
+      const [last] = analyzeMoves(
+        dict,
+        { ...request, opponentHasFinalTurn: false },
+        new Set(),
+      ).forecasts;
+      assert.deepEqual(last.endgame?.line, [candidate]);
+      assert.equal(last.models.strong.swing, candidate.score);
+    } else {
+      assert.deepEqual(result.line, [candidate]);
+      const points = rackPoints("Z", rules);
+      assert.deepEqual(result.points, {
+        you: candidate.score + points,
+        opponent: -points,
+      });
+    }
+  }
 });
 
 test("Strong and Casual rank familiar replies differently", () => {

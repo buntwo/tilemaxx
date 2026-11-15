@@ -10,6 +10,7 @@ import type {
 import type { ShortlistEntry } from "../shared/move-shortlist";
 import type { DefenseResults } from "../shared/premium-defense";
 import type { ExchangeAdviceRequest } from "../shared/exchange-advice";
+import type { EndgameSettings } from "../shared/endgame";
 
 type PositionRequest = Position & {
   id: number;
@@ -23,10 +24,9 @@ export type SolverRequest =
       candidates: Move[];
       bagSize: number;
     })
-  | (PositionRequest & {
+  | (PositionRequest & EndgameSettings & {
       kind: "endgame";
       searchId: number;
-      scorelessTurns: number;
     })
   | { kind: "page"; id: number; searchId: number; query: MoveQuery }
   | {

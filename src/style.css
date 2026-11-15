@@ -2162,7 +2162,7 @@ label + label {
   display: grid;
   gap: 3px;
 }
-.reply-settings input {
+.reply-settings input[type="number"] {
   width: 75px;
   padding: 5px;
   font-size: 16px;
@@ -4596,7 +4596,7 @@ label + label {
 .analysis-controls label + label {
   margin-top: 0;
 }
-.analysis-controls input,
+.analysis-controls input[type="number"],
 .analysis-controls select {
   width: 100%;
   min-height: 34px;
@@ -4606,7 +4606,7 @@ label + label {
   border-radius: 5px;
   padding: 4px 6px;
 }
-.analysis-controls input {
+.analysis-controls input[type="number"] {
   max-width: 90px;
 }
 .analysis-budget-hint {
@@ -4713,6 +4713,14 @@ label + label {
 .analysis-option input {
   accent-color: var(--primary);
 }
+.analysis-controls .endgame-final-turn,
+.reply-settings .endgame-final-turn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+}
+.endgame-final-turn input { accent-color: var(--primary); }
 .analysis-endgame {
   margin: 6px 0 8px;
 }
@@ -4805,7 +4813,7 @@ label + label {
   align-items: center;
   font-size: 11px;
 }
-.bingo-odds-controls input {
+.bingo-odds-controls input[type="number"] {
   width: 68px;
   min-height: 30px;
   padding: 3px 5px;

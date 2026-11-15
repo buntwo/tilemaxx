@@ -105,8 +105,10 @@ export function ReplyCell({
 export function ReplySettings({ analysis }: { analysis: Analysis }) {
   const [bag, setBag] = useState("");
   const [scoreless, setScoreless] = useState("");
+  const [finalReply, setFinalReply] = useState<boolean>();
+  const opponentHasFinalTurn = finalReply ?? analysis.opponentHasFinalTurn;
   const count = bag === "" ? analysis.minimumBag : Number(bag);
-  const turns = scoreless === "" ? 0 : Number(scoreless);
+  const turns = count || analysis.crossplay ? 0 : Number(scoreless);
   const valid =
     Number.isInteger(count) &&
     count >= analysis.minimumBag &&
@@ -124,7 +126,7 @@ export function ReplySettings({ analysis }: { analysis: Analysis }) {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (valid) analysis.setOptions(count, count ? 0 : turns);
+          if (valid) analysis.setOptions(count, turns, opponentHasFinalTurn);
         }}
       >
         <label>
@@ -138,19 +140,31 @@ export function ReplySettings({ analysis }: { analysis: Analysis }) {
             onChange={(event) => setBag(event.target.value)}
           />
         </label>
-        {count === 0 && (
-          <label>
-            Prior scoreless turns
-            <input
-              type="number"
-              min={0}
-              max={analysis.maxScorelessTurns}
-              placeholder="0"
-              value={scoreless}
-              onChange={(event) => setScoreless(event.target.value)}
-            />
-          </label>
-        )}
+        {count === 0 &&
+          (analysis.crossplay ? (
+            <label className="endgame-final-turn">
+              <input
+                type="checkbox"
+                checked={opponentHasFinalTurn}
+                onChange={(event) => setFinalReply(event.target.checked)}
+              />
+              Opponent has a final turn
+            </label>
+          ) : (
+            <label>
+              {analysis.passesOnly
+                ? "Prior consecutive passes"
+                : "Prior scoreless turns"}
+              <input
+                type="number"
+                min={0}
+                max={analysis.maxScorelessTurns}
+                placeholder="0"
+                value={scoreless}
+                onChange={(event) => setScoreless(event.target.value)}
+              />
+            </label>
+          ))}
         <button type="submit" className="button secondary" disabled={!valid}>
           Update reply analysis
         </button>
@@ -362,7 +376,12 @@ function ExactReplyDetails({
           </div>
         ) : ends === "scoreless" && !reply ? (
           <div>
-            <dt>Scoreless turn limit</dt>
+            <dt>{analysis.passesOnly ? "Pass limit" : "Scoreless turn limit"}</dt>
+            <dd>Game ends</dd>
+          </div>
+        ) : ends === "final-turns" && !analysis.opponentHasFinalTurn ? (
+          <div>
+            <dt>Your final turn</dt>
             <dd>Game ends</dd>
           </div>
         ) : (
@@ -448,7 +467,7 @@ function ExactReplyDetails({
           preview={reply}
         />
       )}
-      {!ends && game.template.rules === "scrabble" && (
+      {!ends && (
         <div className="reply-line">
           {!line?.line && (
             <button

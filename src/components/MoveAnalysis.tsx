@@ -1,6 +1,10 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChartNoAxesCombined, X } from "lucide-react";
-import type { EndgameLine } from "../../shared/endgame";
+import {
+  endgameStreaks,
+  type EndgameLine,
+  type EndgameSettings,
+} from "../../shared/endgame";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type Game, type Move, coordinate } from "../../shared/model";
 import { unseenTiles } from "../../shared/tile-pool";
@@ -49,17 +53,22 @@ export default function MoveAnalysis({
   game,
   candidates,
   onRemove,
+  endgameSettings,
 }: {
   game: Game;
   candidates: Move[];
   onRemove: (move: Move) => void;
+  endgameSettings: EndgameSettings;
 }) {
   const { total, excess } = unseenTiles(game, game.template);
   const minBag = Math.max(0, total - game.template.rackSize);
   const [bagText, setBagText] = useState(String(minBag));
   const [model, setModel] = useState<OpponentModel>("strong");
   const [infer, setInfer] = useState(false);
-  const [scoreless, setScoreless] = useState(0);
+  const [scoreless, setScoreless] = useState(endgameSettings.scorelessTurns);
+  const [opponentHasFinalTurn, setOpponentHasFinalTurn] = useState(
+    endgameSettings.opponentHasFinalTurn ?? true,
+  );
   const [endgameBudgetText, setEndgameBudgetText] = useState("1");
   const budgetHintId = useId();
   const [result, setResult] = useState<AnalysisResult>();
@@ -88,11 +97,8 @@ export default function MoveAnalysis({
     !!previous &&
     addedTiles(previous, game.board, rackSize).length > 0;
   const inferenceKey = canInfer && infer ? previous.join(".") : "";
-  const endgame =
-    bagValid &&
-    bagSize === 0 &&
-    game.template.rules === "scrabble" &&
-    total > 0;
+  const streak = endgameStreaks[game.template.rules];
+  const endgame = bagValid && bagSize === 0 && (total > 0 || !streak);
   const endgameBudget = endgame ? Number(endgameBudgetText) : 1;
   const budgetValid = isEndgameBudgetMultiplier(endgameBudget);
   const { positionLimit, timeLimitMs } = endgameAnalysisLimits(
@@ -153,7 +159,8 @@ export default function MoveAnalysis({
       seed: seed.current,
       trials,
       previousBoard: canInfer && infer ? previous : undefined,
-      scorelessTurns: scoreless,
+      scorelessTurns: endgame && streak ? scoreless : 0,
+      opponentHasFinalTurn,
       endgameBudgetMultiplier: endgame ? endgameBudget : undefined,
     } satisfies AnalysisRequest & { dictionaryId: string });
   }
@@ -251,17 +258,30 @@ export default function MoveAnalysis({
       )}
       {endgame && (
         <div className="analysis-controls">
-          <label>
-            Prior scoreless turns
-            <select
-              value={scoreless}
-              onChange={(event) => setScoreless(Number(event.target.value))}
-            >
-              {Array.from({ length: 6 }, (_, count) => (
-                <option key={count}>{count}</option>
-              ))}
-            </select>
-          </label>
+          {streak ? (
+            <label>
+              {streak.passesOnly
+                ? "Prior consecutive passes"
+                : "Prior scoreless turns"}
+              <select
+                value={scoreless}
+                onChange={(event) => setScoreless(Number(event.target.value))}
+              >
+                {Array.from({ length: streak.limit }, (_, count) => (
+                  <option key={count}>{count}</option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <label className="endgame-final-turn">
+              <input
+                type="checkbox"
+                checked={opponentHasFinalTurn}
+                onChange={(event) => setOpponentHasFinalTurn(event.target.checked)}
+              />
+              Opponent has a final turn
+            </label>
+          )}
           <label>
             Endgame budget (×)
             <input
@@ -445,8 +465,8 @@ export default function MoveAnalysis({
           tiles. Casual favors familiar words and chooses among three replies.
           Both pass if no play is available. The simulation omits exchanges.
           Expected point swing is this move’s score minus the modeled reply plus
-          your highest available next score. Empty-bag Scrabble search assumes
-          optimal play on both sides and includes end-of-game rack adjustments.
+          your highest available next score. Empty-bag search assumes optimal
+          play on both sides and applies the game's final-scoring rules.
         </p>
       </details>
       {example && (

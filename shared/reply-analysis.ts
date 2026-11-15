@@ -1,7 +1,11 @@
 import {
+  crossplayFinalRound,
+  endgameStreaks,
+  nextEndgameStreak,
   rackPoints,
-  SCRABBLE_SCORELESS_TURN_LIMIT,
   solveEmptyBag,
+  validEndgameStreak,
+  type EndgameSettings,
 } from "./endgame";
 import type { Lexicon } from "./lexicon";
 import type { Board, BoardTemplate, Move, Position } from "./model";
@@ -64,16 +68,10 @@ export interface ExactReply {
 export type ReplyResult = ReplyDistribution | ExactReply;
 type RackSample = { rack: string; weight: number };
 
-export interface ReplyPosition extends Position {
+export interface ReplyPosition extends Position, EndgameSettings {
   template: BoardTemplate;
   bagSize: number;
-  scorelessTurns: number;
 }
-
-export const replyScorelessLimit = (template: BoardTemplate) =>
-  template.rules === "wwf" || template.rules === "wordfeud"
-    ? 3
-    : SCRABBLE_SCORELESS_TURN_LIMIT;
 
 export type ReplyDetailOptions =
   | {
@@ -121,12 +119,8 @@ export function replyPosition(position: ReplyPosition) {
     throw new Error(
       "Enter a bag count that leaves up to one full opponent rack.",
     );
-  if (
-    !Number.isInteger(scorelessTurns) ||
-    scorelessTurns < 0 ||
-    scorelessTurns >= replyScorelessLimit(template)
-  )
-    throw new Error("Enter a valid number of prior scoreless turns.");
+  if (!validEndgameStreak(template.rules, scorelessTurns))
+    throw new Error("Enter a valid number of prior passes or scoreless turns.");
   const pool = unseen.tiles.flatMap(({ symbol, count }) =>
     Array<string>(count).fill(symbol),
   );
@@ -182,10 +176,15 @@ export function prepareReplyAnalysis(
   deadline: () => number,
   captureHeatmap = false,
 ) {
-  const { board, template, scorelessTurns } = position;
+  const {
+    board,
+    template,
+    scorelessTurns,
+    opponentHasFinalTurn = true,
+  } = position;
   const { pool, rackSize, bagSize } = replyPosition(position);
   const rack = pool.join("");
-  const scorelessLimit = replyScorelessLimit(template);
+  const rule = endgameStreaks[template.rules];
   function opponentMoves(candidate: Move) {
     return prepareSolver(lexicon, placeTiles(board, candidate), template).solve(
       rack,
@@ -194,11 +193,11 @@ export function prepareReplyAnalysis(
     );
   }
   function endgame(candidate: Move): Omit<ExactReply, "difference"> {
-    if (template.rules === "crossplay") {
-      const reply = opponentMoves(candidate).reduce<Move | null>(
-        (best, move) => (!best || move.score > best.score ? move : best),
-        null,
-      );
+    if (!rule) {
+      const replies = opponentHasFinalTurn
+        ? opponentMoves(candidate)
+        : undefined;
+      const reply = crossplayFinalRound(candidate, replies).line[1] ?? null;
       return {
         kind: "empty-bag",
         rack,
@@ -216,26 +215,26 @@ export function prepareReplyAnalysis(
     let reply: Move | null = null;
     let yourAdjustment = 0,
       opponentAdjustment = 0;
-    const beforeReply = candidate.score ? 0 : scorelessTurns + 1;
+    const beforeReply = nextEndgameStreak(rule, scorelessTurns, candidate);
     if (!candidate.leave) {
       ends = "you";
       yourAdjustment = theirLeave;
       opponentAdjustment = -theirLeave;
-    } else if (beforeReply >= scorelessLimit) {
+    } else if (beforeReply >= rule.limit) {
       ends = "scoreless";
       yourAdjustment = -yourLeave;
       opponentAdjustment = -theirLeave;
     } else {
       const options = opponentMoves(candidate);
       let bestSwing =
-        beforeReply + 1 >= scorelessLimit ? yourLeave - theirLeave : 0;
+        beforeReply + 1 >= rule.limit ? yourLeave - theirLeave : 0;
       for (const move of options) {
         if (!highest || move.score > highest.score) highest = move;
         const swing =
           move.score +
           (!move.leave
             ? 2 * yourLeave
-            : !move.score && beforeReply + 1 >= scorelessLimit
+            : nextEndgameStreak(rule, beforeReply, move) >= rule.limit
               ? yourLeave - rackPoints(move.leave, template.rules)
               : 0);
         if (
@@ -250,7 +249,7 @@ export function prepareReplyAnalysis(
         ends = "opponent";
         yourAdjustment = -yourLeave;
         opponentAdjustment = yourLeave;
-      } else if (!reply?.score && beforeReply + 1 >= scorelessLimit) {
+      } else if (nextEndgameStreak(rule, beforeReply, reply) >= rule.limit) {
         ends = "scoreless";
         yourAdjustment = -yourLeave;
         opponentAdjustment = -rackPoints(reply?.leave ?? rack, template.rules);
@@ -390,16 +389,16 @@ export function replyEndgameLine(
   timeLimitMs: number,
 ) {
   const { pool, bagSize } = replyPosition(position);
-  const { board, template, scorelessTurns } = position;
-  if (bagSize !== 0 || template.rules !== "scrabble")
-    throw new Error("Full endgame lines require an empty Scrabble bag.");
+  const { board, template } = position;
+  if (bagSize !== 0)
+    throw new Error("Full endgame lines require an empty bag.");
   const cache = new WeakMap<Board, ReturnType<typeof prepareSolver>>();
   return solveEmptyBag(
     board,
     candidate,
     pool.join(""),
     template,
-    scorelessTurns,
+    position,
     (board, rack, deadline) => {
       let solver = cache.get(board);
       if (!solver) {

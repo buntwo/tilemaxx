@@ -314,25 +314,77 @@ test("the estimate looks through an opponent pass to our next go-out", () => {
   });
 });
 
-test("Crossplay can reply after you empty your rack without charging leftover tiles", () => {
+test("Crossplay ranks exactly with or without an opponent's final turn", () => {
   const { template, board, lexicon } = fixture("TIQ", 2);
   template.rules = "crossplay";
   const candidate = solve(lexicon, board, "I", template).find(
     (move) => move.tiles[0].index === 7,
   )!;
   assert.equal(candidate.leave, "");
-  const result = prepareReplyAnalysis(
+  for (const opponentHasFinalTurn of [true, false]) {
+    const position = {
+      board,
+      rack: "I",
+      template,
+      bagSize: 0,
+      scorelessTurns: 0,
+      opponentHasFinalTurn,
+    };
+    const result = prepareReplyAnalysis(
+      lexicon,
+      position,
+      candidate,
+      500,
+      budget,
+    )(candidate);
+    assert.equal(result.kind, "empty-bag");
+    assert.equal(result.ends, "final-turns");
+    assert.equal(result.reply?.word, opponentHasFinalTurn ? "QI" : undefined);
+    assert.equal(result.yourAdjustment, 0);
+    assert.equal(result.opponentAdjustment, 0);
+    const exact = replyEndgameLine(lexicon, position, candidate, 2_500);
+    assert.equal(exact.line.length, opponentHasFinalTurn ? 2 : 1);
+    assert.equal(exact.spread, candidate.score - (result.reply?.score ?? 0));
+    assert.equal(exact.points.you, candidate.score);
+    const estimate = prepareEndgameEstimate(lexicon, position)(
+      candidate,
+      Infinity,
+    );
+    assert.equal(estimate.exact, true);
+    assert.equal(estimate.spread, exact.spread);
+    assert.ok(!estimate.reply?.goesOut);
+  }
+});
+
+test("a real Wordfeud zero-point play clears the pass streak in rankings and replies", () => {
+  const { template, board, lexicon } = fixture("??ZA", 2);
+  template.rules = "wordfeud";
+  board[8] = "t";
+  const [candidate] = solve(lexicon, board, "?Z", template);
+  assert.equal(candidate.score, 0);
+  const position = {
+    board,
+    template,
+    rack: "?Z",
+    bagSize: 0,
+    scorelessTurns: 2,
+  };
+  const reply = prepareReplyAnalysis(
     lexicon,
-    { board, rack: "I", template, bagSize: 0, scorelessTurns: 0 },
+    position,
     candidate,
     500,
     budget,
   )(candidate);
-  assert.equal(result.kind, "empty-bag");
-  assert.equal(result.ends, "final-turns");
-  assert.equal(result.reply?.word, "QI");
-  assert.equal(result.yourAdjustment, 0);
-  assert.equal(result.opponentAdjustment, 0);
+  assert.equal(reply.kind, "empty-bag");
+  assert.equal(reply.ends, null);
+  const estimate = prepareEndgameEstimate(lexicon, position)(
+    candidate,
+    Infinity,
+  );
+  const full = replyEndgameLine(lexicon, position, candidate, 2_500);
+  assert.deepEqual(full.line, [candidate, null, null, null]);
+  assert.equal(estimate.spread, full.spread);
 });
 
 test("scoreless endings deduct both racks and invalid bag counts fail", () => {

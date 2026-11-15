@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   EndgameSearchLimitError,
+  rackPoints,
   solveEmptyBag,
   type EndgameLine,
 } from "../shared/endgame";
@@ -209,7 +210,7 @@ test("pruned endgames agree with exhaustive play and return complete lines", () 
         candidate,
         racks[1],
         smallTemplate,
-        priorScoreless,
+        { scorelessTurns: priorScoreless },
         (board, rack) => {
           const moves = searchSmall(board, rack);
           return reverse ? moves.reverse() : moves;
@@ -223,6 +224,32 @@ test("pruned endgames agree with exhaustive play and return complete lines", () 
   }
 });
 
+test("endgame stops at the variant's pass or scoreless limit", () => {
+  const zero = { ...candidate, score: 0, leave: "K" };
+  for (const { rules, prior, passes } of [
+    { rules: "wwf", prior: 2, passes: 0 },
+    { rules: "wordfeud", prior: 2, passes: 3 },
+    { rules: "lexulous", prior: 1, passes: 2 },
+  ] as const) {
+    const line = solveEmptyBag(
+      board,
+      zero,
+      "Q",
+      { ...template, rules },
+      { scorelessTurns: prior },
+      () => [],
+      placeTiles,
+      { timeLimitMs: Infinity },
+    );
+    assert.deepEqual(line.line, [zero, ...Array(passes).fill(null)], rules);
+    assert.deepEqual(line.points, {
+      you: -rackPoints("K", rules),
+      opponent: -rackPoints("Q", rules),
+    });
+    assert.equal(line.spread, line.points.you - line.points.opponent);
+  }
+});
+
 test("endgame reports the overall deadline, positions visited, and elapsed time", (t) => {
   let now = 0;
   t.mock.method(performance, "now", () => now);
@@ -233,7 +260,7 @@ test("endgame reports the overall deadline, positions visited, and elapsed time"
         candidate,
         "TINGLOS",
         template,
-        0,
+        { scorelessTurns: 0 },
         () => {
           now = 500;
           throw new SearchLimitError("time");
@@ -260,7 +287,7 @@ test("endgame applies both the default and an increased position cap", (t) => {
           candidate,
           "TINGLOS",
           template,
-          0,
+          { scorelessTurns: 0 },
           (position, rack) => {
             generated++;
             const index = position.indexOf("");
@@ -293,7 +320,7 @@ test("endgame identifies a single-position move-generation limit", (t) => {
         candidate,
         "TINGLOS",
         template,
-        0,
+        { scorelessTurns: 0 },
         () => {
           now = 2_000;
           throw new SearchLimitError("time");
@@ -318,7 +345,7 @@ test("endgame identifies the move generator's node and move caps", (t) => {
           candidate,
           "TINGLOS",
           template,
-          0,
+          { scorelessTurns: 0 },
           () => {
             throw new SearchLimitError(reason);
           },

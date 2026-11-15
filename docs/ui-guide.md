@@ -29,7 +29,7 @@
 | **Reply delta** | The move-list number showing the change in the opponent’s reply score against the reference move. A lower opponent reply is favorable. |
 | **Estimated endgame swing** | The EST. SWING column when the bag is empty. The figure measures the change in your lead. It may also name an opponent go-out threat. |
 | **Reply details** | The box at the bottom of Possible moves headed **Reply after [move]**. With tiles in the bag it shows the **reply distribution**, summary comparisons, and Heatmap. With an empty bag it shows the opponent rack, immediate reply, score checkpoints, and the option to calculate the optimal endgame line when applicable. |
-| **Reply settings** | The expandable bag count and prior scoreless turns controls. |
+| **Reply settings** | The expandable bag count and endgame controls. It shows **Prior scoreless turns** for Scrabble and Words With Friends, **Prior consecutive passes** for Wordfeud and Lexulous, and **Opponent has a final turn** for Crossplay. |
 | **Reply heatmap** | The board view of where strong replies land. Select a **hotspot** to see its change and sample replies. |
 | **Reply risk** | Details for a premium square the move opens up or blocks. |
 | **Bingo odds** | The draw and board-based odds in the move list, with controls to calculate the board-based chances. |
