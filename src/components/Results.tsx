@@ -267,6 +267,11 @@ export default function Results({
     setOrdering({ searchId, sort, reversed });
   }
   const endgame = replyAnalysis.bagSize === 0;
+  const estimateNotice = replyAnalysis.endgameEstimateUnavailable
+    ? "Endgame estimates unavailable."
+    : endgameRanked && ranking.checked < totalMoves
+      ? `Estimated ${ranking.checked.toLocaleString()} of ${totalMoves.toLocaleString()} moves`
+      : "";
   const canShortlist = !!analysisGame && !busy && !error;
   useEffect(() => {
     if (!canShortlist || searchId === undefined) return;
@@ -505,7 +510,11 @@ export default function Results({
               !!replyAnalysis.detail?.pending
             }
           />
-          <h2>Possible moves</h2>
+          <h2>
+            {analysisGame && endgame && !replyAnalysis.invalid
+              ? "Possible moves - Endgame"
+              : "Possible moves"}
+          </h2>
         </div>
         {resultSet && (
           <div className="result-counts">
@@ -708,24 +717,9 @@ export default function Results({
               {replyAnalysis.error ?? "Check tile counts for reply analysis."}
             </div>
           )}
-          {replyEnabled &&
-            replyAnalysis.bagSize === 0 &&
-            !replyAnalysis.invalid && (
-              <div className="reply-controls">
-                {replyAnalysis.bagAssumedEmpty
-                  ? "Bag assumed empty"
-                  : "Empty bag"}
-                {replyAnalysis.endgameEstimateUnavailable && (
-                  <span role="status">Endgame estimates unavailable.</span>
-                )}
-                {endgameRanked && ranking.checked < totalMoves && (
-                  <span role="status">
-                    Estimated {ranking.checked.toLocaleString()} of{" "}
-                    {totalMoves.toLocaleString()} moves
-                  </span>
-                )}
-              </div>
-            )}
+          {replyEnabled && estimateNotice && (
+            <div className="reply-controls" role="status">{estimateNotice}</div>
+          )}
           {replyEnabled && analysisGame && !onBoardOdds && (
             <div className="reply-controls">
               <ReplySettings analysis={replyAnalysis} />

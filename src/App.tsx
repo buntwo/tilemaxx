@@ -51,7 +51,6 @@ import {
   rackTileRects,
 } from "./components/tile-motion";
 import TilePool from "./components/TilePool";
-import OpponentRack from "./components/OpponentRack";
 import { useReplyAnalysis } from "./useReplyAnalysis";
 import { splitRack } from "../shared/rack-entry";
 import BoardStudio from "./components/BoardStudio";
@@ -1186,12 +1185,9 @@ function Tilemaxx() {
                   exchangeAdvice={solver.exchangeAdvice}
                   exchangeBag={replyAnalysis.bagSize}
                   exchangeBagConfirmed={replyAnalysis.bagConfirmed}
+                  opponentRack={replyAnalysis.opponentRack}
                   preview={preferences.highlightRackPreview ? preview : null}
                   flyingRack={activeFlight}
-                />
-                <OpponentRack
-                  rack={replyAnalysis.opponentRack}
-                  assumed={replyAnalysis.bagAssumedEmpty}
                 />
                 <TilePool key={`tile-pool:${game.id}`} game={game} />
               </section>

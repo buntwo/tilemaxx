@@ -26,6 +26,7 @@ import { useRackKeyboard } from "./useRackKeyboard";
 import ExchangeAnalysis from "./ExchangeAnalysis";
 import OptimalExchange from "./OptimalExchange";
 import ExchangeSuggestion, { exchangeAdviceDetail } from "./ExchangeSuggestion";
+import OpponentRack from "./OpponentRack";
 
 const SENTINEL = "\u200b";
 const EXCHANGE_CACHE_LIMIT = 16;
@@ -44,6 +45,7 @@ export default function RackEntry({
   exchangeAdvice,
   exchangeBag,
   exchangeBagConfirmed,
+  opponentRack,
   preview,
   flyingRack,
 }: {
@@ -57,6 +59,7 @@ export default function RackEntry({
   exchangeAdvice?: ExchangeAdvice;
   exchangeBag: number;
   exchangeBagConfirmed: boolean;
+  opponentRack: string;
   preview?: Move | null;
   flyingRack?: { before: Game; slots: number[] };
 }) {
@@ -336,11 +339,16 @@ export default function RackEntry({
   const previewSlots =
     preview && !flyingRack ? rackSlotsForMove(game, preview.tiles) : null;
   return (
-    <div className="rack-entry">
+    <div
+      className="rack-entry"
+      style={{
+        "--rack-size": capacity,
+        "--shown-rack-tiles": capacity + opponentRack.length,
+      } as CSSProperties}
+    >
       <div
         ref={rack}
         className="rack-tiles"
-        style={{ "--rack-size": capacity } as CSSProperties}
         role="group"
         aria-label="Your rack tiles"
         onClick={
@@ -427,6 +435,7 @@ export default function RackEntry({
           );
         })}
       </div>
+      <OpponentRack rack={opponentRack} />
       <input
         className="rack-keyboard-input"
         ref={input}

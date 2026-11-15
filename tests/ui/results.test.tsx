@@ -401,7 +401,7 @@ test("empty-bag replies start automatically and can be overridden", async () => 
   );
   const { user } = setup(false, { analysisGame: endgame, replyEnabled: true });
   expect(requests.map(({ bagSize }) => bagSize)).toEqual([0]);
-  expect(screen.getByText("Bag assumed empty")).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Possible moves - Endgame" })).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Bag is empty" })).toBeNull();
   await user.click(screen.getByText("Reply settings"));
   await user.type(
@@ -413,7 +413,7 @@ test("empty-bag replies start automatically and can be overridden", async () => 
   );
   expect(requests.map(({ bagSize }) => bagSize)).toEqual([0, 1]);
   expect(terminate).toHaveBeenCalledOnce();
-  expect(screen.queryByText("Bag assumed empty")).toBeNull();
+  expect(screen.getByRole("heading", { name: "Possible moves" })).toBeTruthy();
 });
 
 test("reply details color the lead, reply and final result from your side", async () => {

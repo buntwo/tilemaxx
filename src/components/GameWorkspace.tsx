@@ -44,7 +44,7 @@ export default class GameWorkspace extends Component<Props, object, Snapshot> {
     const snapshot = new Map<HTMLElement, DOMRect>();
     if (canAnimateTiles()) {
       for (const element of this.root.current.querySelectorAll<HTMLElement>(
-        ".board-panel, [data-rack-slot], .results-column",
+        ".board-panel, [data-rack-slot], .opponent-rack-tiles span, .results-column",
       ))
         snapshot.set(element, bounds(element));
     }

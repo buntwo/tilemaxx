@@ -3191,7 +3191,14 @@ test("reordering My games saves the profile order without switching games", asyn
   expect(screen.queryByTitle("2 active games")).toBeNull();
 });
 
-test("the opponent rack is visible before solving and follows the reply bag count", async () => {
+test.each([false, true])("the endgame heading and opponent rack follow the bag count (phone %s)", async (phone) => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: phone
+      ? query === "(max-width: 650px)"
+      : query === "(min-width: 1000px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
   const game = remote.games[0];
   game.rack = "CAT";
   game.excludedRackSlots = [2];
@@ -3204,12 +3211,14 @@ test("the opponent rack is visible before solving and follows the reply bag coun
   game.revision++;
   const user = await start();
   const panel = within(screen.getByRole("region", { name: "Your rack" }));
+  const yourRack = panel.getByRole("group", { name: "Your rack tiles" });
   const opponentRack = () =>
     panel.queryByRole("img", { name: "Opponent rack: J, J, blank" });
   expect(
     await panel.findByRole("img", { name: "Opponent rack: J, J, blank" }),
-  ).toBeTruthy();
-  expect(panel.getByText("Bag assumed empty")).toBeTruthy();
+  ).toBe(yourRack.nextElementSibling);
+  expect(panel.queryByText("Opponent rack")).toBeNull();
+  expect(screen.getByRole("heading", { name: "Possible moves - Endgame" })).toBeTruthy();
 
   await user.click(panel.getByText("Rack tools"));
   await user.click(panel.getByRole("button", { name: "Exclude tiles" }));
@@ -3218,6 +3227,8 @@ test("the opponent rack is visible before solving and follows the reply bag coun
   expect(opponentRack()).toBeTruthy();
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   await screen.findAllByRole("button", { name: /^CAT, / });
+  expect(!!yourRack.closest(".phone-move-review")).toBe(phone);
+  expect(opponentRack()).toBe(yourRack.nextElementSibling);
   await user.click(screen.getByText("Options", { selector: "summary" }));
   await user.click(screen.getByText("Reply settings", { selector: "summary" }));
   const bag = screen.getByRole("spinbutton", { name: "Tiles in bag" });
@@ -3226,15 +3237,18 @@ test("the opponent rack is visible before solving and follows the reply bag coun
     screen.getByRole("button", { name: "Update reply analysis" }),
   );
   expect(opponentRack()).toBeNull();
+  expect(screen.getByRole("heading", { name: "Possible moves" })).toBeTruthy();
   await user.clear(bag);
   await user.click(
     screen.getByRole("button", { name: "Update reply analysis" }),
   );
-  expect(opponentRack()).toBeTruthy();
-  expect(panel.getByText("Bag empty")).toBeTruthy();
+  expect(opponentRack()).toBe(yourRack.nextElementSibling);
+  expect(screen.getByRole("heading", { name: "Possible moves - Endgame" })).toBeTruthy();
+  expect(screen.queryByText("Bag assumed empty")).toBeNull();
 
   await typeRack(user, "Z");
   expect(opponentRack()).toBeNull();
+  expect(screen.getByRole("heading", { name: "Possible moves" })).toBeTruthy();
   expect(panel.getByText("Check tile counts")).toBeTruthy();
 });
 

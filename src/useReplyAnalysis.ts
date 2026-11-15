@@ -149,7 +149,6 @@ export function useReplyAnalysis(
     return head;
   }, [moveList, moves]);
   const reference = moveList && moves?.[0];
-  const bagAssumedEmpty = bagSize === 0 && !confirmed && (pool?.total ?? 0) > 0;
   const opponentRack =
     bagSize === 0 && pool && !invalid
       ? pool.tiles.map(({ symbol, count }) => symbol.repeat(count)).join("")
@@ -287,7 +286,6 @@ export function useReplyAnalysis(
     minimumBag,
     unseen: pool?.total ?? 0,
     invalid,
-    bagAssumedEmpty,
     bagConfirmed: confirmed,
     opponentRack,
     maxScorelessTurns: (streak?.limit ?? 1) - 1,
