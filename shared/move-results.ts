@@ -27,8 +27,14 @@ export interface MoveResults {
   head: Move[];
 }
 
+export interface RequiredSquares {
+  size: number;
+  indices: readonly number[];
+}
+
 export interface MoveQuery {
   filter: string;
+  requiredSquares?: RequiredSquares;
   sort: MoveSort;
   reversed?: boolean;
   offset: number;
@@ -40,8 +46,28 @@ export interface MoveQuery {
 export interface MovePage {
   offset: number;
   total: number;
+  bingoCount: number;
   head: Move[];
   rows: Move[];
+}
+
+export function coversRequiredSquares(
+  move: Move,
+  { size, indices }: RequiredSquares,
+) {
+  const across = move.direction === "across";
+  const line = across ? move.row : move.col;
+  const start = across ? move.col : move.row;
+  return indices.every((index) => {
+    const row = Math.floor(index / size);
+    const col = index % size;
+    const position = across ? col : row;
+    return (
+      (across ? row : col) === line &&
+      position >= start &&
+      position < start + move.word.length
+    );
+  });
 }
 
 export type ShortlistOptions = Parameters<typeof shortlistMoves>[1];
@@ -75,7 +101,7 @@ export function moveComparator({
   rackOdds,
   boardOdds,
   replyDeltas,
-}: Omit<MoveQuery, "filter" | "offset">) {
+}: Omit<MoveQuery, "filter" | "offset" | "requiredSquares">) {
   const order = reversed ? -1 : 1;
   if (sort === "shortlist") return undefined;
   const values = new Map<string, number>();
@@ -116,19 +142,29 @@ export function moveComparator({
 }
 
 export class MoveResultIndex {
-  private ordered?: { key: string; moves: readonly Move[] };
+  private ordered?: { key: string; moves: readonly Move[]; bingoCount: number };
+  private readonly bingoCount: number;
 
-  constructor(private readonly moves: readonly Move[]) {}
+  constructor(
+    private readonly moves: readonly Move[],
+    private readonly bingoRules: BingoRules,
+  ) {
+    this.bingoCount = this.countBingos(moves);
+  }
 
-  summary(searchId: number, bingoRules: BingoRules): MoveResults {
+  private countBingos(moves: readonly Move[]) {
     let bingoCount = 0;
-    for (const move of this.moves) {
-      if (isBingo(bingoRules, move.tiles.length)) bingoCount++;
+    for (const move of moves) {
+      if (isBingo(this.bingoRules, move.tiles.length)) bingoCount++;
     }
+    return bingoCount;
+  }
+
+  summary(searchId: number): MoveResults {
     return {
       searchId,
       total: this.moves.length,
-      bingoCount,
+      bingoCount: this.bingoCount,
       head: this.moves.slice(0, MOVE_HEAD_SIZE),
     };
   }
@@ -137,13 +173,19 @@ export class MoveResultIndex {
     return shortlistMoves(this.moves, options);
   }
 
-  page({ filter, offset, ...order }: MoveQuery): MovePage {
+  page({ filter, requiredSquares, offset, ...order }: MoveQuery): MovePage {
     const word = filter.trim().toUpperCase();
-    const key = JSON.stringify([word, order]);
+    const key = JSON.stringify([word, requiredSquares, order]);
     if (this.ordered?.key !== key) {
-      const matches = word
-        ? this.moves.filter((move) => move.word.includes(word))
-        : this.moves;
+      const matches =
+        word || requiredSquares?.indices.length
+          ? this.moves.filter(
+              (move) =>
+                move.word.includes(word) &&
+                (!requiredSquares ||
+                  coversRequiredSquares(move, requiredSquares)),
+            )
+          : this.moves;
       const compare =
         order.sort === "score" && !order.reversed
           ? undefined
@@ -151,13 +193,16 @@ export class MoveResultIndex {
       this.ordered = {
         key,
         moves: compare ? [...matches].sort(compare) : matches,
+        bingoCount:
+          matches === this.moves ? this.bingoCount : this.countBingos(matches),
       };
     }
-    const { moves } = this.ordered;
+    const { moves, bingoCount } = this.ordered;
     const start = Math.min(offset, Math.max(0, moves.length - MOVE_PAGE_SIZE));
     return {
       offset: start,
       total: moves.length,
+      bingoCount,
       head: moves.slice(0, MOVE_HEAD_SIZE),
       rows: moves.slice(start, start + MOVE_PAGE_SIZE),
     };

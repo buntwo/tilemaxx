@@ -24,6 +24,8 @@ export default function Board({
   archivedBoard,
   preview,
   selected,
+  markedSquares,
+  selectingSquares = false,
   onSelect,
   paint,
   compact = false,
@@ -40,6 +42,8 @@ export default function Board({
   archivedBoard?: BoardState;
   preview?: Pick<Move, "tiles"> | null;
   selected?: number | null;
+  markedSquares?: ReadonlySet<number>;
+  selectingSquares?: boolean;
   onSelect?: (index: number, repeatTap?: boolean) => void;
   paint?: boolean;
   compact?: boolean;
@@ -126,6 +130,7 @@ export default function Board({
                   archivedBoard && board[i] && board[i] !== archivedBoard[i],
                 ),
                 bonus = template.premiums[i],
+                marked = markedSquares?.has(i),
                 overlay = cellOverlay?.(i);
               return (
                 <button
@@ -133,14 +138,14 @@ export default function Board({
                   key={i}
                   data-cell={i}
                   tabIndex={compact && !overlay ? -1 : undefined}
-                  className={`square ${bonus.toLowerCase()} ${tile ? "occupied" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}${wordTiles.has(i) ? " word-hover" : ""}`}
-                  aria-label={`${coordinate(i, n)}${tile ? `: ${tile.toUpperCase()}${tile === tile.toLowerCase() ? " blank" : ""}` : bonus ? `: ${bonus}` : ": empty"}${i === template.start ? ", start" : ""}${archiveEdit ? ", edited after archiving" : ""}${overlay ? `, ${overlay.label}` : ""}`}
+                  className={`square ${bonus.toLowerCase()} ${tile ? "occupied" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}${wordTiles.has(i) ? " word-hover" : ""}${marked ? " move-filter-square" : ""}`}
+                  aria-label={`${coordinate(i, n)}${tile ? `: ${tile.toUpperCase()}${tile === tile.toLowerCase() ? " blank" : ""}` : bonus ? `: ${bonus}` : ": empty"}${i === template.start ? ", start" : ""}${archiveEdit ? ", edited after archiving" : ""}${overlay ? `, ${overlay.label}` : ""}${marked && !selectingSquares ? ", required for move filter" : ""}`}
                   aria-pressed={
                     cellOverlay
                       ? overlay
                         ? highlight === i
                         : undefined
-                      : selected === i
+                      : selectingSquares ? !!marked : selected === i
                   }
                   onPointerDown={(e) => {
                     if (e.isPrimary === false) return;

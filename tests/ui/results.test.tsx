@@ -97,8 +97,8 @@ function setup(
     rackSize: options.rackSize ?? 7,
     bingo: options.bingoBonus ?? 50,
   };
-  const index = new MoveResultIndex(options.moves ?? moves);
-  const results = index.summary(0, bingoRules);
+  const index = new MoveResultIndex(options.moves ?? moves, bingoRules);
+  const results = index.summary(0);
   const fetchPage =
     options.fetchPage ?? vi.fn(async (_id, query) => index.page(query));
   const fetchShortlist = vi.fn(async (_id, options) =>
@@ -187,7 +187,7 @@ test("scrolling and filtering use worker pages and ignore out-of-order results",
     word: i === 199 ? "ZEBRA" : i === 190 ? "QUICK" : "CATS",
     score: 400 - i,
   }));
-  const index = new MoveResultIndex(longList);
+  const index = new MoveResultIndex(longList, PRESETS[0]);
   const pending: Array<() => void> = [];
   const fetchPage: FetchMovePage = (_id, query) =>
     new Promise((resolve) => pending.push(() => resolve(index.page(query))));

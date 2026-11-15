@@ -3912,6 +3912,36 @@ label + label {
 .square.pending-blank .entry-arrow {
   z-index: 1;
 }
+.square.move-filter-square::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid #bd651b;
+  box-shadow: inset 0 0 0 1px #fff9;
+  pointer-events: none;
+}
+.square.pending-blank.move-filter-square::after { content: "?"; }
+.square.move-filter-square:focus-visible { outline-offset: 1px !important; }
+.selecting-move-squares .direct-entry-tools { display: none; }
+.move-square-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 47px;
+  padding: 0 8px 3px 9px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.move-square-controls > span { margin-right: auto; }
+.move-square-controls .text-button {
+  min-height: 32px;
+  padding-inline: 4px;
+}
+.phone-layout .move-square-controls .text-button {
+  min-width: 44px;
+  min-height: 44px;
+}
 .direct-entry-tools {
   margin: 8px 16px 0;
   padding: 10px 0 0;
@@ -4998,6 +5028,12 @@ label + label {
   .phone-layout .results-title .count-badge { padding-inline: 5px; }
   .phone-layout .results-title .analysis-toggle { gap: 4px; padding-inline: 6px; }
   .phone-layout .results-title:not(.has-exchange-advice) .analysis-toggle svg { display: none; }
+  .phone-layout .bingo-odds-controls { margin-inline: 8px; }
+  .phone-layout .bingo-odds-actions .result-view-picker button {
+    padding-inline: 6px;
+    font-size: 11px;
+  }
+  .phone-layout .bingo-odds-utilities { gap: 4px; }
 }
 @container (max-width: 390px) {
   .phone-move-review .with-reply-column :is(.result-columns, .result-row, .result-slot) {
@@ -5074,6 +5110,16 @@ label + label {
   height: 30px;
   border-left: 1px solid var(--line);
 }
+.results-panel .move-square-toggle {
+  flex: none;
+  width: 30px;
+  height: 30px;
+}
+.move-square-toggle:is([aria-pressed="true"], .has-required-squares) {
+  color: var(--primary);
+  background: var(--soft);
+  box-shadow: inset 0 -2px #bd651b;
+}
 :is(.compact-game, .phone-layout) .results-panel .search-input[hidden] { display: none; }
 :is(.compact-game, .phone-layout) .bingo-odds-controls > .search-input { margin-top: 5px; }
 :is(.compact-game, .phone-layout) .result-filters > .search-input { flex: 1 0 100%; order: 1; }
@@ -5088,6 +5134,7 @@ label + label {
   position: relative;
   padding-right: 88px;
 }
+.compact-game .bingo-odds-actions:has(.move-square-toggle) { padding-right: 123px; }
 .compact-game .bingo-odds-utilities {
   position: absolute;
   top: 0;

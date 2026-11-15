@@ -16,6 +16,10 @@ import {
 const SENTINEL = "\u200b";
 type Direction = "across" | "down";
 type EditKind = "enter" | "erase" | "blank";
+type MoveFilterSelection = {
+  marks: ReadonlySet<number>;
+  onToggle?: (index: number) => void;
+};
 
 export default function BoardEntry({
   game,
@@ -24,6 +28,7 @@ export default function BoardEntry({
   preview,
   onChange,
   onSelect,
+  moveFilter,
 }: {
   game: Game;
   hideHelp?: boolean;
@@ -31,6 +36,7 @@ export default function BoardEntry({
   preview: Move | null;
   onChange: (game: Game) => void;
   onSelect: () => void;
+  moveFilter?: MoveFilterSelection;
 }) {
   const history = useRef(new BoardEditHistory());
   const wordScores = useCallback(
@@ -46,6 +52,7 @@ export default function BoardEntry({
       preview={preview}
       wordScores={displayBoard ? undefined : wordScores}
       onSelect={onSelect}
+      moveFilter={moveFilter}
       onBreak={() => history.current.reset()}
       onChange={(board, kind) => {
         if (displayBoard) return;
@@ -70,6 +77,7 @@ export function BoardInput({
   inputLabel = "Type on board",
   hideHelp = false,
   wordScores,
+  moveFilter,
 }: {
   board: BoardState;
   archivedBoard?: BoardState;
@@ -84,6 +92,7 @@ export function BoardInput({
   inputLabel?: string;
   hideHelp?: boolean;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
+  moveFilter?: MoveFilterSelection;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [focused, setFocused] = useState(false);
@@ -125,6 +134,7 @@ export function BoardInput({
   const n = template.size;
   const tile = selected === null ? "" : board[selected];
   const isBlank = Boolean(tile && tile === tile.toLowerCase());
+  const toggleMark = moveFilter?.onToggle;
 
   function focus() {
     setFocused(true);
@@ -228,25 +238,28 @@ export function BoardInput({
   }
 
   return (
-    <div className="board-entry">
+    <div className={`board-entry${toggleMark ? " selecting-move-squares" : ""}`}>
       <Board
         template={template}
         board={board}
         archivedBoard={archivedBoard}
         preview={preview}
-        selected={(focused || onCursorChange) && !preview ? selected : null}
-        onSelect={select}
+        selected={(focused || onCursorChange) && !preview && !toggleMark ? selected : null}
+        markedSquares={moveFilter?.marks}
+        selectingSquares={!!toggleMark}
+        onSelect={toggleMark ?? select}
         entryDirection={direction}
         pendingBlank={pendingBlank}
         uncertain={uncertain}
-        wordScores={wordScores}
-        keepInputFocus
+        wordScores={toggleMark ? undefined : wordScores}
+        keepInputFocus={!toggleMark}
       />
       <input
         ref={input}
         className="board-keyboard-input"
         aria-label={inputLabel}
         aria-describedby={helpId}
+        disabled={!!toggleMark}
         value={SENTINEL}
         autoComplete="off"
         autoCorrect="off"

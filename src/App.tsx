@@ -10,6 +10,7 @@ import {
   CheckCheck,
   CloudOff,
   Copy,
+  Focus,
   Grid2X2,
   History,
   Home,
@@ -37,6 +38,7 @@ import Brand, { BrandTile, updateFavicon } from "./components/Brand";
 import BoardEntry, { BoardEntryHelp } from "./components/BoardEntry";
 import { GameCalculations } from "./components/GameCalculations";
 import GameId from "./components/GameId";
+import { MoveSquareFilterControls, useMoveSquareFilter } from "./components/MoveSquareFilter";
 import GameWorkspace, { usePhoneMoveReview } from "./components/GameWorkspace";
 import RackEntry, { type RackEntryHandle } from "./components/RackEntry";
 import ExchangeSuggestion from "./components/ExchangeSuggestion";
@@ -200,6 +202,7 @@ function Tilemaxx() {
   const desktopGame = useMediaQuery("(min-width: 1000px)");
   const phoneLayout = useMediaQuery("(max-width: 650px)");
   const boardPanel = useRef<HTMLElement>(null);
+  const squareFilterButton = useRef<HTMLButtonElement>(null);
   const rackPanel = useRef<HTMLElement>(null);
   const rackEntry = useRef<RackEntryHandle>(null);
   const [flight, setFlight] = useState<TileFlight>();
@@ -231,6 +234,7 @@ function Tilemaxx() {
     (g) => g.id === gameId && g.profileId === profileId,
   );
   const game = selectedGame ? state.games[selectedGame.id] : undefined;
+  const squareFilter = useMoveSquareFilter(workspace === "games" ? game : undefined);
   const profile = data?.profiles.find((p) => p.id === profileId);
   const editProfile = data?.profiles.find((p) => p.id === editProfileId);
   const editingArchive =
@@ -463,7 +467,29 @@ function Tilemaxx() {
   }
   function editPosition() {
     if (phoneReview.showing) phoneReview.dismiss();
+    if (squareFilter.selecting) squareFilter.setSelecting(false);
     setPreview(null);
+  }
+  function finishSquareSelection() {
+    squareFilter.setSelecting(false);
+    squareFilterButton.current?.focus({ preventScroll: true });
+  }
+  function toggleSquareSelection() {
+    if (squareFilter.selecting) {
+      finishSquareSelection();
+      return;
+    }
+    if (!game) return;
+    squareFilter.setSelecting(true);
+    setPreview(null);
+    if (phoneLayout) {
+      phoneReview.open();
+      boardPanel.current?.scrollIntoView?.({ block: "nearest" });
+    }
+    const index = squareFilter.requiredSquares?.indices[0] ?? game.template.start;
+    boardPanel.current
+      ?.querySelector<HTMLButtonElement>(`[data-cell="${index}"]`)
+      ?.focus({ preventScroll: true });
   }
   function previewMove(move: Move | null, analysis = false) {
     if (move && phoneLayout) phoneReview.open();
@@ -1046,7 +1072,16 @@ function Tilemaxx() {
         ) : game ? (
           <GameWorkspace phone={phoneLayout} reviewing={phoneReview.showing}>
             <div className="board-column">
-              <section ref={boardPanel} className="board-panel panel">
+              <section
+                ref={boardPanel}
+                className="board-panel panel"
+                onKeyDown={(event) => {
+                  if (squareFilter.selecting && event.key === "Escape") {
+                    event.preventDefault();
+                    finishSquareSelection();
+                  }
+                }}
+              >
                 {!compactGame && boardToolbar}
                 <BoardEntry
                   key={game.id}
@@ -1056,8 +1091,24 @@ function Tilemaxx() {
                   displayBoard={activeFlight?.before.board}
                   onChange={update}
                   onSelect={editPosition}
+                  moveFilter={{
+                    marks: squareFilter.marks,
+                    onToggle: squareFilter.selecting ? (index) => {
+                      squareFilter.toggle(index);
+                      setPreview(null);
+                    } : undefined,
+                  }}
                 />
-                {phoneReview.showing && (
+                {squareFilter.selecting ? (
+                  <MoveSquareFilterControls
+                    count={squareFilter.marks.size}
+                    onDone={finishSquareSelection}
+                    onClear={() => {
+                      squareFilter.clear();
+                      setPreview(null);
+                    }}
+                  />
+                ) : phoneReview.showing && (
                   <div className="board-review-actions">
                     <span aria-live="polite">
                       {preview ? (
@@ -1141,6 +1192,20 @@ function Tilemaxx() {
                 size={game.template.size}
                 bingoRules={game.template}
                 preview={preview}
+                requiredSquares={squareFilter.requiredSquares}
+                squareFilterControl={
+                  <button
+                    ref={squareFilterButton}
+                    className={`icon-button move-square-toggle${squareFilter.marks.size ? " has-required-squares" : ""}`}
+                    type="button"
+                    aria-label="Filter moves by squares"
+                    aria-pressed={squareFilter.selecting}
+                    title={squareFilter.marks.size ? `Filter moves by squares (${squareFilter.marks.size} selected)` : "Filter moves by squares"}
+                    onClick={toggleSquareSelection}
+                  >
+                    <Focus size={16} aria-hidden="true" />
+                  </button>
+                }
                 onPreview={previewMove}
                 phoneLayout={phoneLayout}
                 onPlay={play}

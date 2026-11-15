@@ -87,7 +87,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     const warnings = inspectBoard(lexicon, board, template);
     const moves = solvePosition(lexicon, request, template);
     const elapsed = performance.now() - start;
-    const result = new MoveResultIndex(moves);
+    const result = new MoveResultIndex(moves, template);
     const exchangePlays = warnings.length
       ? undefined
       : exchangeAdvicePlays(request, template, moves);
@@ -97,7 +97,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     post({
       id,
       kind: "moves",
-      results: result.summary(id, template),
+      results: result.summary(id),
       warnings,
       elapsed,
       exchange: exchangePlays && {
