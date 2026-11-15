@@ -39,6 +39,7 @@ import PremiumDefense, {
 } from "./PremiumDefense";
 import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
 import type { useReplyAnalysis } from "../useReplyAnalysis";
+import type { BoardOddsProgress } from "../useSolver";
 import type { ShortlistEntry } from "../../shared/move-shortlist";
 import {
   defaultSortDescending,
@@ -101,7 +102,7 @@ export default function Results({
   rackOddsPending,
   defense,
   defenseProgress,
-  boardOdds,
+  boardOdds: checkedBoardOdds,
   boardOddsProgress,
   boardOddsError,
   onBoardOdds,
@@ -137,7 +138,7 @@ export default function Results({
   defense?: DefenseResults;
   defenseProgress?: string;
   boardOdds?: BoardOddsResult;
-  boardOddsProgress?: { checked: number; total: number };
+  boardOddsProgress?: BoardOddsProgress;
   boardOddsError?: string;
   onBoardOdds?: (moves: Move[], bagSize: number) => void;
   onCancelBoardOdds?: () => void;
@@ -166,6 +167,10 @@ export default function Results({
   const [shortlistOnly, setShortlistOnly] = useState(false);
   const shortlistActive = shortlistOnly && !!analysisGame;
   const totalMoves = resultSet?.total ?? 0;
+  const boardOdds =
+    !phoneLayout || checkedBoardOdds?.bagSize === replyAnalysis.bagSize
+      ? checkedBoardOdds
+      : undefined;
   const bingoCount = resultSet?.bingoCount ?? 0;
   const formattedBingoCount = bingoCount.toLocaleString();
   const bingoLabel = `${formattedBingoCount} ${bingoCount === 1 ? "bingo" : "bingos"}`;
@@ -378,7 +383,7 @@ export default function Results({
     );
   }
   const hasBingoControls = !!(analysisGame && onBoardOdds && onCancelBoardOdds);
-  const sortControl = !shortlistOnly && (
+  const sortControl = !phoneLayout && !shortlistOnly && (
     <label className="sort-select">
       <ArrowDownWideNarrow size={16} />
       <select
@@ -487,7 +492,6 @@ export default function Results({
         </div>
         {resultSet && (
           <div className="result-counts">
-            <span className="count-badge">{totalMoves.toLocaleString()}</span>
             {bingoCount > 0 && (
               <span
                 className="count-badge result-bingo-count"
@@ -499,6 +503,7 @@ export default function Results({
                 {formattedBingoCount}
               </span>
             )}
+            <span className="count-badge">{totalMoves.toLocaleString()}</span>
           </div>
         )}
         {exchangeAction}
@@ -545,12 +550,26 @@ export default function Results({
           <BingoOddsControls
             key={analysisKey}
             game={analysisGame}
-            moves={shortlistActive ? filteredShortlist : page.head}
+            moves={
+              phoneLayout
+                ? resultSet?.head ?? []
+                : shortlistActive
+                  ? filteredShortlist
+                  : page.head
+            }
             settings={
               replyEnabled && <ReplySettings analysis={replyAnalysis} />
             }
             sortControl={sortControl}
-            sortBeforeCheck={phoneLayout}
+            automatic={
+              phoneLayout && resultSet
+                ? {
+                    searchId: resultSet.searchId,
+                    bagSize: replyAnalysis.bagSize,
+                    ready: !replyAnalysis.pending && !replyAnalysis.invalid,
+                  }
+                : undefined
+            }
             toolbarStart={collapsibleSearch && viewPicker}
             toolbarEnd={collapsibleSearch && searchToggle}
             searchField={collapsibleSearch && searchField}
@@ -688,7 +707,7 @@ export default function Results({
               {column("LEAVE", "leave", "rack leave")}
               {(analysisGame || rackOdds) &&
                 column(
-                  "BINGO DRAW %",
+                  phoneLayout ? "DRAW %" : "BINGO DRAW %",
                   "bingo-draw",
                   "bingo draw odds",
                   !rackOdds || !!rackOdds.error,
@@ -909,7 +928,9 @@ export default function Results({
                                 : "Chance of a legal bingo before the opponent replies"
                             }
                           >
-                            After play {boardPercent}
+                            {phoneLayout
+                              ? boardPercent
+                              : `After play ${boardPercent}`}
                           </span>
                         )}
                       </span>
@@ -985,6 +1006,12 @@ export default function Results({
             Replies {Object.keys(replyAnalysis.results ?? {}).length}/
             {replyAnalysis.target.length}
           </span>
+        ) : phoneLayout && boardOddsProgress ? (
+          <span role="status" title="Checking bingo odds after your play">
+            Bingo {boardOddsProgress.checked}/{boardOddsProgress.total}
+          </span>
+        ) : phoneLayout && rackOddsPending ? (
+          <span role="status">Calculating bingo draws…</span>
         ) : defenseProgress ? (
           <span title="Checking premium replies">Risk {defenseProgress}</span>
         ) : (

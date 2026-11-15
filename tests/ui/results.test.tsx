@@ -173,7 +173,7 @@ test("the header counts bingos outside the visible page and across placements", 
     ],
   });
   const badge = screen.getByRole("img", { name: "2 bingos" });
-  expect(badge.previousElementSibling?.textContent).toBe("68");
+  expect(badge.nextElementSibling?.textContent).toBe("68");
   expect(screen.queryByRole("button", { name: /^CATS,/ })).toBeNull();
   await user.type(screen.getByRole("textbox", { name: "Filter moves" }), "ZZZ");
   await screen.findByRole("heading", { name: "No matching words" });
@@ -406,7 +406,9 @@ test("empty-bag replies start automatically and can be overridden", async () => 
 });
 test("rack odds sort every move and board odds rank checked moves separately", async () => {
   const { user } = setup(true, {
-    rackOdds: { byLeave: { Z: 0.05, AS: 0.6 }, exact: true, bagSize: 55 },
+    analysisGame: bingoCheckGame,
+    replyEnabled: false,
+    rackOdds: { byLeave: { Z: 0.05, AS: 0.6 }, exact: true, bagSize: 89 },
     boardOdds: {
       byMove: {
         a: { chance: 0.8, exact: false },
@@ -414,25 +416,25 @@ test("rack odds sort every move and board odds rank checked moves separately", a
       },
       checked: 2,
       total: 2,
-      bagSize: 55,
+      bagSize: 89,
     },
   });
   expect(rows()[0].getAttribute("aria-label")).toContain(
     "bingo draw 5%, bingo after your play ≈80%",
   );
-  const sort = screen.getByRole("combobox", { name: "Sort moves" });
-  await user.selectOptions(sort, "bingo-draw");
+  await user.click(
+    screen.getByRole("button", { name: "Sort by bingo draw odds" }),
+  );
   expect(
     rows().map((row) => row.getAttribute("aria-label")?.split(",")[0]),
   ).toEqual(["CAT", "AT", "CATS"]);
-  await user.selectOptions(sort, "board-bingo");
+  const afterPlay = () =>
+    screen.getByRole("button", { name: "Sort by bingo odds after play" });
+  await user.click(afterPlay());
   expect(
     rows().map((row) => row.getAttribute("aria-label")?.split(",")[0]),
   ).toEqual(["CATS", "AT", "CAT"]);
-  const afterPlay = screen.getByRole("button", {
-    name: "Sort by bingo odds after play",
-  });
-  await user.click(afterPlay);
+  await user.click(afterPlay());
   expect(
     rows().map((row) => row.getAttribute("aria-label")?.split(",")[0]),
   ).toEqual(["AT", "CATS", "CAT"]);

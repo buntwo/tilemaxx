@@ -300,7 +300,7 @@ export function checkBoardBingo(
   template: BoardTemplate,
   candidates: readonly Move[],
   bagSize: number,
-  progress: (checked: number) => void = () => {},
+  progress: (checked: number, moveId: string, odds: BoardOdds) => void = () => {},
   random = Math.random,
 ): BoardOddsResult {
   const { tiles, total, excess } = unseenTiles(position, template);
@@ -394,7 +394,8 @@ export function checkBoardBingo(
           byMove[move.id] = { chance: hits / samples, exact: false, samples };
       }
     }
-    progress(Object.keys(byMove).length);
+    const odds = byMove[move.id];
+    if (odds) progress(Object.keys(byMove).length, move.id, odds);
   }
   return {
     byMove,

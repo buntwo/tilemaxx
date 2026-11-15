@@ -18,6 +18,7 @@ import { emptyBoard, type AppState, type Game } from "../../shared/model";
 import { Lexicon } from "../../shared/lexicon";
 import { solve, solvePosition } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
+import type { ReplyRequest } from "../../shared/reply-analysis";
 import { MoveResultIndex } from "../../shared/move-results";
 import type { SolverMessage, SolverRequest } from "../../src/solver-messages";
 import type { PracticeRequest } from "../../src/practice.worker";
@@ -211,6 +212,11 @@ test("a new game defaults to imported WOW24 even from another dictionary", async
 });
 
 test("board check uses the current filtered moves, and cancelled results stay out of the list", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query !== "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
   type Search = Parameters<SolverWorker["postMessage"]>[0];
   let pending:
     | { worker: SolverWorker; id: number; candidates: GameMove[] }
@@ -288,6 +294,91 @@ test("board check uses the current filtered moves, and cancelled results stay ou
     screen.queryByRole("button", { name: /points,.*bingo after your play/ }),
   ).toBeNull();
 });
+
+test("narrow results stream bingo odds after replies finish and discard odds for an older bag size", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const replies: {
+    worker: SolverWorker;
+    request: Extract<ReplyRequest, { kind: "reply-summary" }>;
+  }[] = [];
+  const checks: {
+    worker: SolverWorker;
+    request: Extract<SolverRequest, { kind: "board-odds" }>;
+  }[] = [];
+  vi.stubGlobal(
+    "Worker",
+    class extends SolverWorker {
+      postMessage(request: SolverRequest | ReplyRequest) {
+        if (request.kind === "reply-summary") {
+          replies.push({ worker: this, request });
+        } else if (request.kind === "board-odds") {
+          checks.push({ worker: this, request });
+        } else if (
+          request.kind !== "reply-detail" &&
+          request.kind !== "reply-line"
+        ) {
+          super.postMessage(request);
+        }
+      }
+    },
+  );
+  const user = await start();
+  await typeRack(user, "CATS");
+  await user.keyboard("{Enter}");
+  await screen.findByRole("button", { name: "Sort by points" });
+  expect(screen.queryByRole("combobox", { name: "Sort moves" })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Check bingo after your play" }),
+  ).toBeNull();
+  expect(replies).toHaveLength(1);
+  expect(checks).toHaveLength(0);
+  function finishReplies(index: number) {
+    const { worker, request } = replies[index];
+    act(() =>
+      worker.onmessage?.({
+        data: { kind: "reply-summary", id: request.id, done: true },
+      }),
+    );
+  }
+  finishReplies(0);
+  expect(checks).toHaveLength(1);
+  const { worker, request } = checks[0];
+  expect(request.bagSize).toBe(replies[0].request.bagSize);
+  expect(request.candidates).toHaveLength(20);
+  expect(request.candidates[0].id).toBe(replies[0].request.reference.id);
+  const update = {
+    kind: "board-odds-progress",
+    id: request.id,
+    checked: 1,
+    moveId: request.candidates[0].id,
+    odds: { chance: 0.5, exact: false },
+  };
+  act(() => worker.onmessage?.({ data: update }));
+  expect(
+    screen.getByRole("button", { name: /bingo after your play ≈50%/ }),
+  ).toBeTruthy();
+
+  await user.click(screen.getByText("Options", { selector: "summary" }));
+  await user.click(screen.getByText("Reply settings", { selector: "summary" }));
+  const bag = screen.getByRole("spinbutton", { name: "Tiles in bag" });
+  await user.type(bag, String(request.bagSize + 1));
+  await user.click(screen.getByRole("button", { name: "Update reply analysis" }));
+  expect(worker.terminate).toHaveBeenCalledOnce();
+  act(() => worker.onmessage?.({ data: update }));
+  expect(
+    screen.queryByRole("button", { name: /bingo after your play ≈50%/ }),
+  ).toBeNull();
+  expect(replies).toHaveLength(2);
+  expect(checks).toHaveLength(1);
+  finishReplies(1);
+  expect(checks).toHaveLength(2);
+  expect(checks[1].request.bagSize).toBe(request.bagSize + 1);
+});
+
 beforeEach(() => {
   localStorage.clear();
   history.replaceState(null, "", "/");
@@ -2604,6 +2695,11 @@ test.each(["rack", "results"])("the %s exchange suggestion preserves holds and o
 });
 
 test("a new search after playing starts with highest points", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query !== "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
   const user = await start();
   await typeRack(user, "CATS");
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
