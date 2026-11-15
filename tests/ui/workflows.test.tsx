@@ -372,6 +372,20 @@ beforeEach(() => {
         value = { id: "p", name: body.name };
         remote.profiles[0] = value as (typeof remote.profiles)[0];
       } else if (
+        url.startsWith("/api/dictionaries/") &&
+        options?.method === "DELETE"
+      ) {
+        const id = url.split("/").at(-1);
+        if (remote.games.some((game) => game.dictionaryId === id))
+          return new Response(
+            JSON.stringify({ error: "Choose a different list in that game first." }),
+            { status: 409 },
+          );
+        remote.dictionaries = remote.dictionaries.filter(
+          (dictionary) => dictionary.id !== id,
+        );
+        value = { deleted: true };
+      } else if (
         url.startsWith("/api/templates/") &&
         options?.method === "PUT"
       ) {
@@ -1547,6 +1561,51 @@ test.each(["phone", "tablet", "desktop"])(
     );
   },
 );
+
+test("word lists confirm removal, display a conflict and update the game selector", async () => {
+  remote.dictionaries.push({
+    id: "house",
+    name: "House words",
+    count: 4,
+    builtin: false,
+    description: "Imported word list",
+  });
+  const user = await start();
+  const picker = screen.getByRole("combobox", { name: "Game dictionary" });
+  await screen.findByRole("option", { name: "House words" });
+  await user.selectOptions(picker, "house");
+  await waitFor(() => expect(remote.games[0].dictionaryId).toBe("house"));
+  const wordLists = screen.getByRole("button", { name: "About word lists" });
+  await user.click(wordLists);
+  expect(screen.queryByRole("button", { name: "Remove Test words" })).toBeNull();
+  const remove = () =>
+    user.click(screen.getByRole("button", { name: "Remove House words" }));
+  const confirm = () =>
+    user.click(screen.getByRole("button", { name: "Remove word list" }));
+  await remove();
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "Keep word list" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Keep word list" }));
+  expect(remote.dictionaries).toHaveLength(2);
+
+  await remove();
+  await confirm();
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "Choose a different list",
+  );
+  await user.click(screen.getByRole("button", { name: "Keep word list" }));
+  await user.click(screen.getByRole("button", { name: "Close dialog" }));
+  await user.selectOptions(picker, "test");
+  await waitFor(() => expect(remote.games[0].dictionaryId).toBe("test"));
+  await user.click(wordLists);
+  await remove();
+  await confirm();
+  expect(await screen.findByText("House words removed.")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Remove House words" })).toBeNull();
+  expect(screen.queryByRole("option", { name: "House words" })).toBeNull();
+  expect((picker as HTMLSelectElement).value).toBe("test");
+});
 
 test("the phone layout keeps settings, the build version, board help and move filtering accessible", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({

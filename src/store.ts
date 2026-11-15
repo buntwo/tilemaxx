@@ -390,6 +390,20 @@ export class GameStore {
       remote.templates = remote.templates.filter(
         (t) => !this.deletedTemplates.has(t.id),
       );
+      // A local removal may finish while this poll is in flight. Limit this
+      // filter to the stale poll so a reinstalled file can appear again.
+      const localLists = this.snapshot.data?.dictionaries;
+      if (before && localLists && localLists !== before.dictionaries) {
+        const localIds = new Set(localLists.map(({ id }) => id));
+        const removed = new Set(
+          before.dictionaries
+            .filter(({ id }) => !localIds.has(id))
+            .map(({ id }) => id),
+        );
+        remote.dictionaries = remote.dictionaries.filter(
+          ({ id }) => !removed.has(id),
+        );
+      }
       remote.profiles = remote.profiles.filter(
         (p) => !this.deletedProfiles.has(p.id),
       );
@@ -669,6 +683,17 @@ export class GameStore {
     this.persist();
     this.emit();
     return dictionary;
+  }
+  async deleteDictionary(id: string) {
+    await api(`/dictionaries/${encodeURIComponent(id)}`, "DELETE", {});
+    this.snapshot.data = {
+      ...this.snapshot.data!,
+      dictionaries: this.snapshot.data!.dictionaries.filter(
+        (dictionary) => dictionary.id !== id,
+      ),
+    };
+    this.persist();
+    this.emit();
   }
   acceptRemote(id: string) {
     const remote = this.snapshot.conflicts[id];

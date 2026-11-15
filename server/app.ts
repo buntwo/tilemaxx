@@ -190,6 +190,30 @@ export function createApp(store: ReturnType<typeof createStore>) {
       .parse(req.body);
     res.status(201).json(store.importDictionary(name, text));
   });
+  app.delete("/api/dictionaries/:id", (req, res) => {
+    const result = store.deleteDictionary(req.params.id);
+    switch (result.status) {
+      case "missing":
+        res.status(404).json({ error: "Word list not found." });
+        break;
+      case "builtin":
+        res
+          .status(403)
+          .json({ error: "Built-in word lists are part of Tilemaxx." });
+        break;
+      case "in-use":
+        res.status(409).json({
+          error:
+            result.count === 1
+              ? `“${result.name}” uses this word list. Choose a different list in that game first.`
+              : `${result.count} games use this word list. Choose a different list in those games first.`,
+        });
+        break;
+      case "deleted":
+        res.json({ deleted: true });
+        break;
+    }
+  });
   app.use("/api", (_req, res) =>
     res.status(404).json({ error: "Endpoint not found." }),
   );

@@ -247,6 +247,45 @@ test("custom board deletion survives stale polling and leaves templates intact o
   }
 });
 
+test("word list removal survives a stale poll and a later reinstall appears", async () => {
+  const { client, cleanup } = setup();
+  try {
+    const dictionary = {
+      id: "house",
+      name: "House words",
+      count: 3,
+      description: "Imported word list",
+      builtin: false,
+    };
+    client.snapshot.data!.dictionaries = [dictionary];
+    globalThis.fetch = async () => response({ error: "In use" }, 409);
+    await assert.rejects(() => client.deleteDictionary(dictionary.id), /In use/);
+    assert.deepEqual(client.snapshot.data!.dictionaries, [dictionary]);
+
+    const old = structuredClone(client.snapshot.data!);
+    let poll!: (r: Response) => void;
+    globalThis.fetch = async (_url, options) =>
+      options?.method === "DELETE"
+        ? response({ deleted: true })
+        : new Promise((r) => (poll = r));
+    const refreshing = client.refresh();
+    await client.deleteDictionary(dictionary.id);
+    poll(response(old));
+    await refreshing;
+    assert.deepEqual(client.snapshot.data!.dictionaries, []);
+    assert.deepEqual(
+      JSON.parse(localStorage.getItem("tilewise:game-index")!).dictionaries,
+      [],
+    );
+
+    globalThis.fetch = async () => response(old);
+    await client.refresh();
+    assert.deepEqual(client.snapshot.data!.dictionaries, [dictionary]);
+  } finally {
+    cleanup();
+  }
+});
+
 test("another tab polling cannot erase drafts for the same or a different game", async () => {
   const { client, game, cleanup } = setup();
   const otherGame = { ...game, id: "other" };
