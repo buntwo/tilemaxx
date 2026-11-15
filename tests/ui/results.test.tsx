@@ -74,6 +74,7 @@ const moves: Move[] = [
 function setup(
   mobile = false,
   options: {
+    hover?: boolean;
     moves?: Move[];
     size?: number;
     rackSize?: number;
@@ -86,7 +87,9 @@ function setup(
     onBoardOdds?: (moves: Move[], bagSize: number) => BoardOddsResult | void;
   } = {},
 ) {
-  vi.stubGlobal("matchMedia", () => ({ matches: !mobile }));
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(any-hover: hover)" ? (options.hover ?? !mobile) : !mobile,
+  }));
   const onPlay = vi.fn(),
     onPreview = vi.fn();
   const bingoRules = {
@@ -126,6 +129,7 @@ function setup(
         replyAnalysis={replyAnalysis}
         replyEnabled={options.replyEnabled}
         preview={preview}
+        phoneLayout={mobile}
         onPreview={(m) => {
           setPreview(m);
           onPreview(m);
@@ -463,17 +467,22 @@ test("sort by word, length, tiles, leave and blanks; filter without losing origi
   await user.clear(screen.getByRole("textbox", { name: "Filter moves" }));
   expect(rows()).toHaveLength(3);
 });
-test("desktop hover previews and one click plays", async () => {
-  const { user, onPlay, onPreview } = setup();
-  // Define a pointer event because jsdom only provides MouseEvent.
-  const enter = new MouseEvent("pointerover", { bubbles: true });
-  Object.defineProperty(enter, "pointerType", { value: "mouse" });
-  fireEvent(rows()[0], enter);
-  expect(onPreview).toHaveBeenCalledWith(moves[0]);
-  expect(onPlay).not.toHaveBeenCalled();
-  await user.click(rows()[0]);
-  expect(onPlay).toHaveBeenCalledOnce();
-});
+test.each(["wide", "narrow"])(
+  "%s layouts preview on mouse hover and play on one click",
+  async (layout) => {
+    const { user, onPlay, onPreview } = setup(layout === "narrow", {
+      hover: true,
+    });
+    const first = rows()[0];
+    await user.hover(first);
+    expect(onPreview).toHaveBeenLastCalledWith(moves[0]);
+    expect(onPlay).not.toHaveBeenCalled();
+    await user.unhover(first);
+    expect(onPreview).toHaveBeenLastCalledWith(null);
+    await user.click(first);
+    expect(onPlay).toHaveBeenCalledExactlyOnceWith(moves[0]);
+  },
+);
 
 test.each(["right-click", "P"])("%s toggles a move pin", async (input) => {
   const { user, onPlay, onPreview } = setup();
@@ -501,16 +510,21 @@ test.each(["right-click", "P"])("%s toggles a move pin", async (input) => {
   expect(onPlay).not.toHaveBeenCalled();
 });
 
-test("phone first tap previews, a different tap switches preview, second tap plays", async () => {
-  const { user, onPlay, onPreview } = setup(true);
-  await user.click(rows()[0]);
-  expect(onPlay).not.toHaveBeenCalled();
-  expect(onPreview).toHaveBeenLastCalledWith(moves[0]);
-  await user.click(rows()[1]);
-  expect(onPlay).not.toHaveBeenCalled();
-  await user.click(rows()[1]);
-  expect(onPlay).toHaveBeenCalledExactlyOnceWith(moves[1]);
-});
+test.each([false, true])(
+  "touch previews on the first tap and plays on the second with hover support %s",
+  async (hover) => {
+    const { user, onPlay, onPreview } = setup(true, { hover });
+    const [first, second] = rows();
+    await user.pointer({ keys: "[TouchA]", target: first });
+    expect(onPlay).not.toHaveBeenCalled();
+    expect(onPreview).toHaveBeenLastCalledWith(moves[0]);
+    await user.pointer({ keys: "[TouchA]", target: second });
+    expect(onPlay).not.toHaveBeenCalled();
+    expect(onPreview).toHaveBeenLastCalledWith(moves[1]);
+    await user.pointer({ keys: "[TouchA]", target: second });
+    expect(onPlay).toHaveBeenCalledExactlyOnceWith(moves[1]);
+  },
+);
 
 test.each(["across", "down"] as const)(
   "%s results distinguish board letters from new tiles and mark full-rack bingos",

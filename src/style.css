@@ -2377,8 +2377,16 @@ label + label {
   justify-content: space-between;
   gap: 8px;
 }
-.mobile-hint {
+.tap-hint {
   display: none;
+}
+@media (any-hover: none) {
+  .hover-hint {
+    display: none;
+  }
+  .tap-hint {
+    display: inline;
+  }
 }
 .companion-note {
   display: flex;
@@ -3391,12 +3399,6 @@ label + label {
     font-size: 10px;
     padding: 12px 14px;
   }
-  .desktop-hint {
-    display: none;
-  }
-  .mobile-hint {
-    display: inline;
-  }
   .companion-note {
     padding: 20px 6px 10px;
   }
@@ -3491,12 +3493,6 @@ label + label {
   }
 }
 @media (hover: none) {
-  .desktop-hint {
-    display: none;
-  }
-  .mobile-hint {
-    display: inline;
-  }
   .square:hover {
     box-shadow: none;
   }
@@ -4930,10 +4926,25 @@ label + label {
 }
 .board-review-actions > span { overflow-wrap: anywhere; }
 .board-review-actions strong { color: var(--text); }
-.board-review-actions > .button {
+.board-review-play {
   flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
   min-height: 44px;
-  padding: 0 11px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+}
+.board-review-play > .button {
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 12px;
+  pointer-events: none;
+}
+.board-review-play:hover:not(:disabled) > .button {
+  background: var(--primary-hover);
 }
 @container (max-width: 340px) {
   .phone-move-review .board-toolbar .board-name { display: none; }

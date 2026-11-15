@@ -1047,16 +1047,16 @@ export default function App() {
                           <strong>{preview.word}</strong> · {preview.score} pts
                         </>
                       ) : (
-                        "Tap a move to preview"
+                        "Choose a move to preview"
                       )}
                     </span>
                     <button
-                      className="button primary"
+                      className="board-review-play"
                       type="button"
                       disabled={!preview || !!activeFlight}
                       onClick={() => preview && play(preview)}
                     >
-                      Play
+                      <span className="button primary">Play</span>
                     </button>
                   </div>
                 )}
