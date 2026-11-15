@@ -2536,6 +2536,7 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   await typeRack(user, "S");
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   await user.click(await screen.findByRole("button", { name: /^CATS, / }));
+  expect(current().past.map(({ label }) => label)).toEqual(["CAT", "CATS"]);
   expect(current().scoring?.opponent).toEqual({
     points: 10,
     moves: 1,
@@ -2570,11 +2571,18 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   expect(current().scoring?.opponent.points).toBe(10);
   expect(current().scoring?.you.points).toBe(0);
   expect(titleScore()?.textContent).toBe("0–10");
+  expect(current().board.slice(112, 116)).toEqual(["C", "A", "T", ""]);
   expect(moves().getAllByRole("row").slice(1)).toHaveLength(1);
   await user.click(cell("Undo"));
-  expect(scores().getByText("CAT · 10 pts")).toBeTruthy();
+  expect(current().board.every((tile) => !tile)).toBe(true);
+  expect(titleScore()?.textContent).toBe("0–0");
+  expect(scores().queryByText("CAT · 10 pts")).toBeNull();
   await user.click(cell("Redo"));
+  expect(current().board.slice(112, 116)).toEqual(["C", "A", "T", ""]);
+  expect(titleScore()?.textContent).toBe("0–10");
   await user.click(cell("Redo"));
+  expect(current().board.slice(112, 116)).toEqual(["C", "A", "T", "S"]);
+  expect(titleScore()?.textContent).toBe("6–10");
   await user.click(tracking());
   expect(tracking().checked).toBe(false);
   expect(titleScore()).toBeNull();

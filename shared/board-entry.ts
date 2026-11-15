@@ -1,7 +1,13 @@
-import { remember, trackedMoveHistory, type Board, type Game } from "./model";
+import {
+  BOARD_EDIT_LABELS,
+  remember,
+  trackedMoveHistory,
+  type Board,
+  type Game,
+} from "./model";
 import { recordOpponentRackOut, trackBoardEdit } from "./game-scoring";
 
-type EditKind = "enter" | "erase" | "blank";
+type EditKind = keyof typeof BOARD_EDIT_LABELS;
 
 // Local save acknowledgments retain the position and history references.
 function sameEditPosition(a: Game, b: Game) {
@@ -32,16 +38,7 @@ export class BoardEditHistory {
     const { scoring, trackedMoves } = trackBoardEdit(game, board);
     const next = {
       ...game,
-      ...(continuing
-        ? {}
-        : remember(
-            game,
-            kind === "erase"
-              ? "Erased board letters"
-              : kind === "blank"
-                ? "Changed blank tile"
-                : "Entered board letters",
-          )),
+      ...(continuing ? {} : remember(game, BOARD_EDIT_LABELS[kind])),
       board,
       scoring,
     };
@@ -58,7 +55,7 @@ export class BoardEditHistory {
         ];
       }
     }
-    const recorded = recordOpponentRackOut(next, { mergeBoardUndo: true });
+    const recorded = recordOpponentRackOut(next);
     this.group = recorded === next ? { kind, game: next } : null;
     return recorded;
   }
