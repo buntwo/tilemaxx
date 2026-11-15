@@ -273,8 +273,12 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
       (await req("/games", "POST", { ...created, board: [] })).status,
       400,
     );
+    const customPremiums = [...created.template.premiums];
+    customPremiums[0] = "DL";
     const withSlots = await req(`/games/${created.id}`, "PUT", {
       ...created,
+      originalPremiums: created.template.premiums,
+      template: { ...created.template, premiums: customPremiums },
       startedOn: "2026-03-15",
       platform: "Words With Friends",
       notes: "Close game.\nReview the endgame.",
@@ -319,6 +323,8 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
     assert.equal(store.getGame(created.id)!.profileId, profile.id);
     assert.equal(store.getGame(created.id)!.rack, ".A.T.?");
     assert.equal(store.getGame(created.id)!.past[0].rack, "C..T");
+    assert.deepEqual(store.getGame(created.id)!.originalPremiums, created.template.premiums);
+    assert.deepEqual(store.getGame(created.id)!.template.premiums, customPremiums);
     assert.equal(store.getGame(created.id)!.past[0].player, "you");
     assert.equal(store.getGame(created.id)!.startedOn, "2026-03-15");
     assert.equal(store.getGame(created.id)!.platform, "Words With Friends");

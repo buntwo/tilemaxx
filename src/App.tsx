@@ -50,7 +50,7 @@ import { useReplyAnalysis } from "./useReplyAnalysis";
 import { splitRack } from "../shared/rack-entry";
 import BoardStudio from "./components/BoardStudio";
 import ScreenshotImport from "./components/ScreenshotImport";
-import { importBoard } from "../shared/screenshot";
+import { hasCustomPremiums, importBoard } from "../shared/screenshot";
 import Modal from "./components/Modal";
 import WordLists from "./components/WordLists";
 import Results from "./components/Results";
@@ -656,6 +656,7 @@ export default function App() {
         <span className="board-name">
           <Grid2X2 size={16} />
           {game.template.name}
+          {hasCustomPremiums(game) && " (custom)"}
         </span>
         <span className="board-size">
           {game.template.size} × {game.template.size}
