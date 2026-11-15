@@ -31,6 +31,8 @@
   --archive-tile-ink: #fff9ff;
   --archive-blank-ink: #d9efff;
   --tile-warning: #ae2d27;
+  --value-good: light-dark(#226148, #a4d8b8);
+  --value-bad: light-dark(#a42c29, #ff9b91);
   --tile-overdrawn: light-dark(#edc2b6, #754b45);
   --tile-overdrawn-ink: light-dark(#8e4b3d, #f4d8cf);
   --point-loss-low: #8c5c57;
@@ -910,8 +912,8 @@ label + label {
   flex-shrink: 0;
   padding: 4px 8px;
   border-radius: 6px;
-  background: var(--soft);
-  color: var(--primary);
+  background: light-dark(#e9ecea, #38433d);
+  color: var(--text);
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -919,17 +921,11 @@ label + label {
 .game-title-score [aria-hidden] {
   opacity: 0.7;
 }
-.game-title-score[data-outcome="playing"] {
-  background: light-dark(#dbeafa, #263d52);
-  color: light-dark(#254f77, #bddaf5);
+.game-title-score.value-good {
+  background: light-dark(#e1f0e6, #294439);
 }
-.game-title-score[data-outcome="loss"] {
+.game-title-score.value-bad {
   background: light-dark(#f5dfdf, #523033);
-  color: light-dark(#8a3838, #ffd0ce);
-}
-.game-title-score:is([data-outcome="tie"], [data-outcome="archived"]) {
-  background: light-dark(#e9ecea, #38433d);
-  color: var(--text);
 }
 .game-over {
   padding: 14px;
@@ -2249,7 +2245,7 @@ label + label {
   font-size: 12px;
 }
 .reply-refine { margin-top: 4px; }
-.reply-exact h3 {
+.reply-exact h4 {
   margin: 0 0 6px;
   font-size: 15px;
 }
@@ -2290,10 +2286,10 @@ label + label {
 }
 .defense-warning,
 .result-defense-action.defense-warning:hover {
-  color: var(--tile-warning);
+  color: var(--value-bad);
 }
 .defense-covered {
-  color: var(--primary);
+  color: var(--value-good);
 }
 .defense-details {
   display: grid;
@@ -4741,12 +4737,14 @@ label + label {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.move-analysis .analysis-good {
-  color: var(--primary);
-  font-weight: 650;
+.value-good {
+  color: var(--value-good);
 }
-.move-analysis .analysis-bad {
-  color: var(--tile-warning);
+.value-bad {
+  color: var(--value-bad);
+}
+.value-good,
+.value-bad {
   font-weight: 650;
 }
 

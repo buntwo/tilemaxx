@@ -1,5 +1,6 @@
 import { Repeat2 } from "lucide-react";
 import type { ExchangeAdvice } from "../../shared/exchange-advice";
+import { scoreTone } from "../score-tone";
 
 export function exchangeAdviceDetail({ edge, comparedWith }: ExchangeAdvice) {
   return `Estimated +${Math.round(edge)} points vs. ${comparedWith ?? "passing"} through your next turn, including the opponent’s reply`;
@@ -39,12 +40,13 @@ export default function ExchangeSuggestion({
           </span>
           <span>
             <span className="results-exchange-separator">· </span>
-            {edge}
+            <span className={scoreTone(Math.round(advice.edge))}>{edge}</span>
           </span>
         </>
       ) : (
         <span>
-          Swap {tiles} · {edge}
+          Swap {tiles} ·{" "}
+          <span className={scoreTone(Math.round(advice.edge))}>{edge}</span>
         </span>
       )}
     </button>

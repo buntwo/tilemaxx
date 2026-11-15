@@ -3,6 +3,7 @@ import { coordinate, type Game, type Move } from "../../shared/model";
 import { placeTiles } from "../../shared/move-analysis";
 import type { MoveDefense, PremiumChange } from "../../shared/premium-defense";
 import { rackContainsChance, unseenTiles } from "../../shared/tile-pool";
+import { scoreTone } from "../score-tone";
 import Board from "./Board";
 import Modal from "./Modal";
 import MoveWord from "./MoveWord";
@@ -99,7 +100,10 @@ export function PremiumDefenseContent({
               <span>
                 Before {change.before ? `${change.before.score} pts` : "—"}
                 {" → "}
-                after {change.after ? `${change.after.score} pts` : "—"}
+                after{" "}
+                <b className={scoreTone(blockedReplyPoints(change))}>
+                  {change.after ? `${change.after.score} pts` : "—"}
+                </b>
               </span>
             </div>
           </div>
@@ -180,7 +184,7 @@ export function PremiumReplyNote({
             move={{ ...reply, word: reply.word.toUpperCase() }}
             rules={game.template}
           />{" "}
-          · {reply.score} pts
+          · <span className="value-bad">{reply.score} pts</span>
         </strong>{" "}
         through {squareLabel(opened, game.template.size)}. Needs{" "}
         {need.join(", ")}.{" "}
@@ -193,9 +197,17 @@ export function PremiumReplyNote({
     const square = squareLabel(closed, game.template.size);
     return (
       <p className="reply-example">
-        {closed.after
-          ? `Weakens ${square} by ${blockedReplyPoints(closed)} pts.`
-          : `Cuts off the checked reply through ${square}.`}
+        {closed.after ? (
+          <>
+            Weakens {square} by{" "}
+            <strong className={scoreTone(blockedReplyPoints(closed))}>
+              {blockedReplyPoints(closed)} pts
+            </strong>
+            .
+          </>
+        ) : (
+          `Cuts off the checked reply through ${square}.`
+        )}
       </p>
     );
   }

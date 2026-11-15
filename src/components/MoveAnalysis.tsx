@@ -19,6 +19,7 @@ import {
   isEndgameBudgetMultiplier,
   placeTiles,
 } from "../../shared/move-analysis";
+import { scoreTone } from "../score-tone";
 import Board from "./Board";
 import Modal from "./Modal";
 import MoveWord from "./MoveWord";
@@ -30,8 +31,6 @@ type WorkerMessage =
   | { error: string };
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 const points = (value: number) => value.toFixed(1);
-const tone = (value = 0) =>
-  value > 0 ? "analysis-good" : value < 0 ? "analysis-bad" : undefined;
 
 function formatFinalScore(
   endgame: EndgameLine | null | undefined,
@@ -165,7 +164,7 @@ export default function MoveAnalysis({
   }
 
   return (
-    <div className="move-analysis" aria-label="Move analysis">
+    <section className="move-analysis" aria-label="Move analysis">
       <p>
         Select up to three moves below. The first is the reference for blocking
         comparisons.
@@ -359,13 +358,13 @@ export default function MoveAnalysis({
                     {forecast.endgameLimit && <p>{forecast.endgameLimit}</p>}
                     {forecast.endgame && (
                       <div className="analysis-endgame">
-                        <p className={tone(forecast.endgame.spread)}>
+                        <p className={scoreTone(forecast.endgame.spread)}>
                           Optimal endgame swing{" "}
                           {forecast.endgame.spread > 0 ? "+" : ""}
                           {forecast.endgame.spread}
                         </p>
                         {finalScore && (
-                          <p className={tone(finalScore.margin)}>
+                          <p className={scoreTone(finalScore.margin)}>
                             Final score {finalScore.label}
                           </p>
                         )}
@@ -398,7 +397,13 @@ export default function MoveAnalysis({
                                   )}
                                 </td>
                                 <td>{step ? position(step) : "—"}</td>
-                                <td>{step?.score ?? 0}</td>
+                                <td
+                                  className={scoreTone(
+                                    (turn % 2 ? -1 : 1) * (step?.score ?? 0),
+                                  )}
+                                >
+                                  {step?.score ?? 0}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -414,7 +419,9 @@ export default function MoveAnalysis({
                         Preview{" "}
                         {reply.example ? "modeled reply" : "available threat"}{" "}
                         <MoveWord move={exampleReply} rules={game.template} /> ·{" "}
-                        {exampleReply.score} pts
+                        <span className={scoreTone(-exampleReply.score)}>
+                          {exampleReply.score} pts
+                        </span>
                       </button>
                     )}
                   </details>
@@ -447,7 +454,9 @@ export default function MoveAnalysis({
           title={
             <>
               <MoveWord move={example.reply} rules={game.template} /> ·{" "}
-              {example.reply.score} points
+              <span className={scoreTone(-example.reply.score)}>
+                {example.reply.score} points
+              </span>
             </>
           }
           subtitle={
@@ -467,7 +476,7 @@ export default function MoveAnalysis({
           />
         </Modal>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -607,7 +616,7 @@ function Comparison({
             <tr key={label}>
               <th scope="row">{label}</th>
               {result.forecasts.map((f, i) => (
-                <td key={f.move.id} className={tone(rating?.(f))}>
+                <td key={f.move.id} className={scoreTone(rating?.(f))}>
                   {display(f, i)}
                 </td>
               ))}

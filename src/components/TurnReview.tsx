@@ -8,6 +8,7 @@ import {
   type Move,
 } from "../../shared/model";
 import { reviewTurns, type ReviewSummary } from "../../shared/turn-review";
+import { scoreTone } from "../score-tone";
 import Board from "./Board";
 import Modal from "./Modal";
 import MoveWord from "./MoveWord";
@@ -150,7 +151,16 @@ export default function TurnReview({
                               <strong>
                                 <MoveWord move={move} rules={template} />
                               </strong>{" "}
-                              · {move.score} pts ·{" "}
+                              ·{" "}
+                              <span
+                                className={scoreTone(
+                                  (turn.move.player === "you" ? 1 : -1) *
+                                    (move.score - turn.move.score),
+                                )}
+                              >
+                                {move.score} pts
+                              </span>{" "}
+                              ·{" "}
                               {coordinate(
                                 move.row * game.template.size + move.col,
                                 game.template.size,
@@ -223,7 +233,10 @@ export default function TurnReview({
                         )}
                         {item.gap >= 8 && item.best && (
                           <p>
-                            +{item.gap} immediate points ·{" "}
+                            <strong className={scoreTone(item.gap)}>
+                              +{item.gap} immediate points
+                            </strong>{" "}
+                            ·{" "}
                             <strong>
                               <MoveWord move={item.best} rules={template} />
                             </strong>{" "}
@@ -233,9 +246,13 @@ export default function TurnReview({
                         {item.replyRisk && (
                           <p>
                             40+ point reply available in{" "}
-                            {Math.round(item.replyRisk.actual * 100)}% of
-                            samples, versus{" "}
-                            {Math.round(item.replyRisk.alternative * 100)}%
+                            <span className="value-bad">
+                              {Math.round(item.replyRisk.actual * 100)}%
+                            </span>{" "}
+                            of samples, versus{" "}
+                            <span className="value-good">
+                              {Math.round(item.replyRisk.alternative * 100)}%
+                            </span>
                             after{" "}
                             <strong>
                               <MoveWord

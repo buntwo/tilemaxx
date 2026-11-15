@@ -13,6 +13,7 @@ import {
   type ReplyDistribution,
   type ReplyResult,
 } from "../../shared/reply-analysis";
+import { scoreTone } from "../score-tone";
 import type { useReplyAnalysis } from "../useReplyAnalysis";
 import Board from "./Board";
 import Modal from "./Modal";
@@ -50,7 +51,14 @@ function replyMargin(result: ExactReply, margin?: number) {
           ? "Game ends"
           : "Pass";
   if (!margin) return result.ends ? "Final tie" : "Tied";
-  return `${result.ends ? (margin > 0 ? "Win" : "Lose") : margin > 0 ? "Lead" : "Trail"} ${signedPoints(margin)}`;
+  const standing = result.ends
+    ? margin > 0
+      ? "Win"
+      : "Lose"
+    : margin > 0
+      ? "Lead"
+      : "Trail";
+  return `${standing} by ${Math.abs(margin)}`;
 }
 
 export function ReplyCell({
@@ -63,22 +71,17 @@ export function ReplyCell({
   scores?: ReturnType<typeof scoreTotalsAtPosition>;
 }) {
   const delta = result.difference;
+  const decimals = result.kind === "distribution" ? 1 : 0;
   const tone =
-    delta !== null && delta >= 0.05
-      ? "defense-warning"
-      : delta !== null && delta <= -0.05
-        ? "defense-covered"
-        : "reply-neutral";
+    delta === null ? undefined : scoreTone(-Number(delta.toFixed(decimals)));
   const final =
     result.kind === "empty-bag"
       ? endgameScores(move, result, scores)
       : undefined;
   return (
     <span className="reply-cell">
-      <strong className={tone}>
-        {delta === null
-          ? "—"
-          : signedPoints(delta, result.kind === "distribution" ? 1 : 0)}
+      <strong className={tone ?? "reply-neutral"}>
+        {delta === null ? "—" : signedPoints(delta, decimals)}
       </strong>
       {result.kind === "distribution" ? (
         <span className="reply-mini" aria-hidden="true">
@@ -91,9 +94,7 @@ export function ReplyCell({
           ))}
         </span>
       ) : (
-        <small
-          className={final && final.margin < 0 ? "defense-warning" : undefined}
-        >
+        <small className={scoreTone(final?.margin) ?? "reply-neutral"}>
           {replyMargin(result, final?.margin)}
         </small>
       )}
@@ -177,9 +178,17 @@ function DistributionChart({
     `${((100 * count) / result.count).toFixed(1)}%`;
   const height = (count: number) =>
     `${(10000 * count) / (ceiling * result.count)}%`;
-  const share = (counts: number[]) => percent(counts[3] + counts[4]);
-  const renderStat = (before: string, after: string) =>
-    compare ? `${before} → ${after}` : after;
+  const share = (counts: number[]) => counts[3] + counts[4];
+  const renderStat = (before: string, after: string, change: number) => (
+    <>
+      {compare && `${before} → `}
+      <span
+        className={compare && before !== after ? scoreTone(change) : undefined}
+      >
+        {after}
+      </span>
+    </>
+  );
   const groups = REPLY_BUCKETS.map((bucket, i) => {
     const selected = percent(result.buckets[i]);
     const baseline = percent(result.reference.buckets[i]);
@@ -194,6 +203,7 @@ function DistributionChart({
             {renderStat(
               result.reference.mean.toFixed(1),
               result.mean.toFixed(1),
+              result.reference.mean - result.mean,
             )}{" "}
             pts
           </strong>
@@ -201,7 +211,11 @@ function DistributionChart({
         <span>
           40+ reply{" "}
           <strong>
-            {renderStat(share(result.reference.buckets), share(result.buckets))}
+            {renderStat(
+              percent(share(result.reference.buckets)),
+              percent(share(result.buckets)),
+              share(result.reference.buckets) - share(result.buckets),
+            )}
           </strong>
         </span>
       </div>
@@ -308,7 +322,7 @@ function ExactReplyDetails({
       : summary;
   return (
     <div className="reply-exact">
-      <h3>{leadLabel}</h3>
+      <h4 className={scoreTone(scores?.margin)}>{leadLabel}</h4>
       <div className="reply-known-rack">
         <span>Opponent rack</span>
         <span aria-label={result.rack ? [...result.rack].join(" ") : "Empty"}>
@@ -324,7 +338,9 @@ function ExactReplyDetails({
         {scores && (
           <div>
             <dt>After your play</dt>
-            <dd>{scorePair(scores.after.you, scores.after.opponent)}</dd>
+            <dd className={scoreTone(afterMargin)}>
+              {scorePair(scores.after.you, scores.after.opponent)}
+            </dd>
           </div>
         )}
         {scores &&
@@ -340,7 +356,8 @@ function ExactReplyDetails({
           <div>
             <dt>You go out</dt>
             <dd>
-              <MoveWord move={move} rules={game.template} /> · {move.score} pts
+              <MoveWord move={move} rules={game.template} /> ·{" "}
+              <span className={scoreTone(move.score)}>{move.score} pts</span>
             </dd>
           </div>
         ) : ends === "scoreless" && !reply ? (
@@ -361,7 +378,10 @@ function ExactReplyDetails({
               {reply ? (
                 <>
                   <MoveWord move={reply} rules={game.template} /> ·{" "}
-                  {reply.score} pts ·{" "}
+                  <span className={scoreTone(-reply.score)}>
+                    {reply.score} pts
+                  </span>{" "}
+                  ·{" "}
                   {coordinate(
                     reply.row * game.template.size + reply.col,
                     game.template.size,
@@ -379,7 +399,9 @@ function ExactReplyDetails({
             <dt>Highest raw reply score</dt>
             <dd>
               <MoveWord move={highest} rules={game.template} /> ·{" "}
-              {highest.score} pts
+              <span className={scoreTone(-highest.score)}>
+                {highest.score} pts
+              </span>
             </dd>
           </div>
         )}
@@ -389,22 +411,32 @@ function ExactReplyDetails({
               Raw reply vs.{" "}
               <MoveWord move={analysis.reference} rules={game.template} />
             </dt>
-            <dd>{signedPoints(result.difference)} pts</dd>
+            <dd className={scoreTone(-result.difference)}>
+              {signedPoints(result.difference)} pts
+            </dd>
           </div>
         )}
         {ends && ends !== "final-turns" && (
           <div>
             <dt>Unplayed tiles</dt>
             <dd>
-              You {signedPoints(result.yourAdjustment)} · Opponent{" "}
-              {signedPoints(result.opponentAdjustment)}
+              You{" "}
+              <span className={scoreTone(result.yourAdjustment)}>
+                {signedPoints(result.yourAdjustment)}
+              </span>{" "}
+              · Opponent{" "}
+              <span className={scoreTone(-result.opponentAdjustment)}>
+                {signedPoints(result.opponentAdjustment)}
+              </span>
             </dd>
           </div>
         )}
         {scores && (
           <div>
             <dt>{ends ? "Final score" : "After their reply"}</dt>
-            <dd>{scorePair(scores.you, scores.opponent)}</dd>
+            <dd className={scoreTone(scores.margin)}>
+              {scorePair(scores.you, scores.opponent)}
+            </dd>
           </div>
         )}
       </dl>
@@ -441,9 +473,15 @@ function ExactReplyDetails({
             <details open>
               <summary>
                 Optimal endgame line
-                {finalSpread !== undefined
-                  ? ` · Final margin ${signedPoints(finalSpread)}`
-                  : ""}
+                {finalSpread !== undefined && (
+                  <>
+                    {" "}
+                    · Final margin{" "}
+                    <span className={scoreTone(finalSpread)}>
+                      {signedPoints(finalSpread)}
+                    </span>
+                  </>
+                )}
               </summary>
               <ol>
                 {line.line.line.map((play, index) => (
@@ -452,7 +490,13 @@ function ExactReplyDetails({
                     {play ? (
                       <>
                         <MoveWord move={play} rules={game.template} /> ·{" "}
-                        {play.score} pts
+                        <span
+                          className={scoreTone(
+                            index % 2 ? -play.score : play.score,
+                          )}
+                        >
+                          {play.score} pts
+                        </span>
                       </>
                     ) : (
                       "Pass"

@@ -6,6 +6,7 @@ import {
   type ReplyDistribution,
 } from "../../shared/reply-analysis";
 import type { PremiumReply } from "../../shared/solver";
+import { scoreTone } from "../score-tone";
 import Board from "./Board";
 import MoveWord from "./MoveWord";
 
@@ -52,6 +53,11 @@ export default function ReplyHeatmap({
   const peak = ranked[0] && Math.abs(ranked[0].count);
   const hotspot =
     selected !== undefined && counts[selected] ? selected : ranked[0]?.square;
+  const beforeCount = hotspot === undefined ? 0 : (before.get(hotspot) ?? 0);
+  const afterCount =
+    hotspot === undefined ? 0 : (after.get(hotspot)?.count ?? 0);
+  const beforeShare = percent(beforeCount, result.count);
+  const afterShare = percent(afterCount, result.count);
   const examples =
     hotspot === undefined ? undefined : after.get(hotspot)?.examples;
   const currentPreview = examples?.some(({ play }) => play === preview)
@@ -164,11 +170,17 @@ export default function ReplyHeatmap({
             <div className="reply-hotspot-detail" aria-live="polite">
               <strong>{coordinate(hotspot, template.size)}</strong>
               <span>
-                {compared
-                  ? `${percent(before.get(hotspot) ?? 0, result.count)} → `
-                  : ""}
-                {percent(after.get(hotspot)?.count ?? 0, result.count)} of
-                checked racks
+                {compared && `${beforeShare} → `}
+                <span
+                  className={
+                    compared && beforeShare !== afterShare
+                      ? scoreTone(beforeCount - afterCount)
+                      : undefined
+                  }
+                >
+                  {afterShare}
+                </span>{" "}
+                of checked racks
               </span>
               {examples?.length ? (
                 <ul>

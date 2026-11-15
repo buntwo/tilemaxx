@@ -312,7 +312,12 @@ test("reply rows resolve individually and compare against the highest score afte
   fireEvent(mini, enter);
   expect(screen.queryByRole("dialog")).toBeNull();
   const inline = screen.getByRole("region", { name: "Reply after CAT" });
-  expect(within(inline).getByText("35.0 → 31.0 pts")).toBeTruthy();
+  const mean = within(inline).getByText("31.0");
+  expect(mean.parentElement?.textContent).toBe("35.0 → 31.0 pts");
+  expect(mean.classList.contains("value-good")).toBe(true);
+  const highReply = within(inline).getByText("11.0%");
+  expect(highReply.parentElement?.textContent).toBe("27.0% → 11.0%");
+  expect(highReply.classList.contains("value-good")).toBe(true);
   expect(within(inline).getByText("Reference · After CATS")).toBeTruthy();
   expect(worker!.request?.kind).toBe("reply-summary");
   await user.click(within(inline).getByRole("button", { name: "Heatmap" }));
@@ -341,7 +346,9 @@ test("reply rows resolve individually and compare against the highest score afte
     within(dialog).getByRole("button", { name: "Change vs. CATS" }),
   );
   await user.click(within(dialog).getByRole("button", { name: /^B1$/ }));
-  expect(within(dialog).getByText("16% → 0% of checked racks")).toBeTruthy();
+  const hotspot = within(dialog).getByText("0%");
+  expect(hotspot.parentElement?.textContent).toBe("16% → 0% of checked racks");
+  expect(hotspot.classList.contains("value-good")).toBe(true);
   await user.click(
     within(dialog).getByRole("button", { name: "Close dialog" }),
   );
@@ -354,7 +361,7 @@ test("reply rows resolve individually and compare against the highest score afte
     samples: 5_000,
     captureHeatmap: true,
   });
-  expect(within(inline).getByText("35.0 → 31.0 pts")).toBeTruthy();
+  expect(within(inline).getByText("31.0").parentElement?.textContent).toBe("35.0 → 31.0 pts");
   expect(onPlay).not.toHaveBeenCalled();
   await user.click(mini);
   expect(onPlay).toHaveBeenCalledExactlyOnceWith(moves[1]);
@@ -409,6 +416,61 @@ test("empty-bag replies start automatically and can be overridden", async () => 
   expect(screen.queryByText("Bag assumed empty")).toBeNull();
 });
 
+test("reply details color the lead, reply and final result from your side", async () => {
+  let worker: ReplyWorker | undefined;
+  class ReplyWorker {
+    request?: ReplyRequest;
+    onmessage?: (message: { data: unknown }) => void;
+    terminate() {}
+    postMessage(request: ReplyRequest) {
+      worker = this;
+      this.request = request;
+    }
+  }
+  vi.stubGlobal("Worker", ReplyWorker);
+  const { user } = setup(true, {
+    analysisGame: {
+      ...endgame,
+      trackScores: true,
+      scoring: {
+        you: { points: 120, moves: 1, best: 120, bingos: 0 },
+        opponent: { points: 100, moves: 1, best: 100, bingos: 0 },
+      },
+    },
+  });
+  act(() =>
+    worker!.onmessage?.({
+      data: {
+        kind: "reply-summary",
+        id: worker!.request!.id,
+        moveId: "a",
+        result: {
+          kind: "empty-bag",
+          rack: "Z",
+          highest: null,
+          reply: {
+            ...moves[2],
+            id: "za",
+            word: "ZA",
+            score: 45,
+            tiles: [{ index: 111, letter: "Z" }],
+          },
+          ends: "opponent",
+          yourAdjustment: -5,
+          opponentAdjustment: 5,
+          difference: 12,
+        },
+      },
+    }),
+  );
+  await user.click(rows()[0]);
+  const details = within(screen.getByRole("region", { name: "Reply after CATS" }));
+  expect(details.getByText("140–100").classList.contains("value-good")).toBe(true);
+  for (const text of ["45 pts", "+12 pts", "−5", "+5", "135–150"]) {
+    expect(details.getByText(text).classList.contains("value-bad")).toBe(true);
+  }
+});
+
 test("empty-bag rows wait for estimates unless the user skips to points", async () => {
   vi.stubGlobal(
     "Worker",
@@ -455,10 +517,12 @@ test("empty-bag rows wait for estimates unless the user skips to points", async 
   expect(swing.getAttribute("aria-pressed")).toBe("true");
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
   expect(screen.getByText("QI out")).toBeTruthy();
-  expect(screen.getByTitle("Exact endgame swing +5").textContent).toBe("+5");
-  expect(
-    screen.getByTitle(/^Estimated endgame swing −41/).textContent,
-  ).toContain("≈−41");
+  const winningSwing = screen.getByTitle("Exact endgame swing +5");
+  expect(winningSwing.querySelector(".value-good")?.textContent).toBe("+5");
+  const losingSwing = screen.getByTitle(/^Estimated endgame swing −41/);
+  expect(losingSwing.querySelector("strong.value-bad")?.textContent).toBe(
+    "≈−41",
+  );
   expect(screen.getByText("Estimated 2 of 3 moves")).toBeTruthy();
   rerun();
   expect(screen.queryAllByRole("button", { name: /points,/ })).toHaveLength(0);

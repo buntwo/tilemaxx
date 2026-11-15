@@ -1,4 +1,5 @@
 import type { GameScoreSummary } from "../../shared/game-scoring";
+import { scoreTone } from "../score-tone";
 
 const status = {
   archived: "Archived game",
@@ -20,15 +21,25 @@ export default function GameScoreBadge({
   prominent?: boolean;
 }) {
   if (!score) return null;
+  const margin = score.you - score.opponent;
+  const tone = score.outcome === "archived" ? undefined : scoreTone(margin);
+  const description =
+    score.outcome === "playing"
+      ? margin > 0
+        ? `You lead by ${margin}`
+        : margin < 0
+          ? `You trail by ${-margin}`
+          : "Tied"
+      : status[score.outcome];
   return (
     <span
-      className={
-        prominent ? "game-title-score game-scoreboard" : "game-title-score"
-      }
+      className={["game-title-score", prominent && "game-scoreboard", tone]
+        .filter(Boolean)
+        .join(" ")}
       role="group"
       aria-label="Tracked score"
-      aria-description={status[score.outcome]}
-      title={status[score.outcome]}
+      aria-description={description}
+      title={description}
       data-outcome={score.outcome}
     >
       <span aria-label="Your score">{score.you}</span>
