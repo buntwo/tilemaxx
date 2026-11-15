@@ -628,6 +628,12 @@ label + label {
   margin-top: auto;
   padding-top: 24px;
 }
+.workspace-settings-link {
+  margin-bottom: 8px;
+}
+.phone-layout .workspace-settings-link {
+  min-height: 44px;
+}
 .local-note {
   font-size: 9px;
   display: flex;
@@ -2738,6 +2744,26 @@ label + label {
 .checkbox input {
   accent-color: var(--primary);
 }
+.workspace-preference-list {
+  display: grid;
+  margin-top: 8px;
+}
+.workspace-preference-list label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin: 0;
+  padding: 6px 0;
+}
+.workspace-preference-list label + label {
+  border-top: 1px solid var(--line);
+}
+.workspace-preference-list input {
+  flex: none;
+  accent-color: var(--primary);
+}
 .editor-controls > .text-button {
   margin-top: 12px;
 }
@@ -3867,8 +3893,10 @@ label + label {
 }
 /* The main board and rack inherit one pulse. Other boards run their own. */
 @media (prefers-reduced-motion: no-preference) {
-  .workspace-grid:has(> .board-column > .board-panel .has-move-preview),
-  .board-grid.has-move-preview:not(.workspace-grid > .board-column > .board-panel *) {
+  :is(
+    .workspace-grid:has(> .board-column > .board-panel .has-move-preview),
+    .board-grid.has-move-preview:not(.workspace-grid > .board-column > .board-panel *)
+  ):not(.app-shell[data-static-previews] *) {
     animation: preview-tile-pulse 2s ease-in-out infinite;
   }
 }

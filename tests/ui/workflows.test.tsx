@@ -2973,6 +2973,47 @@ test("hovering a move highlights the first available copy of each rack tile it u
   expect(highlighted()).toEqual([1, 2, 3]);
 });
 
+test("workspace settings keep board previews visible with plain rack tiles and persist across reloads", async () => {
+  const user = userEvent.setup();
+  const app = render(<App />);
+  await screen.findByRole("heading", { name: /First game/ });
+  const openSettings = () =>
+    user.click(
+      within(screen.getByRole("complementary", { name: "Workspace menu" }))
+        .getByRole("button", { name: "Workspace settings" }),
+    );
+  const dialog = () => within(screen.getByRole("dialog", { name: "Workspace settings" }));
+  const option = (name: string) =>
+    dialog().getByRole<HTMLInputElement>("checkbox", { name });
+  const rackHighlight = "Highlight rack tiles on move preview";
+  const pulse = "Pulse move previews";
+  const playAnimation = "Animate tiles when playing a move";
+
+  await openSettings();
+  for (const name of [rackHighlight, pulse, playAnimation]) {
+    expect(option(name).checked).toBe(true);
+    await user.click(option(name));
+  }
+  await user.click(dialog().getByRole("button", { name: "Close dialog" }));
+  await typeRack(user, "CAT");
+  await user.click(screen.getByRole("button", { name: "Find moves" }));
+  const move = (await screen.findAllByRole("button", { name: /^CAT, / }))[0];
+  await user.hover(move);
+  expect(document.querySelectorAll(".board-panel .ghost")).toHaveLength(3);
+  expect(document.querySelector(".rack-panel .move-preview")).toBeNull();
+  expect(move.closest("[data-static-previews]")).toBeTruthy();
+  await user.click(move);
+  await waitFor(() => expect(current().board.filter(Boolean)).toHaveLength(3));
+
+  app.unmount();
+  render(<App />);
+  await screen.findByRole("heading", { name: /First game/ });
+  await openSettings();
+  for (const name of [rackHighlight, pulse, playAnimation]) {
+    expect(option(name).checked).toBe(false);
+  }
+});
+
 test("typing in the game picker filters active games by opponent name", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === "(min-width: 1000px)",

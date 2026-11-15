@@ -22,3 +22,10 @@
 - Tilemaxx is self-hosted on a trusted local network. The NAS update script fast-forwards the checkout and rebuilds with Docker Compose. Keep `compose.yaml` local and preserve the bind-mounted `data/` directory across updates. See [README.md](README.md) for setup and recovery.
 - Never connect to another machine with SSH or execute commands on another machine unless the user has given explicit prior approval for that specific remote access. Deployment or validation requirements do not imply SSH approval.
 - Keep imported word lists and saved games in the ignored `data/` directory. Do not put them in Git, the Docker build context, or a public deployment.
+
+## Updating the README
+
+1. Keep the opening to a short hook, one concrete description, and the quick links. Put walkthroughs and setup details below the main screenshot.
+2. Start Tilemaxx with a temporary `DATA_DIR` and use a fictional game with a bundled word list. Switch the app to **Dark** before taking any README screenshot.
+3. In **Workspace settings** at the bottom of the sidebar, turn off **Highlight rack tiles on move preview** and **Pulse move previews**. Find moves and preview a play so it still appears on the board.
+4. Replace the WebP files in `docs/screenshots/` with real captures of the desktop workspace, phone preview, and reply heatmap. Use the same sample position for all three, check their crops at README width, and update the alt text to match.
