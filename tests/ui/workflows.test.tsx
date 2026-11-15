@@ -2485,7 +2485,7 @@ test("entering the opponent's final tile updates the score and ends the game on 
   expect(scoreDelta()?.textContent).toBe("−16");
 });
 
-test("game options can end a game with rack deductions and undo the finish", async () => {
+test("end game defaults to deductions and archiving with both settings reversible", async () => {
   const fixture = remote.games[0];
   fixture.revision = 1;
   fixture.board.splice(112, 3, "C", "A", "T");
@@ -2499,21 +2499,29 @@ test("game options can end a game with rack deductions and undo the finish", asy
   );
   const user = await start();
   await waitFor(() => expect(scoreTotals()).toBe("30–24"));
-  await user.click(cell("Game options"));
-  await user.click(screen.getByRole("button", { name: /^End game/ }));
-  const dialog = within(screen.getByRole("dialog"));
+  async function openEndGame() {
+    await user.click(cell("Game options"));
+    await user.click(screen.getByRole("button", { name: /^End game/ }));
+    return within(screen.getByRole("dialog"));
+  }
+  const dialog = await openEndGame();
+  const deductions = dialog.getByRole("checkbox", {
+    name: "Deduct unplayed tiles",
+  });
+  const archive = dialog.getByRole("checkbox", { name: "Archive game" });
+  expect(deductions).toHaveProperty("checked", true);
+  expect(archive).toHaveProperty("checked", true);
+  expect(dialog.getByText("Final score 20–23")).toBeTruthy();
+  await user.click(deductions);
   expect(
     dialog.getByRole("spinbutton", { name: "Your final score" }),
   ).toHaveProperty("value", "30");
-  await user.click(
-    dialog.getByRole("button", { name: "Deduct unplayed tiles" }),
-  );
-  expect(
-    dialog.getByRole("spinbutton", { name: "Your final score" }),
-  ).toHaveProperty("value", "20");
   expect(
     dialog.getByRole("spinbutton", { name: "Opponent’s final score" }),
-  ).toHaveProperty("value", "23");
+  ).toHaveProperty("value", "24");
+  await user.click(deductions);
+  expect(dialog.getByText("Final score 20–23")).toBeTruthy();
+  await user.click(archive);
   await user.selectOptions(
     dialog.getByRole("combobox", { name: "Result" }),
     "win",
@@ -2528,9 +2536,27 @@ test("game options can end a game with rack deductions and undo the finish", asy
     scores: { you: 20, opponent: 23 },
     outcome: "win",
   });
+  expect(remote.games[0].archived).toBe(false);
   await user.click(cell("Undo"));
   expect(scoreTotals()).toBe("30–24");
   expect(screen.getByRole("button", { name: "Find moves" })).toBeTruthy();
+
+  const reopened = await openEndGame();
+  expect(
+    reopened.getByRole("checkbox", { name: "Archive game" }),
+  ).toHaveProperty("checked", true);
+  await user.click(
+    reopened.getByRole("checkbox", { name: "Deduct unplayed tiles" }),
+  );
+  await user.click(reopened.getByRole("button", { name: "End game" }));
+  expect(screen.getByText("Game ended and archived.")).toBeTruthy();
+  await act(() => store.flush());
+  expect(remote.games[0]).toMatchObject({
+    archived: true,
+    archivedState: {
+      scoring: { end: { manual: true, scores: { you: 30, opponent: 24 } } },
+    },
+  });
 });
 
 test("phone rack entry reveals the tiles above the keyboard and restores the page when it closes", async () => {

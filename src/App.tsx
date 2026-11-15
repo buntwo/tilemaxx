@@ -1806,13 +1806,21 @@ function Tilemaxx() {
           key={game.id}
           game={game}
           bagEmpty={replyAnalysis.bagSize === 0}
-          onEnd={(next) => {
+          onEnd={(next, archive) => {
             editPosition();
             if (busy) solver.cancelSearch();
             solver.cancelBoardOdds();
-            update(next);
+            update(archive ? archiveGame(next) : next);
+            if (archive)
+              chooseGame(
+                activeGames.find((item) => item.id !== next.id)?.id ?? "",
+              );
             setDialog(null);
-            notify("Game ended. Use Undo to resume.");
+            notify(
+              archive
+                ? "Game ended and archived."
+                : "Game ended. Use Undo to resume.",
+            );
           }}
           onClose={() => setDialog(null)}
         />

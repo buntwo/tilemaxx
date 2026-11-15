@@ -2,9 +2,9 @@ import { useState } from "react";
 import {
   endGameManually,
   gameScoreTotals,
-  scoresAfterRackDeductions,
   scoreTotalsAtPosition,
   tracksScores,
+  unplayedRackPoints,
 } from "../../shared/game-scoring";
 import type { Game, GameOutcome } from "../../shared/model";
 import Modal from "./Modal";
@@ -17,7 +17,7 @@ export default function EndGameDialog({
 }: {
   game: Game;
   bagEmpty: boolean;
-  onEnd: (game: Game) => void;
+  onEnd: (game: Game, archive: boolean) => void;
   onClose: () => void;
 }) {
   const current = tracksScores(game)
@@ -28,7 +28,8 @@ export default function EndGameDialog({
     current ? String(current.opponent) : "",
   );
   const [outcome, setOutcome] = useState<GameOutcome | "">("");
-  const [deductionsApplied, setDeductionsApplied] = useState(false);
+  const [deductUnplayed, setDeductUnplayed] = useState(true);
+  const [archive, setArchive] = useState(true);
   const scores =
     you !== "" &&
     opponent !== "" &&
@@ -36,9 +37,20 @@ export default function EndGameDialog({
     Number.isSafeInteger(Number(opponent))
       ? { you: Number(you), opponent: Number(opponent) }
       : undefined;
-  const canSubmit = scores || (you === "" && opponent === "");
-  const deducted =
-    scores && bagEmpty && scoresAfterRackDeductions(game, scores);
+  const rackPoints = bagEmpty ? unplayedRackPoints(game) : undefined;
+  const showDeduction = !!(rackPoints?.you || rackPoints?.opponent);
+  const deductions = deductUnplayed && showDeduction ? rackPoints : undefined;
+  const finalScores =
+    scores && deductions
+      ? {
+          you: scores.you - deductions.you,
+          opponent: scores.opponent - deductions.opponent,
+        }
+      : scores;
+  const canSubmit = finalScores
+    ? Number.isSafeInteger(finalScores.you) &&
+      Number.isSafeInteger(finalScores.opponent)
+    : you === "" && opponent === "";
 
   return (
     <Modal title="End game" subtitle={game.name} onClose={onClose}>
@@ -49,14 +61,15 @@ export default function EndGameDialog({
             onEnd(
               endGameManually(game, {
                 manual: true,
-                scores,
+                scores: finalScores,
                 outcome: scores && outcome ? outcome : undefined,
               }),
+              archive,
             );
         }}
       >
         <label>
-          Your final score
+          {deductions ? "Your score before deductions" : "Your final score"}
           <input
             type="number"
             step="1"
@@ -65,7 +78,9 @@ export default function EndGameDialog({
           />
         </label>
         <label>
-          Opponent’s final score
+          {deductions
+            ? "Opponent’s score before deductions"
+            : "Opponent’s final score"}
           <input
             type="number"
             step="1"
@@ -73,25 +88,6 @@ export default function EndGameDialog({
             onChange={(event) => setOpponent(event.target.value)}
           />
         </label>
-        {scores &&
-          deducted &&
-          (deducted.you !== scores.you ||
-            deducted.opponent !== scores.opponent) && (
-            <button
-              className="text-button"
-              type="button"
-              disabled={deductionsApplied}
-              onClick={() => {
-                setYou(String(deducted.you));
-                setOpponent(String(deducted.opponent));
-                setDeductionsApplied(true);
-              }}
-            >
-              {deductionsApplied
-                ? "Unplayed tiles deducted"
-                : "Deduct unplayed tiles"}
-            </button>
-          )}
         <label>
           Result
           <select
@@ -107,6 +103,29 @@ export default function EndGameDialog({
             <option value="tie">Tie</option>
           </select>
         </label>
+        {showDeduction && (
+          <label className="score-checkbox">
+            <input
+              type="checkbox"
+              checked={deductUnplayed}
+              onChange={(event) => setDeductUnplayed(event.target.checked)}
+            />
+            Deduct unplayed tiles
+          </label>
+        )}
+        <label className="score-checkbox">
+          <input
+            type="checkbox"
+            checked={archive}
+            onChange={(event) => setArchive(event.target.checked)}
+          />
+          Archive game
+        </label>
+        {deductions && finalScores && (
+          <p className="small" role="status">
+            Final score {finalScores.you}–{finalScores.opponent}
+          </p>
+        )}
         {!current && (
           <p className="small muted">
             Leave both scores blank to finish without a score.
