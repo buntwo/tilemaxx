@@ -1,5 +1,6 @@
 import { type Board, type Game, type Premium, remember } from "./model";
 import { emptyScoring } from "./game-scoring";
+import { PRESETS } from "./presets";
 import type { ReadPremiums } from "./screenshot-premiums";
 
 export interface Crop {
@@ -173,6 +174,25 @@ export function extractGlyphs(
   return glyphs;
 }
 
+function basePremiums(game: Game) {
+  return (
+    game.originalPremiums ??
+    PRESETS.find(
+      (preset) =>
+        preset.id === game.template.id && preset.size === game.template.size,
+    )?.premiums ??
+    game.past.find((step) => step.premiums)?.premiums ??
+    game.template.premiums
+  );
+}
+
+export function hasCustomPremiums(game: Game): boolean {
+  const original = basePremiums(game);
+  return game.template.premiums.some(
+    (premium, index) => premium !== original[index],
+  );
+}
+
 export function importBoard(
   game: Game,
   board: Board,
@@ -206,6 +226,7 @@ export function importBoard(
   return {
     ...game,
     ...history,
+    ...(changed && { originalPremiums: [...basePremiums(game)] }),
     template: changed
       ? { ...game.template, premiums: [...premiums!] }
       : game.template,

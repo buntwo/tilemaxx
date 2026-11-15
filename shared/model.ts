@@ -83,6 +83,8 @@ export interface Game extends Position {
   trackScores?: boolean;
   scoring?: GameScoring;
   template: BoardTemplate;
+  // Keep the starting layout after premium imports age out of undo history.
+  originalPremiums?: Premium[];
   trackedMoves?: TrackedMove[];
   dictionaryId: string;
   past: HistoryEntry[];

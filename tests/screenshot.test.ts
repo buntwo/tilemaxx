@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import sharp from "sharp";
 import { createWorker, PSM } from "tesseract.js";
 import { createRequire } from "node:module";
-import { extractGlyphs, importBoard, validateCrop } from "../shared/screenshot";
+import {
+  extractGlyphs,
+  hasCustomPremiums,
+  importBoard,
+  validateCrop,
+} from "../shared/screenshot";
 import {
   OCR_TILE_SIZE,
   readGlyphs,
@@ -67,6 +72,33 @@ test("screenshot replacement keeps rack and blank identities, supports undo/redo
   premiums[4] = "TL";
   const withLayout = importBoard(game, board, premiums);
   assert.equal(withLayout.template.premiums[4], "TL");
+  assert.equal(hasCustomPremiums(imported), false);
+  assert.equal(
+    hasCustomPremiums(importBoard(game, board, game.template.premiums)),
+    false,
+  );
+  assert.equal(hasCustomPremiums(withLayout), true);
+  assert.equal(hasCustomPremiums(undo(withLayout)), false);
+  assert.equal(hasCustomPremiums(redo(undo(withLayout))), true);
+  assert.equal(
+    hasCustomPremiums(importBoard(withLayout, board, game.template.premiums)),
+    false,
+  );
+  assert.equal(
+    hasCustomPremiums({ ...withLayout, originalPremiums: undefined, past: [] }),
+    true,
+  );
+  const houseBoard = {
+    ...game,
+    template: { ...game.template, id: "house", builtin: false },
+  };
+  const importedHouseBoard = importBoard(houseBoard, board, premiums);
+  assert.equal(hasCustomPremiums(houseBoard), false);
+  assert.equal(
+    hasCustomPremiums({ ...importedHouseBoard, originalPremiums: undefined }),
+    true,
+  );
+  assert.equal(hasCustomPremiums({ ...importedHouseBoard, past: [] }), true);
   assert.deepEqual(undo(withLayout).template.premiums, game.template.premiums);
   assert.deepEqual(redo(undo(withLayout)).template.premiums, premiums);
   const archived = importBoard(archiveGame(game), board, premiums);
@@ -75,6 +107,7 @@ test("screenshot replacement keeps rack and blank identities, supports undo/redo
     game.template.premiums,
   );
   assert.deepEqual(restoreArchivedGame(archived).board, game.board);
+  assert.equal(hasCustomPremiums(restoreArchivedGame(archived)), false);
   assert.throws(() => importBoard(game, ["C"]));
   assert.throws(() =>
     importBoard(

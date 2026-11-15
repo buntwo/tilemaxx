@@ -13,6 +13,7 @@ import App from "../../src/App";
 import { GameStore, store } from "../../src/store";
 import { summarizeGame } from "../../shared/game-index";
 import { PRESETS } from "../../shared/presets";
+import { importBoard } from "../../shared/screenshot";
 import { emptyBoard, type AppState, type Game } from "../../shared/model";
 import { Lexicon } from "../../shared/lexicon";
 import { solve, solvePosition } from "../../shared/solver";
@@ -1282,6 +1283,21 @@ test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters
   expect(
     pool().getByRole("listitem", { name: "Blank: 1 unseen" }),
   ).toBeTruthy();
+});
+
+test("the board toolbar labels imported premiums and follows undo and redo", async () => {
+  const template = PRESETS.find(({ id }) => id === "wordfeud")!;
+  const premiums = [...template.premiums];
+  premiums[0] = "DW";
+  const imported = importBoard({ ...game(), template }, game().board, premiums);
+  remote.games[0] = { ...imported, originalPremiums: undefined, revision: 1 };
+  const user = await start();
+  const name = { selector: ".board-name" };
+  await screen.findByText("Wordfeud (custom)", name);
+  await user.click(screen.getByRole("button", { name: "Undo" }));
+  expect(screen.getByText("Wordfeud", name)).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Redo" }));
+  expect(screen.getByText("Wordfeud (custom)", name)).toBeTruthy();
 });
 
 test("new games start with score tracking on even after an earlier opt-out", async () => {

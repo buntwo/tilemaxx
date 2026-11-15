@@ -178,6 +178,7 @@ export const gameSchema = gameProgress
     startedOn: z.iso.date().optional(),
     notes: z.string().trim().max(MAX_GAME_NOTES).optional(),
     template: templateSchema,
+    originalPremiums: premiums.optional(),
     dictionaryId: z.string().max(100),
     board: z.array(cell).max(625),
     revision: z.number().int().min(0),
@@ -223,6 +224,7 @@ export const gameSchema = gameProgress
       );
     return (
       g.board.length === size &&
+      (!g.originalPremiums || g.originalPremiums.length === size) &&
       (!g.archivedBoard || g.archivedBoard.length === size) &&
       validProgress(g) &&
       (!g.archivedState ||
