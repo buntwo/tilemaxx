@@ -16,6 +16,7 @@ import {
   Home,
   Info,
   LoaderCircle,
+  Map,
   Menu,
   Monitor,
   Moon,
@@ -58,6 +59,7 @@ import { hasCustomPremiums, importBoard } from "../shared/screenshot";
 import Modal from "./components/Modal";
 import MoveWord from "./components/MoveWord";
 import WordLists from "./components/WordLists";
+import UiGuide from "./components/UiGuide";
 import Results from "./components/Results";
 import GamePicker from "./components/GamePicker";
 import {
@@ -108,6 +110,7 @@ type Dialog =
   | "history"
   | "board-help"
   | "help"
+  | "ui-guide"
   | "rename"
   | "delete"
   | "manage"
@@ -833,6 +836,10 @@ function Tilemaxx() {
         <button className="nav-link" onClick={() => openDialog("dictionaries")}>
           <BookOpen size={18} />
           Word lists
+        </button>
+        <button className="nav-link" onClick={() => openDialog("ui-guide")}>
+          <Map size={18} aria-hidden="true" />
+          UI guide
         </button>
         <button className="nav-link" onClick={() => openDialog("help")}>
           <Smartphone size={18} />
@@ -1678,6 +1685,9 @@ function Tilemaxx() {
           onClose={() => setDialog(null)}
           onNotify={notify}
         />
+      )}
+      {dialog === "ui-guide" && (
+        <UiGuide phoneLayout={phoneLayout} onClose={() => setDialog(null)} />
       )}
       {dialog === "help" && (
         <Modal
