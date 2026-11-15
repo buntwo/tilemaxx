@@ -18,12 +18,6 @@
   --tw: #94272f;
 }
 
-[data-premium-palette="scrabble-go"] {
-  --dl: #86c6fa;
-  --tl: #0066a7;
-  --dw: #fc7863;
-}
-
 [data-premium-palette="words-with-friends"] {
   --dl: #46a4d5;
   --tl: #a2bc62;
@@ -45,12 +39,9 @@
   --tw: #cf040c;
 }
 
-[data-premium-palette="in-person"] {
+:is([data-premium-palette="scrabble-go"], [data-premium-palette="in-person"]) {
   --dl: #b5d7ed;
   --tl: #3575a9;
-  --dw: #efb6c1;
-}
-
-:is([data-premium-palette="scrabble-go"], [data-premium-palette="in-person"]) {
+  --dw: #ffa390;
   --tw: #c23b43;
 }
