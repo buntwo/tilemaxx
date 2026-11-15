@@ -400,9 +400,7 @@ test.each(["narrow", "wide"])("%s results stream bingo odds after replies finish
   await typeRack(user, "CATS");
   await user.keyboard("{Enter}");
   await screen.findByRole("button", { name: "Sort by points" });
-  expect(!!screen.queryByRole("combobox", { name: "Sort moves" })).toBe(
-    layout === "wide",
-  );
+  expect(screen.queryByRole("combobox", { name: "Sort moves" })).toBeNull();
   const manualCheck = screen.queryByRole("button", {
     name: "Check bingo after your play",
   });
@@ -2778,10 +2776,11 @@ test("a new search after playing starts with highest points", async () => {
   await typeRack(user, "CATS");
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   await user.click(await screen.findByRole("button", { name: "Sort by word" }));
-  expect(screen.getByRole("combobox", { name: "Sort moves" })).toHaveProperty(
-    "value",
-    "word",
-  );
+  expect(
+    (await screen.findByRole("button", { name: "Sort by word" })).getAttribute(
+      "aria-pressed",
+    ),
+  ).toBe("true");
   await user.click(
     (await screen.findAllByRole("button", { name: /^AT, / }))[0],
   );

@@ -7,7 +7,6 @@ import {
   type ReactElement,
 } from "react";
 import {
-  ArrowDownWideNarrow,
   ChevronDown,
   ChevronUp,
   Search,
@@ -383,34 +382,6 @@ export default function Results({
     );
   }
   const hasBingoControls = !!(analysisGame && onBoardOdds && onCancelBoardOdds);
-  const sortControl = !phoneLayout && !shortlistOnly && (
-    <label className="sort-select">
-      <ArrowDownWideNarrow size={16} />
-      <select
-        aria-label="Sort moves"
-        value={sort}
-        onChange={(e) => setSort(e.target.value as MoveSort)}
-      >
-        <option value="score">Score</option>
-        <option value="equity">Score + leave</option>
-        <option value="word">A–Z</option>
-        <option value="position">Position</option>
-        <option value="reply" disabled={!Object.keys(replyDeltas).length}>
-          Reply change
-        </option>
-        <option value="length">Word length</option>
-        <option value="tiles">Tiles used</option>
-        <option value="leave">Rack leave A–Z</option>
-        <option value="bingo-draw" disabled={!rackOdds || !!rackOdds.error}>
-          Bingo draw %
-        </option>
-        {(!!boardOdds?.checked || sort === "board-bingo") && (
-          <option value="board-bingo">Bingo after play %</option>
-        )}
-        <option value="blanks">Fewest blanks</option>
-      </select>
-    </label>
-  );
   const showFilters = !!totalMoves && !busy && !error;
   const viewPicker = analysisGame && (
     <div
@@ -537,7 +508,6 @@ export default function Results({
         <div className="result-filters">
           {viewPicker}
           {searchField}
-          {!hasBingoControls && sortControl}
           {collapsibleSearch && searchToggle}
         </div>
       )}
@@ -567,7 +537,6 @@ export default function Results({
             settings={
               replyEnabled && <ReplySettings analysis={replyAnalysis} />
             }
-            sortControl={sortControl}
             toolbarStart={collapsibleSearch && viewPicker}
             toolbarEnd={collapsibleSearch && searchToggle}
             searchField={collapsibleSearch && searchField}
