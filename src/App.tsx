@@ -628,58 +628,32 @@ function Tilemaxx() {
       </button>
     </div>
   );
-  const saveAndTheme = (
-    <div className="topbar-actions">
-      <span
-        className={`sync-status ${!state.online || hasConflict || hasSaveError ? "offline" : ""}`}
-        title={saveError || state.error || "Games are saved on your server"}
-      >
-        {hasConflict || hasSaveError ? (
-          <Info size={14} />
-        ) : !state.online ? (
-          <CloudOff size={14} />
-        ) : pending ? (
-          <LoaderCircle className="spin" size={14} />
-        ) : (
-          <CheckCheck size={15} />
-        )}
-        <span>
-          {hasConflict
-            ? "Review changes"
-            : hasSaveError
-              ? "Save rejected"
-              : !state.online
-                ? "Saved on this device"
-                : pending
-                  ? "Saving…"
-                  : "All changes saved"}
-        </span>
+  const syncStatus = (
+    <span
+      className={`sync-status ${!state.online || hasConflict || hasSaveError ? "offline" : ""}`}
+      title={saveError || state.error || "Games are saved on your server"}
+    >
+      {hasConflict || hasSaveError ? (
+        <Info size={14} />
+      ) : !state.online ? (
+        <CloudOff size={14} />
+      ) : pending ? (
+        <LoaderCircle className="spin" size={14} />
+      ) : (
+        <CheckCheck size={15} />
+      )}
+      <span>
+        {hasConflict
+          ? "Review changes"
+          : hasSaveError
+            ? "Save rejected"
+            : !state.online
+              ? "Saved on this device"
+              : pending
+                ? "Saving…"
+                : "All changes saved"}
       </span>
-      <div className="theme-settings">
-        <div className="theme-switch" role="group" aria-label="Color theme">
-          {[
-            ["light", Sun],
-            ["dark", Moon],
-            ["system", Monitor],
-          ].map(([value, Icon]) => {
-            const I = Icon as typeof Sun;
-            return (
-              <button
-                key={value as string}
-                aria-label={`${value} theme`}
-                aria-pressed={theme === value}
-                title={`${value} theme`}
-                className={theme === value ? "active" : ""}
-                onClick={() => setTheme(value as string)}
-              >
-                <I size={15} />
-              </button>
-            );
-          })}
-        </div>
-        <span className="app-version">v{version}</span>
-      </div>
-    </div>
+    </span>
   );
   const boardLegend = game && (
     <div className="board-legend">
@@ -852,22 +826,42 @@ function Tilemaxx() {
           Use on another device
         </button>
         <div className="sidebar-bottom">
-          <button
-            className="nav-link workspace-settings-link"
-            type="button"
-            onClick={() => openDialog("workspace-settings")}
-          >
-            <Settings size={17} aria-hidden="true" />
-            Workspace settings
-          </button>
-          {collapsibleBoardHelp ? (
-            saveAndTheme
-          ) : (
-            <div className="local-note">
-              <span className="status-dot" />
-              Your games. Your home server.
+          <div className="workspace-controls">
+            {collapsibleBoardHelp && syncStatus}
+            <div className="theme-switch" role="group" aria-label="Color theme">
+              {[
+                ["light", Sun],
+                ["dark", Moon],
+                ["system", Monitor],
+              ].map(([value, Icon]) => {
+                const I = Icon as typeof Sun;
+                return (
+                  <button
+                    key={value as string}
+                    aria-label={`${value} theme`}
+                    aria-pressed={theme === value}
+                    title={`${value} theme`}
+                    className={theme === value ? "active" : ""}
+                    onClick={() => setTheme(value as string)}
+                  >
+                    <I size={15} />
+                  </button>
+                );
+              })}
             </div>
-          )}
+            <div className="workspace-settings-row">
+              <button
+                className="icon-button workspace-settings-button"
+                type="button"
+                aria-label="Workspace settings"
+                title="Workspace settings"
+                onClick={() => openDialog("workspace-settings")}
+              >
+                <Settings size={17} aria-hidden="true" />
+              </button>
+              <span className="app-version">v{version}</span>
+            </div>
+          </div>
           <div className="profile-picker">
             {profile && (
               <button
@@ -930,7 +924,7 @@ function Tilemaxx() {
                     : selectedGame?.name || "Your workspace"}
               </span>
             </div>
-            {saveAndTheme}
+            {syncStatus}
           </header>
         )}
         {viewingArchivedGame && (

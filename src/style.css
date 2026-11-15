@@ -628,25 +628,9 @@ label + label {
   margin-top: auto;
   padding-top: 24px;
 }
-.workspace-settings-link {
-  margin-bottom: 8px;
-}
-.phone-layout .workspace-settings-link {
+.phone-layout .workspace-settings-button {
+  min-width: 44px;
   min-height: 44px;
-}
-.local-note {
-  font-size: 9px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--muted);
-  margin: 0 6px 18px;
-}
-.status-dot {
-  width: 5px;
-  height: 5px;
-  background: #689a73;
-  border-radius: 50%;
 }
 .profile-picker {
   display: flex;
@@ -822,10 +806,12 @@ label + label {
 .breadcrumb-slash {
   opacity: 0.4;
 }
-.topbar-actions {
+.workspace-controls {
   display: flex;
-  align-items: center;
-  gap: 23px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 4px 12px;
 }
 .sync-status {
   font-size: 10px;
@@ -841,7 +827,7 @@ label + label {
 .sync-status.offline {
   color: #ac7c40;
 }
-.theme-settings {
+.workspace-settings-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3071,9 +3057,6 @@ label + label {
     gap: 18px;
     grid-template-columns: minmax(320px, 1.15fr) minmax(280px, 1fr);
   }
-  .topbar-actions {
-    gap: 12px;
-  }
   .sync-status {
     font-size: 9px;
   }
@@ -3192,9 +3175,6 @@ label + label {
     font-size: 11px;
     gap: 8px;
   }
-  .local-note {
-    font-size: 8px;
-  }
   .board-legend {
     gap: 6px;
   }
@@ -3285,9 +3265,6 @@ label + label {
   .sync-status span {
     display: inline;
   }
-  .topbar-actions {
-    gap: 14px;
-  }
   .sync-status {
     font-size: 9px;
   }
@@ -3329,9 +3306,6 @@ label + label {
   .breadcrumb > span:last-child {
     max-width: 140px;
     font-size: 11px;
-  }
-  .topbar-actions {
-    gap: 9px;
   }
   .sync-status span {
     display: none;
@@ -4969,12 +4943,6 @@ label + label {
 }
 .compact-game .main-content {
   padding-inline: clamp(14px, 1.6vw, 28px);
-}
-:is(.compact-game, .phone-layout) .sidebar .topbar-actions {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 0 4px 12px;
 }
 :is(.compact-game, .phone-layout) .sidebar .profile-picker { padding-top: 12px; }
 .compact-game .game-heading {
