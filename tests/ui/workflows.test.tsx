@@ -1284,6 +1284,34 @@ test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters
   ).toBeTruthy();
 });
 
+test("new games start with score tracking on even after an earlier opt-out", async () => {
+  const user = await start();
+  async function createGame(name: string, trackScores: boolean) {
+    await user.click(screen.getByRole("button", { name: "New game" }));
+    const setup = within(screen.getByRole("dialog"));
+    const tracking = setup.getByRole("checkbox", { name: "Track scores" });
+    expect(tracking).toHaveProperty("checked", true);
+    if (!trackScores) await user.click(tracking);
+    await user.type(setup.getByRole("textbox", { name: "Opponent" }), name);
+    await user.click(setup.getByRole("button", { name: "Create game" }));
+    await screen.findByRole("heading", { name });
+    const scores = within(screen.getByRole("region", { name: "Game scores" }));
+    expect(scores.getByRole("checkbox", { name: "Track scores" })).toHaveProperty(
+      "checked",
+      trackScores,
+    );
+    expect(remote.games.find((game) => game.name === name)?.trackScores).toBe(
+      trackScores,
+    );
+  }
+
+  await createGame("Untracked opponent", false);
+  await createGame("Tracked opponent", true);
+  expect(screen.getByRole("group", { name: "Tracked score" }).textContent).toBe(
+    "0–0",
+  );
+});
+
 test("multiple games retain separate racks and word lists", async () => {
   remote.dictionaries.push({
     ...remote.dictionaries[0],

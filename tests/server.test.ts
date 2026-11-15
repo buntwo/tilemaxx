@@ -34,6 +34,7 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
     assert.deepEqual(state.templates, PRESETS);
     assert.equal(state.dictionaries.length, 2);
     assert.match(game.startedOn!, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(game.trackScores, true);
     const croppedPng = readFileSync("tests/fixtures/board.png");
     const corrected = [...game.board];
     corrected[112] = "c";
@@ -89,13 +90,15 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
         ...game,
         name: `${template.name} game`,
         profileId: state.profiles[0].id,
+        trackScores: false,
         template,
         rack: "ABCDEFGH".slice(0, template.rackSize),
       });
       assert.equal(created.status, 201);
       const saved: Game = await created.json();
-      const reloaded = await req(`/games/${saved.id}`);
-      assert.deepEqual((await reloaded.json()).template, template);
+      const reloaded: Game = await (await req(`/games/${saved.id}`)).json();
+      assert.deepEqual(reloaded.template, template);
+      assert.equal(reloaded.trackScores, false);
       assert.equal((await req(`/games/${saved.id}`, "DELETE", {})).status, 200);
     }
     const created: Game = await (
@@ -103,8 +106,10 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
         ...game,
         profileId: profile.id,
         name: "Phone game",
+        trackScores: undefined,
       })
     ).json();
+    assert.equal(created.trackScores, true);
     const renamed = await (
       await req(`/profiles/${profile.id}`, "PUT", { name: "Renamed player" })
     ).json();
