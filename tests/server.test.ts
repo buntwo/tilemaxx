@@ -6,8 +6,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createStore } from "../server/store";
 import { createApp } from "../server/app";
-import { emptyBoard, type AppState, type Game } from "../shared/model";
-import { emptyScoring } from "../shared/game-scoring";
+import { archiveGame, emptyBoard, type AppState, type Game } from "../shared/model";
+import { emptyScoring, gameScoreTotals, playTrackedMove } from "../shared/game-scoring";
+import { Lexicon } from "../shared/lexicon";
+import { solve } from "../shared/solver";
+import { TILE_SYMBOLS } from "../shared/tile-pool";
 import { type GameIndex, summarizeGame } from "../shared/game-index";
 import { PRESETS } from "../shared/presets";
 
@@ -509,6 +512,63 @@ test("game order is saved per profile and survives restarting the server", async
     );
   } finally {
     server.close();
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("upgrading SQLite recovers saved rack-outs once for active and archived games", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-game-end-"));
+  let store = createStore(dir, process.cwd());
+  try {
+    const [seed] = store.state().games;
+    const board = [...seed.board];
+    board.splice(112, 3, "C", "A", "T");
+    const template = {
+      ...seed.template,
+      tileCounts: Object.fromEntries(TILE_SYMBOLS.map((tile) => [tile, Number("ACQST".includes(tile))])),
+    };
+    const scoring = emptyScoring();
+    scoring.you.points = 20;
+    scoring.opponent.points = 10;
+    const opening = { ...seed, board, rack: "S", template, scoring };
+    const move = solve(new Lexicon(["CATS"]), board, opening.rack, template)
+      .find((move) => move.tiles[0].index === 115)!;
+    const finished = playTrackedMove(opening, move);
+    const legacy = { ...finished, scoring: { ...finished.scoring!, end: undefined } };
+    const active = store.saveGame(legacy)!;
+    const archive = store.createGame(archiveGame({ ...legacy, name: "Archived finish" }));
+    const pending = store.createGame({
+      ...opening,
+      board: finished.board,
+      rack: "Q",
+      scoring: { ...scoring, pendingBase: board },
+      name: "Pending final opponent move",
+    });
+    const incomplete = store.createGame(archiveGame({ ...opening, name: "Unfinished archive" }));
+    store.db.exec("PRAGMA user_version=1");
+    store.db.close();
+
+    store = createStore(dir, process.cwd());
+    for (const game of [active, archive, pending]) {
+      const updated = store.getGame(game.id)!;
+      assert.equal(updated.revision, game.revision + 1);
+      assert.equal(updated.updatedAt, game.updatedAt);
+      assert.equal(updated.scoring?.end?.out, game.id === pending.id ? "opponent" : "you");
+      assert.equal(store.index().games.find(({ id }) => id === game.id)?.revision, updated.revision);
+    }
+    const archived = store.getGame(archive.id)!;
+    assert.deepEqual(archived.archivedState?.scoring?.end, { out: "you", rackPoints: 10 });
+    assert.deepEqual(gameScoreTotals(archived.scoring), { you: 36, opponent: 0 });
+    assert.deepEqual(gameScoreTotals(store.getGame(pending.id)?.scoring), { you: 10, opponent: 26 });
+    assert.deepEqual(
+      store.getGame(incomplete.id),
+      JSON.parse(JSON.stringify(incomplete)),
+    );
+    store.db.close();
+    store = createStore(dir, process.cwd());
+    assert.deepEqual(store.getGame(archive.id), archived);
+  } finally {
     store.db.close();
     rmSync(dir, { recursive: true, force: true });
   }

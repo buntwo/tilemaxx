@@ -714,7 +714,7 @@ function Tilemaxx() {
         <Undo2 size={17} />
       </button>
       <button
-        className="icon-button"
+        className="icon-button board-redo"
         disabled={!game.future.length}
         aria-label="Redo"
         title="Redo"
@@ -723,6 +723,9 @@ function Tilemaxx() {
         <Redo2 size={17} />
       </button>
     </>
+  );
+  const mobileBoardHistory = phoneBoardControls && (
+    <div className="board-mode-history">{boardHistoryControls}</div>
   );
   const boardToolbar = game && (
     <div className="board-toolbar">
@@ -1095,7 +1098,10 @@ function Tilemaxx() {
                   onChange={update}
                   onSelect={editPosition}
                   historyControls={
-                    phoneBoardControls && !phoneReview.showing && boardHistoryControls
+                    phoneBoardControls &&
+                    !phoneReview.showing &&
+                    !squareFilter.selecting &&
+                    boardHistoryControls
                   }
                   moveFilter={{
                     marks: squareFilter.marks,
@@ -1113,6 +1119,7 @@ function Tilemaxx() {
                       squareFilter.clear();
                       setPreview(null);
                     }}
+                    historyControls={mobileBoardHistory}
                   />
                 ) : phoneReview.showing && (
                   <div className="board-review-actions">
@@ -1125,11 +1132,7 @@ function Tilemaxx() {
                         "Choose a move to preview"
                       )}
                     </span>
-                    {phoneBoardControls && (
-                      <div className="board-review-history">
-                        {boardHistoryControls}
-                      </div>
-                    )}
+                    {mobileBoardHistory}
                     {!movePreview?.analysis && (
                       <button
                         className="board-review-play"

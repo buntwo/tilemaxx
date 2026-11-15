@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { Game } from "../../shared/model";
 import type { RequiredSquares } from "../../shared/move-results";
 
@@ -47,10 +47,12 @@ export function MoveSquareFilterControls({
   count,
   onClear,
   onDone,
+  historyControls,
 }: {
   count: number;
   onClear: () => void;
   onDone: () => void;
+  historyControls?: ReactNode;
 }) {
   return (
     <div className="move-square-controls">
@@ -70,6 +72,7 @@ export function MoveSquareFilterControls({
       <button className="text-button" type="button" onClick={onDone}>
         Done
       </button>
+      {historyControls}
     </div>
   );
 }

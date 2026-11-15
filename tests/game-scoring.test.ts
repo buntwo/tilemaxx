@@ -4,8 +4,10 @@ import { gameSchema } from "../server/validation";
 import { BoardEditHistory } from "../shared/board-entry";
 import { summarizeGame } from "../shared/game-index";
 import {
+  backfillGameResult,
   boardWordsAt,
   correctTrackedMove,
+  displayedGameScoring,
   emptyScoring,
   gameScoreTotals,
   pendingOpponentPlay,
@@ -49,6 +51,55 @@ function fixture(): Game {
     archived: false,
   };
 }
+
+test("legacy rack-outs can be recovered from a recorded final play and a matching position", () => {
+  const game = rackOutFixture("S");
+  const move = solve(
+    new Lexicon(["CATS"]),
+    game.board,
+    game.rack,
+    game.template,
+  ).find((move) => move.tiles[0].index === game.template.start + 3)!;
+  const completed = playTrackedMove(game, move);
+  const old = {
+    ...completed,
+    scoring: { ...completed.scoring!, end: undefined },
+  };
+  const finished = backfillGameResult(old);
+  assert.deepEqual(finished.scoring?.end, { out: "you", rackPoints: 10 });
+  assert.deepEqual(gameScoreTotals(finished.scoring), { you: 36, opponent: 0 });
+  assert.deepEqual(trackedMoveHistory(finished), trackedMoveHistory(old));
+  assert.equal(backfillGameResult(finished), finished);
+  assert.equal(undo(finished).scoring?.end, undefined);
+  assert.deepEqual(redo(undo(finished)).scoring?.end, finished.scoring?.end);
+
+  const archived = archiveGame(old);
+  const edited = { ...archived, board: [...archived.board] };
+  edited.board[0] = "Q";
+  const recoveredArchive = backfillGameResult(edited);
+  assert.equal(recoveredArchive.board, edited.board);
+  assert.equal(recoveredArchive.scoring, edited.scoring);
+  assert.deepEqual(gameScoreTotals(displayedGameScoring(recoveredArchive)), {
+    you: 36,
+    opponent: 0,
+  });
+  assert.deepEqual(
+    restoreArchivedGame(recoveredArchive).scoring?.end,
+    finished.scoring?.end,
+  );
+
+  // Clearing a rack after a move does not establish that the play used it up.
+  const incomplete = playTrackedMove(
+    { ...game, rack: "SQ" },
+    { ...move, leave: "Q" },
+  );
+  const cleared = { ...incomplete, rack: "" };
+  assert.equal(backfillGameResult(cleared), cleared);
+  assert.equal(
+    backfillGameResult({ ...old, board: edited.board }).scoring?.end,
+    undefined,
+  );
+});
 
 function rackOutFixture(rack: string): Game {
   const game = fixture();
