@@ -2116,6 +2116,7 @@ label + label {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.endgame-threat-badge { margin: 0 0 0 3px; }
 .reply-neutral { color: var(--muted); }
 .reply-mini {
   display: grid;
@@ -2380,6 +2381,12 @@ label + label {
 .result-bingo-count {
   color: #62460b;
   background: #f5df9e;
+}
+.bingo-move-word { color: #8a6418; }
+.bingo-move-word .bingo-badge { margin-right: 0; }
+:root[data-theme="dark"] .bingo-move-word { color: #f5df9e; }
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .bingo-move-word { color: #f5df9e; }
 }
 .result-word {
   font-size: 14px;
@@ -3945,6 +3952,14 @@ label + label {
   left: calc(100% + 2px);
   top: 50%;
 }
+.board-word-score.bingo-word-score {
+  display: inline-flex;
+  gap: 2px;
+  padding-inline: 3px;
+  color: #62460b;
+  background: #f5df9e;
+}
+.bingo-word-score .bingo-badge { margin: 0; padding: 0; }
 .board-word-score.down {
   left: 50%;
   top: calc(100% + 2px);
@@ -4290,11 +4305,6 @@ label + label {
 .exchange-example-chance { color: var(--primary); font-weight: 650; }
 .exchange-draw-options { display: flex; flex-wrap: wrap; gap: 3px 6px; margin-top: 3px; color: var(--muted); font-size: 11px; }
 .exchange-draw-option { display: inline-flex; align-items: center; gap: 5px; }
-.exchange-bingo-word { color: #8a6418; }
-:root[data-theme="dark"] .exchange-bingo-word { color: #f5df9e; }
-@media (prefers-color-scheme: dark) {
-  :root[data-theme="system"] .exchange-bingo-word { color: #f5df9e; }
-}
 .rack-entry-help {
   margin: 0;
   color: var(--muted);

@@ -9,8 +9,8 @@ export default function Modal({
   wide = false,
   className = "",
 }: {
-  title: string;
-  subtitle?: string;
+  title: ReactNode;
+  subtitle?: ReactNode;
   children: ReactNode;
   onClose: () => void;
   closeDisabled?: boolean;

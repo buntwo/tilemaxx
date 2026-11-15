@@ -1,4 +1,5 @@
 import { scorePlacement } from "../../shared/game-scoring";
+import MoveWord from "./MoveWord";
 
 type Breakdown = NonNullable<ReturnType<typeof scorePlacement>>;
 
@@ -22,7 +23,12 @@ export function ScoreBreakdownContent({ breakdown }: { breakdown: Breakdown }) {
         {breakdown.words.map((word, index) => (
           <li key={index}>
             <div className="score-breakdown-line">
-              <strong>{word.word}</strong>
+              <strong>
+                <MoveWord
+                  word={word.word}
+                  bingo={index === 0 && breakdown.bingo}
+                />
+              </strong>
               <span>
                 {word.multiplier > 1
                   ? `${word.sum} × ${word.multiplier} = `

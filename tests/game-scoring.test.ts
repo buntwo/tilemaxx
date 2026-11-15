@@ -312,7 +312,9 @@ test("board hover adds the bingo bonus only to the main word, using retained tra
     const played = playTrackedMove(game, move);
     const [main, cross] = boardWordsAt(played, 119);
     assert.equal(main.word, "RETAINS");
+    assert.equal(main.bingo, true);
     assert.equal(cross.word, "TS");
+    assert.equal(cross.bingo, undefined);
     assert.equal(main.score + cross.score, move.score);
     const wordValue = boardWordsAt(
       { ...played, template: { ...template, bingo: 0 } },

@@ -5,6 +5,7 @@ import type { MoveDefense, PremiumChange } from "../../shared/premium-defense";
 import { rackContainsChance, unseenTiles } from "../../shared/tile-pool";
 import Board from "./Board";
 import Modal from "./Modal";
+import MoveWord from "./MoveWord";
 
 const squareLabel = (change: PremiumChange, size: number) =>
   `${change.premium} at ${coordinate(change.square, size)}`;
@@ -37,7 +38,11 @@ export default function PremiumDefense({
 }) {
   return (
     <Modal
-      title={`Reply risk · ${move.word.toUpperCase()}`}
+      title={
+        <>
+          Reply risk · <MoveWord move={move} rules={game.template} />
+        </>
+      }
       subtitle={
         defense.depth === 1
           ? "One-tile premium replies"
@@ -105,7 +110,11 @@ export function PremiumDefenseContent({
           <p>
             Example {defense.opened ? "after" : "before"} your play{" "}
             <strong>
-              {reply.word.toUpperCase()} · {reply.score} pts
+              <MoveWord
+                move={{ ...reply, word: reply.word.toUpperCase() }}
+                rules={template}
+              />{" "}
+              · {reply.score} pts
             </strong>
           </p>
           <p className="defense-help">
@@ -167,7 +176,11 @@ export function PremiumReplyNote({
     return (
       <p className="reply-example">
         <strong>
-          {reply.word.toUpperCase()} · {reply.score} pts
+          <MoveWord
+            move={{ ...reply, word: reply.word.toUpperCase() }}
+            rules={game.template}
+          />{" "}
+          · {reply.score} pts
         </strong>{" "}
         through {squareLabel(opened, game.template.size)}. Needs{" "}
         {need.join(", ")}.{" "}

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Trophy } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import type { Game } from "../../shared/model";
 import { minimumExchangeBag, type ExchangeResult } from "../../shared/exchange";
 import { splitRack } from "../../shared/rack-entry";
 import { unseenTiles } from "../../shared/tile-pool";
 import { usePractice } from "./usePractice";
+import { BingoBadge } from "./MoveWord";
 
 export const exchangePercent = new Intl.NumberFormat(undefined, {
   style: "percent",
@@ -210,7 +211,7 @@ export default function ExchangeAnalysis({
                     <div className="exchange-example-play">
                       <strong
                         className={
-                          example.bingo ? "exchange-bingo-word" : undefined
+                          example.bingo ? "bingo-move-word" : undefined
                         }
                       >
                         {example.word}
@@ -218,12 +219,7 @@ export default function ExchangeAnalysis({
                       <span className="exchange-example-score">
                         {example.score} pts
                       </span>
-                      {example.bingo && (
-                        <span className="bingo-badge">
-                          <Trophy size={10} aria-hidden="true" />
-                          BINGO
-                        </span>
-                      )}
+                      {example.bingo && <BingoBadge full />}
                       <span className="exchange-example-chance">
                         {result.exact ? "" : "≈"}
                         {example.chance < 0.001

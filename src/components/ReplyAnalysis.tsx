@@ -16,6 +16,7 @@ import {
 import type { useReplyAnalysis } from "../useReplyAnalysis";
 import Board from "./Board";
 import Modal from "./Modal";
+import MoveWord from "./MoveWord";
 import { PremiumReplyNote } from "./PremiumDefense";
 import ReplyHeatmap from "./ReplyHeatmap";
 
@@ -161,10 +162,12 @@ function DistributionChart({
   result,
   move,
   reference,
+  rules,
 }: {
   result: ReplyDistribution;
   move: Move;
   reference: Move;
+  rules: Game["template"];
 }) {
   const compare = move.id !== reference.id;
   const max =
@@ -247,7 +250,7 @@ function DistributionChart({
           {compare && (
             <span>
               <i />
-              Reference · After {reference.word}
+              Reference · After <MoveWord move={reference} rules={rules} />
             </span>
           )}
           <span>
@@ -295,9 +298,6 @@ function ExactReplyDetails({
       ? totals.you - totals.opponent + line.line.spread
       : undefined;
   const scorePair = (you: number, opponent: number) => `${you}–${opponent}`;
-  const replyText = reply
-    ? `${reply.word} · ${reply.score} pts · ${coordinate(reply.row * game.template.size + reply.col, game.template.size)}${reply.direction === "across" ? "→" : "↓"}`
-    : "Pass";
   const leadLabel =
     scores && !ends
       ? scores.margin < 0
@@ -340,7 +340,7 @@ function ExactReplyDetails({
           <div>
             <dt>You go out</dt>
             <dd>
-              {move.word} · {move.score} pts
+              <MoveWord move={move} rules={game.template} /> · {move.score} pts
             </dd>
           </div>
         ) : ends === "scoreless" && !reply ? (
@@ -357,20 +357,38 @@ function ExactReplyDetails({
                   ? "They go out"
                   : "Strongest immediate reply"}
             </dt>
-            <dd>{replyText}</dd>
+            <dd>
+              {reply ? (
+                <>
+                  <MoveWord move={reply} rules={game.template} /> ·{" "}
+                  {reply.score} pts ·{" "}
+                  {coordinate(
+                    reply.row * game.template.size + reply.col,
+                    game.template.size,
+                  )}
+                  {reply.direction === "across" ? "→" : "↓"}
+                </>
+              ) : (
+                "Pass"
+              )}
+            </dd>
           </div>
         )}
         {highest && highest.id !== reply?.id && (
           <div>
             <dt>Highest raw reply score</dt>
             <dd>
-              {highest.word} · {highest.score} pts
+              <MoveWord move={highest} rules={game.template} /> ·{" "}
+              {highest.score} pts
             </dd>
           </div>
         )}
         {result.difference !== null && analysis.reference && (
           <div>
-            <dt>Raw reply vs. {analysis.reference.word}</dt>
+            <dt>
+              Raw reply vs.{" "}
+              <MoveWord move={analysis.reference} rules={game.template} />
+            </dt>
             <dd>{signedPoints(result.difference)} pts</dd>
           </div>
         )}
@@ -431,7 +449,14 @@ function ExactReplyDetails({
                 {line.line.line.map((play, index) => (
                   <li key={index}>
                     {index % 2 === 0 ? "You" : "Opponent"} ·{" "}
-                    {play ? `${play.word} · ${play.score} pts` : "Pass"}
+                    {play ? (
+                      <>
+                        <MoveWord move={play} rules={game.template} /> ·{" "}
+                        {play.score} pts
+                      </>
+                    ) : (
+                      "Pass"
+                    )}
                   </li>
                 ))}
               </ol>
@@ -480,6 +505,7 @@ export function ReplyPreview({
         result={distribution}
         move={move}
         reference={analysis.reference}
+        rules={game.template}
       />
       <div className="inline-reply-actions">
         <button
@@ -538,7 +564,14 @@ export default function ReplyHeatmapDialog({
   onRetry: () => void;
 }) {
   return (
-    <Modal title={`Reply heatmap after ${move.word}`} onClose={onClose}>
+    <Modal
+      title={
+        <>
+          Reply heatmap after <MoveWord move={move} rules={game.template} />
+        </>
+      }
+      onClose={onClose}
+    >
       {result.heatmap ? (
         <ReplyHeatmap
           game={game}

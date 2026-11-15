@@ -5,12 +5,14 @@ import {
 } from "../../shared/infer-premiums";
 import {
   coordinate,
+  isBingo,
   type Board as BoardState,
   type BoardTemplate,
   type Premium,
 } from "../../shared/model";
 import type { InferenceRequest } from "../screenshot-inference.worker";
 import Board from "./Board";
+import MoveWord from "./MoveWord";
 import { useGameCalculation } from "./GameCalculations";
 
 export default function ScreenshotPremiumReview({
@@ -183,8 +185,8 @@ export default function ScreenshotPremiumReview({
                   <option key={i} value={i}>
                     {history
                       .map(
-                        ({ word, direction, start }) =>
-                          `${word} (${coordinate(start, template.size)} ${direction})`,
+                        ({ word, direction, start, tiles }) =>
+                          `${word} (${coordinate(start, template.size)} ${direction})${isBingo(template, tiles.length) ? " 🏆" : ""}`,
                       )
                       .join(" → ")}
                   </option>
@@ -192,9 +194,10 @@ export default function ScreenshotPremiumReview({
               </select>
             </label>
           )}
-          {turns.map(({ word }, i) => (
+          {turns.map((turn, i) => (
             <label key={i}>
-              {i === 0 ? "First" : "Second"} play points · {word}
+              {i === 0 ? "First" : "Second"} play points ·{" "}
+              <MoveWord move={turn} rules={template} />
               <input
                 type="number"
                 min={0}

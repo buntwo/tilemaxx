@@ -15,6 +15,7 @@ import {
   coordinate,
   tileScore,
 } from "../../shared/model";
+import { BingoBadge } from "./MoveWord";
 
 const WORD_SCORE_HOLD_MS = 450;
 
@@ -145,7 +146,9 @@ export default function Board({
                       ? overlay
                         ? highlight === i
                         : undefined
-                      : selectingSquares ? !!marked : selected === i
+                      : selectingSquares
+                        ? !!marked
+                        : selected === i
                   }
                   onPointerDown={(e) => {
                     if (e.isPrimary === false) return;
@@ -277,9 +280,10 @@ export default function Board({
                     .map((word) => (
                       <span
                         key={word.direction}
-                        className={`board-word-score ${word.direction}`}
-                        aria-label={`${word.word} ${word.direction}, ${word.score} ${word.fromPlay ? "points" : "face-value points"}`}
+                        className={`board-word-score ${word.direction}${word.bingo ? " bingo-word-score" : ""}`}
+                        aria-label={`${word.word} ${word.direction}, ${word.score} ${word.fromPlay ? "points" : "face-value points"}${word.bingo ? ", bingo" : ""}`}
                       >
+                        {word.bingo && <BingoBadge />}
                         {word.score}
                       </span>
                     ))}

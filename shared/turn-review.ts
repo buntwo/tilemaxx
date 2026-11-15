@@ -77,6 +77,7 @@ export function reviewReplyRisk(
     actual: actual.bigAvailable,
     alternative: other.bigAvailable,
     word: alternative.word,
+    bingo: isBingo(template, alternative.tiles.length),
     trials: result.trials,
   };
 }

@@ -7,6 +7,7 @@ import {
 } from "../../shared/reply-analysis";
 import type { PremiumReply } from "../../shared/solver";
 import Board from "./Board";
+import MoveWord from "./MoveWord";
 
 const percent = (count: number, total: number) =>
   count === 0
@@ -81,14 +82,14 @@ export default function ReplyHeatmap({
             aria-pressed={!difference}
             onClick={() => toggle(false)}
           >
-            After {move.word.toUpperCase()}
+            After <MoveWord move={move} rules={template} />
           </button>
           <button
             type="button"
             aria-pressed={difference}
             onClick={() => toggle(true)}
           >
-            Change vs. {reference.word.toUpperCase()}
+            Change vs. <MoveWord move={reference} rules={template} />
           </button>
         </div>
       )}
@@ -101,7 +102,7 @@ export default function ReplyHeatmap({
       </p>
       {difference && (
         <p className="defense-help">
-          Reference · After {reference.word.toUpperCase()}
+          Reference · After <MoveWord move={reference} rules={template} />
         </p>
       )}
       {!ranked.length ? (
@@ -180,7 +181,12 @@ export default function ReplyHeatmap({
                           setPreview(currentPreview === play ? undefined : play)
                         }
                       >
-                        <strong>{play.word.toUpperCase()}</strong>
+                        <strong>
+                          <MoveWord
+                            move={{ ...play, word: play.word.toUpperCase() }}
+                            rules={template}
+                          />
+                        </strong>
                         <span>
                           {play.score} pts · {percent(count, result.count)}
                         </span>
@@ -201,7 +207,7 @@ export default function ReplyHeatmap({
               ) : (
                 <p className="defense-help">
                   No best {BIG_REPLY_SCORE}+ point reply uses this square after{" "}
-                  {move.word.toUpperCase()}.
+                  <MoveWord move={move} rules={template} />.
                 </p>
               )}
             </div>
