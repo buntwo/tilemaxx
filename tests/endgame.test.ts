@@ -113,33 +113,36 @@ function replay(position: SmallPosition, result: EndgameLine) {
   assert.equal(result.line[0], position.candidate);
   const racks = [...position.racks];
   let { board, priorScoreless: scoreless } = position;
-  let spread = 0;
+  const scores = [0, 0];
   let ended = false;
   for (const [turn, move] of result.line.entries()) {
     assert.equal(ended, false, "Line continues after the game ended");
     const player = turn % 2;
-    const sign = player ? -1 : 1;
     if (move) {
       const legal = searchSmall(board, racks[player]).find(
         (option) => option.id === move.id,
       );
       assert.deepEqual(move, legal);
-      spread += sign * move.score;
+      scores[player] += move.score;
       racks[player] = move.leave;
       board = placeTiles(board, move);
       if (!move.leave) {
-        spread += sign * 2 * points(racks[1 - player]);
+        const transfer = points(racks[1 - player]);
+        scores[player] += transfer;
+        scores[1 - player] -= transfer;
         ended = true;
       }
     }
     scoreless = move?.score ? 0 : scoreless + 1;
     if (!ended && scoreless === 6) {
-      spread += points(racks[1]) - points(racks[0]);
+      scores[0] -= points(racks[0]);
+      scores[1] -= points(racks[1]);
       ended = true;
     }
   }
   assert.equal(ended, true, "Line stops before the game ended");
-  assert.equal(spread, result.spread);
+  assert.equal(scores[0] - scores[1], result.spread);
+  assert.deepEqual(result.points, { you: scores[0], opponent: scores[1] });
 }
 
 test("pruned endgames agree with exhaustive play and return complete lines", () => {
@@ -150,6 +153,11 @@ test("pruned endgames agree with exhaustive play and return complete lines", () 
       name: "opening play goes out",
       position: smallPosition("AT", "KQ", "AT"),
       spread: 32,
+    },
+    {
+      name: "opponent goes out",
+      position: smallPosition("ATZ", "N", "AT"),
+      spread: -20,
     },
     {
       name: "pass before tied plays that go out",

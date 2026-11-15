@@ -14,6 +14,7 @@ import {
   playTrackedMove,
   recordOpponentPlay,
   recordOpponentRackOut,
+  scoreTotalsAtPosition,
   setScoreTracking,
   tracksScores,
   treatBoardEditAsCorrection,
@@ -499,7 +500,16 @@ test("a grouped letter replacement and a pending opponent play are tracked separ
   assert.equal(pendingOpponentPlay(edited)?.word, "BATS");
   assert.equal(pendingOpponentPlay(edited)?.score, 2);
   assert.equal(edited.scoring?.opponent.moves, 1);
-  assert.equal(recordOpponentPlay(edited).scoring?.opponent.moves, 2);
+  const recorded = recordOpponentPlay(edited);
+  assert.equal(recorded.scoring?.opponent.moves, 2);
+  assert.deepEqual(
+    scoreTotalsAtPosition(edited),
+    gameScoreTotals(recorded.scoring),
+  );
+  assert.equal(
+    scoreTotalsAtPosition({ ...edited, trackScores: false }),
+    undefined,
+  );
 });
 
 test("bingo corrections use retained snapshots and leave previous scoring sessions alone", () => {

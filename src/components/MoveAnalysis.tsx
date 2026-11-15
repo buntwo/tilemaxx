@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChartNoAxesCombined, X } from "lucide-react";
+import type { EndgameLine } from "../../shared/endgame";
+import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type Game, type Move, coordinate } from "../../shared/model";
 import { unseenTiles } from "../../shared/tile-pool";
 import { rackLetters } from "../../shared/rack-entry";
@@ -28,6 +30,19 @@ type WorkerMessage =
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 const points = (value: number) => value.toFixed(1);
 
+function formatFinalScore(
+  endgame: EndgameLine | null | undefined,
+  totals: ReturnType<typeof scoreTotalsAtPosition>,
+) {
+  if (!endgame || !totals) return;
+  const you = totals.you + endgame.points.you;
+  const opponent = totals.opponent + endgame.points.opponent;
+  const margin = you - opponent;
+  const outcome =
+    margin > 0 ? `Win by ${margin}` : margin < 0 ? `Loss by ${-margin}` : "Tie";
+  return `${you}–${opponent} · ${outcome}`;
+}
+
 export default function MoveAnalysis({
   game,
   candidates,
@@ -46,6 +61,9 @@ export default function MoveAnalysis({
   const [endgameBudgetText, setEndgameBudgetText] = useState("1");
   const budgetHintId = useId();
   const [result, setResult] = useState<AnalysisResult>();
+  const totals = result?.forecasts.some(({ endgame }) => endgame)
+    ? scoreTotalsAtPosition(game)
+    : undefined;
   const [error, setError] = useState("");
   const [progress, setProgress] = useState<AnalysisProgress>();
   useGameCalculation(!!progress);
@@ -301,10 +319,16 @@ export default function MoveAnalysis({
               result.effectiveTrials >= 30 &&
               ` Sampling uncertainty can be around ±${Math.ceil(98 / Math.sqrt(result.effectiveTrials))} points for a percentage near 50%.`}
           </p>
-          <Comparison result={result} model={model} position={position} />
+          <Comparison
+            result={result}
+            model={model}
+            position={position}
+            totals={totals}
+          />
           <div className="analysis-cards">
             {result.forecasts.map((forecast) => {
               const { move } = forecast;
+              const finalScore = formatFinalScore(forecast.endgame, totals);
               const reply = forecast.models[model];
               const exampleReply = reply.example ?? forecast.availableExample;
               return (
@@ -334,6 +358,7 @@ export default function MoveAnalysis({
                           {forecast.endgame.spread > 0 ? "+" : ""}
                           {forecast.endgame.spread}
                         </p>
+                        {finalScore && <p>Final score {finalScore}</p>}
                         <ol>
                           {forecast.endgame.line.map((step, turn) => (
                             <li key={turn}>
@@ -404,10 +429,12 @@ function Comparison({
   result,
   model,
   position,
+  totals,
 }: {
   result: AnalysisResult;
   model: OpponentModel;
   position: (move: Move) => string;
+  totals: ReturnType<typeof scoreTotalsAtPosition>;
 }) {
   const rows: {
     label: string;
@@ -467,6 +494,11 @@ function Comparison({
     rows.push({
       label: "Optimal endgame swing",
       display: (f) => f.endgame?.spread ?? "—",
+    });
+  if (totals)
+    rows.push({
+      label: "Final score (you–opponent)",
+      display: (f) => formatFinalScore(f.endgame, totals) ?? "—",
     });
 
   return (

@@ -47,8 +47,8 @@ test("endgame ranking includes lower-scoring moves outside the initial page and 
   const ranked = index.setEndgame(
     2,
     new Map([
-      [first.id, { spread: -50 }],
-      [last.id, { spread: 15 }],
+      [first.id, { spread: -50, exact: false }],
+      [last.id, { spread: 15, exact: true }],
     ]),
   );
   assert.equal(ranked.checked, 2);
@@ -65,7 +65,7 @@ test("endgame ranking includes lower-scoring moves outside the initial page and 
   assert.equal(index.page({ ...query, reversed: true }).rows[0], first);
   const raw = index.page({ ...query, sort: "score" });
   assert.equal(raw.rows[0], first);
-  assert.deepEqual(raw.endgame, { [first.id]: { spread: -50 } });
+  assert.deepEqual(raw.endgame, { [first.id]: { spread: -50, exact: false } });
   assert.equal(index.page({ ...query, endgameId: 1 }).endgame, undefined);
 });
 

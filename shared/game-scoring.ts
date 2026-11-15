@@ -533,6 +533,17 @@ export function pendingOpponentPlay(game: Game) {
     : null;
 }
 
+export function scoreTotalsAtPosition(game: Game) {
+  const scoring = game.scoring;
+  if (!scoring || !tracksScores(game)) return;
+  const pending = pendingOpponentPlay(game);
+  if (scoring.pendingBase && !pending) return;
+  return {
+    you: scoring.you.points,
+    opponent: scoring.opponent.points + (pending?.score ?? 0),
+  };
+}
+
 function canRecordRackOut(game: Game) {
   return (
     tracksScores(game) &&

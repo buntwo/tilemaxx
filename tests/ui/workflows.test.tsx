@@ -281,6 +281,10 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
     store.update({
       ...game,
       rack: "CATS",
+      scoring: {
+        you: { points: 100, moves: 4, best: 25, bingos: 0 },
+        opponent: { points: 150, moves: 4, best: 45, bingos: 0 },
+      },
       template: {
         ...game.template,
         tileCounts: Object.fromEntries(
@@ -304,6 +308,15 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
   await user.click(within(card).getByText(/^CATS .* details$/));
   expect(within(card).getByText(/^Optimal endgame swing \+/)).toBeTruthy();
   expect(within(card).getByRole("list").textContent).toMatch(/^You · CATS /);
+  const comparison = within(
+    screen.getByRole("table", { name: "Move comparison" }),
+  );
+  expect(
+    comparison.getByRole("cell", { name: "122–140 · Loss by 18" }),
+  ).toBeTruthy();
+  expect(
+    within(card).getByText("Final score 122–140 · Loss by 18"),
+  ).toBeTruthy();
 
   fireEvent.change(budget, { target: { value: "101" } });
   expect(budget.getAttribute("aria-invalid")).toBe("true");

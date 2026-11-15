@@ -28,6 +28,7 @@ import {
   REPLY_SAMPLES,
 } from "../../shared/reply-analysis";
 import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
+import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import MoveAnalysis from "./MoveAnalysis";
 import BingoOddsControls from "./BingoOddsControls";
@@ -59,7 +60,6 @@ import {
 import ReplyHeatmapDialog, {
   ReplyCell,
   ReplyPreview,
-  replyScoreTotals,
   ReplySettings,
   signedPoints,
 } from "./ReplyAnalysis";
@@ -301,7 +301,7 @@ export default function Results({
   );
   const replyScores =
     analysisGame && replyAnalysis.bagSize === 0
-      ? replyScoreTotals(analysisGame)
+      ? scoreTotalsAtPosition(analysisGame)
       : undefined;
   const topScore = resultSet?.head[0]?.score ?? 0;
   const scoreTooltip = useMoveScoreTooltip(analysisGame);
@@ -976,14 +976,15 @@ export default function Results({
                           {estimate ? (
                             <span
                               className="reply-cell endgame-estimate"
-                              title={`Estimated endgame swing ${signedPoints(estimate.spread)}${threat ? `. Opponent can go out with ${threat.word} for ${threat.score} points.` : ""}`}
+                              title={`${estimate.exact ? "Exact" : "Estimated"} endgame swing ${signedPoints(estimate.spread)}${threat ? `. Opponent can go out with ${threat.word} for ${threat.score} points.` : ""}`}
                             >
                               <strong
                                 className={
                                   threat ? "defense-warning" : undefined
                                 }
                               >
-                                ≈{signedPoints(estimate.spread)}
+                                {!estimate.exact && "≈"}
+                                {signedPoints(estimate.spread)}
                               </strong>
                               {threat && <small>{threat.word} out</small>}
                             </span>

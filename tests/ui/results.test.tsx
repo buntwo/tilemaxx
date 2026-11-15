@@ -428,10 +428,11 @@ test("empty-bag estimates rank moves automatically and ignore a canceled ranking
                     "a",
                     {
                       spread: -41,
+                      exact: false,
                       reply: { word: "QI", score: 40, goesOut: true },
                     },
                   ],
-                  ["b", { spread: 5 }],
+                  ["b", { spread: 5, exact: true }],
                 ]),
               ),
             ),
@@ -464,6 +465,10 @@ test("empty-bag estimates rank moves automatically and ignore a canceled ranking
   expect(swing.getAttribute("aria-pressed")).toBe("true");
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
   expect(screen.getByText("QI out")).toBeTruthy();
+  expect(screen.getByTitle("Exact endgame swing +5").textContent).toBe("+5");
+  expect(
+    screen.getByTitle(/^Estimated endgame swing −41/).textContent,
+  ).toContain("≈−41");
   expect(screen.getByText("Estimated 2 of 3 moves")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Sort by points" }));
   await waitFor(() =>

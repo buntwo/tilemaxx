@@ -7,6 +7,7 @@ import { prepareSolver, SearchLimitError, SEARCH_LIMITS } from "./solver";
 
 export interface EndgameEstimate {
   spread: number;
+  exact: boolean;
   reply?: { word: string; score: number; goesOut: boolean };
 }
 
@@ -40,11 +41,14 @@ export function prepareEndgameEstimate(
   }
   return (candidate: Move, deadline: number): EndgameEstimate => {
     if (!candidate.leave)
-      return { spread: candidate.score + 2 * opponentPoints };
+      return { spread: candidate.score + 2 * opponentPoints, exact: true };
     const yourPoints = value(candidate.leave);
     const afterPlay = candidate.score ? 0 : scorelessTurns + 1;
     if (afterPlay === SCRABBLE_SCORELESS_TURN_LIMIT)
-      return { spread: candidate.score + opponentPoints - yourPoints };
+      return {
+        spread: candidate.score + opponentPoints - yourPoints,
+        exact: true,
+      };
 
     const position = placeTiles(board, candidate);
     const replies = search(position, opponent, deadline);
@@ -96,6 +100,10 @@ export function prepareEndgameEstimate(
         ? { word: move.word, score: move.score, goesOut: !move.leave }
         : undefined;
     }
-    return { spread: candidate.score - worst, reply: describe(worstReply) };
+    return {
+      spread: candidate.score - worst,
+      exact: options.length === 0,
+      reply: describe(worstReply),
+    };
   };
 }

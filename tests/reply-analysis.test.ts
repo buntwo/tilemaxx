@@ -238,10 +238,12 @@ test("empty-bag estimates rank a lower-scoring block above a premium go-out", ()
   });
   assert.deepEqual(estimate(opens, Infinity), {
     spread: -50,
+    exact: false,
     reply: { word: "QI", score: 33, goesOut: true },
   });
   assert.deepEqual(estimate(blocks, Infinity), {
     spread: -29,
+    exact: false,
     reply: { word: "QI", score: 11, goesOut: true },
   });
 });
@@ -257,6 +259,7 @@ test("empty-bag estimates apply rack adjustments when we go out or play the sixt
   });
   assert.deepEqual(estimate(candidate, Infinity), {
     spread: candidate.score + 20,
+    exact: true,
   });
 
   const scoreless = fixture("??ZA", 2);
@@ -274,7 +277,21 @@ test("empty-bag estimates apply rack adjustments when we go out or play the sixt
     bagSize: 0,
     scorelessTurns: 5,
   });
-  assert.deepEqual(estimateScoreless(zero, Infinity), { spread: -9 });
+  assert.deepEqual(estimateScoreless(zero, Infinity), {
+    spread: -9,
+    exact: true,
+  });
+  const estimateForcedPass = prepareEndgameEstimate(scoreless.lexicon, {
+    ...scoreless,
+    rack: "?Z",
+    bagSize: 0,
+    scorelessTurns: 4,
+  });
+  assert.deepEqual(estimateForcedPass(zero, Infinity), {
+    spread: -9,
+    exact: true,
+    reply: undefined,
+  });
 });
 
 test("the estimate looks through an opponent pass to our next go-out", () => {
@@ -292,6 +309,7 @@ test("the estimate looks through an opponent pass to our next go-out", () => {
   });
   assert.deepEqual(estimate(candidate, Infinity), {
     spread: 71,
+    exact: false,
     reply: undefined,
   });
 });

@@ -1,13 +1,20 @@
-import { type Board, type BoardTemplate, type Move, tileScore } from "./model";
+import {
+  type Board,
+  type BoardTemplate,
+  type Move,
+  type Player,
+  tileScore,
+} from "./model";
 import { SEARCH_LIMITS, SearchLimitError } from "./solver";
 
 export interface EndgameLine {
   spread: number;
   line: (Move | null)[];
+  points: Record<Player, number>;
 }
 
 type SearchResult =
-  | (EndgameLine & { bound: "exact" })
+  | (Pick<EndgameLine, "spread" | "line"> & { bound: "exact" })
   | { spread: number; bound: "upper" | "lower" };
 
 export class EndgameSearchLimitError extends Error {}
@@ -54,6 +61,31 @@ export function solveEmptyBag(
   function checkTime() {
     if (performance.now() >= deadline)
       stop(`its ${timeLimitMs.toLocaleString()} ms time limit`);
+  }
+  function finish(
+    spread: number,
+    continuation: EndgameLine["line"],
+  ): EndgameLine {
+    const line = [candidate, ...continuation];
+    const points = { you: 0, opponent: 0 };
+    const racks = { you: candidate.leave, opponent };
+    for (const [turn, move] of line.entries()) {
+      if (!move) continue;
+      const player = turn % 2 ? "opponent" : "you";
+      points[player] += move.score;
+      racks[player] = move.leave;
+    }
+    const last = line.at(-1);
+    if (last && !last.leave) {
+      const transfer =
+        line.length % 2 ? value(racks.opponent) : -value(racks.you);
+      points.you += transfer;
+      points.opponent -= transfer;
+    } else {
+      points.you -= value(racks.you);
+      points.opponent -= value(racks.opponent);
+    }
+    return { spread, line, points };
   }
   function turn(
     position: Board,
@@ -142,7 +174,7 @@ export function solveEmptyBag(
     return result;
   }
   if (!candidate.leave)
-    return { spread: candidate.score + 2 * value(opponent), line: [candidate] };
+    return finish(candidate.score + 2 * value(opponent), []);
   const result = turn(
     place(board, candidate),
     [...opponent].sort().join(""),
@@ -156,8 +188,5 @@ export function solveEmptyBag(
     throw new Error(
       "A full-window endgame search must return an exact result.",
     );
-  return {
-    spread: candidate.score - result.spread,
-    line: [candidate, ...result.line],
-  };
+  return finish(candidate.score - result.spread, result.line);
 }
