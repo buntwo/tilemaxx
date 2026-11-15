@@ -3998,9 +3998,6 @@ label + label {
   min-height: 32px;
   padding-inline: 4px;
 }
-.phone-layout .move-square-controls .text-button {
-  min-width: 44px;
-}
 .direct-entry-tools {
   margin: 8px 16px 0;
   padding: 10px 0 0;
@@ -4029,6 +4026,7 @@ label + label {
   font-size: 10px;
   color: var(--muted);
 }
+.with-board-history + .direct-entry-help { padding: 4px 8px; }
 
 .rack-entry {
   position: relative;
@@ -4181,17 +4179,6 @@ label + label {
 }
 .rack-entry-actions > :last-child {
   margin-left: auto;
-}
-.rack-history-actions {
-  display: flex;
-  align-items: center;
-  flex: none;
-  gap: 2px;
-}
-.rack-entry-actions:has(.rack-history-actions) :is(.rack-entry-help, .rack-exchange-advice) {
-  flex: 1 1 0;
-  min-width: 0;
-  white-space: normal;
 }
 .rack-entry-actions .rack-exchange-advice {
   min-height: 32px;
@@ -5066,31 +5053,34 @@ label + label {
   padding-bottom: 2px;
 }
 .phone-layout .board-panel .board-wrap { padding-block: 4px 2px; }
-.phone-layout .board-panel .direct-entry-tools { margin-inline: 4px; }
-.phone-layout .board-panel .direct-entry-actions {
+.board-panel .with-board-history {
+  margin-inline: 4px;
+  flex-wrap: nowrap;
+  gap: 2px;
+}
+.with-board-history .direct-entry-actions {
   flex: none;
   margin-left: auto;
   gap: 1px;
   white-space: nowrap;
 }
-.phone-layout :is(.direct-entry-actions, .board-mode-history) > button {
+:is(.with-board-history .direct-entry-actions, .board-mode-history) > button {
   min-width: 36px;
 }
-.phone-layout .direct-entry-actions > .text-button { padding-inline: 4px; }
-.phone-layout .direct-entry-actions > .direction-button {
+.with-board-history .direct-entry-actions > .text-button { padding-inline: 4px; }
+.with-board-history .direct-entry-actions > .direction-button {
   gap: 3px;
   padding-inline: 2px;
 }
-.phone-layout .with-board-history { flex-wrap: nowrap; gap: 2px; }
-.phone-layout .with-board-history .direct-entry-status {
+.with-board-history .direct-entry-status {
   min-width: 0;
   overflow: hidden;
   font-size: 10px;
   line-height: 1.2;
 }
-.phone-layout .board-undo { position: relative; }
-.phone-layout :is(.board-undo, .board-redo):not(:disabled) { color: var(--primary); }
-.phone-layout .board-undo::before {
+.board-undo { position: relative; }
+:is(.board-undo, .board-redo):not(:disabled) { color: var(--primary); }
+.board-undo::before {
   content: "";
   position: absolute;
   left: 0;
@@ -5103,11 +5093,12 @@ label + label {
   flex: none;
   margin-left: auto;
 }
-.phone-layout .move-square-controls {
+.board-panel .move-square-controls {
   gap: 2px;
   padding-inline: 6px;
 }
-.phone-layout .move-square-controls > [role="status"] {
+.board-panel .move-square-controls .text-button { min-width: 44px; }
+.board-panel .move-square-controls > [role="status"] {
   min-width: 0;
   font-size: 11px;
   line-height: 1.15;
@@ -5239,25 +5230,20 @@ label + label {
   grid-template-columns: var(--game-workspace-columns);
   gap: var(--game-workspace-gap);
 }
-.compact-game .board-panel { padding: 5px 9px 2px; }
-.compact-game .board-panel .board-wrap { padding: 1px 5px 2px 0; }
-:is(.compact-game, .phone-layout) .board-panel {
+.compact-game .board-panel { padding: 5px 0 2px; }
+.compact-game .board-panel .board-wrap { padding: 1px 14px 2px 9px; }
+.board-panel {
   --board-strip-control-height: 32px;
 }
-:is(.compact-game, .phone-layout) .board-panel
-  :is(.direct-entry-tools, .move-square-controls, .board-review-actions) {
+.board-panel :is(.with-board-history, .move-square-controls, .board-review-actions) {
   margin-block: 0;
   padding-block: 0;
   min-height: calc(var(--board-strip-control-height) + 1px);
   border-top: 1px solid var(--line);
 }
-:is(.compact-game, .phone-layout) .board-panel
+.board-panel
   :is(.direct-entry-actions, .move-square-controls, .board-mode-history, .board-review-actions) > button {
   min-height: var(--board-strip-control-height);
-}
-.compact-game .rack-history-actions .icon-button {
-  width: 28px;
-  height: 27px;
 }
 .compact-game .rack-panel {
   margin-top: 6px;

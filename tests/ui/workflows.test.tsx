@@ -2501,10 +2501,10 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   const heading = cell("Game options").closest(".game-heading");
   expect(heading?.contains(titleScore())).toBe(true);
   expect(titleScore()?.closest(".game-title-row, .board-toolbar")).toBeNull();
-  const rack = within(screen.getByRole("region", { name: "Your rack" }));
-  const history = within(rack.getByRole("group", { name: "Undo and redo" }));
-  expect(history.getByRole("button", { name: "Undo" })).toBeTruthy();
-  expect(history.getByRole("button", { name: "Redo" })).toBeTruthy();
+  const boardStrip = cell("Undo").closest(".board-panel .direct-entry-tools");
+  expect(boardStrip?.contains(cell("Redo"))).toBe(true);
+  expect(boardStrip?.contains(cell("Toggle entry direction"))).toBe(true);
+  expect(boardStrip?.textContent).toContain("Tap a square and type");
   expect(heading?.querySelector(".board-undo, .board-redo")).toBeNull();
 
   await user.click(cell("H8: DW, start"));

@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type ReactNode,
   type Ref,
 } from "react";
 import {
@@ -47,7 +46,6 @@ export default function RackEntry({
   exchangeBagConfirmed,
   preview,
   flyingRack,
-  historyControls,
 }: {
   ref?: Ref<RackEntryHandle>;
   game: Game;
@@ -61,7 +59,6 @@ export default function RackEntry({
   exchangeBagConfirmed: boolean;
   preview?: Move | null;
   flyingRack?: { before: Game; slots: number[] };
-  historyControls?: ReactNode;
 }) {
   const [cursor, setCursor] = useState(game.rack.length);
   const [focused, setFocused] = useState(false);
@@ -611,7 +608,6 @@ export default function RackEntry({
             Done
           </button>
         )}
-        {historyControls}
       </div>
       {!!exchangeSlots.length && (
         <div className="rack-exchange-actions">
