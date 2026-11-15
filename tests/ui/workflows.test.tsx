@@ -2446,7 +2446,8 @@ test("entering the opponent's final tile updates the score and ends the game on 
   const user = await start();
   const badge = () => screen.getByRole("group", { name: "Tracked score" });
   await waitFor(() => expect(badge().textContent).toBe("20–10"));
-  expect(badge().classList.contains("value-good")).toBe(true);
+  expect(badge().getAttribute("data-outcome")).toBe("playing");
+  expect(badge().classList.contains("value-good")).toBe(false);
   expect(screen.getByText("Lead by 10").classList.contains("value-good")).toBe(true);
   await user.click(cell("K8: empty"));
   await user.keyboard("S");

@@ -1,5 +1,4 @@
 import type { GameScoreSummary } from "../../shared/game-scoring";
-import { scoreTone } from "../score-tone";
 
 const status = {
   archived: "Archived game",
@@ -22,7 +21,12 @@ export default function GameScoreBadge({
 }) {
   if (!score) return null;
   const margin = score.you - score.opponent;
-  const tone = score.outcome === "archived" ? undefined : scoreTone(margin);
+  const tone =
+    score.outcome === "win"
+      ? "value-good"
+      : score.outcome === "loss"
+        ? "value-bad"
+        : undefined;
   const description =
     score.outcome === "playing"
       ? margin > 0
