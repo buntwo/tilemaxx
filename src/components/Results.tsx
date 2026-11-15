@@ -30,6 +30,7 @@ import {
 import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
+import { scoreTone } from "../score-tone";
 import MoveAnalysis from "./MoveAnalysis";
 import MoveWord, { BingoBadge } from "./MoveWord";
 import BingoOddsControls from "./BingoOddsControls";
@@ -490,6 +491,7 @@ export default function Results({
   );
   return (
     <section
+      aria-label="Possible moves"
       className={`results-panel panel ${analysisGame || rackOdds ? "with-bingo-odds" : ""}${reserveReplySpace ? " with-reply-preview" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${endgameRanked ? " with-endgame-estimates" : ""}`}
     >
       <header
@@ -844,7 +846,9 @@ export default function Results({
                 const threat = estimate?.reply?.goesOut
                   ? estimate.reply
                   : undefined;
-                const threatBingo = !!threat && isBingo(bingoRules, replyAnalysis.opponentRack.length);
+                const threatBingo =
+                  !!threat &&
+                  isBingo(bingoRules, replyAnalysis.opponentRack.length);
                 const metricId =
                   (reply || endgameRanked) && analysisGame
                     ? `${replyMetricId}-${start + offset}`
@@ -996,14 +1000,24 @@ export default function Results({
                             >
                               <strong
                                 className={
-                                  threat ? "defense-warning" : undefined
+                                  scoreTone(estimate.spread) ?? "reply-neutral"
                                 }
                               >
                                 {!estimate.exact && "≈"}
                                 {signedPoints(estimate.spread)}
-                                {threatBingo && <BingoBadge className="endgame-threat-badge" />}
+                                {threatBingo && (
+                                  <BingoBadge className="endgame-threat-badge" />
+                                )}
                               </strong>
-                              {threat && <small className={threatBingo ? "bingo-move-word" : undefined}>{threat.word} out</small>}
+                              {threat && (
+                                <small
+                                  className={
+                                    threatBingo ? "bingo-move-word" : "value-bad"
+                                  }
+                                >
+                                  {threat.word} out
+                                </small>
+                              )}
                             </span>
                           ) : (
                             <span
@@ -1146,7 +1160,9 @@ export default function Results({
           className={`inline-reply${compact && replyDetail.kind === "distribution" ? " compact-reply" : ""}`}
           aria-label={`Reply after ${replyMove.word}`}
         >
-          <h3>Reply after <MoveWord move={replyMove} rules={analysisGame.template} /></h3>
+          <h3>
+            Reply after <MoveWord move={replyMove} rules={analysisGame.template} />
+          </h3>
           <ReplyPreview
             game={analysisGame}
             move={replyMove}

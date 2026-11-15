@@ -316,7 +316,7 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
   expect(
     within(card)
       .getByText("Optimal endgame swing +82")
-      .classList.contains("analysis-good"),
+      .classList.contains("value-good"),
   ).toBe(true);
   const line = within(
     within(card).getByRole("table", { name: "Optimal endgame line" }),
@@ -332,12 +332,12 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
   expect(
     comparison
       .getByRole("cell", { name: "172–190 · Lose by 18" })
-      .classList.contains("analysis-bad"),
+      .classList.contains("value-bad"),
   ).toBe(true);
   expect(
     within(card)
       .getByText("Final score 172–190 · Lose by 18")
-      .classList.contains("analysis-bad"),
+      .classList.contains("value-bad"),
   ).toBe(true);
 
   fireEvent.change(budget, { target: { value: "101" } });
@@ -2311,10 +2311,13 @@ test("entering the opponent's final tile updates the score and ends the game on 
   const user = await start();
   const badge = () => screen.getByRole("group", { name: "Tracked score" });
   await waitFor(() => expect(badge().textContent).toBe("20–10"));
+  expect(badge().classList.contains("value-good")).toBe(true);
+  expect(screen.getByText("Lead by 10").classList.contains("value-good")).toBe(true);
   await user.click(cell("K8: empty"));
   await user.keyboard("S");
   expect(badge().textContent).toBe("10–26");
   expect(badge().getAttribute("data-outcome")).toBe("loss");
+  expect(badge().classList.contains("value-bad")).toBe(true);
   expect(screen.getByRole("heading", { name: "Game over" })).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Find moves" })).toBeNull();
   expect(current().trackedMoves?.at(-1)).toMatchObject({ word: "CATS", player: "opponent", score: 6 });

@@ -6,6 +6,7 @@ import type { OptimalExchangeResult } from "../../shared/optimal-exchange";
 import { splitRack } from "../../shared/rack-entry";
 import { unseenTiles } from "../../shared/tile-pool";
 import type { PracticeRequest } from "../practice.worker";
+import { scoreTone } from "../score-tone";
 import { exchangePercent, MiniTiles } from "./ExchangeAnalysis";
 import { usePractice } from "./usePractice";
 
@@ -114,6 +115,12 @@ export default function OptimalExchange({
                     ...option.slots,
                   ],
                 });
+                const chance = exchangePercent.format(option.chance);
+                const keepChance = Number(result.keepBingo);
+                const tone =
+                  chance === exchangePercent.format(keepChance)
+                    ? undefined
+                    : scoreTone(option.chance - keepChance);
                 return (
                   <tr
                     key={option.slots.join(",")}
@@ -134,7 +141,7 @@ export default function OptimalExchange({
                       )}
                     </td>
                     <td>
-                      ≈{exchangePercent.format(option.chance)}
+                      <span className={tone}>≈{chance}</span>
                       {option.close && <small>Close estimate</small>}
                     </td>
                     <td>

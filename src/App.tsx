@@ -792,7 +792,7 @@ function Tilemaxx() {
       {sidebar && (
         <div className="sidebar-scrim" onClick={() => setSidebar(false)} />
       )}
-      <aside className={`sidebar ${sidebar ? "open" : ""}`}>
+      <aside aria-label="Workspace menu" className={`sidebar ${sidebar ? "open" : ""}`}>
         <Brand />
         <button
           className="button new-game"
@@ -1081,6 +1081,7 @@ function Tilemaxx() {
             <div className="board-column">
               <section
                 ref={boardPanel}
+                aria-label="Game board"
                 className="board-panel panel"
                 onKeyDown={(event) => {
                   if (squareFilter.selecting && event.key === "Escape") {

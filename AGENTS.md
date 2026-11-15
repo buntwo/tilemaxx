@@ -5,6 +5,7 @@
 - Keep game rules, scoring, solving, and analysis in `shared/` as TypeScript that can run without React, the DOM, or SQLite. Reuse the same rules across live play and review.
 - Use `src/` for React UI, browser storage, and worker coordination. Keep `App.tsx` focused on composing views. Put feature state and asynchronous workflows in the component or hook that owns them.
 - Highlight every displayed bingo and show the trophy, including both sides of endgame lines. Use the active rules and tiles placed or the recorded bingo flag.
+- Use green and red for favorable and unfavorable values from the player’s perspective. Use the [UI guide](docs/ui-guide.md) for panel and control names, and update it when those names change.
 - Run expensive analysis in workers with typed messages and bounded work. Keep large result sets in the worker and send summaries or pages to the UI. Ignore stale responses after the position changes.
 - Keep HTTP validation and SQLite persistence in `server/`. Preserve compatibility with existing saves. Poll compact summaries, load full histories on demand, and keep unsynced drafts separate from the read cache.
 

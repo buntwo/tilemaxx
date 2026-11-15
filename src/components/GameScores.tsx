@@ -15,6 +15,7 @@ import {
   pendingOpponentPlay,
   tracksScores,
 } from "../../shared/game-scoring";
+import { scoreTone } from "../score-tone";
 import Modal from "./Modal";
 import MoveWord, { BingoBadge } from "./MoveWord";
 import ScoreBreakdown from "./ScoreBreakdown";
@@ -37,6 +38,7 @@ export default function GameScores({
   const play = pendingOpponentPlay(game);
   const scoring = displayedGameScoring(game) ?? emptyScoring();
   const adjusted = gameScoreTotals(scoring);
+  const margin = adjusted.you - adjusted.opponent;
   const totals = { you: 0, opponent: 0 };
   const history = trackedMoveHistory(game);
   const historyKey = JSON.stringify(history);
@@ -111,13 +113,31 @@ export default function GameScores({
               );
             })}
           </dl>
+          <p className={`score-detail ${scoreTone(margin) ?? ""}`}>
+            {margin > 0
+              ? `${scoring.end ? "Win" : "Lead"} by ${margin}`
+              : margin < 0
+                ? `${scoring.end ? "Lose" : "Trail"} by ${-margin}`
+                : scoring.end
+                  ? "Tie"
+                  : "Tied"}
+          </p>
           {scoring.end && (
             <p className="score-detail">
               {scoring.end.out === "you"
                 ? "You went out."
                 : "Opponent went out."}{" "}
-              {scoring.end.rackPoints > 0 &&
-                `${scoring.end.rackPoints} rack points transferred to ${scoring.end.out === "you" ? "you" : "the opponent"}.`}
+              {scoring.end.rackPoints > 0 && (
+                <>
+                  <span
+                    className={scoreTone(scoring.end.out === "you" ? 1 : -1)}
+                  >
+                    {scoring.end.rackPoints} rack points
+                  </span>{" "}
+                  transferred to{" "}
+                  {scoring.end.out === "you" ? "you" : "the opponent"}.
+                </>
+              )}
             </p>
           )}
           {scoring.pendingBase && (
