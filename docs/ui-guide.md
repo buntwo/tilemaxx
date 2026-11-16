@@ -18,7 +18,7 @@
 | **Rack tools** | The rack controls for holding tiles and planning an exchange. **Optimal Exchange** compares swaps. **Simulate exchange** shows the expected score, bingo chance, and sample plays for a swap. |
 | **Opponent rack** | The inferred tiles centered directly below yours when the bag is empty. In a phone move preview both racks stack vertically beside the board. |
 | **Unseen tiles** | The expandable tile counts below the racks. It includes tiles in the bag and on other racks. |
-| **Game scores** | The score tracking panel with totals, lead or result, and any opponent move waiting to be recorded. |
+| **Game scores** | The score tracking panel with totals, lead or result, and pending opponent plays. If you pass or exchange, use **Record opponent move** before entering their next play whenever the two plays could read as one. |
 | **Tracked move history** | The scored turn list inside Game scores. Select a word to open **Turn review**, or select **Review game** for missed opportunities across turns. |
 | **Bingo trophy** | The gold highlight and trophy next to a bingo in the move list, analysis, or a recorded game. |
 | **Move history** | The board and rack change log behind the history button. Undo and Redo step through these changes. |

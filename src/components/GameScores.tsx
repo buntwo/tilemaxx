@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { ChevronDown, Pencil, Plus } from "lucide-react";
 import {
   isBingo,
@@ -12,7 +12,7 @@ import {
   emptyScoring,
   gameScoreTotals,
   isImportedPosition,
-  pendingOpponentPlay,
+  pendingOpponentTurns,
   tracksScores,
 } from "../../shared/game-scoring";
 import { scoreTone } from "../score-tone";
@@ -35,7 +35,8 @@ export default function GameScores({
   onChange: (game: Game) => void;
 }) {
   const tracking = tracksScores(game);
-  const play = pendingOpponentPlay(game);
+  const pending = pendingOpponentTurns(game);
+  const multiplePending = pending.length > 1;
   const scoring = displayedGameScoring(game) ?? emptyScoring();
   const end = scoring.end;
   const rackOut = end && "out" in end ? end : undefined;
@@ -147,24 +148,30 @@ export default function GameScores({
           )}
           {scoring.pendingBase && (
             <div className="score-pending">
-              <p>
-                {play ? (
-                  <>
-                    Opponent move ·{" "}
-                    <strong>
-                      <MoveWord word={play.word} bingo={play.bingo} /> ·{" "}
-                      {play.score} pts
-                    </strong>
-                  </>
-                ) : (
-                  "Board edits pending. Enter one connected play or keep the edits as a correction."
-                )}
-              </p>
-              {play && <ScoreBreakdown breakdown={play} />}
+              {pending.length ? (
+                pending.map(({ base, play }, index) => (
+                  <Fragment key={base.filter(Boolean).length}>
+                    <p>
+                      Opponent move{multiplePending ? ` ${index + 1}` : ""} ·{" "}
+                      <strong>
+                        <MoveWord word={play.word} bingo={play.bingo} /> ·{" "}
+                        {play.score} pts
+                      </strong>
+                    </p>
+                    <ScoreBreakdown breakdown={play} />
+                  </Fragment>
+                ))
+              ) : (
+                <p>
+                  Board edits pending. For multiple opponent plays, undo to the
+                  first and record it before entering the next. You can also fix
+                  the entry or keep it as a correction.
+                </p>
+              )}
               <div>
-                {play && (
+                {!!pending.length && (
                   <button className="button secondary" onClick={onRecord}>
-                    Record opponent move
+                    Record opponent {multiplePending ? "moves" : "move"}
                   </button>
                 )}
                 <button className="button secondary" onClick={onCorrection}>
