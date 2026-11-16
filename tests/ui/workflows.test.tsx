@@ -672,6 +672,7 @@ test("calculation timing waits for reply histograms and stays fixed for follow-u
   const distribution: ReplyDistribution = {
     kind: "distribution",
     count: 24,
+    outscored: 0,
     mean: 20,
     difference: 0,
     exact: false,
@@ -1383,6 +1384,7 @@ test("rack → real solver → hover preview → play → undo/redo → save", a
                   mean: 21,
                   difference: 0,
                   count: 500,
+                  outscored: 0,
                   exact: false,
                   buckets: [100, 400, 0, 0, 0],
                   discordant: [0, 0, 0, 0, 0],

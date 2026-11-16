@@ -30,11 +30,11 @@
 | --- | --- |
 | **Possible moves** | The results panel sits next to the board when at least 720 px of workspace is available, and below the board and racks on narrower workspaces. The heading reads **Possible moves - Endgame** when the bag count is zero. |
 | **Move filters** | The Shortlist and All moves switch, word search, and square filter above the results list. |
-| **Move list** | The sortable table of suggestions. A **move row** is one suggestion, and a **column header** controls sorting. PTS is the play’s score. The smaller number underneath is the gap from the top score. |
+| **Move list** | The sortable table of suggestions. A **move row** is one suggestion, and a **column header** controls sorting. PTS is the play’s score. The smaller number underneath is the gap from the top score. **Adj.** is the score minus the reply delta. The list sorts by adjusted points once the initial reply checks finish. The PTS header lets you choose either order. |
 | **Calculation timing** | Select the time below the move list for a breakdown of the initial Find moves run, including individual exact endgame solves when available. The bars behind the numbers use total elapsed time as the full-width reference. |
 | **Reply delta** | The move-list number showing the change in the opponent’s reply score against the reference move. A lower opponent reply is favorable. |
 | **Estimated endgame swing** | The EST. SWING column when the bag is empty. The figure measures the change in your lead. It may also name an opponent go-out threat. |
-| **Reply details** | The box at the bottom of Possible moves headed **Reply after [move]**. With tiles in the bag it shows the **reply distribution**, summary comparisons, and Heatmap. With an empty bag it shows the opponent rack, immediate reply, score checkpoints, and the option to calculate the optimal endgame line when applicable. |
+| **Reply details** | The box at the bottom of Possible moves headed **Reply after [move]**. With tiles in the bag it shows the **reply distribution**, summary comparisons, the chance the opponent’s best reply outscores the play, and Heatmap. With an empty bag it shows the opponent rack, immediate reply, score checkpoints, and the option to calculate the optimal endgame line when applicable. |
 | **Reply settings** | The expandable bag count and endgame controls. It shows **Prior scoreless turns** for Scrabble and Words With Friends, **Prior consecutive passes** for Wordfeud and Lexulous, and **Opponent has a final turn** for Crossplay. |
 | **Reply heatmap** | The board view of where strong replies land. Select a **hotspot** to see its change and sample replies. |
 | **Reply risk** | Details for a premium square the move opens up or blocks. |

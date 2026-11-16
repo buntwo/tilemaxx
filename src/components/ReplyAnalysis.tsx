@@ -227,6 +227,10 @@ function DistributionChart({
             )}
           </strong>
         </span>
+        <span title={`Share of checked racks with a best reply above ${move.score} points`}>
+          Chance they outscore this play{" "}
+          <strong>{percent(result.outscored)}</strong>
+        </span>
       </div>
       <div className="reply-axis-label" aria-hidden="true">
         Share of racks

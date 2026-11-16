@@ -56,6 +56,10 @@ test("paired histograms weight physical copies and use a fixed reference", () =>
   assert.deepEqual(result.reference.buckets, [4, 0, 0, 0, 0]);
   assert.deepEqual(result.buckets, [3, 0, 1, 0, 0]);
   assert.deepEqual(result.discordant, [1, 0, 1, 0, 0]);
+  const scoring33 = check({ ...opens, score: 33 });
+  const scoring32 = check({ ...opens, score: 32 });
+  assert.equal(scoring32.kind === "distribution" && scoring32.outscored, 1);
+  assert.equal(scoring33.kind === "distribution" && scoring33.outscored, 0);
   assert.ok(result.difference > 0);
   assert.equal(replyColor(result, 0), "less");
   assert.equal(replyColor(result, 2), "more");
@@ -69,6 +73,7 @@ test("sampled comparisons widen the gray band for noisy paired buckets", () => {
     mean: 31,
     difference: 1,
     count: 500,
+    outscored: 0,
     buckets: [0, 240, 260, 0, 0],
     exact: false,
     discordant: [0, 460, 460, 0, 0],

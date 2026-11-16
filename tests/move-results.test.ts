@@ -38,6 +38,22 @@ test("the worker index keeps all placements while sending bounded windows", () =
   assert.deepEqual(index.shortlist({})[0]?.move, moves[0]);
 });
 
+test("reply-adjusted sorting keeps moves without a checked reply below ranked moves", () => {
+  const lexicon = new Lexicon(["AT", "CAT", "CATS", "CAST", "ACT", "SAT"]);
+  const moves = solve(lexicon, emptyBoard(15), "CATS", PRESETS[0]);
+  const [first, unchecked] = moves;
+  const bestAdjusted = moves.at(-1)!;
+  const index = new MoveResultIndex(moves, PRESETS[0]);
+  const query = {
+    filter: "",
+    sort: "reply-adjusted" as const,
+    offset: 0,
+    replyDeltas: { [first.id]: 0, [bestAdjusted.id]: bestAdjusted.score - first.score - 1 },
+  };
+  assert.deepEqual(index.page(query).head.slice(0, 3), [bestAdjusted, first, unchecked]);
+  assert.deepEqual(index.page({ ...query, reversed: true }).head.slice(0, 3), [first, bestAdjusted, unchecked]);
+});
+
 test("endgame ranking includes lower-scoring moves outside the initial page and returns only visible estimates", () => {
   const lexicon = new Lexicon(["AT", "CAT", "CATS", "CAST", "ACT", "SAT"]);
   const moves = solve(lexicon, emptyBoard(15), "CATS??", PRESETS[0]);

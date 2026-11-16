@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  moveComparator,
   type MovePage,
   type MoveQuery,
   type MoveResults,
@@ -64,18 +65,23 @@ export function useMoveResults(
   }>();
   const response = received?.key === key ? received : undefined;
   const page = response?.page;
-  const initial =
-    !!results &&
-    !filter.trim() &&
-    !requiredSquares?.indices.length &&
-    sort === "score" &&
-    endgameId === undefined &&
-    !reversed;
-  const head = page?.head ?? (initial ? results.head : []);
-  const total = page?.total ?? (initial ? results.total : 0);
+  const initialHead = useMemo(() => {
+    if (!results || filter.trim() || requiredSquares?.indices.length || endgameId !== undefined)
+      return undefined;
+    if (sort === "score" && !reversed) return results.head;
+    if (sort !== "reply-adjusted") return undefined;
+
+    // The opening reply batch covers the score-ranked head. Apply its order
+    // immediately when every adjusted move is already in that local window.
+    const ids = new Set(results.head.map(({ id }) => id));
+    if (Object.keys(replyDeltas ?? {}).some((id) => !ids.has(id))) return undefined;
+    return [...results.head].sort(moveComparator({ sort, reversed, replyDeltas }));
+  }, [results, filter, requiredSquares, endgameId, sort, reversed, replyDeltas]);
+  const head = page?.head ?? initialHead ?? [];
+  const total = page?.total ?? (initialHead ? results?.total : 0) ?? 0;
   const start = Math.min(offset, Math.max(0, total - visibleMoveRows));
   const slice =
-    page ?? (initial ? { offset: 0, rows: results.head } : undefined);
+    page ?? (initialHead && { offset: 0, rows: initialHead });
   const visible =
     slice?.rows.slice(
       Math.max(0, start - slice.offset),
@@ -95,7 +101,7 @@ export function useMoveResults(
   // Keep a window wider than the rendered rows. A small overlapping scroll
   // stays synchronous, and only a new page boundary needs a worker message.
   const pageOffset = Math.max(0, Math.floor((start - 12) / 16) * 16);
-  const target = !page && !initial ? 0 : pageOffset;
+  const target = !page && !initialHead ? 0 : pageOffset;
   useEffect(() => {
     if (!needsPage || searchId === undefined) return;
     let current = true;
@@ -138,13 +144,13 @@ export function useMoveResults(
 
   return {
     total,
-    bingoCount: page?.bingoCount ?? (initial ? results.bingoCount : 0),
+    bingoCount: page?.bingoCount ?? (initialHead ? results?.bingoCount : 0) ?? 0,
     head,
     start: Math.max(start, slice?.offset ?? 0),
     visible,
     endgame: page?.endgame,
     exactEndgameCount: page?.exactEndgameCount,
-    pending: needsPage && !page && !initial,
+    pending: needsPage && !page && !initialHead,
     unavailable,
   };
 }
