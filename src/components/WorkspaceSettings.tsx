@@ -120,8 +120,8 @@ export default function WorkspaceSettings({
             Limit to one compute worker
           </label>
           <p className="workspace-hardware-scope" id="compute-worker-scope">
-            Applies to opponent reply histograms and automatic exact endgame
-            lines.
+            Applies to reply histograms, exact endgame lines, board-based bingo
+            odds, Optimal Exchange, and policy timelines.
           </p>
         </fieldset>
       </div>

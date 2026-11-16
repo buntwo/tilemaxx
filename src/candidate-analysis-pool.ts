@@ -1,7 +1,7 @@
 import type { Lexicon } from "../shared/lexicon";
 import { computeWorkerLimit } from "./compute-workers";
 import {
-  analyzeCandidate,
+  createCandidateAnalyzer,
   type CandidateJob,
   type CandidateRequest,
   type CandidateResult,
@@ -25,55 +25,85 @@ function requestCandidate(worker: Worker, request: CandidateRequest) {
   });
 }
 
-/** Each active worker pulls another move as soon as its current move is done. */
-export async function runCandidateJobs(
+/** Workers stay initialized across successive batches in one analysis request. */
+export function createCandidatePool(
   lexicon: Lexicon,
-  jobs: readonly CandidateJob[],
-  receive: (job: CandidateJob, result: CandidateResult) => void | Promise<void>,
   concurrency = computeWorkerLimit(),
   createWorker = defaultWorker,
 ) {
-  const workers: Worker[] = [];
-  let next = 0;
-  let stopped = false;
-  const count = Math.min(jobs.length, concurrency);
-  if (count > 1) {
-    for (let i = 0; i < count; i++) {
-      try {
-        workers.push(createWorker());
-      } catch {
-        // Keep using the workers that started, or run in the parent worker.
-        break;
-      }
-    }
-  }
+  const slots: { worker?: Worker; initialized: boolean }[] = [];
+  const analyze = createCandidateAnalyzer(lexicon);
+  let capacity = concurrency;
+  let closed = false;
 
-  async function run(worker?: Worker) {
-    let dictionary: Lexicon | undefined = lexicon;
-    while (!stopped && next < jobs.length) {
-      const job = jobs[next++];
-      let result: CandidateResult;
-      if (worker) {
+  async function run<Job extends CandidateJob>(
+    jobs: readonly Job[],
+    receive: (job: Job, result: CandidateResult) => void | Promise<void>,
+  ) {
+    let next = 0;
+    let stopped = false;
+    const count = Math.min(jobs.length, capacity);
+    if (count > 1) {
+      while (slots.length < count) {
         try {
-          result = await requestCandidate(worker, { job, dictionary });
-          dictionary = undefined;
+          slots.push({ worker: createWorker(), initialized: false });
         } catch {
-          worker.terminate();
-          worker = undefined;
-          if (stopped) return;
-          result = analyzeCandidate(lexicon, job);
+          // Use the workers that started, or run in the parent worker.
+          capacity = slots.length;
+          break;
         }
-      } else {
-        result = analyzeCandidate(lexicon, job);
       }
-      if (!stopped) await receive(job, result);
+    }
+
+    async function drain(slot?: (typeof slots)[number]) {
+      while (!closed && !stopped && next < jobs.length) {
+        const job = jobs[next++];
+        let result: CandidateResult;
+        if (slot?.worker) {
+          try {
+            const dictionary = slot.initialized ? undefined : lexicon;
+            result = await requestCandidate(slot.worker, { job, dictionary });
+            slot.initialized = true;
+          } catch {
+            slot.worker.terminate();
+            slot.worker = undefined;
+            if (closed || stopped) return;
+            result = analyze(job);
+          }
+        } else {
+          result = analyze(job);
+        }
+        if (!closed && !stopped) await receive(job, result);
+      }
+    }
+
+    try {
+      const active = count > 1 ? slots.slice(0, count) : [];
+      await Promise.all(active.length ? active.map(drain) : [drain()]);
+    } finally {
+      stopped = true;
     }
   }
 
+  function close() {
+    closed = true;
+    for (const { worker } of slots) worker?.terminate();
+  }
+
+  return { run, close };
+}
+
+export async function runCandidateJobs<Job extends CandidateJob>(
+  lexicon: Lexicon,
+  jobs: readonly Job[],
+  receive: (job: Job, result: CandidateResult) => void | Promise<void>,
+  concurrency = computeWorkerLimit(),
+  createWorker = defaultWorker,
+) {
+  const pool = createCandidatePool(lexicon, concurrency, createWorker);
   try {
-    await Promise.all(workers.length ? workers.map(run) : [run()]);
+    await pool.run(jobs, receive);
   } finally {
-    stopped = true;
-    for (const worker of workers) worker.terminate();
+    pool.close();
   }
 }
