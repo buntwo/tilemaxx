@@ -86,6 +86,7 @@ import {
   resetGameScoring,
   setScoreTracking,
   summarizeGameScore,
+  tracksScores,
   treatBoardEditAsCorrection,
 } from "../shared/game-scoring";
 import { CLEARED_BOARD } from "../shared/score-recovery";
@@ -614,7 +615,12 @@ function Tilemaxx() {
     else setSidebarCollapsed(!visible);
   }
   const headlineScore = game && (
-    <GameScoreBadge score={summarizeGameScore(game)} prominent={compactGame} showMargin />
+    <GameScoreBadge
+      score={summarizeGameScore(game)}
+      prominent={compactGame}
+      showMargin
+      showNoScore={!tracksScores(game)}
+    />
   );
   const sidebarButton = (sidebarOverlay || !sidebarVisible) && (
     <button

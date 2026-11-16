@@ -2102,7 +2102,13 @@ test("new games start with score tracking on even after an earlier opt-out", asy
   }
 
   await createGame("Untracked opponent", false);
+  const noScoreBadge = () =>
+    screen.queryByText("No score", {
+      selector: ".game-heading .game-title-score",
+    });
+  expect(noScoreBadge()).toBeTruthy();
   await createGame("Tracked opponent", true);
+  expect(noScoreBadge()).toBeNull();
   expect(scoreTotals()).toBe("0–0");
   expect(scoreDelta()?.textContent).toBe("0");
 });
@@ -3147,6 +3153,9 @@ test("turning tracking on after a screenshot restores the saved move scores", as
   const user = await start();
   const scores = within(screen.getByRole("region", { name: "Game scores" }));
   await scores.findByText(/recover scores from saved moves/);
+  expect(
+    screen.getByText("No score", { selector: ".game-heading .game-title-score" }),
+  ).toBeTruthy();
   const tracking = scores.getByRole("checkbox", { name: "Track scores" });
   expect(tracking).toHaveProperty("checked", false);
   await user.click(tracking);
