@@ -3110,6 +3110,32 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   expect(remote.games[0].scoring?.you.points).toBe(6);
 });
 
+test("two opponent plays entered before a reply both make it into the score history", async () => {
+  const user = await start();
+  const scores = within(screen.getByRole("region", { name: "Game scores" }));
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT");
+  await user.click(cell("I9: DL"));
+  await user.keyboard("T");
+  expect(scores.getByRole("button", { name: "Record opponent moves" })).toBeTruthy();
+  await typeRack(user, "S");
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  await user.click(await screen.findByRole("button", { name: /^CATS, / }));
+  expect(scoreTotals()).toBe("6–13");
+  expect(current().trackedMoves?.map(({ player, word }) => [player, word])).toEqual([
+    ["opponent", "CAT"],
+    ["opponent", "AT"],
+    ["you", "CATS"],
+  ]);
+  await user.click(cell("Undo"));
+  expect(scoreTotals()).toBe("0–13");
+  await user.click(cell("Undo"));
+  expect(scoreTotals()).toBe("0–10");
+  expect(cell("I9: DL")).toBeTruthy();
+  await user.click(cell("Redo"));
+  expect(scoreTotals()).toBe("0–13");
+});
+
 test("the board blank control corrects recorded scores and saves with undo and redo", async () => {
   const user = await start();
   const scores = within(screen.getByRole("region", { name: "Game scores" }));

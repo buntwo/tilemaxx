@@ -513,8 +513,11 @@ export function boardWordsAt(game: Game, index: number) {
       unresolved.delete(word);
     }
   }
-  if (unresolved.size && scoring?.pendingBase)
-    fillScores(scoring.pendingBase, board);
+  if (unresolved.size && scoring?.pendingBase) {
+    for (const turn of pendingOpponentTurns(game).reverse()) {
+      fillScores(turn.base, turn.board);
+    }
+  }
   const moves = trackedMoveHistory(game);
   const firstEligible = replacementBoundaries(
     game,
@@ -580,11 +583,14 @@ export function pendingOpponentPlay(game: Game) {
 export function scoreTotalsAtPosition(game: Game) {
   const scoring = game.scoring;
   if (!scoring || !tracksScores(game)) return;
-  const pending = pendingOpponentPlay(game);
-  if (scoring.pendingBase && !pending) return;
+  const pending = pendingOpponentTurns(game);
+  if (scoring.pendingBase && !pending.length) return;
   return {
     you: scoring.you.points,
-    opponent: scoring.opponent.points + (pending?.score ?? 0),
+    opponent: pending.reduce(
+      (points, turn) => points + turn.play.score,
+      scoring.opponent.points,
+    ),
   };
 }
 
@@ -673,6 +679,49 @@ function opponentEntryStart(game: Game, base: Board): number | undefined {
   }
 }
 
+type PendingOpponentTurn = {
+  base: Board;
+  board: Board;
+  play: NonNullable<ReturnType<typeof scorePlacement>>;
+};
+
+type PendingOpponentTurns =
+  | []
+  | [PendingOpponentTurn]
+  | [PendingOpponentTurn, PendingOpponentTurn & { split: number }];
+
+export function pendingOpponentTurns(game: Game): PendingOpponentTurns {
+  const base = game.scoring?.pendingBase;
+  if (!base || !tracksScores(game)) return [];
+  const { board, template, past } = game;
+  const play = pendingOpponentPlay(game);
+  if (play) return [{ base, board, play }];
+
+  // A pass or exchange can leave two typed opponent plays pending. Only split
+  // at a saved entry boundary, with additive edits and a unique order of play.
+  const start = opponentEntryStart(game, base);
+  if (start === undefined) return [];
+  for (let i = start; i < past.length; i++) {
+    const after = past[i + 1]?.board ?? board;
+    if (past[i].board.some((tile, cell) => tile && tile !== after[cell]))
+      return [];
+  }
+  let turns: PendingOpponentTurns = [];
+  for (let split = start + 1; split < past.length; split++) {
+    const between = past[split].board;
+    const first = scorePlacement(base, between, template);
+    if (!first) continue;
+    const second = scorePlacement(between, board, template);
+    if (!second) continue;
+    if (turns.length) return [];
+    turns = [
+      { base, board: between, play: first },
+      { base: between, board, play: second, split },
+    ];
+  }
+  return turns;
+}
+
 function addScore(
   scoring: GameScoring,
   player: Player,
@@ -695,9 +744,39 @@ export function recordOpponentPlay(
   game: Game,
   end: GameScoring["end"] | null = opponentRackOut(game),
 ): Game {
-  const play = pendingOpponentPlay(game);
-  if (!play) return game;
-  const base = game.scoring!.pendingBase!;
+  const [first, second] = pendingOpponentTurns(game);
+  if (!first) return game;
+  if (!second) return recordOpponentTurn(game, first, end);
+
+  const boundary = game.past[second.split];
+  const recorded = recordOpponentTurn(
+    {
+      ...game,
+      board: first.board,
+      rack: boundary.rack,
+      excludedRackSlots: boundary.excludedRackSlots,
+      past: game.past.slice(0, second.split),
+    },
+    first,
+  );
+  return recordOpponentTurn(
+    {
+      ...game,
+      // The second turn's undo snapshot includes the first turn's new score.
+      past: [...recorded.past, { ...boundary, scoring: recorded.scoring }],
+      trackedMoves: recorded.trackedMoves,
+      scoring: recorded.scoring,
+    },
+    second,
+    end,
+  );
+}
+
+function recordOpponentTurn(
+  game: Game,
+  { base, play }: PendingOpponentTurn,
+  end?: GameScoring["end"] | null,
+): Game {
   const history = remember(
     game,
     play.word,
@@ -764,7 +843,7 @@ export function playTrackedMove(
     game.board.some((tile, index) => tile && !pendingBase[index])
   ) {
     throw new Error(
-      "The new board tiles could not be scored as one opponent move. Fix the entry or choose Keep as correction under Game scores, then play your move.",
+      "Tilemaxx couldn't tell how to score the new board tiles. If you entered multiple opponent moves, undo to the first play and use Record opponent move under Game scores before entering the next. For other board edits, fix the entry or choose Keep as correction.",
     );
   }
   const result = applyMove(previous, move, "you");

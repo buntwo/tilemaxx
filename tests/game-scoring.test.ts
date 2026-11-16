@@ -12,6 +12,7 @@ import {
   endGameManually,
   gameScoreTotals,
   pendingOpponentPlay,
+  pendingOpponentTurns,
   playTrackedMove,
   recordOpponentPlay,
   recordOpponentRackOut,
@@ -859,6 +860,77 @@ test("playing a suggestion requires resolving ambiguous new tiles but permits co
     trackedMoveHistory(next).map(({ player }) => player),
     ["you", "you"],
   );
+});
+
+test("two typed opponent turns across an exchange are scored and undone individually", () => {
+  const game = fixture();
+  const { start, size } = game.template;
+  const edits = new BoardEditHistory();
+  const opening = [...game.board];
+  opening.splice(start, 3, ..."CAT");
+  const first = edits.apply(game, opening, "enter");
+  edits.reset();
+  const crossing = [...opening];
+  crossing[start + size + 1] = "T";
+  const second = edits.apply({ ...first, rack: "A" }, crossing, "enter");
+  const pending = gameSchema.parse(
+    JSON.parse(JSON.stringify({ ...second, rack: "S" })),
+  );
+  assert.deepEqual(scoreTotalsAtPosition(pending), { you: 0, opponent: 13 });
+  assert.deepEqual(
+    boardWordsAt(pending, start + 1).map(({ word, score }) => [word, score]),
+    [
+      ["CAT", 10],
+      ["AT", 3],
+    ],
+  );
+
+  const reply = solve(new Lexicon(["CATS"]), crossing, "S", game.template)[0];
+  const played = playTrackedMove(pending, reply);
+  assert.deepEqual(
+    trackedMoveHistory(played).map(({ player, word, score }) => [player, word, score]),
+    [
+      ["opponent", "CAT", 10],
+      ["opponent", "AT", 3],
+      ["you", "CATS", 6],
+    ],
+  );
+  const beforeReply = undo(played);
+  assert.deepEqual(beforeReply.board, crossing);
+  assert.equal(beforeReply.rack, "S");
+  assert.equal(beforeReply.scoring?.pendingBase, undefined);
+  const beforeSecond = undo(beforeReply);
+  assert.deepEqual(beforeSecond.board, opening);
+  assert.equal(beforeSecond.rack, "A");
+  assert.deepEqual(gameScoreTotals(beforeSecond.scoring), {
+    you: 0,
+    opponent: 10,
+  });
+  const beforeFirst = undo(beforeSecond);
+  assert.deepEqual(beforeFirst.board, game.board);
+  assert.deepEqual(trackedMoveHistory(beforeFirst), []);
+  const restored = redo(redo(redo(beforeFirst)));
+  assert.deepEqual(restored.board, played.board);
+  assert.deepEqual(restored.scoring, played.scoring);
+  assert.deepEqual(trackedMoveHistory(restored), trackedMoveHistory(played));
+});
+
+test("multiple possible opponent turn boundaries leave the board edits unscored", () => {
+  const game = fixture();
+  const { start, size } = game.template;
+  const edits = new BoardEditHistory();
+  const board = [...game.board];
+  board.splice(start, 2, ..."CA");
+  const partial = edits.apply(game, [...board], "enter");
+  edits.reset();
+  board[start + 2] = "T";
+  const opening = edits.apply(partial, [...board], "enter");
+  edits.reset();
+  board[start + 2 + size] = "O";
+  const pending = edits.apply(opening, board, "enter");
+  assert.deepEqual(pendingOpponentTurns(pending), []);
+  assert.equal(recordOpponentPlay(pending), pending);
+  assert.equal(scoreTotalsAtPosition(pending), undefined);
 });
 
 test("inserting and correcting tracked moves updates scores and can be undone independently", () => {
