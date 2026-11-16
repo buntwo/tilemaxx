@@ -109,6 +109,7 @@ const score = z.object({
   best: z.number().int().nonnegative(),
   bingos: z.number().int().nonnegative(),
 });
+const endedOn = z.iso.date().optional();
 const scoringSchema = z.object({
   you: score,
   opponent: score,
@@ -119,6 +120,7 @@ const scoringSchema = z.object({
       z.object({
         out: z.enum(["you", "opponent"]),
         rackPoints: z.number().int().nonnegative(),
+        endedOn,
       }),
       z
         .object({
@@ -127,6 +129,7 @@ const scoringSchema = z.object({
             .object({ you: z.number().int(), opponent: z.number().int() })
             .optional(),
           outcome: z.enum(["win", "loss", "tie"]).optional(),
+          endedOn,
         })
         .refine((end) => !end.outcome || !!end.scores),
     ])

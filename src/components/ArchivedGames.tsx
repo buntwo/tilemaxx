@@ -32,7 +32,9 @@ export default function ArchivedGames({
   const results = games
     .filter((game) => opponentNameMatches(game.name, query))
     .sort((a, b) => {
-      const byDate = (b.startedOn ?? "").localeCompare(a.startedOn ?? "");
+      const byDate = (b.endedOn ?? b.startedOn ?? "").localeCompare(
+        a.endedOn ?? a.startedOn ?? "",
+      );
       const byOpponent = opponentOrder.compare(a.name, b.name);
       return sort === "date" ? byDate || byOpponent : byOpponent || byDate;
     });
@@ -105,7 +107,7 @@ export default function ArchivedGames({
                           {game.fullMoveHistory && <FullMoveHistoryIcon />}
                         </strong>
                         <small>
-                          <GameMetadata game={game} />
+                          <GameMetadata game={game} endedOn={game.endedOn} />
                         </small>
                       </span>
                       {game.score && <GameScoreBadge score={game.score} />}

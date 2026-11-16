@@ -29,6 +29,7 @@ export type GameSummary = Pick<
   | "archived"
   | "revision"
 > & {
+  endedOn?: string;
   thumbnail: GameThumbnail;
   fullMoveHistory: boolean;
   score: GameScoreSummary | null;
@@ -80,17 +81,19 @@ export function summarizeGame(game: Game): GameSummary {
     template,
     board,
   } = game;
-  const scoring = archived ? displayedGameScoring(game) : undefined;
+  const scoring = displayedGameScoring(game);
+  const endedOn = scoring?.end?.endedOn;
   return {
     id,
     profileId,
     name,
     ...(platform !== undefined && { platform }),
     ...(startedOn !== undefined && { startedOn }),
+    ...(endedOn !== undefined && { endedOn }),
     archived,
     revision,
     fullMoveHistory: hasFullMoveHistory(game),
-    score: scoring ? summarizeGameScore(game, scoring) : null,
+    score: archived && scoring ? summarizeGameScore(game, scoring) : null,
     thumbnail: {
       size: template.size,
       squares: template.premiums

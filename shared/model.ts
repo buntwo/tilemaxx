@@ -65,7 +65,9 @@ export interface GameScoring {
   opponent: PlayerScore;
   pendingBase?: Board;
   imported?: boolean;
-  end?: { out: Player; rackPoints: number } | ManualGameEnd;
+  end?: ({ out: Player; rackPoints: number } | ManualGameEnd) & {
+    endedOn?: string;
+  };
 }
 export const BOARD_EDIT_LABELS = {
   enter: "Entered board letters",
