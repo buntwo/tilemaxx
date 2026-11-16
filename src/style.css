@@ -5238,7 +5238,8 @@ label + label {
 .phone-move-review .rack-lane { display: block; }
 .phone-move-review .rack-lane + .rack-lane { margin-bottom: 0; }
 .phone-move-review .rack-owner-label {
-  display: block;
+  display: flex;
+  justify-content: center;
   margin-bottom: 3px;
   font-size: 9px;
 }
