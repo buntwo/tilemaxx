@@ -44,6 +44,7 @@ export interface MoveQuery {
   boardOdds?: BoardOddsResult;
   replyDeltas?: Record<string, number>;
   endgameId?: number;
+  exactEndgameSpreads?: Record<string, number>;
 }
 
 export interface EndgameRanking {
@@ -113,6 +114,7 @@ export function moveComparator(
     rackOdds,
     boardOdds,
     replyDeltas,
+    exactEndgameSpreads,
   }: Omit<MoveQuery, "filter" | "offset" | "requiredSquares">,
   endgames?: ReadonlyMap<string, EndgameEstimate>,
 ) {
@@ -133,7 +135,8 @@ export function moveComparator(
       "bingo-draw": (move) => rackOdds?.byLeave[move.leave],
       "board-bingo": (move) => boardOdds?.byMove[move.id]?.chance,
       reply: (move) => replyDeltas?.[move.id],
-      endgame: (move) => endgames?.get(move.id)?.spread,
+      endgame: (move) =>
+        exactEndgameSpreads?.[move.id] ?? endgames?.get(move.id)?.spread,
     };
   const metric = metrics[sort];
   if (metric) {

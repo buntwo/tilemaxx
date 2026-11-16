@@ -23,6 +23,7 @@ type EndgamePrecomputeProgress = {
   total: number;
   checked: number;
   ready: number;
+  exactSpreads?: Record<string, number>;
   pending: boolean;
   limits: string[];
   error?: string;
@@ -43,12 +44,17 @@ export function useEndgameLines(
     const candidates = moves.slice(0, PRECOMPUTED_MOVES);
     const missing = candidates.filter(({ id }) => !lines.has(id));
     const ready = candidates.length - missing.length;
+    const exactSpreads = () =>
+      lines.size
+        ? Object.fromEntries(Array.from(lines, ([id, line]) => [id, line.spread]))
+        : undefined;
     let next: EndgamePrecomputeProgress = {
       moves,
       key,
       total: candidates.length,
       checked: ready,
       ready,
+      exactSpreads: exactSpreads(),
       pending: !!missing.length,
       limits: [],
     };
@@ -81,7 +87,12 @@ export function useEndgameLines(
         cache.current.set(key, lines);
         if (cache.current.size > MOVE_CACHE_LIMIT)
           cache.current.delete(cache.current.keys().next().value!);
-        next = { ...next, checked: next.checked + 1, ready: next.ready + 1 };
+        next = {
+          ...next,
+          checked: next.checked + 1,
+          ready: next.ready + 1,
+          exactSpreads: exactSpreads(),
+        };
       } else {
         const word = candidates.find(({ id }) => id === data.moveId)?.word;
         next = {
