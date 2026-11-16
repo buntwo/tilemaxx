@@ -1,9 +1,6 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { analyzeMoves, type AnalysisRequest } from "../shared/move-analysis";
-import {
-  DEFAULT_ENDGAME_POSITION_LIMIT,
-  EndgameSearchLimitError,
-} from "../shared/endgame";
+import { EndgameSearchLimitError } from "../shared/endgame";
 import { replyEndgameLine } from "../shared/reply-analysis";
 import type {
   EndgamePrecomputeMessage,
@@ -12,6 +9,7 @@ import type {
 
 let dictionary: { id: string; lexicon: Lexicon } | undefined;
 let familiar: Set<string> | undefined;
+const PRECOMPUTE_TIME_LIMIT_MS = 5_000;
 
 async function words(url: string) {
   const response = await fetch(url);
@@ -38,16 +36,24 @@ async function precomputeEndgames(request: EndgamePrecomputeRequest) {
           lexicon,
           request,
           move,
-          5_000,
-          10 * DEFAULT_ENDGAME_POSITION_LIMIT,
+          PRECOMPUTE_TIME_LIMIT_MS,
+          Infinity,
         );
         post({ moveId: move.id, line });
       } catch (error) {
         if (!(error instanceof EndgameSearchLimitError)) throw error;
+        post({ moveId: move.id, limit: error.message });
       }
     }
-  } finally {
     post({ done: true });
+  } catch (error) {
+    post({
+      done: true,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Background endgame search stopped unexpectedly.",
+    });
   }
 }
 
@@ -58,8 +64,7 @@ self.onmessage = async (
 ) => {
   const request = event.data;
   if ("kind" in request) {
-    // Prefetch failures leave normal on-demand analysis available.
-    await precomputeEndgames(request).catch(() => {});
+    await precomputeEndgames(request);
     return;
   }
   try {
