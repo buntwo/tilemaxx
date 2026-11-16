@@ -35,19 +35,24 @@ export function placementKey(tiles: readonly Placement[]) {
 }
 
 /** A shortlist that splits a tie at its boundary always has the same weight sum. */
-export function movePolicyProbabilities(
+function placementPolicyFit(
   moves: readonly ScoredPlacement[],
   observed: string,
-): PolicyProbabilities {
+) {
   const distinct = new Map(moves.map(({ id, score }) => [id, score]));
   const observedScore = distinct.get(observed);
-  if (observedScore === undefined) return zeroProbabilities();
+  const shortlistSize = Math.min(TOP_FIVE_SIZE, distinct.size);
+  const random = distinct.size ? shortlistSize / distinct.size : 0;
+  if (observedScore === undefined)
+    return {
+      probabilities: zeroProbabilities(),
+      shortlist: { fit: 0, random },
+    };
   const counts = new Map<number, number>();
   for (const score of distinct.values())
     counts.set(score, (counts.get(score) ?? 0) + 1);
   const scores = [...counts.keys()].sort((a, b) => b - a);
   const best = scores[0];
-  const shortlistSize = Math.min(TOP_FIVE_SIZE, distinct.size);
   const weight = (score: number) =>
     Math.exp((score - best) / TOP_FIVE_SCORE_SCALE);
   let remaining = shortlistSize;
@@ -62,10 +67,20 @@ export function movePolicyProbabilities(
     if (!remaining) break;
   }
   return {
-    topOne: observedScore === best ? 1 / counts.get(best)! : 0,
-    uniformTopFive: inclusion / shortlistSize,
-    weightedTopFive: (inclusion * weight(observedScore)) / totalWeight,
+    probabilities: {
+      topOne: observedScore === best ? 1 / counts.get(best)! : 0,
+      uniformTopFive: inclusion / shortlistSize,
+      weightedTopFive: (inclusion * weight(observedScore)) / totalWeight,
+    },
+    shortlist: { fit: inclusion, random },
   };
+}
+
+export function movePolicyProbabilities(
+  moves: readonly ScoredPlacement[],
+  observed: string,
+): PolicyProbabilities {
+  return placementPolicyFit(moves, observed).probabilities;
 }
 
 export interface OpponentPolicyInput {
@@ -85,14 +100,17 @@ type RackAssumptions = {
 type PolicyFinding = {
   higherScoringPlacement?: Pick<Move, "word" | "score">;
   playedScore?: number;
+  topFiveRuledOut?: true;
 };
 
 export type OpponentPolicyResult = PolicyFinding &
   (
-    | { kind: "unavailable"; reason: string }
+    | { kind: "unavailable"; reason: string; limited?: true }
     | {
         kind: "exact" | "sampled";
         probabilities: PolicyProbabilities;
+        // Conditional on the rack containing the played tiles.
+        shortlist?: { fit: number; random: number };
         rack: RackAssumptions;
         samples: number;
         sampleTarget: number;
@@ -109,8 +127,17 @@ export function analyzeOpponentPolicy(
     seed = 69211,
   } = {},
 ): OpponentPolicyResult {
-  const unavailable = (reason: string, finding: PolicyFinding = {}) =>
-    ({ kind: "unavailable", reason, ...finding }) as const;
+  const unavailable = (
+    reason: string,
+    finding: PolicyFinding = {},
+    limited = false,
+  ) =>
+    ({
+      kind: "unavailable",
+      reason,
+      ...finding,
+      ...(limited && { limited: true as const }),
+    }) as const;
   const { board, tiles, observerRack } = position;
   const { size } = template;
   if (board.length !== size ** 2)
@@ -146,7 +173,7 @@ export function analyzeOpponentPolicy(
   const playedRack = required.sort().join("");
   const observed = placementKey(tiles);
   const finding: PolicyFinding = {};
-  const cache = new Map<string, PolicyProbabilities>();
+  const cache = new Map<string, ReturnType<typeof placementPolicyFit>>();
   try {
     // Using only the played tiles also verifies the exact placement in the lexicon.
     const placements = solve(playedRack);
@@ -161,11 +188,16 @@ export function analyzeOpponentPolicy(
       if (!move.leave && move.score > best.score) best = move;
     if (best !== played)
       finding.higherScoringPlacement = { word: best.word, score: best.score };
-    cache.set(playedRack, movePolicyProbabilities(placements, observed));
+    const fit = placementPolicyFit(placements, observed);
+    // Every placement this rack can make is also possible on a superset rack.
+    if (fit.shortlist.fit === 0) finding.topFiveRuledOut = true;
+    cache.set(playedRack, fit);
   } catch (error) {
     if (!(error instanceof SearchLimitError)) throw error;
     return unavailable(
       "The solver reached its limit while checking the recorded placement.",
+      finding,
+      true,
     );
   }
 
@@ -207,14 +239,17 @@ export function analyzeOpponentPolicy(
   const sampleTarget = exact ? 0 : samples;
   const random = randomGenerator(seed);
   let completed = 0;
+  const shortlist = { fit: 0, random: 0 };
   const accumulate = (hand: string, weight: number) => {
-    let likelihood = cache.get(hand);
-    if (!likelihood) {
-      likelihood = movePolicyProbabilities(solve(hand), observed);
-      cache.set(hand, likelihood);
+    let score = cache.get(hand);
+    if (!score) {
+      score = placementPolicyFit(solve(hand), observed);
+      cache.set(hand, score);
     }
     for (const policy of policies)
-      probabilities[policy] += weight * likelihood[policy];
+      probabilities[policy] += weight * score.probabilities[policy];
+    shortlist.fit += weight * score.shortlist.fit;
+    shortlist.random += weight * score.shortlist.random;
   };
 
   try {
@@ -236,22 +271,29 @@ export function analyzeOpponentPolicy(
       return unavailable(
         "The solver reached its limit while enumerating possible racks.",
         finding,
+        true,
       );
   }
   if (!exact && !completed)
     return unavailable(
       "The solver reached its limit before completing a rack sample.",
       finding,
+      true,
     );
 
+  const normalizer = exact ? 1 : completed;
   for (const policy of policies)
     probabilities[policy] = Math.min(
       1,
-      (probabilities[policy] * prior.chance) / (exact ? 1 : completed),
+      (probabilities[policy] * prior.chance) / normalizer,
     );
   return {
     kind: exact ? "exact" : "sampled",
     probabilities,
+    shortlist: {
+      fit: Math.min(1, shortlist.fit / normalizer),
+      random: Math.min(1, shortlist.random / normalizer),
+    },
     rack,
     samples: completed,
     sampleTarget,

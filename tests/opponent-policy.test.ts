@@ -155,6 +155,10 @@ test("the solver finds a placement best on one rack and outside the first five o
     1 / (4 * (1 + 3 * Math.exp(-2 / 5))),
   );
 
+  near(exact.shortlist!.fit, 1 / 3);
+  near(exact.shortlist!.random, 1 / 3 + (2 / 3) * (5 / competing.length));
+  assert.equal(exact.topFiveRuledOut, undefined);
+
   const sampled = analyzeOpponentPolicy(lexicon, input, {
     exactLimit: 0,
     samples: 4_000,
@@ -166,6 +170,9 @@ test("the solver finds a placement best on one rack and outside the first five o
   ) as (keyof PolicyProbabilities)[])
     near(sampled.probabilities[policy], exact.probabilities[policy], 0.015);
 
+  near(sampled.shortlist!.fit, exact.shortlist!.fit, 0.02);
+  near(sampled.shortlist!.random, exact.shortlist!.random, 0.02);
+
   const known = analyzeOpponentPolicy(lexicon, {
     ...input,
     position: { ...input.position, observerRack: "X" },
@@ -173,6 +180,7 @@ test("the solver finds a placement best on one rack and outside the first five o
   assert.equal(known.kind, "exact");
   assert.equal(known.rack.opponentRack, "AAT");
   assert.equal(known.probabilities.topOne, 1);
+  assert.deepEqual(known.shortlist, { fit: 1, random: 1 });
 });
 
 test("a full-rack placement keeps its prior probability and distinguishes assigned blanks", () => {
@@ -236,4 +244,49 @@ test("same-tile counterexample proves exact top-one zero even when sampled", () 
   const unknown = analyzeOpponentPolicy(new Lexicon(["TO"]), input);
   assert.equal(unknown.kind, "unavailable");
   assert.match(unknown.reason, /selected word list/);
+});
+
+test("the shortlist weights ties at the boundary and excludes provable top-five misses", () => {
+  const board = emptyBoard(5);
+  const layout = template("AATEX", 4);
+  const tiles = [
+    { index: 7, letter: "A" },
+    { index: 12, letter: "T" },
+    { index: 17, letter: "E" },
+  ];
+  const input = { position: { board, tiles }, template: layout, word: "ATE" };
+  const singleWord = new Lexicon(["ATE"]);
+  const tied = analyzeOpponentPolicy(singleWord, input);
+  assert.equal(tied.kind, "exact");
+  // With two better placements, the remaining three slots are split four ways.
+  near(tied.shortlist!.fit, 3 / 4);
+  near(tied.shortlist!.random, 5 / 6);
+
+  const alternatives = new Lexicon(["ATE", "EAT", "ETA", "TEA"]);
+  const limited = analyzeOpponentPolicy(alternatives, input, {
+    exactLimit: 0,
+    samples: 10,
+  });
+  assert.equal(limited.kind, "sampled");
+  assert.equal(limited.topFiveRuledOut, true);
+  assert.equal(limited.shortlist?.fit, 0);
+  near(limited.shortlist!.random, 5 / 24);
+});
+
+test("a rack conflict leaves the conditional shortlist undefined", () => {
+  const lexicon = new Lexicon(["AT"]);
+  const result = analyzeOpponentPolicy(lexicon, {
+    word: "AT",
+    position: {
+      board: emptyBoard(5),
+      tiles: [
+        { index: 12, letter: "A" },
+        { index: 13, letter: "T" },
+      ],
+    },
+    template: template("AAA", 2),
+  });
+  assert.equal(result.kind, "exact");
+  assert.equal(result.shortlist, undefined);
+  assert.equal(result.probabilities.uniformTopFive, 0);
 });

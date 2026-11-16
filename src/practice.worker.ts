@@ -25,6 +25,22 @@ import {
 import type { BoardTemplate, TrackedMove, TurnPosition } from "../shared/model";
 
 type ReviewJob = { position: TurnPosition; move: TrackedMove; index: number };
+type PolicyReviewJob = { key: string; input: OpponentPolicyInput };
+export type OpponentPolicyUpdate = {
+  key: string;
+  result: OpponentPolicyResult;
+};
+export type OpponentPolicyBatchResult = { reachedTimeLimit: boolean };
+type OpponentPolicyBatchMessage =
+  | {
+      progress: { completed: number; total: number };
+      update: OpponentPolicyUpdate;
+    }
+  | { result: OpponentPolicyBatchResult };
+
+const POLICY_TURN_BUDGET_MS = 1_250;
+const POLICY_BATCH_BUDGET_MS = 45_000;
+
 export type PracticeRequest =
   | { kind: "exchange"; dictionaryId: string; exchange: ExchangeRequest }
   | {
@@ -41,6 +57,11 @@ export type PracticeRequest =
       kind: "opponent-policy";
       dictionaryId: string;
       input: OpponentPolicyInput;
+    }
+  | {
+      kind: "opponent-policy-timeline";
+      dictionaryId: string;
+      turns: PolicyReviewJob[];
     }
   | { kind: "turn" | "game"; template: BoardTemplate; turns: ReviewJob[] };
 
@@ -108,6 +129,26 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
       self.postMessage({
         result: analyzeOpponentPolicy(lexicon, data.input),
       } satisfies OpponentPolicyMessage);
+      return;
+    }
+    if (data.kind === "opponent-policy-timeline") {
+      const lexicon = await dictionary(data.dictionaryId);
+      const deadline = performance.now() + POLICY_BATCH_BUDGET_MS;
+      let completed = 0;
+      for (const { key, input } of data.turns) {
+        const remaining = deadline - performance.now();
+        if (remaining <= 0) break;
+        const result = analyzeOpponentPolicy(lexicon, input, {
+          maxMs: Math.min(POLICY_TURN_BUDGET_MS, remaining),
+        });
+        self.postMessage({
+          progress: { completed: ++completed, total: data.turns.length },
+          update: { key, result },
+        } satisfies OpponentPolicyBatchMessage);
+      }
+      self.postMessage({
+        result: { reachedTimeLimit: completed < data.turns.length },
+      } satisfies OpponentPolicyBatchMessage);
       return;
     }
     const opportunities: ReviewSummary["opportunities"] = [];

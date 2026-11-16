@@ -2,13 +2,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PracticeRequest } from "../practice.worker";
 import { useGameCalculation } from "./GameCalculations";
 
-export function usePractice<Result>() {
+type Progress = { completed: number; total: number };
+type PracticeMessage<Result, Update> =
+  | { progress: Progress; update?: Update }
+  | { result: Result }
+  | { error: string };
+
+export function usePractice<Result, Update = never>(
+  onUpdate?: (update: Update) => void,
+) {
   const worker = useRef<Worker | null>(null);
   const [result, setResult] = useState<Result>();
-  const [progress, setProgress] = useState<{
-    completed: number;
-    total: number;
-  }>();
+  const [progress, setProgress] = useState<Progress>();
   const [error, setError] = useState("");
   useGameCalculation(!!progress);
   useEffect(
@@ -40,12 +45,16 @@ export function usePractice<Result>() {
           worker.current = null;
           setProgress(undefined);
         };
-        active.onmessage = ({ data }) => {
+        active.onmessage = ({
+          data,
+        }: MessageEvent<PracticeMessage<Result, Update>>) => {
           if (worker.current !== active) return;
-          if (data.progress) setProgress(data.progress);
-          else {
+          if ("progress" in data) {
+            if (data.update !== undefined) onUpdate?.(data.update);
+            setProgress(data.progress);
+          } else {
             finish();
-            if (data.error) setError(data.error);
+            if ("error" in data) setError(data.error);
             else setResult(data.result);
           }
         };
@@ -60,7 +69,7 @@ export function usePractice<Result>() {
         setError("Could not start the analysis.");
       }
     },
-    [reset],
+    [onUpdate, reset],
   );
   return { result, progress, error, run, reset };
 }
