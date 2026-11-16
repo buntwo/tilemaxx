@@ -1,10 +1,14 @@
-import type { OpponentPolicyResult } from "../../shared/opponent-policy";
+import {
+  opponentShortlistStatus,
+  type OpponentPolicyResult,
+} from "../../shared/opponent-policy";
+import {
+  SHORTLIST_FIT_THRESHOLD,
+  SHORTLIST_RANDOM_THRESHOLD,
+} from "../../shared/shortlist-confidence";
 import MoveWord from "./MoveWord";
 import type { useOpponentPolicyTimeline } from "./useOpponentPolicyTimeline";
 
-const HIGH_FIT = 0.8;
-const LOW_RANDOM_FIT = 0.25;
-const MIN_HIGHLIGHT_SAMPLES = 64;
 const percentFormatter = new Intl.NumberFormat(undefined, {
   style: "percent",
   maximumFractionDigits: 1,
@@ -12,16 +16,6 @@ const percentFormatter = new Intl.NumberFormat(undefined, {
 
 function percent(value: number) {
   return value > 0 && value < 0.001 ? "<0.1%" : percentFormatter.format(value);
-}
-
-function highFit(result: OpponentPolicyResult | undefined) {
-  if (!result || result.kind === "unavailable" || !result.shortlist)
-    return false;
-  return (
-    (result.kind === "exact" || result.samples >= MIN_HIGHLIGHT_SAMPLES) &&
-    result.shortlist.fit >= HIGH_FIT &&
-    result.shortlist.random <= LOW_RANDOM_FIT
-  );
 }
 
 function fitText(result: OpponentPolicyResult) {
@@ -51,7 +45,9 @@ export default function OpponentPolicyTimeline({
     cancel,
   } = timeline;
   const checked = turns.filter(({ key }) => results[key]).length;
-  const high = turns.filter(({ key }) => highFit(results[key])).length;
+  const high = turns.filter(
+    ({ key }) => opponentShortlistStatus(results[key]) === "high",
+  ).length;
   return (
     <section
       className="policy-fit practice-body"
@@ -64,8 +60,9 @@ export default function OpponentPolicyTimeline({
         of legal placements make that shortlist.
       </p>
       <p>
-        Highlights mark at least 80% fit when the shortlist covers at most 25%
-        of legal placements. Use them to spot stretches worth reviewing.
+        Highlights require at least {percent(SHORTLIST_FIT_THRESHOLD)} fit and
+        at most {percent(SHORTLIST_RANDOM_THRESHOLD)} Random. Borderline means
+        the sampled ranges still leave a highlight in question.
       </p>
       {progress ? (
         <div className="policy-timeline-controls">
@@ -118,7 +115,8 @@ export default function OpponentPolicyTimeline({
         <tbody>
           {turns.map(({ key, move, index, input, bingo }) => {
             const result = results[key];
-            const highlight = highFit(result);
+            const status = opponentShortlistStatus(result);
+            const highlight = status === "high";
             const shortlist =
               result && result.kind !== "unavailable"
                 ? result.shortlist
@@ -153,10 +151,7 @@ export default function OpponentPolicyTimeline({
                 <td>
                   <span>{fit}</span>
                   {highlight && <strong>High fit</strong>}
-                  {result?.kind === "sampled" &&
-                    result.samples < MIN_HIGHLIGHT_SAMPLES && (
-                      <small>{result.samples} samples</small>
-                    )}
+                  {status === "borderline" && <small>Borderline</small>}
                 </td>
                 <td>
                   {shortlist

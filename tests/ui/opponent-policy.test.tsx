@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { emptyBoard, type Game, type TrackedMove } from "../../shared/model";
 import type { OpponentPolicyResult } from "../../shared/opponent-policy";
+import { shortlistConfidence } from "../../shared/shortlist-confidence";
 import { PRESETS } from "../../shared/presets";
 import TurnReview from "../../src/components/TurnReview";
 import type { PracticeRequest } from "../../src/practice.worker";
@@ -79,15 +80,14 @@ function start(label = "Analyze all opponent turns") {
   return { worker, job: worker.postMessage.mock.calls[0][0] as Batch };
 }
 
-function fit(random: number): OpponentPolicyResult {
+function fit(random: number) {
   return {
     kind: "exact",
     probabilities: { topOne: 0.5, uniformTopFive: 0.2, weightedTopFive: 0.25 },
     shortlist: { fit: 1, random },
     rack: { source: "board", rackSize: 7, unseen: 97 },
     samples: 0,
-    sampleTarget: 0,
-  };
+  } satisfies OpponentPolicyResult;
 }
 
 test("the timeline streams in order, keeps finished turns after cancellation and opens their saved detail", () => {
@@ -146,4 +146,37 @@ test("changing the word list cancels a batch and discards its stale results", ()
   const next = start();
   expect(next.job.dictionaryId).toBe("other");
   expect(next.job.turns).toHaveLength(2);
+});
+
+test("sampled turns stay borderline until the bounds support a highlight", () => {
+  setup();
+  const { worker, job } = start();
+  const samples = 512;
+  const shortlist = { fit: 0.82, random: 0.1 };
+  worker.returnTurn(job, 0, {
+    ...fit(shortlist.random),
+    kind: "sampled",
+    samples,
+    shortlist,
+    confidence: shortlistConfidence(shortlist, samples),
+    limited: true,
+  });
+  const table = within(
+    screen.getByRole("table", { name: "Opponent moves by turn" }),
+  );
+  expect(table.getAllByRole("columnheader").at(-1)?.textContent).toBe("Random");
+  expect(table.getByText("≈82%")).toBeTruthy();
+  expect(table.getByText("Borderline")).toBeTruthy();
+  expect(table.queryByText("High fit")).toBeNull();
+
+  fireEvent.click(table.getByRole("button", { name: "1 · AT" }));
+  const detail = within(
+    screen.getByRole("region", { name: "Opponent policy fit" }),
+  );
+  expect(
+    detail.getByText(/95% sampling ranges at 512 rack samples/),
+  ).toBeTruthy();
+  expect(
+    detail.getByRole("button", { name: "Retry with more time" }),
+  ).toBeTruthy();
 });

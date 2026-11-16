@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 import {
   OPPONENT_POLICY_LABELS,
+  opponentShortlistStatus,
   type OpponentPolicyInput,
   type OpponentPolicyResult,
   type PolicyProbabilities,
 } from "../../shared/opponent-policy";
+import { SHORTLIST_SAMPLE_CHECKPOINTS } from "../../shared/shortlist-confidence";
 import { usePractice } from "./usePractice";
 
 function describeRack(
@@ -24,6 +26,15 @@ function displayProbability(value: number, exact: boolean) {
     style: "percent",
     maximumSignificantDigits: 3,
   }).format(value);
+}
+
+const boundPercent = new Intl.NumberFormat(undefined, {
+  style: "percent",
+  maximumFractionDigits: 1,
+});
+
+function displayRange({ lower, upper }: { lower: number; upper: number }) {
+  return `${boundPercent.format(Math.floor(lower * 1000) / 1000)}–${boundPercent.format(Math.ceil(upper * 1000) / 1000)}`;
 }
 
 export default function OpponentPolicyReview({
@@ -56,11 +67,8 @@ export default function OpponentPolicyReview({
         ? displayed.reason
         : undefined;
   const finding = displayed?.higherScoringPlacement;
-  const refine =
-    displayed?.kind === "unavailable"
-      ? displayed.limited
-      : displayed?.kind === "sampled" &&
-        displayed.samples < displayed.sampleTarget;
+  const refine = displayed?.limited;
+  const borderline = opponentShortlistStatus(displayed) === "borderline";
   const waiting = queued && !displayed && !!input;
 
   return (
@@ -103,9 +111,7 @@ export default function OpponentPolicyReview({
             {displayed.kind === "exact"
               ? "Exact calculation. "
               : `Estimated from ${displayed.samples.toLocaleString()} completed rack samples that could supply the played tiles. `}
-            {displayed.kind === "sampled" &&
-              displayed.samples < displayed.sampleTarget &&
-              "The search limit was reached. "}
+            {displayed.limited && "The search limit was reached. "}
             {describeRack(displayed.rack)}
           </p>
           {displayed.shortlist ? (
@@ -130,6 +136,23 @@ export default function OpponentPolicyReview({
               No possible rack could supply the recorded tiles under these
               assumptions.
             </p>
+          )}
+          {displayed.confidence ? (
+            <p>
+              {borderline && <strong>Borderline. </strong>}
+              95% sampling ranges at{" "}
+              {displayed.confidence.samples.toLocaleString()} rack samples. Top
+              5 fit {displayRange(displayed.confidence.fit)} · Random{" "}
+              {displayRange(displayed.confidence.random)}.
+            </p>
+          ) : (
+            borderline && (
+              <p>
+                <strong>Borderline. </strong>
+                The first confidence check needs{" "}
+                {SHORTLIST_SAMPLE_CHECKPOINTS[0]} samples.
+              </p>
+            )
           )}
           <p>
             Chance each policy would choose this exact placement under the rack
