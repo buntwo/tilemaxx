@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { isBingo, type Game } from "../../shared/model";
+import { isBingo, type Game, type Player } from "../../shared/model";
 import type {
   OpponentPolicyInput,
   OpponentPolicyResult,
@@ -11,21 +11,26 @@ import type {
 } from "../practice.worker";
 import { usePractice } from "./usePractice";
 
-export function useOpponentPolicyTimeline(
+export function usePolicyTimeline(
   game: Pick<Game, "template" | "dictionaryId">,
   turns: ReturnType<typeof reviewTurns>,
+  player: Player,
 ) {
   const { template, dictionaryId } = game;
-  const opponentTurns = useMemo(
+  const policyTurns = useMemo(
     () =>
       turns.flatMap(({ move, index, position }) => {
-        if (move.player !== "opponent") return [];
+        if (move.player !== player) return [];
         const input: OpponentPolicyInput | undefined = position?.tiles.length
           ? {
               position: {
                 board: position.board,
                 tiles: position.tiles,
-                observerRack: position.observerRack,
+                // The recorded observer rack belongs to us. Our own policy
+                // review gives the opponent only the board and played tiles.
+                ...(player === "opponent" && {
+                  observerRack: position.observerRack,
+                }),
               },
               template: position.premiums
                 ? { ...template, premiums: position.premiums }
@@ -39,7 +44,7 @@ export function useOpponentPolicyTimeline(
           (!!position && isBingo(template, position.tiles.length));
         return [{ move, index, input, key, bingo }];
       }),
-    [turns, template, dictionaryId],
+    [turns, template, dictionaryId, player],
   );
   const [results, setResults] = useState<Record<string, OpponentPolicyResult>>(
     {},
@@ -70,16 +75,17 @@ export function useOpponentPolicyTimeline(
   >(update);
   // Keep results attached to their exact inputs and stop a batch of stale jobs.
   const timelineKey = useMemo(
-    () => JSON.stringify(opponentTurns.map(({ key }) => key)),
-    [opponentTurns],
+    () => JSON.stringify(policyTurns.map(({ key }) => key)),
+    [policyTurns],
   );
   useEffect(reset, [timelineKey, reset]);
 
-  const remaining = opponentTurns.flatMap(({ key, input }) =>
+  const remaining = policyTurns.flatMap(({ key, input }) =>
     input && !results[key] ? [{ key, input }] : [],
   );
   return {
-    turns: opponentTurns,
+    player,
+    turns: policyTurns,
     results,
     saveResult,
     progress,

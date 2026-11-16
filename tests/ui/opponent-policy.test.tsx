@@ -29,11 +29,11 @@ class TimelineWorker {
   }
 }
 
-function setup() {
+function setup(index: number | null = null) {
   TimelineWorker.instances = [];
   vi.stubGlobal("Worker", TimelineWorker);
   const template = PRESETS[0];
-  const opponentMove = (word: string, score: number): TrackedMove => ({
+  const placement = (word: string, score: number): TrackedMove => ({
     word,
     score,
     player: "opponent",
@@ -42,12 +42,14 @@ function setup() {
     review: {
       board: emptyBoard(15),
       dictionaryId: "test",
+      observerRack: "AEINRST",
       tiles: [...word].map((letter, index) => ({
         index: template.start + index,
         letter,
       })),
     },
   });
+  const ownMove = placement("TO", 6);
   const game: Game = {
     id: "timeline",
     profileId: "p",
@@ -62,14 +64,18 @@ function setup() {
     updatedAt: "",
     archived: false,
     trackedMoves: [
-      opponentMove("AT", 4),
-      { player: "you", word: "TO", score: 6, bingo: false, at: "2026-11-16" },
-      opponentMove("OX", 18),
-      { ...opponentMove("TEA", 6), review: undefined },
+      placement("AT", 4),
+      {
+        ...ownMove,
+        player: "you",
+        review: { ...ownMove.review!, rack: "TOABCDE" },
+      },
+      placement("OX", 18),
+      { ...placement("TEA", 6), review: undefined },
     ],
   };
   const review = (current = game) => (
-    <TurnReview game={current} index={null} onClose={() => {}} />
+    <TurnReview game={current} index={index} onClose={() => {}} />
   );
   return { game, review, ...render(review()) };
 }
@@ -197,5 +203,81 @@ test("sampled turns stay borderline until the bounds support a highlight", () =>
   ).toBeTruthy();
   expect(
     detail.getByRole("button", { name: "Retry with more time" }),
+  ).toBeTruthy();
+});
+
+test("the two perspectives use the same analysis and keep their turns and results separate", () => {
+  setup();
+  const opponent = start();
+  expect(opponent.job.turns[0].input.position.observerRack).toBe("AEINRST");
+  opponent.worker.returnTurn(opponent.job, 0, fit(0.2));
+
+  fireEvent.click(screen.getByRole("button", { name: "Your plays" }));
+  const ownTable = within(
+    screen.getByRole("table", { name: "Your moves by turn" }),
+  );
+  expect(
+    ownTable.getAllByRole("rowheader").map((row) => row.textContent),
+  ).toEqual(["2 · TO"]);
+  expect(
+    screen.queryByRole("table", { name: "Opponent moves by turn" }),
+  ).toBeNull();
+  expect(screen.queryByText("High fit")).toBeNull();
+  expect(opponent.worker.terminate).not.toHaveBeenCalled();
+
+  const own = start("Analyze all your turns");
+  expect(own.job.kind).toBe(opponent.job.kind);
+  expect(own.job.turns).toHaveLength(1);
+  const [{ input }] = own.job.turns;
+  expect(input.word).toBe("TO");
+  expect(Object.keys(input.position).sort()).toEqual(["board", "tiles"]);
+  own.worker.returnTurn(own.job, 0, fit(0.2));
+
+  fireEvent.click(ownTable.getByRole("button", { name: "2 · TO" }));
+  const detail = within(
+    screen.getByRole("region", { name: "Your policy fit" }),
+  );
+  expect(
+    detail.getByText(/The opponent’s rack at this turn is unknown/),
+  ).toBeTruthy();
+  expect(detail.getAllByText("Score-weighted top 5")).toHaveLength(2);
+  expect(detail.queryByText("TOABCDE")).toBeNull();
+  expect(screen.getByText("TOABCDE")).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: "Back to game review" }));
+  expect(
+    screen
+      .getByRole("button", { name: "Your plays" })
+      .getAttribute("aria-pressed"),
+  ).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: "Opponent plays" }));
+  expect(
+    screen.queryByRole("table", { name: "Your moves by turn" }),
+  ).toBeNull();
+  expect(
+    screen.getByRole("table", { name: "Opponent moves by turn" }),
+  ).toBeTruthy();
+  expect(screen.getByText("High fit")).toBeTruthy();
+  expect(screen.getByText("Checked 1 of 2 turns in this batch.")).toBeTruthy();
+});
+
+test("reviewing one of your moves directly uses the opponent’s view and returns to your timeline", () => {
+  setup(1);
+  const detail = within(
+    screen.getByRole("region", { name: "Your policy fit" }),
+  );
+  fireEvent.click(detail.getByRole("button", { name: "Analyze policy fit" }));
+  const worker = TimelineWorker.instances.at(-1)!;
+  const [request] = worker.postMessage.mock.calls[0];
+  expect(request.kind).toBe("opponent-policy");
+  if (request.kind !== "opponent-policy")
+    throw new Error("Expected a policy job");
+  expect(Object.keys(request.input.position).sort()).toEqual([
+    "board",
+    "tiles",
+  ]);
+  fireEvent.click(screen.getByRole("button", { name: "Back to game review" }));
+  expect(
+    screen.getByRole("table", { name: "Your moves by turn" }),
   ).toBeTruthy();
 });

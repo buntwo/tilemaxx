@@ -6,15 +6,16 @@ import {
   type BingoRules,
   type Game,
   type Move,
+  type Player,
 } from "../../shared/model";
 import { reviewTurns, type ReviewSummary } from "../../shared/turn-review";
 import { scoreTone } from "../score-tone";
 import Board from "./Board";
 import Modal from "./Modal";
 import MoveWord from "./MoveWord";
-import OpponentPolicyReview from "./OpponentPolicyReview";
-import OpponentPolicyTimeline from "./OpponentPolicyTimeline";
-import { useOpponentPolicyTimeline } from "./useOpponentPolicyTimeline";
+import PolicyReview from "./PolicyReview";
+import PolicyTimeline from "./PolicyTimeline";
+import { usePolicyTimeline } from "./usePolicyTimeline";
 import ScoreBreakdown from "./ScoreBreakdown";
 import { usePractice } from "./usePractice";
 
@@ -39,6 +40,13 @@ export default function TurnReview({
 }) {
   const turns = useMemo(() => reviewTurns(game), [game]);
   const [selected, setSelected] = useState(index);
+  const [policyPlayer, setPolicyPlayer] = useState<Player>(
+    () =>
+      (index === null ? undefined : turns[index]?.move.player) ??
+      (turns.some(({ move }) => move.player === "opponent")
+        ? "opponent"
+        : "you"),
+  );
   const [preview, setPreview] = useState<Move>();
   const { result, progress, error, run, reset } = usePractice<
     Move[] | ReviewSummary
@@ -51,8 +59,12 @@ export default function TurnReview({
   const eligible = turns.flatMap(({ position, move, index }) =>
     position?.rack && move.player === "you" ? [{ position, move, index }] : [],
   );
-  const timeline = useOpponentPolicyTimeline(game, turns);
-  const opponentTurn = timeline.turns.find(({ index }) => index === selected);
+  const timelines = {
+    you: usePolicyTimeline(game, turns, "you"),
+    opponent: usePolicyTimeline(game, turns, "opponent"),
+  };
+  const timeline = timelines[turn?.move.player ?? policyPlayer];
+  const policyTurn = timeline.turns.find(({ index }) => index === selected);
   const alternatives = Array.isArray(result) ? result : undefined;
   const summary = result && !Array.isArray(result) ? result : undefined;
   const tiles = preview?.tiles ?? position?.tiles;
@@ -85,6 +97,8 @@ export default function TurnReview({
     }
   }, [selected]);
   function choose(index: number | null) {
+    const nextTurn = index === null ? turn : turns[index];
+    if (nextTurn) setPolicyPlayer(nextTurn.move.player);
     if (index === null) returnToTurn.current = selected;
     reset();
     setPreview(undefined);
@@ -121,13 +135,14 @@ export default function TurnReview({
               {turn.move.score} recorded pts
               {turnBingo(turn, template) ? " · Bingo" : ""}
             </p>
-            {opponentTurn && (
-              <OpponentPolicyReview
-                key={opponentTurn.key}
-                analysisKey={opponentTurn.key}
+            {policyTurn && (
+              <PolicyReview
+                key={policyTurn.key}
+                player={timeline.player}
+                analysisKey={policyTurn.key}
                 dictionaryId={game.dictionaryId}
-                input={opponentTurn.input}
-                savedResult={timeline.results[opponentTurn.key]}
+                input={policyTurn.input}
+                savedResult={timeline.results[policyTurn.key]}
                 saveResult={timeline.saveResult}
                 queued={!!timeline.progress}
               />
@@ -216,8 +231,12 @@ export default function TurnReview({
           </>
         ) : (
           <>
-            {!!timeline.turns.length && (
-              <OpponentPolicyTimeline timeline={timeline} onSelect={choose} />
+            {!!turns.length && (
+              <PolicyTimeline
+                timeline={timeline}
+                onSelect={choose}
+                onPlayerChange={setPolicyPlayer}
+              />
             )}
             <p>
               {eligible.length} of{" "}

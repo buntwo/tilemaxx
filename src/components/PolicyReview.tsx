@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import type { Player } from "../../shared/model";
 import {
   OPPONENT_POLICY_LABELS,
   opponentShortlistStatus,
@@ -11,13 +12,15 @@ import { usePractice } from "./usePractice";
 
 function describeRack(
   rack: Extract<OpponentPolicyResult, { rack: unknown }>["rack"],
+  player: Player,
 ) {
+  const observer = player === "you" ? "the opponent’s" : "your";
   if (rack.source === "exact")
-    return `Exact opponent rack ${rack.opponentRack || "(empty)"} inferred from the board and your recorded rack ${rack.observerRack}. The remaining tiles fit on the opponent’s rack.`;
+    return `${player === "you" ? "Your exact rack" : "Exact opponent rack"} ${rack.opponentRack || "(empty)"} inferred from the board and ${observer} recorded rack ${rack.observerRack}.`;
   const draw = `${rack.rackSize} of ${rack.unseen} unseen tiles drawn without replacement.`;
   return rack.source === "observer"
-    ? `Board and your recorded rack ${rack.observerRack} excluded. ${draw}`
-    : `Board-only prior. Your rack at this turn is unknown. ${draw}`;
+    ? `Board and ${observer} recorded rack ${rack.observerRack} excluded. ${draw}`
+    : `Board-only prior. ${player === "you" ? "The opponent’s" : "Your"} rack at this turn is unknown. ${draw}`;
 }
 
 function displayProbability(value: number, exact: boolean) {
@@ -65,7 +68,8 @@ function displayRange({ lower, upper }: { lower: number; upper: number }) {
   return `${boundPercent.format(Math.floor(lower * 1000) / 1000)}–${boundPercent.format(Math.ceil(upper * 1000) / 1000)}`;
 }
 
-export default function OpponentPolicyReview({
+export default function PolicyReview({
+  player,
   input,
   dictionaryId,
   analysisKey,
@@ -73,6 +77,7 @@ export default function OpponentPolicyReview({
   saveResult,
   queued,
 }: {
+  player: Player;
   input?: OpponentPolicyInput;
   dictionaryId: string;
   analysisKey: string;
@@ -98,13 +103,16 @@ export default function OpponentPolicyReview({
   const refine = displayed?.limited;
   const borderline = opponentShortlistStatus(displayed) === "borderline";
   const waiting = queued && !displayed && !!input;
+  const title = player === "you" ? "Your policy fit" : "Opponent policy fit";
 
   return (
-    <section
-      className="policy-fit practice-body"
-      aria-label="Opponent policy fit"
-    >
-      <h3>Opponent policy fit</h3>
+    <section className="policy-fit practice-body" aria-label={title}>
+      <h3>{title}</h3>
+      {player === "you" && (
+        <p>
+          Opponent’s view. Estimates use the board and the tiles you played.
+        </p>
+      )}
       {waiting && <p role="status">Queued in timeline analysis.</p>}
       {input &&
         !waiting &&
@@ -121,7 +129,7 @@ export default function OpponentPolicyReview({
         )}
       {progress && (
         <>
-          <p role="status">Checking possible opponent racks…</p>
+          <p role="status">Checking compatible racks…</p>
           <button className="button secondary" onClick={reset}>
             Cancel policy analysis
           </button>
@@ -140,7 +148,7 @@ export default function OpponentPolicyReview({
               ? "Exact calculation. "
               : `Estimated from ${displayed.samples.toLocaleString()} completed rack samples that could supply the played tiles. `}
             {displayed.limited && "The search limit was reached. "}
-            {describeRack(displayed.rack)}
+            {describeRack(displayed.rack, player)}
           </p>
           {displayed.shortlist ? (
             <p>
