@@ -3233,7 +3233,8 @@ test("the version shows an available update when automatic updates are off", asy
   remote.version = `${major}.${minor}.${patch + 1}`;
   await act(() => store.refresh());
   expect(updateIcon()?.parentElement).toBe(screen.getByText(`v${version}`));
-  expect(updateIcon()?.getAttribute("title")).toBe(`Update available · v${remote.version}`);
+  expect(updateIcon()?.textContent?.trim()).toBe(`Update available · v${remote.version}`);
+  expect(updateIcon()?.tabIndex).toBe(0);
 
   await user.click(cell("Settings"));
   await user.click(autoUpdate());

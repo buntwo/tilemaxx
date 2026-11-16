@@ -881,9 +881,12 @@ function Tilemaxx() {
                     className="app-update-icon"
                     role="img"
                     aria-label={`Update available · v${availableUpdate}`}
-                    title={`Update available · v${availableUpdate}`}
+                    tabIndex={0}
                   >
                     <CircleArrowUp size={14} aria-hidden="true" />
+                    <span className="app-update-tooltip" aria-hidden="true">
+                      Update available · v{availableUpdate}
+                    </span>
                   </span>
                 )}
               </span>
