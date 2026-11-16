@@ -28,7 +28,11 @@ export default function ScreenshotImport({
   onClose,
 }: {
   template: BoardTemplate;
-  onApply: (board: BoardState, premiums?: Premium[]) => void;
+  onApply: (
+    board: BoardState,
+    premiums?: Premium[],
+    clearBoard?: boolean,
+  ) => void;
   onClose: () => void;
 }) {
   const [detected, setDetected] = useState(false);
@@ -45,6 +49,7 @@ export default function ScreenshotImport({
     [selected, setSelected] = useState<number | null>(null);
   const [premiumMode, setPremiumMode] = useState(false);
   const [includePremiums, setIncludePremiums] = useState(false);
+  const [clearBoard, setClearBoard] = useState(true);
   const [squares, setSquares] = useState<(Premium | null)[]>([]);
   const [layout, setLayout] = useState<"fixed" | "visible">("visible");
   const [selection, setSelection] = useState<{ index: number }>();
@@ -187,6 +192,7 @@ export default function ScreenshotImport({
     setPremiumMode(false);
     const detected = recognized.premiums;
     setIncludePremiums(!!detected);
+    setClearBoard(true);
     setLayout(detected?.fixed ? "fixed" : "visible");
     setSquares(premiumSquares(recognized, !!detected?.fixed));
     setSelection({ index: recognized.uncertain[0] ?? template.start });
@@ -436,6 +442,16 @@ export default function ScreenshotImport({
             />
             Import premium squares
           </label>
+          {includePremiums && (
+            <label className="checkbox import-clear-board">
+              <input
+                type="checkbox"
+                checked={clearBoard}
+                onChange={(event) => setClearBoard(event.target.checked)}
+              />
+              Clear board and start score tracking
+            </label>
+          )}
           {includePremiums &&
             result.premiums?.style === "wordfeud" &&
             template.rules !== "wordfeud" && (
@@ -661,6 +677,7 @@ export default function ScreenshotImport({
                     onApply(
                       result.board,
                       squares.map((square) => square ?? ""),
+                      clearBoard,
                     );
                   else onApply(result.board);
                 } catch (err) {

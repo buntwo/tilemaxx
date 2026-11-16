@@ -1,5 +1,4 @@
 import {
-  BOARD_EDIT_LABELS,
   applyMove,
   archiveGame,
   bingoPoints,
@@ -25,6 +24,17 @@ import {
 } from "./model";
 import { rackLetters, rackSlotsForMove } from "./rack-entry";
 import { unseenTiles } from "./tile-pool";
+import {
+  boardEditLabels,
+  historyPremiums,
+  IMPORTED_SCREENSHOT,
+  REBUILT_SCORES,
+  recoverUntrackedMoves,
+  retainsTiles,
+  splitOpponentTurns,
+  type PendingOpponentTurn,
+  type PendingOpponentTurns,
+} from "./score-recovery";
 
 export function emptyScoring(imported = false): GameScoring {
   const score = { points: 0, moves: 0, best: 0, bingos: 0 };
@@ -34,7 +44,7 @@ export function emptyScoring(imported = false): GameScoring {
 export function isImportedPosition(game: Game): boolean {
   return (
     game.scoring?.imported ??
-    game.past.some((entry) => entry.label === "Imported screenshot")
+    game.past.some((entry) => entry.label === IMPORTED_SCREENSHOT)
   );
 }
 
@@ -55,7 +65,8 @@ export function gameScoreTotals(scoring: GameScoring | undefined) {
 
 export function displayedGameScoring(game: Game): GameScoring | undefined {
   const archivedScore = game.archived ? game.archivedState?.scoring : undefined;
-  return archivedScore?.end ? archivedScore : game.scoring;
+  const end = archivedScore?.end;
+  return end && ("out" in end || end.scores) ? archivedScore : game.scoring;
 }
 
 export type GameScoreSummary = {
@@ -70,7 +81,11 @@ export function summarizeGameScore(
 ): GameScoreSummary | null {
   const end = scoring?.end;
   const manual = end && "manual" in end ? end : undefined;
-  if (manual ? !manual.scores : !tracksScores(game)) return null;
+  if (
+    manual?.scores === undefined &&
+    (!tracksScores(game) || scoring?.incomplete || manual)
+  )
+    return null;
   const { you, opponent } = gameScoreTotals(scoring);
   const outcome =
     manual?.outcome ??
@@ -87,16 +102,34 @@ export function summarizeGameScore(
 }
 
 export function setScoreTracking(game: Game, enabled: boolean): Game {
+  if (tracksScores(game) === enabled) return game;
+  const history = remember(
+    game,
+    enabled ? REBUILT_SCORES : "Paused score tracking",
+  );
+  const moves = trackedMoveHistory(game);
+  const last = history.past.length - 1;
+  history.past[last] = {
+    ...history.past[last],
+    trackScores: game.trackScores !== false,
+    trackedMoves: moves,
+  };
   const scoring = game.scoring ?? emptyScoring(isImportedPosition(game));
-  return {
-    ...game,
-    trackScores: enabled,
+  const toggled = { ...game, ...history, trackScores: enabled };
+  if (!enabled)
+    return { ...toggled, scoring: { ...scoring, pendingBase: undefined } };
+
+  const rebuilt = rebuildScoreHistory(game, moves);
+  const result = {
+    ...toggled,
+    trackedMoves: rebuilt.moves,
     scoring: {
-      ...scoring,
-      imported: enabled ? false : scoring.imported,
+      ...rebuilt.scoring,
+      imported: false,
       pendingBase: undefined,
     },
   };
+  return result.scoring.incomplete ? result : backfillGameResult(result);
 }
 
 export function trackBoardEdit(
@@ -244,14 +277,7 @@ export function scorePlacement(
 
 export function reviewTurns(game: Game) {
   const used = new Set<number>();
-  let premiums = game.template.premiums;
-  const historicalPremiums = [...game.past]
-    .reverse()
-    .map((entry) => {
-      premiums = entry.premiums ?? premiums;
-      return premiums;
-    })
-    .reverse();
+  const historicalPremiums = historyPremiums(game);
   return trackedMoveHistory(game).map((move, index) => {
     const snapshot = move.review;
     if (snapshot && (move.player === "opponent" || snapshot.excludedRackSlots))
@@ -583,7 +609,7 @@ export function pendingOpponentPlay(game: Game) {
 
 export function scoreTotalsAtPosition(game: Game) {
   const scoring = game.scoring;
-  if (!scoring || !tracksScores(game)) return;
+  if (!scoring || !tracksScores(game) || scoring.incomplete) return;
   const pending = pendingOpponentTurns(game);
   if (scoring.pendingBase && !pending.length) return;
   return {
@@ -654,8 +680,6 @@ export function recordOpponentRackOut(game: Game) {
   return end ? recordOpponentPlay(game, end) : game;
 }
 
-const boardEditLabels = new Set<string>(Object.values(BOARD_EDIT_LABELS));
-
 function opponentEntryStart(game: Game, base: Board): number | undefined {
   for (let i = game.past.length - 1; i >= 0; i--) {
     const entry = game.past[i];
@@ -682,17 +706,6 @@ function opponentEntryStart(game: Game, base: Board): number | undefined {
   }
 }
 
-type PendingOpponentTurn = {
-  base: Board;
-  board: Board;
-  play: NonNullable<ReturnType<typeof scorePlacement>>;
-};
-
-type PendingOpponentTurns =
-  | []
-  | [PendingOpponentTurn]
-  | [PendingOpponentTurn, PendingOpponentTurn & { split: number }];
-
 export function pendingOpponentTurns(game: Game): PendingOpponentTurns {
   const base = game.scoring?.pendingBase;
   if (!base || !tracksScores(game)) return [];
@@ -704,25 +717,7 @@ export function pendingOpponentTurns(game: Game): PendingOpponentTurns {
   // at a saved entry boundary, with additive edits and a unique order of play.
   const start = opponentEntryStart(game, base);
   if (start === undefined) return [];
-  for (let i = start; i < past.length; i++) {
-    const after = past[i + 1]?.board ?? board;
-    if (past[i].board.some((tile, cell) => tile && tile !== after[cell]))
-      return [];
-  }
-  let turns: PendingOpponentTurns = [];
-  for (let split = start + 1; split < past.length; split++) {
-    const between = past[split].board;
-    const first = scorePlacement(base, between, template);
-    if (!first) continue;
-    const second = scorePlacement(between, board, template);
-    if (!second) continue;
-    if (turns.length) return [];
-    turns = [
-      { base, board: between, play: first },
-      { base: between, board, play: second, split },
-    ];
-  }
-  return turns;
+  return splitOpponentTurns(scorePlacement, base, board, template, past, start);
 }
 
 function addScore(
@@ -885,6 +880,7 @@ function recoverFinishedPosition(game: Game): Game {
   if (
     !scoring ||
     scoring.end ||
+    scoring.incomplete ||
     !tracksScores(game) ||
     game.template.rules === "crossplay"
   )
@@ -965,6 +961,12 @@ export function correctTrackedMove(
 
   // A screenshot import or clearing the board resets the score while retaining the log.
   const scoring = updateScoreTotals(game, moves, next, index);
+  if (
+    insert &&
+    scoring.historyStart !== undefined &&
+    index < scoring.historyStart
+  )
+    scoring.historyStart++;
   const history = remember(
     game,
     insert ? "Added missed move" : "Corrected tracked move",
@@ -976,9 +978,66 @@ export function correctTrackedMove(
 
 function currentScoreStart(game: Game, moves: readonly TrackedMove[]) {
   const { scoring } = game;
+  if (scoring?.historyStart !== undefined && !scoring.imported)
+    return scoring.historyStart;
   return scoring
     ? Math.max(0, moves.length - scoring.you.moves - scoring.opponent.moves)
     : 0;
+}
+
+export function resetGameScoring(
+  game: Game,
+  importedBoard?: Board,
+): GameScoring {
+  const moves = trackedMoveHistory(game);
+  const retainsBoard = importedBoard && retainsTiles(game.board, importedBoard);
+  return {
+    ...emptyScoring(!!importedBoard),
+    historyStart: retainsBoard
+      ? (game.scoring?.historyStart ?? currentScoreStart(game, moves))
+      : moves.length,
+    incomplete:
+      importedBoard &&
+      ((retainsBoard && game.scoring?.incomplete) ||
+        importedBoard.some(
+          (tile, i) => !!tile && (!retainsBoard || !game.board[i]),
+        )),
+  };
+}
+
+function rebuildScoreHistory(game: Game, saved: TrackedMove[]) {
+  const counted = currentScoreStart(game, saved);
+  const { moves, incomplete, start } = recoverUntrackedMoves(
+    scorePlacement,
+    game,
+    saved,
+    counted,
+  );
+  const scoring = {
+    ...(game.scoring ?? emptyScoring()),
+    historyStart: start,
+    incomplete: incomplete || undefined,
+  };
+  for (const player of ["you", "opponent"] as const) {
+    const old = summarizeMoves(
+      saved.slice(counted).filter((move) => move.player === player),
+    );
+    const next = summarizeMoves(
+      moves.slice(start).filter((move) => move.player === player),
+    );
+    const previous = scoring[player];
+    // Some old saves have totals for turns whose entries aged out of undo.
+    scoring[player] =
+      previous.moves > old.moves
+        ? {
+            points: previous.points - old.points + next.points,
+            moves: previous.moves - old.moves + next.moves,
+            best: Math.max(previous.best, next.best),
+            bingos: previous.bingos - old.bingos + next.bingos,
+          }
+        : next;
+  }
+  return { moves, scoring };
 }
 
 function updateScoreTotals(

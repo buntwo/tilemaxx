@@ -3120,6 +3120,48 @@ test.each(["phone", "desktop"])("%s square selection filters moves without editi
   expect(document.querySelector(".board-entry .move-filter-square")).toBeNull();
 });
 
+test("turning tracking on after a screenshot restores the saved move scores", async () => {
+  const initial = game();
+  const lexicon = new Lexicon(["CAT"]);
+  const rack = "CAT";
+  const move = solve(lexicon, initial.board, rack, initial.template)[0];
+  const placed = [...initial.board];
+  for (const tile of move.tiles) placed[tile.index] = tile.letter;
+  remote.games[0] = importBoard(
+    {
+      ...initial,
+      revision: initial.revision + 1,
+      board: placed,
+      past: [
+        {
+          board: initial.board,
+          rack,
+          label: "CAT",
+          score: move.score,
+          at: "2026-11-12T01:30:00.000Z",
+        },
+      ],
+    },
+    placed,
+  );
+  const user = await start();
+  const scores = within(screen.getByRole("region", { name: "Game scores" }));
+  await scores.findByText(/recover scores from saved moves/);
+  const tracking = scores.getByRole("checkbox", { name: "Track scores" });
+  expect(tracking).toHaveProperty("checked", false);
+  await user.click(tracking);
+  expect(tracking).toHaveProperty("checked", true);
+  expect(scores.getByText(/1 move/)).toBeTruthy();
+  await user.click(scores.getByText("Tracked move history"));
+  expect(scores.getByRole("button", { name: "Review move 1: CAT" })).toBeTruthy();
+  await waitFor(() => expect(remote.games[0].scoring?.you.points).toBe(move.score));
+  await user.click(screen.getByRole("button", { name: "Undo" }));
+  expect(tracking).toHaveProperty("checked", false);
+  await user.click(screen.getByRole("button", { name: "Redo" }));
+  expect(tracking).toHaveProperty("checked", true);
+  expect(scores.getByRole("button", { name: "Review move 1: CAT" })).toBeTruthy();
+});
+
 test("score tracking records typed opponent moves and solver plays across undo, redo and saving", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === "(min-width: 1000px)" || query === "(any-hover: hover)",

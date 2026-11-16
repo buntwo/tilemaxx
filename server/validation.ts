@@ -115,6 +115,8 @@ const scoringSchema = z.object({
   opponent: score,
   pendingBase: z.array(cell).max(625).optional(),
   imported: z.boolean().optional(),
+  historyStart: z.number().int().nonnegative().optional(),
+  incomplete: z.boolean().optional(),
   end: z
     .union([
       z.object({
@@ -176,6 +178,7 @@ const historySchema = z.object({
   score: z.number().optional(),
   bingo: z.boolean().optional(),
   player: z.enum(["you", "opponent"]).optional(),
+  trackScores: z.boolean().optional(),
   scoring: scoringSchema.optional(),
   trackedMoves,
   review,

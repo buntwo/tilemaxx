@@ -128,6 +128,11 @@ test("confirming a marked square advances, wraps, and preserves the recognized l
   expect(screen.getByLabelText("Screenshot tile I8")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Use this board" }));
   expect(onApply).toHaveBeenCalledWith(board);
+  expect(
+    screen.queryByRole("checkbox", {
+      name: "Clear board and start score tracking",
+    }),
+  ).toBeNull();
 });
 test("recognition errors leave import unapplied and allow retry", async () => {
   vi.mocked(recognizeBoard).mockRejectedValue(
@@ -205,6 +210,25 @@ test("manual review accepts a missed tile and can clear a false positive", async
   expect(onApply.mock.calls[0][0].slice(112, 115)).toEqual(["C", "A", ""]);
 });
 
+test("premium imports default to a cleared board with score tracking", async () => {
+  const board = emptyBoard(15);
+  board[112] = "A";
+  vi.mocked(recognizeBoard).mockResolvedValue({
+    board,
+    uncertain: [],
+    candidates: 1,
+    premiums: { style: "scrabble-go", squares: [...PRESETS[0].premiums] },
+  });
+  const { user, onApply } = await setup();
+  await user.click(screen.getByRole("button", { name: "Read board" }));
+  const clear = await screen.findByRole("checkbox", {
+    name: "Clear board and start score tracking",
+  });
+  expect(clear).toHaveProperty("checked", true);
+  await user.click(screen.getByRole("button", { name: "Use this board" }));
+  expect(onApply).toHaveBeenCalledWith(board, expect.any(Array), true);
+});
+
 test("premium review infers covered squares, accepts corrections, and applies the layout", async () => {
   const template = PRESETS.find(({ id }) => id === "wordfeud")!;
   const board = emptyBoard(15);
@@ -253,9 +277,15 @@ test("premium review infers covered squares, accepts corrections, and applies th
   expect(await screen.findByRole("button", { name: "G8: DL" })).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "TW" }));
   await user.click(screen.getByRole("button", { name: "A1: DW" }));
+  await user.click(
+    screen.getByRole("checkbox", {
+      name: "Clear board and start score tracking",
+    }),
+  );
   await user.click(screen.getByRole("button", { name: "Use this board" }));
-  const [appliedBoard, appliedPremiums] = onApply.mock.calls[0];
+  const [appliedBoard, appliedPremiums, clearBoard] = onApply.mock.calls[0];
   expect(appliedBoard).toEqual(board);
+  expect(clearBoard).toBe(false);
   expect(appliedPremiums[0]).toBe("TW");
   expect(appliedPremiums[111]).toBe("DL");
   expect(appliedPremiums[112]).toBe("");

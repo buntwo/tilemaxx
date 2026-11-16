@@ -80,14 +80,15 @@ import GameScoreBadge from "./components/GameScoreBadge";
 import GameScores from "./components/GameScores";
 import EndGameDialog from "./components/EndGameDialog";
 import {
-  emptyScoring,
   playTrackedMove,
   recordOpponentPlay,
   recordOpponentRackOut,
+  resetGameScoring,
   setScoreTracking,
   summarizeGameScore,
   treatBoardEditAsCorrection,
 } from "../shared/game-scoring";
+import { CLEARED_BOARD } from "../shared/score-recovery";
 import { defaultDictionary } from "../shared/dictionaries";
 import { DEFENSE_LIMIT } from "../shared/premium-defense";
 import { useSolver } from "./useSolver";
@@ -1403,7 +1404,7 @@ function Tilemaxx() {
         <ScreenshotImport
           template={importBase.current.template}
           onClose={() => setDialog(null)}
-          onApply={(board, premiums) => {
+          onApply={(board, premiums, clearBoard) => {
             const base = importBase.current!;
             const latest = store.getSnapshot().games[base.id];
             if (
@@ -1414,9 +1415,13 @@ function Tilemaxx() {
               throw new Error(
                 "The board changed while you were reviewing. Close this import and try again with the latest game.",
               );
-            update(importBoard(latest, board, premiums));
+            update(importBoard(latest, board, premiums, clearBoard));
             setDialog(null);
-            notify("Screenshot imported. You can undo this change.");
+            notify(
+              clearBoard
+                ? "Premium squares imported. Score tracking is on."
+                : "Screenshot imported. You can undo this change.",
+            );
           }}
         />
       )}
@@ -2023,8 +2028,8 @@ function Tilemaxx() {
               onClick={() => {
                 update({
                   ...game,
-                  ...remember(game, "Cleared board and rack"),
-                  scoring: emptyScoring(),
+                  ...remember(game, CLEARED_BOARD),
+                  scoring: resetGameScoring(game),
                   board: emptyBoard(game.template.size),
                   rack: "",
                   excludedRackSlots: undefined,
