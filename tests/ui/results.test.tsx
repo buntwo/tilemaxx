@@ -997,6 +997,23 @@ test.each(["right-click", "P"])("%s toggles a move pin", async (input) => {
   expect(onPlay).not.toHaveBeenCalled();
 });
 
+test("a desktop click outside a pinned move clears its preview", async () => {
+  const { user, onPlay, onPreview } = setup();
+  const [first, second] = rows();
+  fireEvent.contextMenu(first);
+  expect(first.classList.contains("pinned")).toBe(true);
+
+  const outside = screen.getByRole("heading", { name: "Possible moves" });
+  await user.click(outside);
+  expect(onPreview).toHaveBeenLastCalledWith(null);
+  expect(first.classList.contains("pinned")).toBe(false);
+  expect(first.classList.contains("active")).toBe(false);
+  expect(onPlay).not.toHaveBeenCalled();
+
+  await user.hover(second);
+  expect(onPreview).toHaveBeenLastCalledWith(moves[1]);
+});
+
 test.each([false, true])(
   "touch previews on the first tap and plays on the second with hover support %s",
   async (hover) => {
