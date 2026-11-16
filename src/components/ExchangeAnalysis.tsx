@@ -6,28 +6,12 @@ import { splitRack } from "../../shared/rack-entry";
 import { unseenTiles } from "../../shared/tile-pool";
 import { usePractice } from "./usePractice";
 import { BingoBadge } from "./MoveWord";
+import MiniTiles from "./MiniTiles";
 
 export const exchangePercent = new Intl.NumberFormat(undefined, {
   style: "percent",
   maximumFractionDigits: 1,
 });
-
-export function MiniTiles({ tiles }: { tiles: string }) {
-  return (
-    <span className="rack-exchange-letters">
-      {[...tiles].map((tile, i) => (
-        <span
-          key={i}
-          className={tile === "?" ? "blank" : undefined}
-          role={tile === "?" ? "img" : undefined}
-          aria-label={tile === "?" ? "Blank tile" : undefined}
-        >
-          {tile === "?" ? "" : tile}
-        </span>
-      ))}
-    </span>
-  );
-}
 
 function DrawOptions({
   draws,

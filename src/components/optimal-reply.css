@@ -89,20 +89,26 @@
   font-variant-numeric: tabular-nums;
 }
 .optimal-reply-turns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) fit-content(44%) auto auto;
+  column-gap: 6px;
   margin: 0;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 7px;
   list-style: none;
 }
+.optimal-reply-turns li,
+.optimal-reply-turn {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
 .optimal-reply-turns li + li {
   border-top: 1px solid var(--line);
 }
 .optimal-reply-turn {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto auto;
   align-items: center;
-  gap: 6px;
   width: 100%;
   min-height: 48px;
   padding: 6px 7px;
@@ -145,11 +151,18 @@
 }
 .optimal-reply-leave {
   color: var(--muted);
-  text-align: end;
   font-size: 11px;
-  font-weight: 620;
-  letter-spacing: 0.05em;
-  overflow-wrap: anywhere;
+}
+.optimal-reply-leave .mini-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.optimal-reply-leave .mini-tiles span {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 2px;
+  border-radius: 3px;
 }
 .optimal-reply-step-score {
   text-align: end;

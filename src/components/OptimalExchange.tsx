@@ -7,7 +7,8 @@ import { splitRack } from "../../shared/rack-entry";
 import { unseenTiles } from "../../shared/tile-pool";
 import type { PracticeRequest } from "../practice.worker";
 import { scoreTone } from "../score-tone";
-import { exchangePercent, MiniTiles } from "./ExchangeAnalysis";
+import { exchangePercent } from "./ExchangeAnalysis";
+import MiniTiles from "./MiniTiles";
 import { usePractice } from "./usePractice";
 
 export default function OptimalExchange({

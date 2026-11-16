@@ -500,7 +500,7 @@ test("a completed reply line replaces the immediate warning and replays each tur
       rack: "CATT?",
       template: {
         ...endgame.template,
-        tileCounts: { ...endgame.template.tileCounts, S: 0, T: 2, "?": 2 },
+        tileCounts: { ...endgame.template.tileCounts, S: 0, T: 4, "?": 2 },
       },
       trackScores: true,
       scoring: {
@@ -516,7 +516,7 @@ test("a completed reply line replaces the immediate warning and replays each tur
     score: 25,
     row: 6,
     tiles: [{ index: 97, letter: "Z" }],
-    leave: "?",
+    leave: "TT?",
   };
   const finish = {
     ...moves[2],
@@ -534,7 +534,7 @@ test("a completed reply line replaces the immediate warning and replays each tur
         moveId: "a",
         result: {
           kind: "empty-bag",
-          rack: "Z?",
+          rack: "TTZ?",
           highest: reply,
           reply,
           ends: null,
@@ -576,13 +576,16 @@ test("a completed reply line replaces the immediate warning and replays each tur
   expect(within(openingTurn).getByRole("img", { name: "Leave: T" }).textContent).toBe("T");
   const replyTurn = details.getByRole("button", { name: /ZA .* Behind by 21/ });
   expect(replyTurn.getAttribute("aria-pressed")).toBe("true");
-  expect(within(replyTurn).getByRole("img", { name: "Leave: blank" }).textContent).toBe("□");
+  const leave = within(replyTurn).getByRole("img", { name: "Leave: T, T, blank" });
+  const tiles = [...leave.querySelectorAll(".mini-tiles > span")];
+  expect(tiles.map((tile) => tile.textContent)).toEqual(["T", "T", ""]);
+  expect(tiles[2].classList.contains("blank")).toBe(true);
   expect(details.getByRole("button", { name: /^H7: Z/ }).classList.contains("ghost")).toBe(true);
 
   const pass = details.getByRole("button", { name: /^Pass You/ });
   expect(within(pass).getByRole("img", { name: "Leave: T" })).toBeTruthy();
   const opponentPass = details.getByRole("button", { name: /^Pass Opponent/ });
-  expect(within(opponentPass).getByRole("img", { name: "Leave: blank" })).toBeTruthy();
+  expect(within(opponentPass).getByRole("img", { name: "Leave: T, T, blank" })).toBeTruthy();
   await user.click(pass);
   expect(details.getByText("Board after your pass")).toBeTruthy();
   expect(details.getByRole("button", { name: /^H7: Z/ }).classList.contains("ghost")).toBe(false);
