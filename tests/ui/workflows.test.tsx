@@ -2608,6 +2608,7 @@ test.each([1320, 760, 390])("the sidebar collapses and reopens at %ipx", async (
     expect(open().getAttribute("aria-expanded")).toBe("true");
     expect(document.activeElement).toBe(collapse());
   }
+  expect(collapse().querySelector(".lucide-menu")).toBeTruthy();
   await user.click(collapse());
   expect(sidebar()).toBeNull();
   expect(document.activeElement).toBe(open());

@@ -22,7 +22,6 @@ import {
   Monitor,
   Moon,
   MoreHorizontal,
-  PanelLeftClose,
   Pencil,
   Plus,
   Redo2,
@@ -837,7 +836,7 @@ function Tilemaxx() {
           aria-controls="tilemaxx-sidebar"
           onClick={() => changeSidebarVisibility(false)}
         >
-          <PanelLeftClose size={18} />
+          <Menu size={20} aria-hidden="true" />
         </button>
         <Brand />
         <button
