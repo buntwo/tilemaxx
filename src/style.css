@@ -5212,13 +5212,34 @@ label + label {
   background: none;
   box-shadow: none;
 }
+.phone-move-review .rack-panel:has(.opponent-rack-tiles) {
+  /* Let the board set the grid row height before sizing the racks. */
+  container-type: size;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
 .phone-move-review .rack-entry {
   --review-tile-gap: 3px;
-  --review-rack-tile-size: min(calc(var(--review-rack-width) - 8px), calc(
-    (100cqi - var(--review-rack-width) - var(--review-rack-gap) - 12px)
+  --review-rack-label-height: 14px;
+  --review-lane-gap: 6px;
+  --review-tray-padding: 5px;
+  --review-tray-overhead: calc(2 * (var(--review-tray-padding) + 1px));
+  --review-max-tile-size: calc(var(--review-rack-width) - 8px);
+  --review-rack-tile-size: min(var(--review-max-tile-size), calc(
+    (100cqi - var(--review-rack-width) - var(--review-rack-gap) - var(--review-tray-overhead))
     / var(--rack-size) - var(--review-tile-gap)
   ));
-  --review-opponent-tile-size: min(18px, calc(var(--review-rack-tile-size) * .6));
+}
+.phone-move-review .rack-entry:has(.opponent-rack-tiles) {
+  --review-stack-gaps: calc((var(--rack-size) + var(--opponent-rack-size) - 2) * var(--review-tile-gap));
+  --review-rack-tile-size: clamp(0px, calc(
+    (100cqh - 2 * var(--review-rack-label-height) - var(--review-lane-gap)
+      - var(--review-tray-overhead) - var(--review-stack-gaps))
+    / (var(--rack-size) + var(--opponent-rack-size) / 2)
+  ), var(--review-max-tile-size));
+  --review-opponent-tile-size: calc(var(--review-rack-tile-size) / 2);
 }
 .phone-move-review .rack-panel .rack-tiles {
   flex-direction: column;
@@ -5226,7 +5247,7 @@ label + label {
   gap: var(--review-tile-gap);
   width: 100%;
   margin: 0;
-  padding: 5px 3px;
+  padding: var(--review-tray-padding) 3px;
   cursor: pointer;
 }
 .phone-move-review .rack-panel .rack-tile {
@@ -5236,11 +5257,11 @@ label + label {
   container-type: inline-size;
 }
 .phone-move-review .rack-lane { display: block; }
-.phone-move-review .rack-lane + .rack-lane { margin-bottom: 0; }
+.phone-move-review .rack-lane + .rack-lane { margin-block: var(--review-lane-gap) 0; }
 .phone-move-review .rack-owner-label {
   display: flex;
   justify-content: center;
-  margin-bottom: 3px;
+  height: var(--review-rack-label-height);
   font-size: 9px;
 }
 .phone-move-review .opponent-rack-tiles {
