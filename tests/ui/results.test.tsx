@@ -368,6 +368,7 @@ test("reply rows resolve individually and compare against the highest score afte
   expect(within(rows()[0]).getByText("Adj. 24.4")).toBeTruthy();
 
   const pointsMenu = screen.getByLabelText("Sort by points or reply-adjusted points");
+  expect(pointsMenu.textContent).toBe("ADJ. PTS");
   const details = pointsMenu.closest("details")!;
   async function pickWithoutButtonFocus(label: string) {
     await user.click(pointsMenu);
@@ -381,8 +382,10 @@ test("reply rows resolve individually and compare against the highest score afte
     expect(details.open).toBe(false);
   }
   await pickWithoutButtonFocus("Sort by points");
+  expect(pointsMenu.textContent).toBe("PTS");
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
   await pickWithoutButtonFocus("Sort by reply-adjusted points");
+  expect(pointsMenu.textContent).toBe("ADJ. PTS");
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^AT,/);
 
   await user.click(pointsMenu);
