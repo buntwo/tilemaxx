@@ -4,7 +4,7 @@
 
 | Name | Where to find it |
 | --- | --- |
-| **Sidebar** | The profile picker, game navigation, settings, and UI guide. Use **Collapse sidebar** in its upper-right corner and the three-line **Open sidebar** button beside the page title. |
+| **Sidebar** | The profile picker, game navigation, settings, and UI guide. Use the three-line **Open sidebar** button beside the page title or **Collapse sidebar** in the sidebar’s upper-right corner. |
 | **Settings** | The gear below the theme controls, beside the version number. Control rack highlighting, animations, and automatic reloads when the server has a newer version. These choices apply to this browser only. |
 | **Update available** | The arrow beside the version number appears when automatic updates are off and the server has a newer version. |
 | **Game header** | The game name, tracked score, and Game options at the top. Open the name to use the **Game picker** and its opponent filter. |
