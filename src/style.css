@@ -4915,6 +4915,9 @@ label + label {
 .policy-fit-values { display: grid; gap: 5px; width: min(100%, 360px); }
 .policy-fit-values > div { display: flex; justify-content: space-between; gap: 12px; }
 .policy-fit-values dd { font-weight: 650; text-align: right; }
+.policy-fit-raw { width: 100%; font-size: 12px; }
+.policy-fit-raw summary { cursor: pointer; color: var(--primary); }
+.policy-fit-raw > p { margin-block: 6px; }
 .policy-timeline-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 .policy-timeline-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .policy-timeline-table :is(th, td) { padding: 7px 6px; border-bottom: 1px solid var(--line); text-align: right; overflow-wrap: anywhere; }

@@ -115,7 +115,11 @@ export type OpponentPolicyResult = PolicyFinding &
     | { kind: "unavailable"; reason: string }
     | {
         kind: "exact" | "sampled";
+        // Unconditional chances of choosing the exact placement.
         probabilities: PolicyProbabilities;
+        compatibleRackChance: number;
+        // Exact-placement chances on racks that could supply the played tiles.
+        conditionalProbabilities?: PolicyProbabilities;
         // Conditional on the rack containing the played tiles.
         shortlist?: { fit: number; random: number };
         rack: RackAssumptions;
@@ -257,6 +261,7 @@ export function analyzeOpponentPolicy(
     return {
       kind: "exact",
       probabilities,
+      compatibleRackChance: 0,
       rack,
       samples: 0,
       ...finding,
@@ -269,6 +274,7 @@ export function analyzeOpponentPolicy(
   const random = randomGenerator(seed);
   let completed = 0;
   const shortlist = { fit: 0, random: 0 };
+  const conditionalProbabilities = zeroProbabilities();
   const accumulate = (hand: string, weight: number) => {
     let score = cache.get(hand);
     if (!score) {
@@ -276,7 +282,7 @@ export function analyzeOpponentPolicy(
       cache.set(hand, score);
     }
     for (const policy of policies)
-      probabilities[policy] += weight * score.probabilities[policy];
+      conditionalProbabilities[policy] += weight * score.probabilities[policy];
     shortlist.fit += weight * score.shortlist.fit;
     shortlist.random += weight * score.shortlist.random;
   };
@@ -326,14 +332,19 @@ export function analyzeOpponentPolicy(
     );
 
   const normalizer = exact ? 1 : completed;
-  for (const policy of policies)
-    probabilities[policy] = Math.min(
+  for (const policy of policies) {
+    const conditional = Math.min(
       1,
-      (probabilities[policy] * prior.chance) / normalizer,
+      conditionalProbabilities[policy] / normalizer,
     );
+    conditionalProbabilities[policy] = conditional;
+    probabilities[policy] = conditional * prior.chance;
+  }
   return {
     kind: exact ? "exact" : "sampled",
     probabilities,
+    compatibleRackChance: prior.chance,
+    conditionalProbabilities,
     shortlist: {
       fit: Math.min(1, shortlist.fit / normalizer),
       random: Math.min(1, shortlist.random / normalizer),

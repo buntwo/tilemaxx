@@ -83,7 +83,17 @@ function start(label = "Analyze all opponent turns") {
 function fit(random: number) {
   return {
     kind: "exact",
-    probabilities: { topOne: 0.5, uniformTopFive: 0.2, weightedTopFive: 0.25 },
+    probabilities: {
+      topOne: 0.25,
+      uniformTopFive: 0.1,
+      weightedTopFive: 0.125,
+    },
+    compatibleRackChance: 0.5,
+    conditionalProbabilities: {
+      topOne: 0.5,
+      uniformTopFive: 0.2,
+      weightedTopFive: 0.25,
+    },
     shortlist: { fit: 1, random },
     rack: { source: "board", rackSize: 7, unseen: 97 },
     samples: 0,
@@ -128,7 +138,16 @@ test("the timeline streams in order, keeps finished turns after cancellation and
   const detail = within(
     screen.getByRole("region", { name: "Opponent policy fit" }),
   );
-  expect(detail.getByText("Uniform top 5")).toBeTruthy();
+  const raw = detail.getByText("Raw policy estimates").closest("details")!;
+  expect(raw.open).toBe(false);
+  const primary = detail.getAllByText("Uniform top 5")[0].parentElement!;
+  expect(within(primary).getByText("20%")).toBeTruthy();
+  fireEvent.click(detail.getByText("Raw policy estimates"));
+  expect(raw.open).toBe(true);
+  expect(within(raw).getByText("10%")).toBeTruthy();
+  expect(
+    within(raw).getByText(/chance of holding the played tiles is 50%/),
+  ).toBeTruthy();
   expect(detail.getByText("Board-only prior.", { exact: false })).toBeTruthy();
   expect(
     detail.queryByRole("button", { name: "Analyze policy fit" }),
