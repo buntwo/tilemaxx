@@ -100,7 +100,9 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
   }
   try {
     let index = dictionary;
+    let dictionaryElapsed: number | undefined;
     if (index?.id !== dictionaryId) {
+      const started = performance.now();
       if (request.kind === "solve")
         post({ id, kind: "solve-status", status: "Loading dictionary…" });
       const response = await fetch(
@@ -119,6 +121,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
         lexicon: new Lexicon(words),
         bingo: new RackBingoIndex(words),
       };
+      dictionaryElapsed = performance.now() - started;
     }
     const { lexicon, bingo } = index;
     if (request.kind === "endgame") {
@@ -144,7 +147,8 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     const start = performance.now();
     const warnings = inspectBoard(lexicon, board, template);
     const moves = solvePosition(lexicon, request, template);
-    const elapsed = performance.now() - start;
+    const movesElapsed = performance.now() - start;
+    const indexingStart = performance.now();
     const result = new MoveResultIndex(moves, template);
     const exchangePlays = warnings.length
       ? undefined
@@ -157,7 +161,11 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       kind: "moves",
       results: result.summary(id),
       warnings,
-      elapsed,
+      stages: {
+        dictionary: dictionaryElapsed,
+        moves: movesElapsed,
+        indexing: performance.now() - indexingStart,
+      },
       exchange: exchangePlays && {
         dictionaryId,
         board,
@@ -170,6 +178,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     if (!moves.length) return;
     await yieldToQueries();
     if (abort?.signal.aborted) return;
+    const defenseStart = performance.now();
     try {
       const defense = checkPremiumDefense(
         lexicon,
@@ -179,12 +188,13 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
         (defense) => post({ id, kind: "defense", defense }),
         (checked) => post({ id, kind: "defense-progress", checked }),
       );
-      post({ id, kind: "defense", defense, done: true });
+      post({ id, kind: "defense", defense, elapsed: performance.now() - defenseStart });
     } catch {
-      post({ id, kind: "defense", done: true });
+      post({ id, kind: "defense", elapsed: performance.now() - defenseStart });
     }
     await yieldToQueries();
     if (abort?.signal.aborted) return;
+    const oddsStart = performance.now();
     let odds: ReturnType<RackBingoIndex["calculate"]>;
     try {
       odds = bingo.calculate(lexicon, request, template, moves);
@@ -196,7 +206,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
         error: "Bingo draw odds could not be calculated.",
       };
     }
-    post({ id, kind: "rack-odds", odds });
+    post({ id, kind: "rack-odds", odds, elapsed: performance.now() - oddsStart });
   } catch (error) {
     if (abort?.signal.aborted) return;
     const message =

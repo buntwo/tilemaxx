@@ -1,24 +1,38 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { LoaderCircle, Sparkles } from "lucide-react";
 
 type Phase = "idle" | "active" | "settling";
 
-export default function CalculationIndicator({ active }: { active: boolean }) {
+export default function CalculationIndicator({
+  active,
+  onQuiet,
+}: {
+  active: boolean;
+  onQuiet?: (stoppedAt: number) => void;
+}) {
   const [phase, setPhase] = useState<Phase>("idle");
+  const recording = !!onQuiet;
+  const finish = useEffectEvent((stoppedAt: number) => onQuiet?.(stoppedAt));
   useEffect(() => {
     if (active) {
       setPhase("active");
       return;
     }
     // Hold through worker handoffs, then keep spinning during the exit.
-    if (phase !== "idle") {
-      const timer = setTimeout(
-        () => setPhase(phase === "active" ? "settling" : "idle"),
-        phase === "active" ? 140 : 230,
-      );
+    if (phase === "active") {
+      const stoppedAt = performance.now();
+      const timer = setTimeout(() => {
+        finish(stoppedAt);
+        setPhase("settling");
+      }, 140);
       return () => clearTimeout(timer);
     }
-  }, [active, phase]);
+    if (phase === "settling") {
+      const timer = setTimeout(() => setPhase("idle"), 230);
+      return () => clearTimeout(timer);
+    }
+    if (recording) finish(performance.now());
+  }, [active, phase, recording]);
 
   return (
     <span

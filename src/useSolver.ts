@@ -15,17 +15,20 @@ import { MOVE_CACHE_LIMIT } from "../shared/move-results";
 import type { ShortlistEntry } from "../shared/move-shortlist";
 import type { SolverMessage, SolverRequest } from "./solver-messages";
 import type { EndgameSettings } from "../shared/endgame";
+import type { MoveTiming, SolverStages } from "./move-timing";
 
 type Snapshot = {
   results: MoveResults | null;
-  elapsed: number;
   warnings: string[];
+  startedAt?: number;
+  stages?: SolverStages;
+  timing?: MoveTiming;
   rackOdds?: RackOdds;
   defense?: DefenseResults;
   boardOdds?: BoardOddsResult;
   exchangeAdvice?: ExchangeAdvice;
 };
-const emptySnapshot: Snapshot = { results: null, elapsed: 0, warnings: [] };
+const emptySnapshot: Snapshot = { results: null, warnings: [] };
 type QueryReply = Extract<
   SolverMessage,
   { kind: "page" | "shortlist" | "endgame" }
@@ -55,6 +58,7 @@ export function useSolver(positionKey: string) {
   const exchangeWorker = useRef<Worker | null>(null);
   const nextId = useRef(0);
   const solving = useRef<number | undefined>(undefined);
+  const startedAt = useRef(0);
   const visibleSearch = useRef<number | undefined>(undefined);
   const queries = useRef(new Map<number, (message?: QueryReply) => void>());
   const saved = useRef(new Map<string, Snapshot>());
@@ -79,6 +83,20 @@ export function useSolver(positionKey: string) {
     }: NonNullable<Extract<SolverMessage, { kind: "moves" }>["exchange"]>,
     searchId: number,
   ) {
+    const started = performance.now();
+    function finish(advice?: ExchangeAdvice) {
+      stopExchangeAdvice();
+      const elapsed = performance.now() - started;
+      setSnapshot((current) =>
+        current.results?.searchId === searchId && current.stages
+          ? {
+              ...current,
+              exchangeAdvice: advice,
+              stages: { ...current.stages, exchangeAdvice: elapsed },
+            }
+          : current,
+      );
+    }
     try {
       const active = new Worker(
         new URL("./practice.worker.ts", import.meta.url),
@@ -90,17 +108,10 @@ export function useSolver(positionKey: string) {
       setExchangeAdvicePending(true);
       active.onmessage = ({ data }: MessageEvent<ExchangeAdviceMessage>) => {
         if (exchangeWorker.current !== active) return;
-        stopExchangeAdvice();
-        if ("result" in data && data.result) {
-          setSnapshot((current) =>
-            current.results?.searchId === searchId
-              ? { ...current, exchangeAdvice: data.result }
-              : current,
-          );
-        }
+        finish("result" in data ? data.result : undefined);
       };
       active.onerror = () => {
-        if (exchangeWorker.current === active) stopExchangeAdvice();
+        if (exchangeWorker.current === active) finish();
       };
       active.postMessage({
         kind: "exchange-advice",
@@ -108,7 +119,7 @@ export function useSolver(positionKey: string) {
         exchange,
       } satisfies PracticeRequest);
     } catch {
-      stopExchangeAdvice();
+      finish();
     }
   }
 
@@ -217,8 +228,8 @@ export function useSolver(positionKey: string) {
         case "moves": {
           discard(visibleSearch.current);
           visibleSearch.current = message.id;
-          const { results, warnings, elapsed, exchange } = message;
-          setSnapshot({ results, warnings, elapsed });
+          const { results, warnings, stages, exchange } = message;
+          setSnapshot({ results, warnings, stages, startedAt: startedAt.current });
           setBusy("");
           if (exchange) checkExchange(exchange, message.id);
           const pending = results.total > 0;
@@ -228,12 +239,16 @@ export function useSolver(positionKey: string) {
           break;
         }
         case "defense":
-          if (message.defense)
+          if (message.defense || message.elapsed !== undefined)
             setSnapshot((current) => ({
               ...current,
-              defense: message.defense,
+              defense: message.defense ?? current.defense,
+              stages: current.stages && {
+                ...current.stages,
+                premiumReplies: message.elapsed,
+              },
             }));
-          if (message.done) setDefenseProgress(undefined);
+          if (message.elapsed !== undefined) setDefenseProgress(undefined);
           break;
         case "defense-progress":
           setDefenseProgress(message.checked);
@@ -241,7 +256,14 @@ export function useSolver(positionKey: string) {
         case "rack-odds":
           solving.current = undefined;
           setRackOddsPending(false);
-          setSnapshot((current) => ({ ...current, rackOdds: message.odds }));
+          setSnapshot((current) => ({
+            ...current,
+            rackOdds: message.odds,
+            stages: current.stages && {
+              ...current.stages,
+              bingoDraws: message.elapsed,
+            },
+          }));
           break;
       }
     };
@@ -273,6 +295,7 @@ export function useSolver(positionKey: string) {
     stopSearch();
     stopBoardOdds();
     stopExchangeAdvice();
+    startedAt.current = performance.now();
     setError("");
     setBusy("Finding moves…");
     setSnapshot((current) => ({
@@ -281,6 +304,8 @@ export function useSolver(positionKey: string) {
       defense: undefined,
       boardOdds: undefined,
       exchangeAdvice: undefined,
+      startedAt: undefined,
+      timing: undefined,
     }));
     setBoardOddsError("");
     const id = ++nextId.current;
@@ -313,10 +338,26 @@ export function useSolver(positionKey: string) {
       !candidates.length
     )
       return;
+    const started = performance.now();
+    const searchId = visibleSearch.current;
     setSnapshot((current) => ({ ...current, boardOdds: undefined }));
     setBoardOddsError("");
     const total = candidates.length;
     setBoardOddsProgress({ checked: 0, total, bagSize });
+    function finish(odds?: BoardOddsResult, error = "") {
+      stopBoardOdds();
+      const elapsed = performance.now() - started;
+      setSnapshot((current) =>
+        current.results?.searchId === searchId
+          ? {
+              ...current,
+              boardOdds: odds,
+              stages: current.stages && { ...current.stages, boardBingo: elapsed },
+            }
+          : current,
+      );
+      setBoardOddsError(error);
+    }
     try {
       const active = new Worker(
         new URL("./solver.worker.ts", import.meta.url),
@@ -338,15 +379,12 @@ export function useSolver(positionKey: string) {
             byMove: { ...current?.byMove, [moveId]: odds },
           }));
         } else if (message.kind === "board-odds") {
-          stopBoardOdds();
-          setSnapshot((current) => ({ ...current, boardOdds: message.odds }));
-          setBoardOddsError(message.error ?? "");
+          finish(message.odds, message.error);
         }
       };
       active.onerror = () => {
         if (oddsWorker.current !== active) return;
-        stopBoardOdds();
-        setBoardOddsError("The board check stopped unexpectedly. Try again.");
+        finish(undefined, "The board check stopped unexpectedly. Try again.");
       };
       const { dictionaryId, board, rack, template } = game;
       active.postMessage({
@@ -360,8 +398,7 @@ export function useSolver(positionKey: string) {
         bagSize,
       } satisfies SolverRequest);
     } catch {
-      stopBoardOdds();
-      setBoardOddsError("The board check could not start. Try again.");
+      finish(undefined, "The board check could not start. Try again.");
     }
   }
 
@@ -448,7 +485,7 @@ export function useSolver(positionKey: string) {
     const cache = saved.current;
     const old = cache.get(positionKey);
     cache.delete(positionKey);
-    cache.set(positionKey, snapshot);
+    cache.set(positionKey, { ...snapshot, startedAt: undefined });
     if (old?.results?.searchId !== visibleSearch.current)
       discard(old?.results?.searchId);
     if (cache.size > MOVE_CACHE_LIMIT) {
@@ -457,6 +494,30 @@ export function useSolver(positionKey: string) {
       cache.delete(key);
       discard(dropped?.results?.searchId);
     }
+  }
+
+  function finishTiming(
+    searchId: number,
+    stoppedAt: number,
+    analysis: Omit<MoveTiming, "total" | "solver">,
+  ) {
+    setSnapshot((current) => {
+      if (
+        current.results?.searchId !== searchId ||
+        current.startedAt === undefined ||
+        !current.stages
+      )
+        return current;
+      return {
+        ...current,
+        startedAt: undefined,
+        timing: {
+          total: stoppedAt - current.startedAt,
+          solver: current.stages,
+          ...analysis,
+        },
+      };
+    });
   }
 
   const current = snapshotKey === positionKey ? snapshot : emptySnapshot;
@@ -485,6 +546,7 @@ export function useSolver(positionKey: string) {
     shortlist,
     rankEndgame,
     runBoardOdds,
+    finishTiming,
     cancelBoardOdds: stopBoardOdds,
     rememberResults,
     restoreOnUndo: (key: string) => {

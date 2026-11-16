@@ -47,6 +47,8 @@ import PremiumDefense, {
 import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
 import type { useReplyAnalysis } from "../useReplyAnalysis";
 import type { BoardOddsProgress } from "../useSolver";
+import type { MoveTiming } from "../move-timing";
+import MoveTimingButton from "./MoveTimingButton";
 import type { ShortlistEntry } from "../../shared/move-shortlist";
 import {
   coversRequiredSquares,
@@ -91,7 +93,8 @@ export default function Results({
   fetchShortlist,
   busy,
   calculating = false,
-  elapsed,
+  timing,
+  onTimingComplete,
   error,
   size,
   bingoRules,
@@ -129,7 +132,12 @@ export default function Results({
   ) => Promise<ShortlistEntry[] | undefined>;
   busy: string;
   calculating?: boolean;
-  elapsed: number;
+  timing?: MoveTiming;
+  onTimingComplete?: (
+    searchId: number,
+    stoppedAt: number,
+    analysis: Omit<MoveTiming, "total" | "solver">,
+  ) => void;
   error: string;
   size: number;
   bingoRules: BingoRules;
@@ -522,6 +530,26 @@ export default function Results({
               !!endgameProgress?.pending ||
               replyAnalysis.pending ||
               !!replyAnalysis.detail?.pending
+            }
+            onQuiet={
+              onTimingComplete && searchId !== undefined
+                ? (stoppedAt) => {
+                    onTimingComplete(searchId, stoppedAt, {
+                      replies:
+                        replyAnalysis.repliesElapsed === undefined
+                          ? undefined
+                          : { elapsed: replyAnalysis.repliesElapsed, endgame },
+                      estimates: replyAnalysis.estimatesElapsed,
+                      exactLines:
+                        endgameProgress?.elapsed === undefined
+                          ? undefined
+                          : {
+                              elapsed: endgameProgress.elapsed,
+                              attempts: endgameProgress.attempts,
+                            },
+                    });
+                  }
+                : undefined
             }
           />
           <h2>
@@ -1201,13 +1229,7 @@ export default function Results({
         ) : defenseProgress ? (
           <span title="Checking premium replies">Risk {defenseProgress}</span>
         ) : (
-          resultSet && (
-            <span>
-              {elapsed < 1000
-                ? `${Math.round(elapsed)} ms`
-                : `${(elapsed / 1000).toFixed(2)} s`}
-            </span>
-          )
+          timing && <MoveTimingButton timing={timing} size={size} />
         )}
       </footer>
       {analysisGame && replyMove && (replyLine || replyDetail) && (

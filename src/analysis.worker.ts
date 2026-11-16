@@ -31,6 +31,7 @@ async function precomputeEndgames(request: EndgamePrecomputeRequest) {
   try {
     const lexicon = await loadDictionary(request.dictionaryId);
     for (const move of request.moves) {
+      const started = performance.now();
       try {
         const line = replyEndgameLine(
           lexicon,
@@ -39,10 +40,10 @@ async function precomputeEndgames(request: EndgamePrecomputeRequest) {
           PRECOMPUTE_TIME_LIMIT_MS,
           Infinity,
         );
-        post({ moveId: move.id, line });
+        post({ moveId: move.id, line, elapsed: performance.now() - started });
       } catch (error) {
         if (!(error instanceof EndgameSearchLimitError)) throw error;
-        post({ moveId: move.id, limit: error.message });
+        post({ moveId: move.id, limit: error.message, elapsed: performance.now() - started });
       }
     }
     post({ done: true });

@@ -93,7 +93,7 @@ import { DEFENSE_LIMIT } from "../shared/premium-defense";
 import { useSolver } from "./useSolver";
 import { useAutoUpdate } from "./useAutoUpdate";
 import { store, useStore } from "./store";
-import { premiumPalette } from "./premium-palettes";
+import { defaultPlatformBoard, premiumPalette } from "./premium-palettes";
 import {
   type BoardTemplate,
   type Game,
@@ -245,6 +245,7 @@ function Tilemaxx() {
     [formTemplate, setFormTemplate] = useState("scrabble"),
     [formDictionary, setFormDictionary] = useState(""),
     [formBusy, setFormBusy] = useState(false);
+  const templateChosen = useRef(false);
   const [editProfileId, setEditProfileId] = useState("");
   const [workspace, setWorkspace] = useState(currentWorkspace);
   const [archiveSort, setArchiveSort] = useState<ArchiveSort>("date");
@@ -468,6 +469,7 @@ function Tilemaxx() {
     if (next === "screenshot") importBase.current = game || null;
     if (next === "new") {
       setFormTrackScores(true);
+      templateChosen.current = false;
       setFormTemplate("scrabble");
       setFormDictionary(
         defaultDictionary(data?.dictionaries ?? [], game?.dictionaryId)?.id ??
@@ -1252,7 +1254,12 @@ function Tilemaxx() {
                   fetchShortlist={solver.shortlist}
                   busy={busy}
                   calculating={solver.calculating}
-                  elapsed={solver.elapsed}
+                  timing={solver.timing}
+                  onTimingComplete={
+                    solver.startedAt === undefined
+                      ? undefined
+                      : solver.finishTiming
+                  }
                   error={solver.error}
                   size={game.template.size}
                   bingoRules={game.template}
@@ -1423,12 +1430,25 @@ function Tilemaxx() {
               });
             }}
           >
-            <GameDetailFields />
+            <GameDetailFields
+              onPlatformChange={(platform) => {
+                const board = defaultPlatformBoard(platform);
+                if (
+                  !templateChosen.current &&
+                  board &&
+                  data.templates.some(({ id }) => id === board)
+                )
+                  setFormTemplate(board);
+              }}
+            />
             <label>
               Board layout
               <select
                 value={formTemplate}
-                onChange={(e) => setFormTemplate(e.target.value)}
+                onChange={(e) => {
+                  templateChosen.current = true;
+                  setFormTemplate(e.target.value);
+                }}
               >
                 {data.templates.map((t) => (
                   <option key={t.id} value={t.id}>

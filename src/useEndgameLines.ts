@@ -3,6 +3,7 @@ import type { EndgameLine } from "../shared/endgame";
 import type { Move } from "../shared/model";
 import { MOVE_CACHE_LIMIT } from "../shared/move-results";
 import type { ReplyPosition } from "../shared/reply-analysis";
+import type { ExactLineTiming } from "./move-timing";
 
 const PRECOMPUTED_MOVES = 5;
 const ENDGAME_LINES_PER_POSITION = 20;
@@ -14,8 +15,8 @@ export type EndgamePrecomputeRequest = ReplyPosition & {
 };
 
 export type EndgamePrecomputeMessage =
-  | { moveId: string; line: EndgameLine }
-  | { moveId: string; limit: string }
+  | { moveId: string; line: EndgameLine; elapsed: number }
+  | { moveId: string; limit: string; elapsed: number }
   | { done: true; error?: string };
 
 type EndgamePrecomputeProgress = {
@@ -27,6 +28,8 @@ type EndgamePrecomputeProgress = {
   pending: boolean;
   limits: string[];
   error?: string;
+  elapsed?: number;
+  attempts: ExactLineTiming[];
 };
 
 export function useEndgameLines(
@@ -75,9 +78,11 @@ export function useEndgameLines(
       ready,
       pending: !!missing.length,
       limits: [],
+      attempts: [],
     };
     setProgress(next);
     if (!missing.length) return;
+    const started = performance.now();
     const worker = new Worker(
       new URL("./analysis.worker.ts", import.meta.url),
       {
@@ -93,22 +98,36 @@ export function useEndgameLines(
     worker.onmessage = ({ data }: MessageEvent<EndgamePrecomputeMessage>) => {
       if (!active) return;
       if ("done" in data) {
-        setProgress({ ...next, pending: false, error: data.error });
+        setProgress({
+          ...next,
+          pending: false,
+          error: data.error,
+          elapsed: performance.now() - started,
+        });
         stop();
         return;
       }
+      const move = missing.find(({ id }) => id === data.moveId);
+      if (!move) return;
+      const { id, word, row, col, direction } = move;
+      const limit = "limit" in data ? data.limit : undefined;
+      next = {
+        ...next,
+        checked: next.checked + 1,
+        attempts: [
+          ...next.attempts,
+          { move: { id, word, row, col, direction }, elapsed: data.elapsed, limit },
+        ],
+      };
       if ("line" in data) {
         rememberEndgame(data.moveId, data.line);
         next = {
           ...next,
-          checked: next.checked + 1,
           ready: next.ready + 1,
         };
       } else {
-        const word = candidates.find(({ id }) => id === data.moveId)?.word;
         next = {
           ...next,
-          checked: next.checked + 1,
           limits: [...next.limits, `${word}: ${data.limit}`],
         };
       }
@@ -120,6 +139,7 @@ export function useEndgameLines(
         ...next,
         pending: false,
         error: "Background endgame search stopped unexpectedly.",
+        elapsed: performance.now() - started,
       });
       stop();
     };
