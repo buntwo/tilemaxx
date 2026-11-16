@@ -880,7 +880,10 @@ export default function Results({
             </div>
             <div className="result-points-heading">
               {canSortAdjusted ? (
-                <ResultSortMenu label="PTS" accessibleLabel="Sort by points or reply-adjusted points">
+                <ResultSortMenu
+                  label={sort === "reply-adjusted" ? "ADJ. PTS" : "PTS"}
+                  accessibleLabel="Sort by points or reply-adjusted points"
+                >
                   {column("Points", "score", "points")}
                   {column("Reply-adjusted points", "reply-adjusted", "reply-adjusted points")}
                 </ResultSortMenu>
