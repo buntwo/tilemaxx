@@ -110,7 +110,9 @@
   border-top: 1px solid var(--line);
 }
 .optimal-reply-turn {
+  grid-template-rows: auto auto;
   align-items: center;
+  align-content: center;
   width: 100%;
   min-height: 48px;
   padding: 6px 7px;
@@ -136,21 +138,38 @@
 .optimal-reply-turn:focus-visible {
   outline-offset: -2px;
 }
-:where(.optimal-reply-turn-label, .optimal-reply-step-score) small {
+.optimal-reply-turn-note,
+:where(.optimal-reply-adjustment, .optimal-reply-step-score) small {
   display: block;
   margin-top: 2px;
   color: var(--muted);
   font-size: 10px;
 }
-.optimal-reply-turn-label .bingo-badge {
+.optimal-reply-turn-word .bingo-badge {
   margin-inline-end: 2px;
 }
-.optimal-reply-turn-label {
+.optimal-reply-turn-word,
+.optimal-reply-turn-note {
   grid-column: play;
   overflow-wrap: anywhere;
 }
-.optimal-reply-turn-label.rack-adjustment {
+.optimal-reply-turn-word,
+.optimal-reply-leave {
+  grid-row: 1;
+  align-self: start;
+  line-height: 16px;
+}
+.optimal-reply-turn-note {
+  grid-row: 2;
+}
+.optimal-reply-adjustment,
+.optimal-reply-step-score,
+.optimal-reply-points {
+  grid-row: 1 / -1;
+}
+.optimal-reply-adjustment {
   grid-column: play / score;
+  overflow-wrap: anywhere;
 }
 .optimal-reply-leave {
   grid-column: leave;

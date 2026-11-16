@@ -153,23 +153,18 @@ export default function OptimalReplyDetails({
                   >
                     {entry.kind === "turn" ? (
                       <>
-                        <span className="optimal-reply-turn-label">
-                          <strong>
-                            {entry.move ? (
-                              <MoveWord
-                                move={entry.move}
-                                rules={game.template}
-                              />
-                            ) : (
-                              "Pass"
-                            )}
-                          </strong>
-                          <small>
-                            {entry.player === "you" ? "You" : "Opponent"}
-                            {entry.move &&
-                              ` · ${coordinate(entry.move.row * size + entry.move.col, size)} ${entry.move.direction}`}
-                          </small>
-                        </span>
+                        <strong className="optimal-reply-turn-word">
+                          {entry.move ? (
+                            <MoveWord move={entry.move} rules={game.template} />
+                          ) : (
+                            "Pass"
+                          )}
+                        </strong>
+                        <small className="optimal-reply-turn-note">
+                          {entry.player === "you" ? "You" : "Opponent"}
+                          {entry.move &&
+                            ` · ${coordinate(entry.move.row * size + entry.move.col, size)} ${entry.move.direction}`}
+                        </small>
                         <span
                           className="optimal-reply-leave"
                           role="img"
@@ -191,7 +186,7 @@ export default function OptimalReplyDetails({
                         </span>
                       </>
                     ) : (
-                      <span className="optimal-reply-turn-label rack-adjustment">
+                      <span className="optimal-reply-adjustment">
                         <strong>Rack adjustment</strong>
                         <small>
                           You{" "}
