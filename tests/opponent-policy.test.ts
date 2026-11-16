@@ -6,10 +6,15 @@ import { randomGenerator } from "../shared/move-analysis";
 import {
   analyzeOpponentPolicy,
   movePolicyProbabilities,
+  opponentShortlistStatus,
   placementKey,
   type PolicyProbabilities,
 } from "../shared/opponent-policy";
 import { playableRackPrior } from "../shared/rack-prior";
+import {
+  classifyShortlist,
+  shortlistConfidence,
+} from "../shared/shortlist-confidence";
 import { solve } from "../shared/solver";
 import {
   rackContainsChance,
@@ -289,4 +294,106 @@ test("a rack conflict leaves the conditional shortlist undefined", () => {
   assert.equal(result.kind, "exact");
   assert.equal(result.shortlist, undefined);
   assert.equal(result.probabilities.uniformTopFive, 0);
+});
+
+test("sampling bounds account for fractional scores, endpoints and both highlight thresholds", () => {
+  const ended = shortlistConfidence({ fit: 1, random: 0 }, 128);
+  assert.equal(ended.fit.upper, 1);
+  assert.equal(ended.random.lower, 0);
+  assert.ok(ended.fit.lower < 1);
+  assert.ok(ended.random.upper > 0);
+  assert.equal(classifyShortlist(ended), "high");
+
+  const borderline = shortlistConfidence({ fit: 0.82, random: 0.1 }, 512);
+  assert.ok(borderline.fit.lower < 0.8 && borderline.fit.upper > 0.8);
+  assert.equal(classifyShortlist(borderline), "borderline");
+  assert.equal(
+    classifyShortlist(shortlistConfidence({ fit: 0.82, random: 0.1 }, 1024)),
+    "borderline",
+  );
+  assert.equal(
+    classifyShortlist(shortlistConfidence({ fit: 0.86, random: 0.1 }, 512)),
+    "high",
+  );
+  assert.equal(
+    classifyShortlist(shortlistConfidence({ fit: 0.7, random: 0.1 }, 512)),
+    "low",
+  );
+  assert.equal(
+    classifyShortlist(shortlistConfidence({ fit: 1, random: 0.25 }, 1024)),
+    "borderline",
+  );
+  assert.equal(
+    classifyShortlist(shortlistConfidence({ fit: 1, random: 0.5 }, 128)),
+    "low",
+  );
+});
+
+test("adaptive analysis stops at the first conclusive checkpoint", () => {
+  const lexicon = new Lexicon([
+    "AX",
+    "AT",
+    "TA",
+    "ATE",
+    "EAT",
+    "ETA",
+    "TEA",
+    "AXE",
+    "TAX",
+    "EX",
+    "AE",
+    "ET",
+    "TE",
+  ]);
+  const result = analyzeOpponentPolicy(
+    lexicon,
+    {
+      word: "TAX",
+      position: {
+        board: emptyBoard(5),
+        tiles: [
+          { index: 11, letter: "T" },
+          { index: 12, letter: "A" },
+          { index: 13, letter: "X" },
+        ],
+      },
+      template: template("AETX", 4),
+    },
+    { exactLimit: 0 },
+  );
+  assert.equal(result.kind, "sampled");
+  assert.equal(result.samples, 128);
+  assert.ok(result.confidence);
+  assert.equal(result.confidence.samples, 128);
+  assert.equal(opponentShortlistStatus(result), "high");
+  assert.equal(result.limited, undefined);
+});
+
+test("adaptive analysis uses the final checkpoint for an unresolved threshold", () => {
+  const lexicon = new Lexicon(["ATE", "EAT", "AT", "TA"]);
+  const input = {
+    word: "ATE",
+    position: {
+      board: emptyBoard(5),
+      tiles: [
+        { index: 11, letter: "A" },
+        { index: 12, letter: "T" },
+        { index: 13, letter: "E" },
+      ],
+    },
+    template: template("AETBCDFGHJKLM", 7),
+  };
+  const result = analyzeOpponentPolicy(lexicon, input);
+  assert.equal(result.kind, "sampled");
+  assert.equal(result.samples, 1024);
+  assert.deepEqual(result.shortlist, { fit: 1, random: 0.25 });
+  assert.ok(result.confidence);
+  assert.equal(result.confidence.samples, 1024);
+  assert.equal(opponentShortlistStatus(result), "borderline");
+  assert.equal(result.limited, undefined);
+
+  const shorter = analyzeOpponentPolicy(lexicon, input, { samples: 64 });
+  assert.equal(shorter.kind, "sampled");
+  assert.equal(shorter.confidence, undefined);
+  assert.equal(opponentShortlistStatus(shorter), "borderline");
 });

@@ -2,12 +2,18 @@ import type { Lexicon } from "./lexicon";
 import type { BoardTemplate, Move, Placement, TurnPosition } from "./model";
 import { randomGenerator } from "./move-analysis";
 import { playableRackPrior } from "./rack-prior";
+import {
+  classifyShortlist,
+  shortlistConfidence,
+  SHORTLIST_SAMPLE_CHECKPOINTS,
+  type ShortlistConfidence,
+} from "./shortlist-confidence";
 import { prepareSolver, SEARCH_LIMITS, SearchLimitError } from "./solver";
 import { unseenTiles } from "./tile-pool";
 
 export const TOP_FIVE_SCORE_SCALE = 5;
 const TOP_FIVE_SIZE = 5;
-const DEFAULT_SAMPLES = 512;
+const MAX_SAMPLES = SHORTLIST_SAMPLE_CHECKPOINTS.at(-1)!;
 const EXACT_RACK_LIMIT = 128;
 const TIME_BUDGET_MS = 5_000;
 
@@ -101,11 +107,12 @@ type PolicyFinding = {
   higherScoringPlacement?: Pick<Move, "word" | "score">;
   playedScore?: number;
   topFiveRuledOut?: true;
+  limited?: true;
 };
 
 export type OpponentPolicyResult = PolicyFinding &
   (
-    | { kind: "unavailable"; reason: string; limited?: true }
+    | { kind: "unavailable"; reason: string }
     | {
         kind: "exact" | "sampled";
         probabilities: PolicyProbabilities;
@@ -113,18 +120,39 @@ export type OpponentPolicyResult = PolicyFinding &
         shortlist?: { fit: number; random: number };
         rack: RackAssumptions;
         samples: number;
-        sampleTarget: number;
+        confidence?: ShortlistConfidence;
       }
   );
+
+export function opponentShortlistStatus(result?: OpponentPolicyResult) {
+  if (!result || result.kind === "unavailable" || !result.shortlist)
+    return undefined;
+  if (result.topFiveRuledOut) return "low";
+  if (result.kind === "exact") {
+    const { fit, random } = result.shortlist;
+    return classifyShortlist({
+      fit: { lower: fit, upper: fit },
+      random: { lower: random, upper: random },
+    });
+  }
+  return result.confidence
+    ? classifyShortlist(result.confidence)
+    : "borderline";
+}
 
 export function analyzeOpponentPolicy(
   lexicon: Lexicon,
   { position, template, word }: OpponentPolicyInput,
   {
-    samples = DEFAULT_SAMPLES,
+    samples,
     exactLimit = EXACT_RACK_LIMIT,
     maxMs = TIME_BUDGET_MS,
     seed = 69211,
+  }: {
+    samples?: number;
+    exactLimit?: number;
+    maxMs?: number;
+    seed?: number;
   } = {},
 ): OpponentPolicyResult {
   const unavailable = (
@@ -231,12 +259,13 @@ export function analyzeOpponentPolicy(
       probabilities,
       rack,
       samples: 0,
-      sampleTarget: 0,
       ...finding,
     };
 
   const exact = prior.enumerate(Math.min(EXACT_RACK_LIMIT, exactLimit));
-  const sampleTarget = exact ? 0 : samples;
+  const sampleLimit = samples ?? MAX_SAMPLES;
+  let confidence: ShortlistConfidence | undefined;
+  let settled = false;
   const random = randomGenerator(seed);
   let completed = 0;
   const shortlist = { fit: 0, random: 0 };
@@ -257,12 +286,27 @@ export function analyzeOpponentPolicy(
       for (const { rack: hand, weight } of exact)
         accumulate(hand, weight / prior.total);
     } else {
-      for (
-        ;
-        completed < sampleTarget && performance.now() < deadline;
-        completed++
-      )
+      while (completed < sampleLimit && performance.now() < deadline) {
         accumulate(prior.sample(random), 1);
+        completed++;
+        if (!SHORTLIST_SAMPLE_CHECKPOINTS.includes(completed)) continue;
+        confidence = shortlistConfidence(
+          {
+            fit: shortlist.fit / completed,
+            random: shortlist.random / completed,
+          },
+          completed,
+        );
+        if (finding.topFiveRuledOut) confidence.fit = { lower: 0, upper: 0 };
+        // Explicit sample counts are used for fixed-size comparisons.
+        if (
+          samples === undefined &&
+          classifyShortlist(confidence) !== "borderline"
+        ) {
+          settled = true;
+          break;
+        }
+      }
     }
   } catch (error) {
     if (!(error instanceof SearchLimitError)) throw error;
@@ -296,7 +340,8 @@ export function analyzeOpponentPolicy(
     },
     rack,
     samples: completed,
-    sampleTarget,
+    confidence,
+    ...(!exact && !settled && completed < sampleLimit && { limited: true }),
     ...finding,
   };
 }
