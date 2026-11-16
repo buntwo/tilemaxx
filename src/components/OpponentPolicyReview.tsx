@@ -28,6 +28,34 @@ function displayProbability(value: number, exact: boolean) {
   }).format(value);
 }
 
+function PolicyEstimates({
+  result,
+  probabilities,
+}: {
+  result: Extract<OpponentPolicyResult, { probabilities: PolicyProbabilities }>;
+  probabilities: PolicyProbabilities;
+}) {
+  return (
+    <dl className="policy-fit-values">
+      {(
+        Object.keys(OPPONENT_POLICY_LABELS) as (keyof PolicyProbabilities)[]
+      ).map((policy) => (
+        <div key={policy}>
+          <dt>{OPPONENT_POLICY_LABELS[policy]}</dt>
+          <dd>
+            {displayProbability(
+              probabilities[policy],
+              result.kind === "exact" ||
+                !!result.topFiveRuledOut ||
+                (policy === "topOne" && !!result.higherScoringPlacement),
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 const boundPercent = new Intl.NumberFormat(undefined, {
   style: "percent",
   maximumFractionDigits: 1,
@@ -154,29 +182,30 @@ export default function OpponentPolicyReview({
               </p>
             )
           )}
-          <p>
-            Chance each policy would choose this exact placement under the rack
-            assumptions shown.
-          </p>
-          <dl className="policy-fit-values">
-            {(
-              Object.keys(
-                OPPONENT_POLICY_LABELS,
-              ) as (keyof PolicyProbabilities)[]
-            ).map((policy) => (
-              <div key={policy}>
-                <dt>{OPPONENT_POLICY_LABELS[policy]}</dt>
-                <dd>
-                  {displayProbability(
-                    displayed.probabilities[policy],
-                    displayed.kind === "exact" ||
-                      !!displayed.topFiveRuledOut ||
-                      (policy === "topOne" && !!finding),
-                  )}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          {displayed.conditionalProbabilities && (
+            <>
+              <p>
+                Chance each policy would choose this exact placement on a rack
+                that could supply the played tiles.
+              </p>
+              <PolicyEstimates
+                result={displayed}
+                probabilities={displayed.conditionalProbabilities}
+              />
+            </>
+          )}
+          <details className="policy-fit-raw">
+            <summary>Raw policy estimates</summary>
+            <p>
+              Chance each policy would choose this exact placement across all
+              possible racks. The chance of holding the played tiles is{" "}
+              {displayProbability(displayed.compatibleRackChance, true)}.
+            </p>
+            <PolicyEstimates
+              result={displayed}
+              probabilities={displayed.probabilities}
+            />
+          </details>
         </>
       )}
       {displayed?.topFiveRuledOut && (

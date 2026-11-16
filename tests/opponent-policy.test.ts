@@ -153,6 +153,9 @@ test("the solver finds a placement best on one rack and outside the first five o
   const exact = analyzeOpponentPolicy(lexicon, input);
   assert.equal(exact.kind, "exact");
   assert.equal(exact.rack.source, "board");
+  near(exact.compatibleRackChance, 3 / 4);
+  near(exact.conditionalProbabilities!.topOne, 1 / 3);
+  near(exact.conditionalProbabilities!.uniformTopFive, 1 / 12);
   near(exact.probabilities.topOne, 1 / 4);
   near(exact.probabilities.uniformTopFive, 1 / 16);
   near(
@@ -172,8 +175,13 @@ test("the solver finds a placement best on one rack and outside the first five o
   assert.equal(sampled.samples, 4_000);
   for (const policy of Object.keys(
     exact.probabilities,
-  ) as (keyof PolicyProbabilities)[])
+  ) as (keyof PolicyProbabilities)[]) {
     near(sampled.probabilities[policy], exact.probabilities[policy], 0.015);
+    near(
+      sampled.probabilities[policy],
+      sampled.conditionalProbabilities![policy] * sampled.compatibleRackChance,
+    );
+  }
 
   near(sampled.shortlist!.fit, exact.shortlist!.fit, 0.02);
   near(sampled.shortlist!.random, exact.shortlist!.random, 0.02);
@@ -184,6 +192,8 @@ test("the solver finds a placement best on one rack and outside the first five o
   });
   assert.equal(known.kind, "exact");
   assert.equal(known.rack.opponentRack, "AAT");
+  assert.equal(known.compatibleRackChance, 1);
+  assert.deepEqual(known.conditionalProbabilities, known.probabilities);
   assert.equal(known.probabilities.topOne, 1);
   assert.deepEqual(known.shortlist, { fit: 1, random: 1 });
 });
@@ -293,6 +303,8 @@ test("a rack conflict leaves the conditional shortlist undefined", () => {
   });
   assert.equal(result.kind, "exact");
   assert.equal(result.shortlist, undefined);
+  assert.equal(result.compatibleRackChance, 0);
+  assert.equal(result.conditionalProbabilities, undefined);
   assert.equal(result.probabilities.uniformTopFive, 0);
 });
 
