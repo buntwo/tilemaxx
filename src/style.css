@@ -1974,17 +1974,16 @@ label + label {
 }
 .results-panel {
   container-type: inline-size;
-  --result-rank: calc(var(--result-rank-digits, 1) * 6px);
   --result-points: var(--result-adjusted-points, 34px);
   --result-leave: 88px;
   --result-position: 37px;
   --result-gap: 6px;
   --result-gutter: 12px;
-  --result-grid: [rank] var(--result-rank) [word] minmax(0, 1fr) [points] var(--result-points)
+  --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)
     [leave] var(--result-leave) [position] var(--result-position);
 }
 .results-panel.with-reply-column {
-  --result-grid: [rank] var(--result-rank) [word] minmax(0, 1fr) [points] var(--result-points)
+  --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)
     [reply] var(--result-reply, 62px) [leave] var(--result-leave) [position] var(--result-position);
 }
 .results-panel.with-adjusted-points { --result-adjusted-points: 51px; }
@@ -2009,7 +2008,10 @@ label + label {
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
-.result-word, .result-word-heading { grid-column: word; }
+.result-word, .result-word-heading {
+  grid-column: word;
+  margin-inline-start: calc(5px - var(--result-gutter));
+}
 .result-score, .result-points-heading { grid-column: points; text-align: right; }
 .result-reply-heading, .result-reply-metric, .result-defense-action { grid-column: reply; }
 .result-reply-heading { text-align: center; }
@@ -2047,18 +2049,7 @@ label + label {
   grid-row: 1 / span 2;
 }
 .with-adjusted-points .result-row { grid-template-rows: 19px 14px 12px; }
-.with-adjusted-points .result-row > :not(.result-word, .result-rank) { grid-row: 1 / span 3; }
-.result-row .result-rank {
-  grid-column: rank;
-  grid-row: 1;
-  align-self: start;
-  margin-inline-end: calc(3px - var(--result-gap));
-  text-align: end;
-  font-size: 9px;
-  line-height: 19px;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
+.with-adjusted-points .result-row > :not(.result-word) { grid-row: 1 / span 3; }
 .result-row .result-stack {
   display: grid;
   grid-template-rows: subgrid;
@@ -2067,6 +2058,21 @@ label + label {
   font-size: 14px;
   line-height: 19px;
 }
+.result-row .result-word {
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 3px;
+}
+.result-rank {
+  grid-area: 1 / 1;
+  align-self: start;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 19px;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.result-word .result-letters { grid-area: 1 / 2; }
 .result-stack .result-letters,
 .result-stack .result-word-note,
 .result-stack .result-score-delta {
@@ -2087,6 +2093,7 @@ label + label {
   white-space: nowrap;
 }
 .result-row .result-word-detail {
+  grid-area: 2 / 2;
   display: flex;
   align-items: center;
   min-width: 0;
@@ -5460,7 +5467,7 @@ label + label {
 }
 @container (max-width: 390px) {
   .phone-move-review .with-reply-column :is(.result-columns, .result-row, .result-slot) {
-    --result-grid: [rank] var(--result-rank) [word] minmax(0, 1fr) [points] var(--result-points)
+    --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)
       [reply] var(--result-reply, 48px) [leave] var(--result-leave) [position] var(--result-position);
   }
 }

@@ -633,10 +633,7 @@ export default function Results({
     <section
       aria-label="Possible moves"
       className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${showEndgameSwing ? " with-endgame-estimates" : ""}${showAdjustedPoints ? " with-adjusted-points" : ""}`}
-      style={{
-        "--move-row-height": `${moveRowHeight}px`,
-        "--result-rank-digits": String(totalMoves).length,
-      } as CSSProperties}
+      style={{ "--move-row-height": `${moveRowHeight}px` } as CSSProperties}
     >
       <header
         className={`results-title${exchangeAction ? " has-exchange-advice" : ""}`}
@@ -1123,10 +1120,10 @@ export default function Results({
                         }
                       }}
                     >
-                      <small className="result-rank" title={scoreRankLabel} aria-hidden="true">
-                        {scoreRank}
-                      </small>
                       <span className="result-word result-stack">
+                        <span className="result-rank" title={scoreRankLabel} aria-hidden="true">
+                          {scoreRank}
+                        </span>
                         <span className="result-letters" aria-hidden="true">
                           {[...m.word].map((letter, i) => {
                             const index =
