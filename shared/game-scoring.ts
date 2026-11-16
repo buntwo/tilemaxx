@@ -780,6 +780,20 @@ function recordOpponentTurn(
   { base, play }: PendingOpponentTurn,
   end?: GameScoring["end"] | null,
 ): Game {
+  const start = opponentEntryStart(game, base);
+  const physicalRack = (rack: string) => [...rackLetters(rack)].sort().join("");
+  const rack = physicalRack(game.rack);
+  // A full rack present before entry and unchanged through recording is
+  // usable. A verified rack-out also accounts for every tile in a short rack.
+  const observerRack =
+    (end && "out" in end && end.out === "opponent") ||
+    (rack.length === game.template.rackSize &&
+      start !== undefined &&
+      game.past
+        .slice(start)
+        .every((entry) => physicalRack(entry.rack) === rack))
+      ? rack
+      : undefined;
   const history = remember(
     game,
     play.word,
@@ -788,6 +802,7 @@ function recordOpponentTurn(
     play.bingo,
     {
       board: base.map((tile, index) => (tile ? game.board[index] : "")),
+      ...(observerRack !== undefined && { observerRack }),
       dictionaryId: game.dictionaryId,
       premiums: game.template.premiums,
       tiles: game.board.flatMap((letter, index) =>
@@ -795,7 +810,6 @@ function recordOpponentTurn(
       ),
     },
   );
-  const start = opponentEntryStart(game, base);
   if (start !== undefined) {
     const { label, player, score, bingo, review, at } = history.past.at(-1)!;
     history.past = [

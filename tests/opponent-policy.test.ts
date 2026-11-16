@@ -1,0 +1,239 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { Lexicon } from "../shared/lexicon";
+import { emptyBoard, type BoardTemplate } from "../shared/model";
+import { randomGenerator } from "../shared/move-analysis";
+import {
+  analyzeOpponentPolicy,
+  movePolicyProbabilities,
+  placementKey,
+  type PolicyProbabilities,
+} from "../shared/opponent-policy";
+import { playableRackPrior } from "../shared/rack-prior";
+import { solve } from "../shared/solver";
+import {
+  rackContainsChance,
+  TILE_SYMBOLS,
+  unseenTiles,
+} from "../shared/tile-pool";
+
+const counts = (pool: string) =>
+  Object.fromEntries(
+    TILE_SYMBOLS.map((symbol) => [
+      symbol,
+      [...pool].filter((tile) => tile === symbol).length,
+    ]),
+  );
+
+function template(pool: string, rackSize = 3): BoardTemplate {
+  const premiums: BoardTemplate["premiums"] = Array(25).fill("");
+  premiums[13] = "TL";
+  return {
+    id: "fixture",
+    name: "Policy fixture",
+    size: 5,
+    premiums,
+    start: 12,
+    rackSize,
+    bingo: 0,
+    rules: "scrabble",
+    tileCounts: counts(pool),
+  };
+}
+
+function near(actual: number, expected: number, tolerance = 1e-12) {
+  assert.ok(
+    Math.abs(actual - expected) < tolerance,
+    `${actual} vs ${expected}`,
+  );
+}
+
+function policySums(rows: PolicyProbabilities[]) {
+  for (const policy of Object.keys(rows[0]) as (keyof PolicyProbabilities)[])
+    near(
+      rows.reduce((total, row) => total + row[policy], 0),
+      1,
+    );
+}
+
+test("point policies normalize and split top and shortlist ties fairly", () => {
+  const moves = [30, 30, 25, 20, 20, 20, 10].map((score, i) => ({
+    id: String(i),
+    score,
+  }));
+  const [first, tie, third, boundary, boundary2, boundary3, outside] =
+    moves.map(({ id }) => movePolicyProbabilities(moves, id));
+  policySums([first, tie, third, boundary, boundary2, boundary3, outside]);
+  assert.deepEqual(first, tie);
+  assert.equal(first.topOne, 0.5);
+  assert.equal(third.topOne, 0);
+  assert.equal(first.uniformTopFive, 1 / 5);
+  near(boundary.uniformTopFive, 2 / 15);
+  assert.deepEqual(boundary, boundary2);
+  assert.deepEqual(boundary, boundary3);
+  const w = 2 + Math.exp(-1) + 2 * Math.exp(-2);
+  near(first.weightedTopFive, 1 / w);
+  near(third.weightedTopFive, Math.exp(-1) / w);
+  near(boundary.weightedTopFive, ((2 / 3) * Math.exp(-2)) / w);
+  assert.deepEqual(outside, {
+    topOne: 0,
+    uniformTopFive: 0,
+    weightedTopFive: 0,
+  });
+
+  assert.deepEqual(
+    movePolicyProbabilities([...moves].reverse(), "3"),
+    boundary,
+  );
+  assert.deepEqual(movePolicyProbabilities([...moves, moves[0]], "0"), first);
+  const short = moves.slice(0, 3);
+  const shortRows = short.map(({ id }) => movePolicyProbabilities(short, id));
+  policySums(shortRows);
+  assert.ok(shortRows.every((row) => row.uniformTopFive === 1 / 3));
+});
+
+test("conditional prior preserves the multiplicity of repeated letters", () => {
+  const pool = unseenTiles(
+    { board: emptyBoard(5), rack: "" },
+    template("AABC", 2),
+  );
+  const prior = playableRackPrior(pool, 2, ["A"]);
+  assert.equal(prior.total, 5);
+  near(prior.chance, 5 / 6);
+  near(prior.chance, rackContainsChance(pool, 2, ["A"]));
+  const hands = new Map(
+    prior.enumerate(3)!.map(({ rack, weight }) => [rack, weight / prior.total]),
+  );
+  assert.deepEqual(
+    hands,
+    new Map([
+      ["AA", 1 / 5],
+      ["AB", 2 / 5],
+      ["AC", 2 / 5],
+    ]),
+  );
+  assert.equal(prior.enumerate(2), undefined);
+
+  const random = randomGenerator(94251);
+  const frequencies = new Map<string, number>();
+  for (let i = 0; i < 20_000; i++) {
+    const rack = prior.sample(random);
+    frequencies.set(rack, (frequencies.get(rack) ?? 0) + 1);
+  }
+  assert.equal(frequencies.size, 3);
+  for (const [rack, chance] of hands)
+    near(frequencies.get(rack)! / 20_000, chance, 0.012);
+  const repeated = playableRackPrior(pool, 2, ["A", "A"]);
+  assert.deepEqual(repeated.enumerate(1), [{ rack: "AA", weight: 1 }]);
+  near(repeated.chance, 1 / 6);
+});
+
+test("the solver finds a placement best on one rack and outside the first five on another", () => {
+  const lexicon = new Lexicon(["AT", "AX", "TAX"]);
+  const board = emptyBoard(5);
+  const layout = template("AATX");
+  const tiles = [
+    { index: 12, letter: "A" },
+    { index: 13, letter: "T" },
+  ];
+  const id = placementKey(tiles);
+  assert.equal(solve(lexicon, board, "AAT", layout)[0].id, id);
+  const competing = solve(lexicon, board, "ATX", layout);
+  assert.ok(competing.findIndex((move) => move.id === id) >= 5);
+  assert.ok(
+    competing[4].score > competing.find((move) => move.id === id)!.score,
+  );
+
+  const input = { position: { board, tiles }, template: layout, word: "AT" };
+  const exact = analyzeOpponentPolicy(lexicon, input);
+  assert.equal(exact.kind, "exact");
+  assert.equal(exact.rack.source, "board");
+  near(exact.probabilities.topOne, 1 / 4);
+  near(exact.probabilities.uniformTopFive, 1 / 16);
+  near(
+    exact.probabilities.weightedTopFive,
+    1 / (4 * (1 + 3 * Math.exp(-2 / 5))),
+  );
+
+  const sampled = analyzeOpponentPolicy(lexicon, input, {
+    exactLimit: 0,
+    samples: 4_000,
+  });
+  assert.equal(sampled.kind, "sampled");
+  assert.equal(sampled.samples, 4_000);
+  for (const policy of Object.keys(
+    exact.probabilities,
+  ) as (keyof PolicyProbabilities)[])
+    near(sampled.probabilities[policy], exact.probabilities[policy], 0.015);
+
+  const known = analyzeOpponentPolicy(lexicon, {
+    ...input,
+    position: { ...input.position, observerRack: "X" },
+  });
+  assert.equal(known.kind, "exact");
+  assert.equal(known.rack.opponentRack, "AAT");
+  assert.equal(known.probabilities.topOne, 1);
+});
+
+test("a full-rack placement keeps its prior probability and distinguishes assigned blanks", () => {
+  const lexicon = new Lexicon(["AT"]);
+  const board = emptyBoard(5);
+  const layout = template("AA?T", 2);
+  const input = {
+    position: {
+      board,
+      tiles: [
+        { index: 12, letter: "A" },
+        { index: 13, letter: "t" },
+      ],
+    },
+    template: layout,
+    word: "AT",
+  };
+  const blank = analyzeOpponentPolicy(lexicon, input);
+  assert.equal(blank.kind, "exact");
+  assert.equal(blank.playedScore, 1);
+  near(blank.probabilities.topOne, 1 / 12);
+  near(blank.probabilities.uniformTopFive, 1 / 12);
+
+  const real = analyzeOpponentPolicy(lexicon, {
+    ...input,
+    position: {
+      board,
+      tiles: [
+        { index: 12, letter: "A" },
+        { index: 13, letter: "T" },
+      ],
+    },
+  });
+  assert.equal(real.kind, "exact");
+  assert.equal(real.playedScore, 4);
+  near(real.probabilities.topOne, 1 / 3);
+});
+
+test("same-tile counterexample proves exact top-one zero even when sampled", () => {
+  const lexicon = new Lexicon(["AT"]);
+  const input = {
+    position: {
+      board: emptyBoard(5),
+      tiles: [
+        { index: 12, letter: "A" },
+        { index: 17, letter: "T" },
+      ],
+    },
+    template: template("AATX"),
+    word: "AT",
+  };
+  const fit = analyzeOpponentPolicy(lexicon, input, {
+    exactLimit: 0,
+    samples: 10,
+  });
+  assert.equal(fit.kind, "sampled");
+  assert.deepEqual(fit.higherScoringPlacement, { word: "AT", score: 4 });
+  assert.equal(fit.probabilities.topOne, 0);
+  assert.ok(fit.probabilities.uniformTopFive > 0);
+
+  const unknown = analyzeOpponentPolicy(new Lexicon(["TO"]), input);
+  assert.equal(unknown.kind, "unavailable");
+  assert.match(unknown.reason, /selected word list/);
+});

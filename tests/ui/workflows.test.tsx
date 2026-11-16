@@ -3732,7 +3732,7 @@ test("Optimal Exchange restores the rankings and caches each completed simulatio
         } else if (request.kind === "exchange") {
           simulations.push(request);
           pendingSimulation = this;
-        } else if (!("exchange" in request) && !("turns" in request)) {
+        } else if ("id" in request) {
           super.postMessage(request);
         }
       }
