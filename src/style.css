@@ -2065,6 +2065,7 @@ label + label {
 .result-rank {
   grid-area: 1 / 1;
   align-self: start;
+  inline-size: calc(var(--result-rank-digits, 1) * 6px);
   font-size: 9px;
   font-weight: 500;
   line-height: 19px;

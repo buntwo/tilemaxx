@@ -236,7 +236,9 @@ test("scrolling and filtering use worker pages and ignore out-of-order results",
     new Promise((resolve) => pending.push(() => resolve(index.page(query))));
   setup(false, { moves: longList, fetchPage });
   expect(rows()).toHaveLength(30);
+  const panel = screen.getByRole("region", { name: "Possible moves" });
   expect(rows().slice(0, 2).map(displayedRank)).toEqual(["1", "2"]);
+  expect(panel.style.getPropertyValue("--result-rank-digits")).toBe("3");
   expect(pending).toHaveLength(0);
   const scroller = screen.getByLabelText("Suggested moves");
   scroller.scrollTop = 200 * moveRowHeight;
@@ -252,6 +254,7 @@ test("scrolling and filtering use worker pages and ignore out-of-order results",
   await act(async () => pending[2]());
   expect(rows()).toHaveLength(1);
   expect(displayedRank(screen.getByRole("button", { name: /^ZEBRA,/ }))).toBe("200");
+  expect(panel.style.getPropertyValue("--result-rank-digits")).toBe("3");
   await act(async () => pending[1]());
   expect(rows()).toHaveLength(1);
   expect(screen.queryByRole("button", { name: /^QUICK,/ })).toBeNull();
