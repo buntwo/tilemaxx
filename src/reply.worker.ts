@@ -1,13 +1,17 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
 import {
+  compareReplyBoards,
   prepareReplyAnalysis,
   REPLY_SAMPLES,
   replyEndgameLine,
+  sampleReplyRacks,
   type ReplyRequest,
   type ReplyResult,
 } from "../shared/reply-analysis";
 import type { EndgameLine } from "../shared/endgame";
 import { SearchLimitError } from "../shared/solver";
+import type { CandidateResult } from "./candidate-analysis-jobs";
+import { runCandidateJobs } from "./candidate-analysis-pool";
 
 let dictionary: { id: string; lexicon: Lexicon } | undefined;
 let summary: Extract<ReplyRequest, { kind: "reply-summary" }> | undefined;
@@ -46,30 +50,29 @@ async function run() {
       try {
         const lexicon = await getDictionary(request.dictionaryId);
         if (kind === "reply-summary") {
-          // Give each move a bounded slice, so one expensive board does not
-          // starve later rows or block an on-demand comparison.
-          let deadline = performance.now() + 5_000;
-          const analyze = prepareReplyAnalysis(
-            lexicon,
-            request,
-            reference,
-            REPLY_SAMPLES,
-            () => deadline,
-          );
-          for (const move of request.candidates) {
-            deadline = performance.now() + 5_000;
-            let result: ReplyResult | undefined;
-            try {
-              result = analyze(move);
-            } catch (error) {
-              if (!(error instanceof SearchLimitError)) throw error;
-            }
-            self.postMessage({ id, kind, moveId: move.id, result });
-            await yieldToMessages();
-            if (detail) {
-              const next = detail;
-              detail = undefined;
-              await runDetail(next);
+          if (request.bagSize) {
+            await runHistograms(lexicon, request);
+          } else {
+            // Empty-bag rows show a single known-rack reply. The separate
+            // exact-line precompute uses the candidate workers.
+            let deadline = performance.now() + 5_000;
+            const analyze = prepareReplyAnalysis(
+              lexicon,
+              request,
+              reference,
+              REPLY_SAMPLES,
+              () => deadline,
+            );
+            for (const move of request.candidates) {
+              deadline = performance.now() + 5_000;
+              let result: ReplyResult | undefined;
+              try {
+                result = analyze(move);
+              } catch (error) {
+                if (!(error instanceof SearchLimitError)) throw error;
+              }
+              self.postMessage({ id, kind, moveId: move.id, result });
+              await betweenReplies();
             }
           }
           self.postMessage({ id, kind, done: true });
@@ -83,6 +86,77 @@ async function run() {
   } finally {
     running = false;
   }
+}
+
+async function betweenReplies() {
+  await yieldToMessages();
+  if (detail) {
+    const next = detail;
+    detail = undefined;
+    await runDetail(next);
+  }
+}
+
+async function runHistograms(
+  lexicon: Lexicon,
+  request: Extract<ReplyRequest, { kind: "reply-summary" }>,
+) {
+  const {
+    id,
+    kind,
+    candidates,
+    reference,
+    dictionaryId: _,
+    ...position
+  } = request;
+  if (!candidates.length) return;
+  const samples = sampleReplyRacks(position, REPLY_SAMPLES);
+  type Histogram = Extract<CandidateResult, { kind: "histogram" }>["board"];
+  let baseline: Histogram | undefined;
+  const ready = new Map<string, Histogram | undefined>();
+  const publishReference = candidates.some(({ id }) => id === reference.id);
+  const moves = [
+    reference,
+    ...candidates.filter(({ id }) => id !== reference.id),
+  ];
+  await runCandidateJobs(
+    lexicon,
+    moves.map((move) => ({
+      kind: "histogram",
+      position,
+      move,
+      samples,
+    })),
+    async ({ move }, result) => {
+      if (result.kind === "error" || result.kind === "endgame")
+        throw new Error(
+          result.kind === "error"
+            ? result.message
+            : "Unexpected histogram result.",
+        );
+      if (move.id === reference.id) {
+        if (result.kind === "limit") throw new Error(result.message);
+        baseline = result.board;
+        if (publishReference) {
+          const result = compareReplyBoards(baseline, baseline, samples);
+          self.postMessage({ id, kind, moveId: move.id, result });
+        }
+      } else {
+        ready.set(
+          move.id,
+          result.kind === "histogram" ? result.board : undefined,
+        );
+      }
+      if (baseline) {
+        for (const [moveId, board] of ready) {
+          const result = board && compareReplyBoards(board, baseline, samples);
+          self.postMessage({ id, kind, moveId, result });
+        }
+        ready.clear();
+      }
+      await betweenReplies();
+    },
+  );
 }
 
 async function runDetail(

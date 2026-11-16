@@ -283,104 +283,142 @@ export function prepareReplyAnalysis(
     };
   }
 
-  const { racks, exact } = racksFor(pool, rackSize, samples);
-  const count = racks.reduce((sum, { weight }) => sum + weight, 0);
-  function summarize(candidate: Move, referenceScores?: Uint8Array) {
-    const solver = prepareSolver(
+  const samplesForBoard = racksFor(pool, rackSize, samples);
+  const summarize = (candidate: Move) =>
+    summarizeReplyBoard(
       lexicon,
-      placeTiles(board, candidate),
-      template,
+      position,
+      candidate,
+      samplesForBoard,
+      deadline,
+      captureHeatmap,
     );
-    const buckets = Array<number>(REPLY_BUCKETS.length).fill(0);
-    const discordant = [...buckets];
-    const bucketByRack = new Uint8Array(racks.length);
-    const hotspots = new Map<
-      number,
-      {
-        count: number;
-        examples: Map<string, { play: PremiumReply; count: number }>;
-      }
-    >();
-    const seen = new Uint32Array(board.length);
-    let sum = 0;
-    let outscored = 0;
-    for (const [i, { rack, weight }] of racks.entries()) {
-      let score: number;
-      if (captureHeatmap) {
-        const summary = solver.summarizeReply(rack, limit(deadline()));
-        score = summary.score;
-        for (const play of summary.bigReplies) {
-          const key = play.tiles
-            .map(({ index, letter }) => `${index}:${letter}`)
-            .join(",");
-          for (const { index } of play.tiles) {
-            let hotspot = hotspots.get(index);
-            if (!hotspot) {
-              hotspot = { count: 0, examples: new Map() };
-              hotspots.set(index, hotspot);
-            }
-            // Every physical rack contributes once to each square, even when
-            // several equally strong replies use it.
-            if (seen[index] !== i + 1) {
-              hotspot.count += weight;
-              seen[index] = i + 1;
-            }
-            const existing = hotspot.examples.get(key);
-            if (existing) existing.count += weight;
-            else hotspot.examples.set(key, { play, count: weight });
-          }
-        }
-      } else {
-        score = solver.summarize(rack, limit(deadline())).score;
-      }
-      const index = bucket(score);
-      buckets[index] += weight;
-      bucketByRack[i] = index;
-      sum += score * weight;
-      if (score > candidate.score) outscored += weight;
-      if (referenceScores && referenceScores[i] !== index) {
-        discordant[referenceScores[i]] += weight;
-        discordant[index] += weight;
-      }
-    }
-    const squares = Array.from(hotspots, ([square, { count, examples }]) => {
-      const ranked = [...examples.values()].sort(
-        (a, b) => b.count - a.count || b.play.score - a.play.score,
-      );
-      return {
-        square,
-        count,
-        examples: ranked.slice(0, 3),
-      };
-    }).sort((a, b) => b.count - a.count || a.square - b.square);
-    return { mean: sum / count, buckets, discordant, bucketByRack, squares, outscored };
-  }
   const baseline = summarize(reference);
-  return (candidate: Move): ReplyDistribution => {
-    const { mean, buckets, discordant, squares, outscored } =
-      candidate.id === reference.id
-        ? baseline
-        : summarize(candidate, baseline.bucketByRack);
+  return (candidate: Move): ReplyDistribution =>
+    compareReplyBoards(
+      candidate.id === reference.id ? baseline : summarize(candidate),
+      baseline,
+      samplesForBoard,
+      captureHeatmap,
+    );
+}
+
+type ReplyRacks = ReturnType<typeof racksFor>;
+
+export function sampleReplyRacks(
+  position: ReplyPosition,
+  samples: number,
+): ReplyRacks {
+  const { pool, rackSize } = replyPosition(position);
+  return racksFor(pool, rackSize, samples);
+}
+
+export function summarizeReplyBoard(
+  lexicon: Lexicon,
+  { board, template }: ReplyPosition,
+  candidate: Move,
+  { racks }: ReplyRacks,
+  deadline: () => number,
+  captureHeatmap = false,
+) {
+  const count = racks.reduce((sum, { weight }) => sum + weight, 0);
+  const solver = prepareSolver(lexicon, placeTiles(board, candidate), template);
+  const buckets = Array<number>(REPLY_BUCKETS.length).fill(0);
+  const bucketByRack = new Uint8Array(racks.length);
+  const hotspots = new Map<
+    number,
+    {
+      count: number;
+      examples: Map<string, { play: PremiumReply; count: number }>;
+    }
+  >();
+  const seen = new Uint32Array(board.length);
+  let sum = 0;
+  let outscored = 0;
+  for (const [i, { rack, weight }] of racks.entries()) {
+    let score: number;
+    if (captureHeatmap) {
+      const summary = solver.summarizeReply(rack, limit(deadline()));
+      score = summary.score;
+      for (const play of summary.bigReplies) {
+        const key = play.tiles
+          .map(({ index, letter }) => `${index}:${letter}`)
+          .join(",");
+        for (const { index } of play.tiles) {
+          let hotspot = hotspots.get(index);
+          if (!hotspot) {
+            hotspot = { count: 0, examples: new Map() };
+            hotspots.set(index, hotspot);
+          }
+          // Every physical rack contributes once to each square, even when
+          // several equally strong replies use it.
+          if (seen[index] !== i + 1) {
+            hotspot.count += weight;
+            seen[index] = i + 1;
+          }
+          const existing = hotspot.examples.get(key);
+          if (existing) existing.count += weight;
+          else hotspot.examples.set(key, { play, count: weight });
+        }
+      }
+    } else {
+      score = solver.summarize(rack, limit(deadline())).score;
+    }
+    const index = bucket(score);
+    buckets[index] += weight;
+    bucketByRack[i] = index;
+    sum += score * weight;
+    if (score > candidate.score) outscored += weight;
+  }
+  const squares = Array.from(hotspots, ([square, { count, examples }]) => {
+    const ranked = [...examples.values()].sort(
+      (a, b) => b.count - a.count || b.play.score - a.play.score,
+    );
     return {
-      kind: "distribution",
-      mean,
-      buckets,
-      difference: mean - baseline.mean,
-      discordant,
-      outscored,
+      square,
       count,
-      exact,
-      reference: { mean: baseline.mean, buckets: baseline.buckets },
-      ...(captureHeatmap && {
-        heatmap: {
-          squares,
-          reference: baseline.squares.map(({ square, count }) => ({
-            square,
-            count,
-          })),
-        },
-      }),
+      examples: ranked.slice(0, 3),
     };
+  }).sort((a, b) => b.count - a.count || a.square - b.square);
+  return { mean: sum / count, buckets, bucketByRack, squares, outscored };
+}
+
+export function compareReplyBoards(
+  board: ReturnType<typeof summarizeReplyBoard>,
+  baseline: ReturnType<typeof summarizeReplyBoard>,
+  { racks, exact }: ReplyRacks,
+  captureHeatmap = false,
+): ReplyDistribution {
+  const discordant = Array<number>(REPLY_BUCKETS.length).fill(0);
+  let count = 0;
+  for (const [i, { weight }] of racks.entries()) {
+    count += weight;
+    const index = board.bucketByRack[i];
+    const referenceIndex = baseline.bucketByRack[i];
+    if (index !== referenceIndex) {
+      discordant[index] += weight;
+      discordant[referenceIndex] += weight;
+    }
+  }
+  return {
+    kind: "distribution",
+    mean: board.mean,
+    buckets: board.buckets,
+    difference: board.mean - baseline.mean,
+    discordant,
+    outscored: board.outscored,
+    count,
+    exact,
+    reference: { mean: baseline.mean, buckets: baseline.buckets },
+    ...(captureHeatmap && {
+      heatmap: {
+        squares: board.squares,
+        reference: baseline.squares.map(({ square, count }) => ({
+          square,
+          count,
+        })),
+      },
+    }),
   };
 }
 
