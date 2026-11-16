@@ -67,6 +67,9 @@ export interface GameScoring {
   opponent: PlayerScore;
   pendingBase?: Board;
   imported?: boolean;
+  // The score can cover only a suffix of the saved move log after a reset.
+  historyStart?: number;
+  incomplete?: boolean;
   end?: ({ out: Player; rackPoints: number } | ManualGameEnd) & {
     endedOn?: string;
   };
@@ -84,6 +87,7 @@ export interface HistoryEntry extends Position {
   score?: number;
   bingo?: boolean;
   player?: Player;
+  trackScores?: boolean;
   scoring?: GameScoring;
   // Only score-log edits need to snapshot the whole log for undo and redo.
   trackedMoves?: TrackedMove[];
@@ -476,6 +480,7 @@ export function undo(game: Game): Game {
       : game.template,
     rack: step.rack,
     excludedRackSlots: step.excludedRackSlots,
+    trackScores: step.trackScores ?? game.trackScores,
     scoring: step.scoring,
     trackedMoves:
       step.trackedMoves ??
@@ -493,6 +498,10 @@ export function undo(game: Game): Game {
         label: step.label,
         score: step.score,
         player: step.player,
+        trackScores:
+          step.trackScores === undefined
+            ? undefined
+            : game.trackScores !== false,
         bingo: trackedMove(step, game.scoring)?.bingo,
         review: step.review,
         scoring: game.scoring,
@@ -514,6 +523,7 @@ export function redo(game: Game): Game {
       : game.template,
     rack: step.rack,
     excludedRackSlots: step.excludedRackSlots,
+    trackScores: step.trackScores ?? game.trackScores,
     scoring: step.scoring,
     trackedMoves:
       step.trackedMoves ??
@@ -528,6 +538,10 @@ export function redo(game: Game): Game {
         label: step.label,
         score: step.score,
         player: step.player,
+        trackScores:
+          step.trackScores === undefined
+            ? undefined
+            : game.trackScores !== false,
         bingo: move?.bingo,
         review: step.review,
         scoring: game.scoring,

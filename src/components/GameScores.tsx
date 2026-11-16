@@ -98,7 +98,7 @@ export default function GameScores({
           Track scores
         </label>
       </div>
-      {(manual ? !!manual.scores : tracking) ? (
+      {tracking || manual?.scores ? (
         <>
           <dl className="score-players">
             {(["you", "opponent"] as const).map((player) => {
@@ -121,17 +121,27 @@ export default function GameScores({
               );
             })}
           </dl>
-          <p className={`score-detail ${tone ?? ""}`}>
-            {outcome
-              ? { win: "You won", loss: "Opponent won", tie: "Tie" }[outcome]
-              : margin > 0
-                ? `${scoring.end ? "Win" : "Lead"} by ${margin}`
-                : margin < 0
-                  ? `${scoring.end ? "Lose" : "Trail"} by ${-margin}`
-                  : scoring.end
-                    ? "Tie"
-                    : "Tied"}
-          </p>
+          {scoring.incomplete && !manual?.scores ? (
+            <p className="score-detail">
+              Partial scores. Some plays are missing from the saved history.
+            </p>
+          ) : manual && !manual.scores ? (
+            <p className="score-detail">
+              Game ended. Showing points from saved moves.
+            </p>
+          ) : (
+            <p className={`score-detail ${tone ?? ""}`}>
+              {outcome
+                ? { win: "You won", loss: "Opponent won", tie: "Tie" }[outcome]
+                : margin > 0
+                  ? `${scoring.end ? "Win" : "Lead"} by ${margin}`
+                  : margin < 0
+                    ? `${scoring.end ? "Lose" : "Trail"} by ${-margin}`
+                    : scoring.end
+                      ? "Tie"
+                      : "Tied"}
+            </p>
+          )}
           {rackOut && (
             <p className="score-detail">
               {rackOut.out === "you" ? "You went out." : "Opponent went out."}{" "}
@@ -185,8 +195,8 @@ export default function GameScores({
         <p className="score-detail">Game ended.</p>
       ) : isImportedPosition(game) ? (
         <p className="score-detail">
-          Screenshot imported. Turn tracking on to count moves from this
-          position.
+          Screenshot imported. Turn tracking on to recover scores from saved
+          moves and count future plays.
         </p>
       ) : null}
       <details className="score-history">

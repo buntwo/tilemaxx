@@ -18,6 +18,7 @@ import {
   recordOpponentRackOut,
   scoreTotalsAtPosition,
   setScoreTracking,
+  summarizeGameScore,
   tracksScores,
   treatBoardEditAsCorrection,
   unplayedRackPoints,
@@ -668,11 +669,16 @@ test("bingo corrections use retained snapshots and leave previous scoring sessio
   assert.equal(corrected.trackedMoves?.[0].bingo, true);
   assert.deepEqual(undo(corrected).trackedMoves, played.trackedMoves);
 
+  const replacement = [...played.board];
+  const replaced = opening.tiles[1].index;
+  replacement[replaced] = "X";
   for (const position of [
     importBoard(played, played.board),
-    setScoreTracking(importBoard(played, played.board), true),
+    setScoreTracking(importBoard(played, replacement), true),
   ]) {
-    const edited = new BoardEditHistory().apply(position, board, "blank");
+    const tiles = [...position.board];
+    tiles[tile.index] = board[tile.index];
+    const edited = new BoardEditHistory().apply(position, tiles, "blank");
     assert.deepEqual(edited.scoring, position.scoring);
     assert.deepEqual(edited.trackedMoves, position.trackedMoves);
   }
@@ -763,6 +769,225 @@ test("import starts an untracked position and undo restores scores and the track
     ),
     false,
   );
+});
+
+test("reenabling tracking replays typed turns and solver plays from legacy saves", () => {
+  const game = { ...fixture(), trackScores: false };
+  const edits = new BoardEditHistory();
+  const opening = [...game.board];
+  opening.splice(game.template.start, 3, "C", "A", "Q");
+  const typo = edits.apply(game, [...opening], "enter");
+  opening[game.template.start + 2] = "";
+  const erased = edits.apply(typo, [...opening], "erase");
+  opening[game.template.start + 2] = "t";
+  const entered = { ...edits.apply(erased, opening, "enter"), rack: "S" };
+  const move = solve(
+    new Lexicon(["CATS"]),
+    entered.board,
+    entered.rack,
+    entered.template,
+  ).find((move) => move.word === "CATS")!;
+  const played = playTrackedMove(entered, move);
+  const next = [...played.board];
+  const hook = move.tiles[0].index;
+  next[hook - game.template.size] = "I";
+  const legacy = gameSchema.parse(
+    JSON.parse(JSON.stringify(edits.apply(played, next, "enter"))),
+  );
+
+  const restored = setScoreTracking(legacy, true);
+  assert.deepEqual(
+    trackedMoveHistory(restored).map(({ player, word, score }) => [
+      player,
+      word,
+      score,
+    ]),
+    [
+      ["opponent", "CAT", 8],
+      ["you", "CATS", move.score],
+      ["opponent", "IS", 2],
+    ],
+  );
+  assert.deepEqual(gameScoreTotals(restored.scoring), {
+    you: move.score,
+    opponent: 10,
+  });
+  assert.equal(restored.scoring?.pendingBase, undefined);
+  assert.equal(restored.scoring?.incomplete, undefined);
+  assert.equal(restored.board, legacy.board);
+  assert.equal(restored.rack, legacy.rack);
+  assert.equal(trackedMoveHistory(restored)[1].review?.rack, "S");
+
+  const saved = gameSchema.parse(JSON.parse(JSON.stringify(restored)));
+  const reverted = undo(saved);
+  assert.equal(tracksScores(reverted), false);
+  assert.deepEqual(reverted.trackedMoves, []);
+  const reenabled = redo(reverted);
+  assert.equal(tracksScores(reenabled), true);
+  assert.deepEqual(reenabled.scoring, saved.scoring);
+  assert.deepEqual(reenabled.trackedMoves, saved.trackedMoves);
+  const twice = setScoreTracking(setScoreTracking(saved, false), true);
+  assert.deepEqual(twice.trackedMoves, saved.trackedMoves);
+  assert.deepEqual(
+    gameSchema.parse(twice).scoring,
+    gameSchema.parse(restored).scoring,
+  );
+});
+
+test("a screenshot of a known board restores corrected scores and keeps recovering new moves", () => {
+  const played = crossedCat();
+  const corrected = correctTrackedMove(
+    played,
+    0,
+    { player: "you", word: "CAT", score: 11 },
+    false,
+  );
+  const imported = importBoard(corrected, corrected.board);
+  assert.equal(tracksScores(imported), false);
+  assert.equal(imported.scoring?.you.points, 0);
+  const board = [...imported.board];
+  board[114] = "S";
+  const edited = new BoardEditHistory().apply(imported, board, "enter");
+  const restored = setScoreTracking(edited, true);
+
+  assert.deepEqual(
+    trackedMoveHistory(restored).slice(0, 2),
+    trackedMoveHistory(corrected),
+  );
+  assert.equal(trackedMoveHistory(restored)[2].word, "CATS");
+  assert.equal(restored.scoring?.you.points, 11);
+  assert.equal(
+    restored.scoring?.opponent.points,
+    corrected.scoring!.opponent.points + 6,
+  );
+  assert.equal(restored.scoring?.incomplete, undefined);
+});
+
+test("scores can be recovered after ending and archiving a game with tracking off", () => {
+  const game = { ...fixture(), trackScores: false, rack: "CAT" };
+  const opening = solve(
+    new Lexicon(["CAT"]),
+    game.board,
+    game.rack,
+    game.template,
+  )[0];
+  const ended = endGameManually(playTrackedMove(game, opening), {
+    manual: true,
+  });
+  const archived = archiveGame(ended);
+  const restored = setScoreTracking(archived, true);
+  assert.equal(tracksScores(restored), true);
+  assert.deepEqual(restored.scoring?.end, ended.scoring?.end);
+  assert.deepEqual(gameScoreTotals(displayedGameScoring(restored)), {
+    you: opening.score,
+    opponent: 0,
+  });
+  assert.equal(summarizeGameScore(restored), null);
+});
+
+test("a screenshot adding unknown tiles restores known moves and labels the totals partial", () => {
+  const played = crossedCat();
+  const board = [...played.board];
+  board[114] = "S";
+  const imported = importBoard(played, board);
+  const restored = setScoreTracking(imported, true);
+
+  assert.deepEqual(trackedMoveHistory(restored), trackedMoveHistory(played));
+  assert.deepEqual(
+    gameScoreTotals(restored.scoring),
+    gameScoreTotals(played.scoring),
+  );
+  assert.equal(restored.scoring?.incomplete, true);
+  assert.equal(summarizeGameScore(restored), null);
+  assert.equal(scoreTotalsAtPosition(restored), undefined);
+  assert.equal(tracksScores(undo(restored)), false);
+  assert.deepEqual(undo(restored).scoring, imported.scoring);
+});
+
+test("importing a layout with Clear board starts fresh tracking and keeps the rack", () => {
+  const game = setScoreTracking(
+    { ...crossedCat(), rack: "Q?", excludedRackSlots: [0] },
+    false,
+  );
+  const premiums = [...game.template.premiums];
+  premiums[game.template.start] = "TW";
+  const imported = importBoard(game, game.board, premiums, true);
+
+  assert.equal(tracksScores(imported), true);
+  assert.deepEqual(gameScoreTotals(imported.scoring), { you: 0, opponent: 0 });
+  assert.deepEqual(imported.board, emptyBoard(game.template.size));
+  assert.deepEqual(imported.template.premiums, premiums);
+  assert.equal(imported.rack, "Q?");
+  assert.deepEqual(imported.excludedRackSlots, [0]);
+  assert.deepEqual(trackedMoveHistory(imported), trackedMoveHistory(game));
+
+  const saved = gameSchema.parse(JSON.parse(JSON.stringify(imported)));
+  assert.equal(tracksScores(undo(saved)), false);
+  assert.deepEqual(undo(saved).board, game.board);
+  assert.deepEqual(undo(saved).template.premiums, game.template.premiums);
+  assert.equal(tracksScores(redo(undo(saved))), true);
+  assert.deepEqual(redo(undo(saved)).board, imported.board);
+
+  const kept = importBoard(game, game.board, premiums, false);
+  assert.equal(tracksScores(kept), false);
+  assert.deepEqual(kept.board, game.board);
+  assert.deepEqual(kept.template.premiums, premiums);
+
+  const enabledAgain = setScoreTracking(
+    setScoreTracking(imported, false),
+    true,
+  );
+  assert.deepEqual(gameScoreTotals(enabledAgain.scoring), {
+    you: 0,
+    opponent: 0,
+  });
+});
+
+test("a screenshot-only board starts with partial scores and no invented moves", () => {
+  const game = fixture();
+  const board = [...game.board];
+  board.splice(game.template.start, 3, "C", "A", "T");
+  const restored = setScoreTracking(importBoard(game, board), true);
+  assert.equal(restored.scoring?.incomplete, true);
+  assert.deepEqual(trackedMoveHistory(restored), []);
+  assert.deepEqual(gameScoreTotals(restored.scoring), { you: 0, opponent: 0 });
+
+  const replacement = [...game.board];
+  replacement[game.template.start] = "S";
+  const restarted = setScoreTracking(
+    importBoard(crossedCat(), replacement),
+    true,
+  );
+  assert.equal(restarted.scoring?.incomplete, true);
+  assert.deepEqual(gameScoreTotals(restarted.scoring), { you: 0, opponent: 0 });
+});
+
+test("ambiguous edits are skipped and a manually added score takes precedence", () => {
+  const game = { ...fixture(), trackScores: false };
+  const edits = new BoardEditHistory();
+  const opening = [...game.board];
+  opening.splice(game.template.start, 3, "C", "A", "T");
+  const entered = edits.apply(game, opening, "enter");
+  const added = correctTrackedMove(
+    entered,
+    0,
+    { player: "opponent", word: "CAT", score: 12 },
+    true,
+  );
+  const restored = setScoreTracking(added, true);
+  assert.equal(trackedMoveHistory(restored).length, 1);
+  assert.equal(restored.scoring?.opponent.points, 12);
+  assert.equal(trackedMoveHistory(restored)[0].review?.tiles.length, 3);
+
+  const ambiguous = [...opening];
+  ambiguous[0] = "Z";
+  const partial = setScoreTracking(
+    edits.apply(added, ambiguous, "enter"),
+    true,
+  );
+  assert.deepEqual(trackedMoveHistory(partial), trackedMoveHistory(added));
+  assert.equal(partial.scoring?.opponent.points, 12);
+  assert.equal(partial.scoring?.incomplete, true);
 });
 
 test("tracked moves from legacy saves survive the undo limit and new moves follow undo and redo", () => {
@@ -913,7 +1138,11 @@ test("two typed opponent turns across an exchange are scored and undone individu
   const reply = solve(new Lexicon(["CATS"]), crossing, "S", game.template)[0];
   const played = playTrackedMove(pending, reply);
   assert.deepEqual(
-    trackedMoveHistory(played).map(({ player, word, score }) => [player, word, score]),
+    trackedMoveHistory(played).map(({ player, word, score }) => [
+      player,
+      word,
+      score,
+    ]),
     [
       ["opponent", "CAT", 10],
       ["opponent", "AT", 3],
@@ -1046,5 +1275,8 @@ test("opponent review saves a full observer rack from before entry, with older o
   assert.equal(changed.trackedMoves?.[0].review?.observerRack, undefined);
   const older = JSON.parse(JSON.stringify(unchanged));
   delete older.trackedMoves[0].review.observerRack;
-  assert.equal(gameSchema.parse(older).trackedMoves?.[0].review?.observerRack, undefined);
+  assert.equal(
+    gameSchema.parse(older).trackedMoves?.[0].review?.observerRack,
+    undefined,
+  );
 });

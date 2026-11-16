@@ -5579,6 +5579,10 @@ label + label {
   .compact-game .bingo-odds-actions > .button { font-size: 10px; }
 }
 
+.import-clear-board {
+  margin-top: 8px !important;
+  margin-inline-start: 20px;
+}
 .import-review-modes {
   display: flex;
   gap: 8px;
