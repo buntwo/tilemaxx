@@ -9,6 +9,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import MoveTimingButton from "../../src/components/MoveTimingButton";
 import Results from "../../src/components/Results";
 import { emptyBoard, type Game, type Move } from "../../shared/model";
 import { TILE_SYMBOLS } from "../../shared/tile-pool";
@@ -76,6 +77,33 @@ const moves: Move[] = [
     crosses: [],
   },
 ];
+
+test("timing bars use total elapsed time for both stages and exact solves", async () => {
+  const timing = {
+    total: 2000,
+    solver: { moves: 200, indexing: 0 },
+    exactLines: {
+      elapsed: 1500,
+      attempts: [
+        { move: moves[0], elapsed: 500 },
+        { move: moves[1], elapsed: 800, limit: "Search limit" },
+      ],
+    },
+  };
+  const user = userEvent.setup();
+  const { rerender } = render(<MoveTimingButton size={15} timing={timing} />);
+  await user.click(screen.getByRole("button", { name: "Calculation timing, 2.00 s" }));
+  const dialog = screen.getByRole("dialog", { name: "Calculation timing" });
+  const bars = () =>
+    [...dialog.querySelectorAll("dd")].map((value) =>
+      value.style.getPropertyValue("--timing-bar-width"),
+    );
+  expect(bars()).toEqual(["100%", "10%", "0%", "75%", "25%", "40%"]);
+
+  rerender(<MoveTimingButton size={15} timing={{ ...timing, total: 0 }} />);
+  expect(bars()).toEqual(Array(6).fill("0%"));
+});
+
 function setup(
   mobile = false,
   options: {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { coordinate } from "../../shared/model";
 import type { MoveTiming } from "../move-timing";
 import Modal from "./Modal";
@@ -6,6 +6,15 @@ import Modal from "./Modal";
 function duration(ms: number) {
   if (ms > 0 && ms < 1) return "<1 ms";
   return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(2)} s`;
+}
+
+function TimingValue({ elapsed, total }: { elapsed: number; total: number }) {
+  const share = total > 0 ? Math.min(1, elapsed / total) : 0;
+  return (
+    <dd style={{ "--timing-bar-width": `${share * 100}%` } as CSSProperties}>
+      {duration(elapsed)}
+    </dd>
+  );
 }
 
 export default function MoveTimingButton({
@@ -50,13 +59,13 @@ export default function MoveTimingButton({
           <dl className="move-timing-stages">
             <div className="move-timing-total">
               <dt>Total elapsed time</dt>
-              <dd>{formatted}</dd>
+              <TimingValue elapsed={total} total={total} />
             </div>
             {stages.map(([label, elapsed]) =>
               elapsed === undefined ? null : (
                 <div key={label}>
                   <dt>{label}</dt>
-                  <dd>{duration(elapsed)}</dd>
+                  <TimingValue elapsed={elapsed} total={total} />
                 </div>
               ),
             )}
@@ -75,7 +84,7 @@ export default function MoveTimingButton({
                       </span>
                       {limit && <small title={limit}> · Limit reached</small>}
                     </dt>
-                    <dd>{duration(elapsed)}</dd>
+                    <TimingValue elapsed={elapsed} total={total} />
                   </div>
                 ))}
               </dl>
