@@ -430,7 +430,10 @@ export default function RackEntry({
   return (
     <div
       className="rack-entry"
-      style={{ "--rack-size": capacity } as CSSProperties}
+      style={{
+        "--rack-size": capacity,
+        "--opponent-rack-size": opponentRack.length,
+      } as CSSProperties}
     >
       <div className="rack-lane">
         {opponentRack && (
