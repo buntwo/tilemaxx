@@ -60,6 +60,7 @@ export interface MovePage {
   bingoCount: number;
   head: Move[];
   rows: Move[];
+  scoreRanks: Record<string, number>;
   endgame?: Record<string, EndgameEstimate>;
   exactEndgameCount?: number;
 }
@@ -191,12 +192,19 @@ export class MoveResultIndex {
   };
   private endgame?: { id: number; estimates: Map<string, EndgameEstimate> };
   private readonly bingoCount: number;
+  private readonly scoreRanks = new Map<string, number>();
 
   constructor(
     readonly moves: readonly Move[],
     private readonly bingoRules: BingoRules,
   ) {
-    this.bingoCount = this.countBingos(moves);
+    // The solver supplies moves in descending score order with stable tiebreaks.
+    let bingoCount = 0;
+    for (const [index, move] of moves.entries()) {
+      this.scoreRanks.set(move.id, index + 1);
+      if (isBingo(this.bingoRules, move.tiles.length)) bingoCount++;
+    }
+    this.bingoCount = bingoCount;
   }
 
   private countBingos(moves: readonly Move[]) {
@@ -282,6 +290,9 @@ export class MoveResultIndex {
       bingoCount,
       head: moves.slice(0, MOVE_HEAD_SIZE),
       rows,
+      scoreRanks: Object.fromEntries(
+        rows.map(({ id }) => [id, this.scoreRanks.get(id)!]),
+      ),
       exactEndgameCount,
       endgame:
         estimates &&

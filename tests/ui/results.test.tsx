@@ -195,6 +195,7 @@ function setup(
   };
 }
 const rows = () => screen.getAllByRole("button", { name: /points,/ });
+const displayedRank = (row: HTMLElement) => row.querySelector(".result-rank")?.textContent;
 
 test("the header omits the bingo count when no moves are bingos", () => {
   setup();
@@ -235,13 +236,14 @@ test("scrolling and filtering use worker pages and ignore out-of-order results",
     new Promise((resolve) => pending.push(() => resolve(index.page(query))));
   setup(false, { moves: longList, fetchPage });
   expect(rows()).toHaveLength(30);
+  expect(rows().slice(0, 2).map(displayedRank)).toEqual(["1", "2"]);
   expect(pending).toHaveLength(0);
   const scroller = screen.getByLabelText("Suggested moves");
   scroller.scrollTop = 200 * moveRowHeight;
   fireEvent.scroll(scroller);
   await waitFor(() => expect(pending).toHaveLength(1));
   await act(async () => pending[0]());
-  expect(screen.getByRole("button", { name: /^ZEBRA,/ })).toBeTruthy();
+  expect(displayedRank(screen.getByRole("button", { name: /^ZEBRA,/ }))).toBe("200");
 
   const filter = screen.getByRole("textbox", { name: "Filter moves" });
   fireEvent.change(filter, { target: { value: "QUI" } });
@@ -249,7 +251,7 @@ test("scrolling and filtering use worker pages and ignore out-of-order results",
   await waitFor(() => expect(pending).toHaveLength(3));
   await act(async () => pending[2]());
   expect(rows()).toHaveLength(1);
-  expect(screen.getByRole("button", { name: /^ZEBRA,/ })).toBeTruthy();
+  expect(displayedRank(screen.getByRole("button", { name: /^ZEBRA,/ }))).toBe("200");
   await act(async () => pending[1]());
   expect(rows()).toHaveLength(1);
   expect(screen.queryByRole("button", { name: /^QUICK,/ })).toBeNull();
@@ -366,6 +368,7 @@ test("reply rows resolve individually and compare against the highest score afte
   });
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^AT,/);
   expect(within(rows()[0]).getByText("Adj. 24.4")).toBeTruthy();
+  expect(rows().map(displayedRank)).toEqual(["3", "1", "2"]);
 
   const pointsMenu = () => screen.getByLabelText("Sort by points or reply-adjusted points");
   expect(pointsMenu().textContent).toBe("ADJ. PTS");

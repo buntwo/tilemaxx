@@ -1974,16 +1974,17 @@ label + label {
 }
 .results-panel {
   container-type: inline-size;
+  --result-rank: calc(var(--result-rank-digits, 1) * 6px);
   --result-points: var(--result-adjusted-points, 34px);
   --result-leave: 88px;
   --result-position: 37px;
   --result-gap: 6px;
   --result-gutter: 12px;
-  --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)
+  --result-grid: [rank] var(--result-rank) [word] minmax(0, 1fr) [points] var(--result-points)
     [leave] var(--result-leave) [position] var(--result-position);
 }
 .results-panel.with-reply-column {
-  --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)
+  --result-grid: [rank] var(--result-rank) [word] minmax(0, 1fr) [points] var(--result-points)
     [reply] var(--result-reply, 62px) [leave] var(--result-leave) [position] var(--result-position);
 }
 .results-panel.with-adjusted-points { --result-adjusted-points: 51px; }
@@ -2046,7 +2047,16 @@ label + label {
   grid-row: 1 / span 2;
 }
 .with-adjusted-points .result-row { grid-template-rows: 19px 14px 12px; }
-.with-adjusted-points .result-row > :not(.result-word) { grid-row: 1 / span 3; }
+.with-adjusted-points .result-row > :not(.result-word, .result-rank) { grid-row: 1 / span 3; }
+.result-row .result-rank {
+  grid-column: rank;
+  grid-row: 1;
+  align-self: start;
+  font-size: 9px;
+  line-height: 19px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
 .result-row .result-stack {
   display: grid;
   grid-template-rows: subgrid;
@@ -5448,7 +5458,7 @@ label + label {
 }
 @container (max-width: 390px) {
   .phone-move-review .with-reply-column :is(.result-columns, .result-row, .result-slot) {
-    --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)
+    --result-grid: [rank] var(--result-rank) [word] minmax(0, 1fr) [points] var(--result-points)
       [reply] var(--result-reply, 48px) [leave] var(--result-leave) [position] var(--result-position);
   }
 }

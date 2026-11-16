@@ -423,6 +423,10 @@ export default function Results({
       ? scoreTotalsAtPosition(analysisGame)
       : undefined;
   const topScore = resultSet?.head[0]?.score ?? 0;
+  const headScoreRanks = useMemo(
+    () => Object.fromEntries(resultSet?.head.map(({ id }, index) => [id, index + 1]) ?? []),
+    [resultSet],
+  );
   const scoreTooltip = useMoveScoreTooltip(analysisGame, (move) => {
     const delta = replyDeltas[move.id];
     const adjusted = replyAdjustedPoints(move, delta);
@@ -619,7 +623,10 @@ export default function Results({
     <section
       aria-label="Possible moves"
       className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${showEndgameSwing ? " with-endgame-estimates" : ""}${showAdjustedPoints ? " with-adjusted-points" : ""}`}
-      style={{ "--move-row-height": `${moveRowHeight}px` } as CSSProperties}
+      style={{
+        "--move-row-height": `${moveRowHeight}px`,
+        "--result-rank-digits": String(totalMoves).length,
+      } as CSSProperties}
     >
       <header
         className={`results-title${exchangeAction ? " has-exchange-advice" : ""}`}
@@ -1023,6 +1030,8 @@ export default function Results({
                 const short = shortlistOnly
                   ? shortlistById.get(m.id)
                   : undefined;
+                const scoreRank = short?.scoreRank ?? page.scoreRanks?.[m.id] ?? headScoreRanks[m.id];
+                const scoreRankLabel = scoreRank === undefined ? "" : `Rank ${scoreRank} by points`;
                 const selected =
                   analyzing &&
                   candidates.some((candidate) => candidate.id === m.id);
@@ -1062,7 +1071,7 @@ export default function Results({
                         !selected &&
                         candidates.length >= ANALYSIS_LIMIT
                       }
-                      aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrifice ? `, ${sacrifice} below top score` : ""}${adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : ""}`}
+                      aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrifice ? `, ${sacrifice} below top score` : ""}${adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : ""}${scoreRankLabel ? `, ${scoreRankLabel}` : ""}`}
                       onPointerDown={(e) => {
                         pointer.current = e.pointerType;
                       }}
@@ -1098,6 +1107,9 @@ export default function Results({
                         }
                       }}
                     >
+                      <small className="result-rank" title={scoreRankLabel} aria-hidden="true">
+                        {scoreRank}
+                      </small>
                       <span className="result-word result-stack">
                         <span className="result-letters" aria-hidden="true">
                           {[...m.word].map((letter, i) => {
