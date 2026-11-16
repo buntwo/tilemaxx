@@ -3284,8 +3284,8 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
     const you = panel.getByText("You");
     const opponent = panel.getByText("Opponent");
     expect(you.nextElementSibling).toBe(yourRack);
-    expect(yourRack.nextElementSibling).toBe(opponent);
     expect(opponent.nextElementSibling).toBe(opponentRack());
+    expect(you.parentElement?.nextElementSibling).toBe(opponent.parentElement);
   };
   await panel.findByRole("img", { name: "Opponent rack: J, J, blank" });
   expectLabeledRacks();

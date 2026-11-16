@@ -4089,16 +4089,28 @@ label + label {
   box-shadow: inset 0 1px #b4845e, inset 0 -3px #563522;
 }
 .rack-owner-label {
-  display: block;
-  width: var(--rack-tray-width);
-  margin: 0 auto 3px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.2;
   text-align: left;
 }
-.rack-entry .rack-owner-label + .rack-tiles { margin-top: 0; }
+.rack-lane:has(.rack-owner-label) {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) 54px;
+  align-items: center;
+  column-gap: 4px;
+}
+.rack-lane + .rack-lane { margin-block: 6px; }
+.rack-entry .rack-lane:has(.rack-owner-label) > .rack-tiles { margin-block: 0; }
+.rack-lane:has(.rack-owner-label) .rack-tiles { gap: clamp(3px, 1vw, 7px); }
+.rack-lane:has(.rack-owner-label) :where(.rack-tile) { container-type: inline-size; }
+.rack-lane:has(.rack-owner-label) :where(.rack-face) { font-size: min(23px, 54cqi); }
+.rack-lane:has(.rack-owner-label) :where(.rack-face small) {
+  font-size: min(8px, 22cqi);
+  right: min(6px, 13cqi);
+  bottom: min(4px, 10cqi);
+}
 .rack-entry .rack-tile {
   flex: 1 1 0;
   min-width: 0;
@@ -4349,16 +4361,17 @@ label + label {
 
 .opponent-rack-tiles {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
-  margin-bottom: 6px;
   gap: 4px;
 }
 .opponent-rack-tiles span {
   display: grid;
   place-items: center;
   width: 24px;
-  height: 24px;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: 1;
   border: 1px solid light-dark(#aebfc3, #849fa5);
   border-bottom-width: 2px;
   border-radius: 4px;
@@ -4366,6 +4379,7 @@ label + label {
   color: #28464b;
   font-size: 13px;
   font-weight: 650;
+  line-height: 1;
 }
 .opponent-rack-tiles .blank {
   background: var(--blank-tile);
@@ -5221,8 +5235,13 @@ label + label {
   cursor: pointer;
   container-type: inline-size;
 }
-.phone-move-review .rack-owner-label { font-size: 9px; }
-.phone-move-review .rack-tiles + .rack-owner-label { margin-top: 6px; }
+.phone-move-review .rack-lane { display: block; }
+.phone-move-review .rack-lane + .rack-lane { margin-bottom: 0; }
+.phone-move-review .rack-owner-label {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 9px;
+}
 .phone-move-review .opponent-rack-tiles {
   flex-flow: column nowrap;
   align-items: center;

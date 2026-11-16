@@ -338,102 +338,107 @@ export default function RackEntry({
   }
   const previewSlots =
     preview && !flyingRack ? rackSlotsForMove(game, preview.tiles) : null;
+  const playerTiles = (
+    <div
+      ref={rack}
+      className="rack-tiles"
+      role="group"
+      aria-label="Your rack tiles"
+      onClick={
+        onReviewEdit
+          ? (event) => {
+              if (event.target === event.currentTarget)
+                editFromReview(Math.min(position, capacity - 1));
+            }
+          : undefined
+      }
+    >
+      {Array.from({ length: capacity }, (_, i) => {
+        const letter = flyingRack
+          ? flyingRack.slots.includes(i)
+            ? "."
+            : flyingRack.before.rack[i]
+          : game.rack[i];
+        const tile = letter === "." ? "" : letter;
+        const excluded = (
+          flyingRack?.before.excludedRackSlots ?? excludedSlots
+        ).includes(i);
+        const exchanging = !flyingRack && exchangeSlots.includes(i);
+        const previewed = previewSlots?.includes(i);
+        const active =
+          focused && (selectAll || i === Math.min(position, capacity - 1));
+        return (
+          <button
+            type="button"
+            key={i}
+            data-rack-slot={i}
+            className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""} ${previewed ? "move-preview" : ""}`}
+            aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${exchanging ? ", marked for exchange" : ""}${previewed ? ", used by preview" : ""}${onReviewEdit ? ", edit rack" : ""}`}
+            aria-pressed={
+              onReviewEdit
+                ? undefined
+                : exchangeMode
+                  ? exchanging
+                  : excludeMode
+                    ? excluded
+                    : active
+            }
+            aria-disabled={
+              !onReviewEdit && (excludeMode || exchangeMode) && !tile
+                ? true
+                : undefined
+            }
+            onPointerDown={(e) => e.preventDefault()}
+            onClick={() =>
+              onReviewEdit
+                ? editFromReview(i)
+                : exchangeMode
+                  ? toggleExchange(i)
+                  : excludeMode
+                    ? toggleExcluded(i)
+                    : focus(i)
+            }
+          >
+            <span className="rack-slot">
+              <span
+                className={`rack-face${tile === "?" ? " blank" : ""}${!tile ? " empty" : ""}`}
+              >
+                {tile === "?" ? "" : tile || "·"}
+                {tile && <small>{tileScore(tile, game.template.rules)}</small>}
+              </span>
+              <span className="rack-slot-window" aria-hidden="true" />
+              {exchanging && (
+                <Repeat2
+                  className="rack-exchange-icon"
+                  size={12}
+                  aria-hidden="true"
+                />
+              )}
+              {excluded && (
+                <Ban
+                  className="rack-excluded-icon"
+                  size={12}
+                  aria-hidden="true"
+                />
+              )}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
   return (
     <div
       className="rack-entry"
       style={{ "--rack-size": capacity } as CSSProperties}
     >
-      {opponentRack && (
-        <small className="rack-owner-label" aria-hidden="true">You</small>
-      )}
-      <div
-        ref={rack}
-        className="rack-tiles"
-        role="group"
-        aria-label="Your rack tiles"
-        onClick={
-          onReviewEdit
-            ? (event) => {
-                if (event.target === event.currentTarget)
-                  editFromReview(Math.min(position, capacity - 1));
-              }
-            : undefined
-        }
-      >
-        {Array.from({ length: capacity }, (_, i) => {
-          const letter = flyingRack
-            ? flyingRack.slots.includes(i)
-              ? "."
-              : flyingRack.before.rack[i]
-            : game.rack[i];
-          const tile = letter === "." ? "" : letter;
-          const excluded = (
-            flyingRack?.before.excludedRackSlots ?? excludedSlots
-          ).includes(i);
-          const exchanging = !flyingRack && exchangeSlots.includes(i);
-          const previewed = previewSlots?.includes(i);
-          const active =
-            focused && (selectAll || i === Math.min(position, capacity - 1));
-          return (
-            <button
-              type="button"
-              key={i}
-              data-rack-slot={i}
-              className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""} ${previewed ? "move-preview" : ""}`}
-              aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${exchanging ? ", marked for exchange" : ""}${previewed ? ", used by preview" : ""}${onReviewEdit ? ", edit rack" : ""}`}
-              aria-pressed={
-                onReviewEdit
-                  ? undefined
-                  : exchangeMode
-                    ? exchanging
-                    : excludeMode
-                      ? excluded
-                      : active
-              }
-              aria-disabled={
-                !onReviewEdit && (excludeMode || exchangeMode) && !tile
-                  ? true
-                  : undefined
-              }
-              onPointerDown={(e) => e.preventDefault()}
-              onClick={() =>
-                onReviewEdit
-                  ? editFromReview(i)
-                  : exchangeMode
-                    ? toggleExchange(i)
-                    : excludeMode
-                      ? toggleExcluded(i)
-                      : focus(i)
-              }
-            >
-              <span className="rack-slot">
-                <span
-                  className={`rack-face${tile === "?" ? " blank" : ""}${!tile ? " empty" : ""}`}
-                >
-                  {tile === "?" ? "" : tile || "·"}
-                  {tile && (
-                    <small>{tileScore(tile, game.template.rules)}</small>
-                  )}
-                </span>
-                <span className="rack-slot-window" aria-hidden="true" />
-                {exchanging && (
-                  <Repeat2
-                    className="rack-exchange-icon"
-                    size={12}
-                    aria-hidden="true"
-                  />
-                )}
-                {excluded && (
-                  <Ban
-                    className="rack-excluded-icon"
-                    size={12}
-                    aria-hidden="true"
-                  />
-                )}
-              </span>
-            </button>
-          );
-        })}
+      <div className="rack-lane">
+        {opponentRack && (
+          <small className="rack-owner-label" aria-hidden="true">
+            You
+          </small>
+        )}
+        {playerTiles}
       </div>
       <OpponentRack rack={opponentRack} />
       <input
