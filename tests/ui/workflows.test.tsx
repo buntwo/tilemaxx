@@ -3053,6 +3053,16 @@ test("phone results preview on the game board and tapping the side rack resumes 
   ).toBe(false);
   expect(current().board.some(Boolean)).toBe(false);
 
+  const outside = screen.getByRole("heading", { name: "Possible moves" });
+  await user.pointer({ keys: "[TouchA]", target: outside });
+  expect(row.classList.contains("pinned")).toBe(false);
+  expect(ghosts()).toHaveLength(0);
+  expect(screen.getByRole("button", { name: "Play" })).toHaveProperty("disabled", true);
+  expect(current().board.some(Boolean)).toBe(false);
+
+  await user.pointer({ keys: "[TouchA]", target: row });
+  expect(ghosts()).toHaveLength(4);
+
   await user.click(rackTile(2));
   expect(reviewing()).toBe(false);
   expect(ghosts()).toHaveLength(0);

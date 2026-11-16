@@ -1229,6 +1229,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     {!movePreview?.analysis && (
                       <button
                         className="board-review-play"
+                        data-move-preview-action
                         type="button"
                         disabled={!preview || !!activeFlight}
                         onClick={() => preview && play(preview)}

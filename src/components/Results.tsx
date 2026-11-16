@@ -255,6 +255,7 @@ export default function Results({
     [locked, setLocked] = useState<string | null>(null);
   const localCalculation = useGameCalculating();
   const scroller = useRef<HTMLDivElement>(null),
+    pinnedRow = useRef<HTMLDivElement>(null),
     pointer = useRef("mouse");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -523,6 +524,24 @@ export default function Results({
   useEffect(() => {
     if (phoneLayout && !preview) setLocked(null);
   }, [phoneLayout, preview]);
+  useEffect(() => {
+    if (!locked) return;
+    function dismissPreview(event: MouseEvent) {
+      const target = event.target;
+      if (
+        !(target instanceof Element) ||
+        pinnedRow.current?.contains(target) ||
+        target.closest("[data-move-preview-action]")
+      )
+        return;
+      setLocked(null);
+      setInspectedReply(undefined);
+      onPreview(null);
+    }
+    // A completed tap dismisses the preview. Starting a scroll does not.
+    document.addEventListener("click", dismissPreview, true);
+    return () => document.removeEventListener("click", dismissPreview, true);
+  }, [locked, onPreview]);
   function togglePin(move: Move) {
     setLocked((current) => (current === move.id ? null : move.id));
     onPreview(move);
@@ -709,6 +728,7 @@ export default function Results({
                 pagePending ||
                 (!shortlistActive && page.unavailable))
             }
+            data-move-preview-action
             onClick={() => {
               if (!analyzing)
                 setCandidates(
@@ -717,6 +737,7 @@ export default function Results({
                     : [preview ?? page.head[0]],
                 );
               setLocked(null);
+              setInspectedReply(undefined);
               onPreview(null);
               setAnalyzing(!analyzing);
             }}
@@ -1055,6 +1076,7 @@ export default function Results({
                   <div
                     className="result-slot"
                     key={m.id}
+                    ref={locked === m.id ? pinnedRow : undefined}
                     style={{ top: (start + offset) * moveRowHeight }}
                     onPointerEnter={(e) => {
                       if (locked || !canHoverWithMouse(e.pointerType)) return;
@@ -1371,6 +1393,7 @@ export default function Results({
         <section
           className={`inline-reply${compact && replyDetail?.kind === "distribution" ? " compact-reply" : ""}`}
           aria-label={`Reply after ${replyMove.word}`}
+          data-move-preview-action
         >
           <h3 className={replyLine ? "optimal-reply-title" : undefined}>
             <span>Reply after <MoveWord move={replyMove} rules={analysisGame.template} /></span>
