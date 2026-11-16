@@ -103,10 +103,12 @@ function canHoverWithMouse(pointerType: string) {
 function ResultSortMenu({
   label,
   accessibleLabel,
+  sortDirection,
   children,
 }: {
   label: string;
   accessibleLabel: string;
+  sortDirection?: "ascending" | "descending";
   children: ReactNode;
 }) {
   const root = useRef<HTMLDetailsElement>(null);
@@ -143,9 +145,17 @@ function ResultSortMenu({
         closeAndFocus();
       }}
     >
-      <summary className="result-column-sort" aria-label={accessibleLabel}>
+      <summary
+        className="result-column-sort"
+        aria-label={accessibleLabel}
+        aria-description={sortDirection && `Sorted ${sortDirection}`}
+      >
         {label}
-        <ChevronDown size={9} aria-hidden="true" />
+        {sortDirection === "ascending" ? (
+          <ChevronUp size={9} aria-hidden="true" />
+        ) : (
+          <ChevronDown size={9} aria-hidden="true" />
+        )}
       </summary>
       <div
         className="result-sort-options"
@@ -365,6 +375,7 @@ export default function Results({
           : "score";
   const reversed =
     (activeOrder?.sort === sort && activeOrder.reversed) || false;
+  const pointsSorted = sort === "score" || sort === "reply-adjusted";
   function setSort(sort: MoveSort, reversed = false) {
     setOrdering({ searchId, sort, reversed });
   }
@@ -883,6 +894,11 @@ export default function Results({
                 <ResultSortMenu
                   label={sort === "reply-adjusted" ? "ADJ. PTS" : "PTS"}
                   accessibleLabel="Sort by points or reply-adjusted points"
+                  sortDirection={
+                    pointsSorted
+                      ? reversed ? "ascending" : "descending"
+                      : undefined
+                  }
                 >
                   {column("Points", "score", "points")}
                   {column("Reply-adjusted points", "reply-adjusted", "reply-adjusted points")}
