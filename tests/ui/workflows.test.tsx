@@ -3467,6 +3467,7 @@ test("hovering a move highlights the first available copy of each rack tile it u
 });
 
 test("workspace settings keep board previews visible with plain rack tiles and persist across reloads", async () => {
+  const hardware = vi.spyOn(navigator, "hardwareConcurrency", "get").mockReturnValue(8);
   const user = userEvent.setup();
   const app = render(<App />);
   await screen.findByRole("heading", { name: /First game/ });
@@ -3482,6 +3483,9 @@ test("workspace settings keep board previews visible with plain rack tiles and p
   const pulse = "Pulse move previews";
   const playAnimation = "Animate tiles when playing a move";
   const autoUpdate = "Automatically reload when an update is available";
+  const workerOption = "Limit to one compute worker";
+  const hardwareInfo = () => within(dialog().getByRole("group", { name: "Hardware info" }));
+  const computeLimit = () => hardwareInfo().getByText("Compute worker limit").nextElementSibling?.textContent;
 
   await openSettings();
   expect(dialog().getByText("Applies to all games in this browser only.")).toBeTruthy();
@@ -3491,6 +3495,11 @@ test("workspace settings keep board previews visible with plain rack tiles and p
         within(dialog().getByRole("group", { name })).getAllByRole("checkbox").length,
     ),
   ).toEqual([2, 1, 1]);
+  expect(hardwareInfo().getByText("Browser concurrency hint").nextElementSibling?.textContent).toBe("8");
+  expect(computeLimit()).toBe("4");
+  expect(option(workerOption).checked).toBe(false);
+  await user.click(option(workerOption));
+  expect(computeLimit()).toBe("1");
   for (const name of [rackHighlight, pulse, playAnimation, autoUpdate]) {
     expect(option(name).checked).toBe(true);
     await user.click(option(name));
@@ -3513,6 +3522,11 @@ test("workspace settings keep board previews visible with plain rack tiles and p
   for (const name of [rackHighlight, pulse, playAnimation, autoUpdate]) {
     expect(option(name).checked).toBe(false);
   }
+  expect(option(workerOption).checked).toBe(true);
+  expect(computeLimit()).toBe("1");
+  await user.click(option(workerOption));
+  expect(computeLimit()).toBe("4");
+  hardware.mockRestore();
 });
 
 test("the version shows an available update when automatic updates are off", async () => {

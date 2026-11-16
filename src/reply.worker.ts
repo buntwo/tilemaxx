@@ -107,6 +107,7 @@ async function runHistograms(
     candidates,
     reference,
     dictionaryId: _,
+    workerLimit,
     ...position
   } = request;
   if (!candidates.length) return;
@@ -156,6 +157,7 @@ async function runHistograms(
       }
       await betweenReplies();
     },
+    workerLimit,
   );
 }
 

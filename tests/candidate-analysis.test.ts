@@ -18,6 +18,7 @@ import {
   type CandidateResult,
 } from "../src/candidate-analysis-jobs";
 import { runCandidateJobs } from "../src/candidate-analysis-pool";
+import { computeWorkerLimit } from "../src/compute-workers";
 
 const lexicon = new Lexicon(["AT", "CAT", "CATS", "IT", "QI", "SAT", "TA"]);
 const template = PRESETS[0];
@@ -81,12 +82,12 @@ test("histogram workers pull candidates independently and match serial paired re
       completed.push(move.id);
       histograms.set(move.id, result.board);
     },
+    2,
     () => {
       const worker = new TestWorker();
       workers.push(worker);
       return worker as unknown as Worker;
     },
-    2,
   );
 
   assert.equal(workers.length, 2);
@@ -144,13 +145,53 @@ test("endgame jobs preserve the exact line when a worker cannot start", async ()
       );
       completed.push(move.id);
     },
+    2,
     () => {
       throw new Error("Nested workers unavailable");
     },
-    2,
   );
   assert.deepEqual(
     completed,
     twoMoves.map(({ id }) => id),
+  );
+});
+
+test("automatic worker limits follow the browser hint up to four and can be set to one", () => {
+  assert.deepEqual(
+    [1, 2, 3, 4, 6, 12].map((hint) => computeWorkerLimit(false, hint)),
+    [1, 2, 3, 4, 4, 4],
+  );
+  assert.equal(computeWorkerLimit(true, 12), 1);
+});
+
+test("the one-worker limit executes a batch without starting nested workers", async () => {
+  const bagSize = unseenTiles(position, template).total - template.rackSize;
+  const board = { ...position, bagSize };
+  const samples = sampleReplyRacks(board, 500);
+  const jobs: CandidateJob[] = choices.slice(0, 2).map((move) => ({
+    kind: "histogram",
+    position: board,
+    move,
+    samples,
+  }));
+  const completed: string[] = [];
+  let started = 0;
+  await runCandidateJobs(
+    lexicon,
+    jobs,
+    ({ move }, result) => {
+      assert.equal(result.kind, "histogram");
+      completed.push(move.id);
+    },
+    computeWorkerLimit(true, 8),
+    () => {
+      started++;
+      throw new Error("Unexpected nested worker");
+    },
+  );
+  assert.equal(started, 0);
+  assert.deepEqual(
+    completed,
+    jobs.map(({ move }) => move.id),
   );
 });

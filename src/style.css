@@ -2881,6 +2881,27 @@ label + label {
   flex: none;
   accent-color: var(--primary);
 }
+.workspace-hardware-info {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+.workspace-hardware-info > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.workspace-hardware-info dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+.workspace-hardware-scope {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
 .editor-controls > .text-button {
   margin-top: 12px;
 }

@@ -67,6 +67,7 @@ import UiGuide from "./components/UiGuide";
 import WorkspaceSettings, {
   useWorkspacePreferences,
 } from "./components/WorkspaceSettings";
+import { browserConcurrency, computeWorkerLimit } from "./compute-workers";
 import Results from "./components/Results";
 import GamePicker from "./components/GamePicker";
 import {
@@ -250,6 +251,8 @@ function Tilemaxx() {
   }, [sidebarVisible]);
   const [theme, setTheme] = useState(saved("tilewise:theme", "system"));
   const [preferences, setPreferences] = useWorkspacePreferences();
+  const concurrencyHint = browserConcurrency();
+  const workerLimit = computeWorkerLimit(preferences.singleComputeWorker, concurrencyHint);
   const [movePreview, setPreview] = useState<{
     move: Move;
     analysis: boolean;
@@ -298,6 +301,7 @@ function Tilemaxx() {
     solver.results?.head ?? null,
     workspace === "games" && !!game && !gameOver && !busy && !solver.error,
     { searchId: solver.results?.searchId, rank: solver.rankEndgame },
+    workerLimit,
   );
   const activeFlight =
     workspace === "games" && flight?.destination === signature
@@ -1781,6 +1785,8 @@ function Tilemaxx() {
       {dialog === "workspace-settings" && (
         <WorkspaceSettings
           preferences={preferences}
+          concurrencyHint={concurrencyHint}
+          workerLimit={workerLimit}
           onChange={setPreferences}
           onClose={() => setDialog(null)}
         />
