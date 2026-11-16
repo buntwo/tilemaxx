@@ -67,10 +67,7 @@ const rack = z
   .string()
   .regex(/^[A-Z?.]*$/)
   .max(10);
-const excludedRackSlots = z
-  .array(z.number().int().min(0).max(9))
-  .max(10)
-  .optional();
+const rackSlots = z.array(z.number().int().min(0).max(9)).max(10).optional();
 export const templateSchema = z
   .object({
     id: z.string().max(100),
@@ -142,7 +139,8 @@ const review = z
     board: z.array(cell).max(625),
     rack: rack.optional(),
     observerRack: rack.optional(),
-    excludedRackSlots,
+    excludedRackSlots: rackSlots,
+    requiredRackSlots: rackSlots,
     dictionaryId: z.string().max(100),
     premiums: premiums.optional(),
     tiles: z
@@ -173,7 +171,8 @@ const historySchema = z.object({
   premiums: premiums.optional(),
   board: z.array(cell).max(625),
   rack,
-  excludedRackSlots,
+  excludedRackSlots: rackSlots,
+  requiredRackSlots: rackSlots,
   label: z.string().max(100),
   score: z.number().optional(),
   bingo: z.boolean().optional(),
@@ -189,7 +188,8 @@ const gameProgress = z.object({
   scoring: scoringSchema.optional(),
   trackedMoves,
   rack,
-  excludedRackSlots,
+  excludedRackSlots: rackSlots,
+  requiredRackSlots: rackSlots,
   past: z.array(historySchema).max(100),
   future: z.array(historySchema).max(100),
 });
@@ -219,11 +219,20 @@ export const gameSchema = gameProgress
       rack.length <= g.template.rackSize &&
       new Set(slots).size === slots.length &&
       slots.every((slot) => slot < rack.length && rack[slot] !== ".");
+    const validRackMarks = ({
+      rack = "",
+      excludedRackSlots = [],
+      requiredRackSlots = [],
+    }: {
+      rack?: string;
+      excludedRackSlots?: number[];
+      requiredRackSlots?: number[];
+    }) => validRack(rack, [...excludedRackSlots, ...requiredRackSlots]);
     const validReview = (position: z.infer<typeof review>) =>
       !position ||
       (position.board.length === size &&
         (!position.premiums || position.premiums.length === size) &&
-        validRack(position.rack ?? "", position.excludedRackSlots) &&
+        validRackMarks(position) &&
         validRack(position.observerRack ?? "") &&
         position.tiles.every(
           (tile) => tile.index < size && !position.board[tile.index],
@@ -235,7 +244,7 @@ export const gameSchema = gameProgress
         true) &&
       [progress, ...progress.past, ...progress.future].every(
         (entry) =>
-          validRack(entry.rack, entry.excludedRackSlots) &&
+          validRackMarks(entry) &&
           (!entry.scoring?.pendingBase ||
             entry.scoring.pendingBase.length === size),
       ) &&

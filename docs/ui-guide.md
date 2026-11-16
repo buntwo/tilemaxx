@@ -15,7 +15,7 @@
 | **Word score badge** | The points that appear beside a board word when you hover over a tile or hold it on a phone. |
 | **Move preview** | The highlighted tiles on the board for a suggested play. The phone **preview bar** shows the word, points, and **Play** button. |
 | **Your rack** | The rack editor and Find moves button below the board. |
-| **Rack tools** | The rack controls for holding tiles and planning an exchange. **Optimal Exchange** compares swaps. **Simulate exchange** shows the expected score, bingo chance, and sample plays for a swap. |
+| **Rack tools** | Use **Exclude tiles** to hold tiles back or **Require tiles** to use them in every suggested move. On a keyboard, **↓** cycles through excluded, required, and unmarked. Playing clears both kinds of mark, and Undo restores them. **Optimal Exchange** compares swaps. **Simulate exchange** shows the expected score, bingo chance, and sample plays for a swap. |
 | **Opponent rack** | The inferred tiles centered directly below yours when the bag is empty. In a phone move preview both racks stack vertically beside the board. |
 | **Unseen tiles** | The expandable tile counts below the racks. It includes tiles in the bag and on other racks. |
 | **Game scores** | The score tracking panel with totals, lead or result, and pending opponent plays. If you pass or exchange, use **Record opponent move** before entering their next play whenever the two plays could read as one. |

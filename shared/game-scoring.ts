@@ -325,6 +325,9 @@ export function reviewTurns(game: Game) {
       rack: move.player === "you" ? entry.rack : undefined,
       excludedRackSlots:
         move.player === "you" ? entry.excludedRackSlots : undefined,
+      ...(move.player === "you" && entry.requiredRackSlots?.length && {
+        requiredRackSlots: entry.requiredRackSlots,
+      }),
       dictionaryId: game.dictionaryId,
       premiums: historicalPremiums[pastIndex],
       tiles: after.flatMap((letter, i) =>
@@ -443,6 +446,7 @@ function rescoreBoardCorrections(game: Game, board: Board, base: Board) {
       ) {
         delete review.rack;
         delete review.excludedRackSlots;
+        delete review.requiredRackSlots;
       }
     }
     // One-tile plays can have either crossing word as their recorded name.
@@ -753,6 +757,7 @@ export function recordOpponentPlay(
       board: first.board,
       rack: boundary.rack,
       excludedRackSlots: boundary.excludedRackSlots,
+      requiredRackSlots: boundary.requiredRackSlots,
       past: game.past.slice(0, second.split),
     },
     first,

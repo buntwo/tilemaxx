@@ -22,17 +22,19 @@ export function splitRack({
 export function sortRack({
   rack,
   excludedRackSlots = [],
-}: Pick<Position, "rack" | "excludedRackSlots">) {
+  requiredRackSlots = [],
+}: Pick<Position, "rack" | "excludedRackSlots" | "requiredRackSlots">) {
   const tiles = [...rack].flatMap((letter, slot) =>
-    letter === "."
-      ? []
-      : [{ letter, excluded: excludedRackSlots.includes(slot) }],
+    letter === "." ? [] : [{ letter, slot }],
   );
   tiles.sort((a, b) => a.letter.charCodeAt(0) - b.letter.charCodeAt(0));
   return {
     rack: tiles.map(({ letter }) => letter).join(""),
-    excludedRackSlots: tiles.flatMap(({ excluded }, slot) =>
-      excluded ? [slot] : [],
+    excludedRackSlots: tiles.flatMap(({ slot }, index) =>
+      excludedRackSlots.includes(slot) ? [index] : [],
+    ),
+    requiredRackSlots: tiles.flatMap(({ slot }, index) =>
+      requiredRackSlots.includes(slot) ? [index] : [],
     ),
   };
 }
@@ -42,8 +44,11 @@ export function rackAfterMove(
   tiles: readonly Placement[],
   leave: string,
 ) {
-  const { excludedRackSlots } = position;
-  if (!excludedRackSlots?.length) return leave;
+  if (
+    !position.excludedRackSlots?.length &&
+    !position.requiredRackSlots?.length
+  )
+    return leave;
   const slots = rackSlotsForMove(position, tiles);
   if (!slots) throw new Error("The rack changed. Find moves again.");
   const remaining = [...position.rack];
@@ -52,7 +57,7 @@ export function rackAfterMove(
 }
 
 export function rackSlotsForMove(
-  { rack, excludedRackSlots = [] }: Position,
+  { rack, excludedRackSlots = [], requiredRackSlots = [] }: Position,
   tiles: readonly Placement[],
 ) {
   const used = new Set(excludedRackSlots);
@@ -60,14 +65,19 @@ export function rackSlotsForMove(
   const letters = [...rack];
   for (const { letter } of tiles) {
     const symbol = letter === letter.toUpperCase() ? letter : "?";
-    const slot = letters.findIndex(
-      (tile, index) => tile === symbol && !used.has(index),
+    const required = requiredRackSlots.find(
+      (index) => letters[index] === symbol && !used.has(index),
     );
+    const slot =
+      required ??
+      letters.findIndex((tile, index) => tile === symbol && !used.has(index));
     if (slot < 0) return null;
     used.add(slot);
     slots.push(slot);
   }
-  return slots;
+  return requiredRackSlots.every((index) => slots.includes(index))
+    ? slots
+    : null;
 }
 export function enterRack(
   rack: string,

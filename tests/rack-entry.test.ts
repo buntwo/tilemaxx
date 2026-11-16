@@ -5,6 +5,7 @@ import {
   eraseRack,
   rackAfterMove,
   rackSlotsForMove,
+  sortRack,
 } from "../shared/rack-entry";
 
 test("move tiles match distinct rack slots, including blanks and held duplicates", () => {
@@ -21,6 +22,28 @@ test("move tiles match distinct rack slots, including blanks and held duplicates
     rackSlotsForMove(position, [...tiles, { index: 116, letter: "A" }]),
     null,
   );
+});
+
+test("a move uses the specific required copy of a duplicate and a required blank", () => {
+  const position = {
+    board: [],
+    rack: "AA?TB",
+    excludedRackSlots: [3],
+    requiredRackSlots: [1, 2],
+  };
+  const tiles = [
+    { index: 0, letter: "A" },
+    { index: 1, letter: "t" },
+    { index: 2, letter: "B" },
+  ];
+  assert.deepEqual(rackSlotsForMove(position, tiles), [1, 2, 4]);
+  assert.equal(rackAfterMove(position, tiles, "AT"), "A..T");
+  assert.equal(rackSlotsForMove(position, [tiles[0], tiles[2]]), null);
+  assert.deepEqual(sortRack(position), {
+    rack: "?AABT",
+    excludedRackSlots: [4],
+    requiredRackSlots: [0, 2],
+  });
 });
 
 test("rack entry converts spaces to unassigned blanks and replaces slots without shifting", () => {

@@ -20,7 +20,14 @@ import { tileScore, type Game, type Move } from "../../shared/model";
 import type { ExchangeAdvice } from "../../shared/exchange-advice";
 import type { ExchangeResult } from "../../shared/exchange";
 import type { OptimalExchangeResult } from "../../shared/optimal-exchange";
-import { Ban, Repeat2, Shuffle, SlidersHorizontal, Trophy } from "lucide-react";
+import {
+  Ban,
+  CircleCheck,
+  Repeat2,
+  Shuffle,
+  SlidersHorizontal,
+  Trophy,
+} from "lucide-react";
 import { canAnimateTiles } from "./tile-motion";
 import { useRackKeyboard } from "./useRackKeyboard";
 import ExchangeAnalysis from "./ExchangeAnalysis";
@@ -66,7 +73,9 @@ export default function RackEntry({
   const [cursor, setCursor] = useState(game.rack.length);
   const [focused, setFocused] = useState(false);
   const [selectAll, setSelectAll] = useState(false);
-  const [mode, setMode] = useState<"entry" | "exclude" | "exchange">("entry");
+  const [mode, setMode] = useState<
+    "entry" | "exclude" | "require" | "exchange"
+  >("entry");
   const [simulation, setSimulation] = useState<{
     key: string;
     optimalResult?: OptimalExchangeResult;
@@ -83,6 +92,7 @@ export default function RackEntry({
     detail: string;
   }>();
   const excludeMode = mode === "exclude";
+  const requireMode = mode === "require";
   const exchangeMode = mode === "exchange";
   const reviewing = !!onReviewEdit;
   const tools = useRef<HTMLDetailsElement>(null);
@@ -109,6 +119,7 @@ export default function RackEntry({
   const capacity = game.template.rackSize;
   const position = Math.min(cursor, capacity);
   const excludedSlots = game.excludedRackSlots ?? [];
+  const requiredSlots = game.requiredRackSlots ?? [];
   const exchangeSlots = Object.keys(exchangeMarks)
     .map(Number)
     .filter((i) => game.rack[i] === exchangeMarks[i]);
@@ -180,14 +191,14 @@ export default function RackEntry({
   }, [game.rack, flyingRack]);
   function save(result: { rack: string; cursor: number }, from: number) {
     animateEdit(result.rack);
-    const excludedRackSlots = selectAll
-      ? []
-      : excludedSlots.filter(
-          (slot) => slot < from || slot >= Math.max(from + 1, result.cursor),
-        );
+    const untouched = (slot: number) =>
+      !selectAll && (slot < from || slot >= Math.max(from + 1, result.cursor));
+    const excludedRackSlots = excludedSlots.filter(untouched);
+    const requiredRackSlots = requiredSlots.filter(untouched);
     if (
       result.rack !== game.rack ||
-      excludedRackSlots.length !== excludedSlots.length
+      excludedRackSlots.length !== excludedSlots.length ||
+      requiredRackSlots.length !== requiredSlots.length
     )
       onChange({
         ...game,
@@ -195,18 +206,15 @@ export default function RackEntry({
         excludedRackSlots: excludedRackSlots.length
           ? excludedRackSlots
           : undefined,
+        requiredRackSlots: requiredRackSlots.length
+          ? requiredRackSlots
+          : undefined,
       });
     setCursor(result.cursor);
     setSelectAll(false);
     setExchangeMarks(
       Object.fromEntries(
-        exchangeSlots
-          .filter(
-            (slot) =>
-              !selectAll &&
-              (slot < from || slot >= Math.max(from + 1, result.cursor)),
-          )
-          .map((slot) => [slot, game.rack[slot]]),
+        exchangeSlots.filter(untouched).map((slot) => [slot, game.rack[slot]]),
       ),
     );
   }
@@ -297,13 +305,29 @@ export default function RackEntry({
     input.current?.focus({ preventScroll: true });
     input.current?.setSelectionRange(1, 1);
   }
-  function toggleExcluded(slot: number) {
+  function markTile(slot: number, mark?: "excluded" | "required") {
     if (!game.rack[slot] || game.rack[slot] === ".") return;
-    const next = excludedSlots.includes(slot)
-      ? excludedSlots.filter((i) => i !== slot)
-      : [...excludedSlots, slot].sort((a, b) => a - b);
-    onChange({ ...game, excludedRackSlots: next.length ? next : undefined });
+    function setMark(slots: number[], markSlot: boolean) {
+      const next = slots.filter((i) => i !== slot);
+      if (markSlot) next.push(slot);
+      return next.length ? next.sort((a, b) => a - b) : undefined;
+    }
+    onChange({
+      ...game,
+      excludedRackSlots: setMark(excludedSlots, mark === "excluded"),
+      requiredRackSlots: setMark(requiredSlots, mark === "required"),
+    });
   }
+
+  function cycleTileMark(slot: number) {
+    const mark = excludedSlots.includes(slot)
+      ? "required"
+      : requiredSlots.includes(slot)
+        ? undefined
+        : "excluded";
+    markTile(slot, mark);
+  }
+
   function toggleExchange(slot: number) {
     if (!game.rack[slot] || game.rack[slot] === ".") return;
     const marks = Object.fromEntries(
@@ -363,6 +387,9 @@ export default function RackEntry({
         const excluded = (
           flyingRack?.before.excludedRackSlots ?? excludedSlots
         ).includes(i);
+        const required = (
+          flyingRack?.before.requiredRackSlots ?? requiredSlots
+        ).includes(i);
         const exchanging = !flyingRack && exchangeSlots.includes(i);
         const previewed = previewSlots?.includes(i);
         const active =
@@ -372,8 +399,8 @@ export default function RackEntry({
             type="button"
             key={i}
             data-rack-slot={i}
-            className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""} ${previewed ? "move-preview" : ""}`}
-            aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${exchanging ? ", marked for exchange" : ""}${previewed ? ", used by preview" : ""}${onReviewEdit ? ", edit rack" : ""}`}
+            className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${required ? "required-tile" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""} ${previewed ? "move-preview" : ""}`}
+            aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${required ? ", required for this move" : ""}${exchanging ? ", marked for exchange" : ""}${previewed ? ", used by preview" : ""}${onReviewEdit ? ", edit rack" : ""}`}
             aria-pressed={
               onReviewEdit
                 ? undefined
@@ -381,12 +408,12 @@ export default function RackEntry({
                   ? exchanging
                   : excludeMode
                     ? excluded
-                    : active
+                    : requireMode
+                      ? required
+                      : active
             }
             aria-disabled={
-              !onReviewEdit && (excludeMode || exchangeMode) && !tile
-                ? true
-                : undefined
+              !onReviewEdit && mode !== "entry" && !tile ? true : undefined
             }
             onPointerDown={(e) => e.preventDefault()}
             onClick={() =>
@@ -395,8 +422,10 @@ export default function RackEntry({
                 : exchangeMode
                   ? toggleExchange(i)
                   : excludeMode
-                    ? toggleExcluded(i)
-                    : focus(i)
+                    ? markTile(i, excluded ? undefined : "excluded")
+                    : requireMode
+                      ? markTile(i, required ? undefined : "required")
+                      : focus(i)
             }
           >
             <span className="rack-slot">
@@ -410,6 +439,13 @@ export default function RackEntry({
               {exchanging && (
                 <Repeat2
                   className="rack-exchange-icon"
+                  size={12}
+                  aria-hidden="true"
+                />
+              )}
+              {required && (
+                <CircleCheck
+                  className="rack-required-icon"
                   size={12}
                   aria-hidden="true"
                 />
@@ -430,10 +466,12 @@ export default function RackEntry({
   return (
     <div
       className="rack-entry"
-      style={{
-        "--rack-size": capacity,
-        "--opponent-rack-size": opponentRack.length,
-      } as CSSProperties}
+      style={
+        {
+          "--rack-size": capacity,
+          "--opponent-rack-size": opponentRack.length,
+        } as CSSProperties
+      }
     >
       <div className="rack-lane">
         {opponentRack && (
@@ -529,7 +567,7 @@ export default function RackEntry({
               setSelectAll(false);
               break;
             case "ArrowDown":
-              if (!selectAll) toggleExcluded(Math.min(position, capacity - 1));
+              if (!selectAll) cycleTileMark(Math.min(position, capacity - 1));
               break;
             case "ArrowUp":
               if (!selectAll) toggleExchange(Math.min(position, capacity - 1));
@@ -560,11 +598,13 @@ export default function RackEntry({
             ? "Tap tiles to mark for exchange"
             : excludeMode
               ? "Tap tiles to hold or release them"
-              : focused && selectAll
-                ? "All tiles selected · type to replace"
-                : phoneLayout
-                  ? "Tap a tile to type"
-                  : "Space = blank · ↓ Hold · ↑ Exchange · Enter = find moves"}
+              : requireMode
+                ? "Tap tiles that every move must use"
+                : focused && selectAll
+                  ? "All tiles selected · type to replace"
+                  : phoneLayout
+                    ? "Tap a tile to type"
+                    : "Space = blank · ↓ Hold / Require · ↑ Exchange · Enter = find moves"}
         </p>
         {advice && (
           <ExchangeSuggestion
@@ -599,6 +639,9 @@ export default function RackEntry({
               </button>
               <button type="button" onClick={() => chooseMode("exclude")}>
                 <Ban size={14} /> Exclude tiles
+              </button>
+              <button type="button" onClick={() => chooseMode("require")}>
+                <CircleCheck size={14} /> Require tiles
               </button>
               <button type="button" onClick={() => chooseMode("exchange")}>
                 <Repeat2 size={14} /> Mark exchange

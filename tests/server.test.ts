@@ -388,6 +388,7 @@ test("archive and start saves the original and creates one fresh game in one tra
       },
     ],
     excludedRackSlots: [0],
+    requiredRackSlots: [1],
     template,
     originalPremiums: layout.premiums,
     trackScores: false,
@@ -409,6 +410,12 @@ test("archive and start saves the original and creates one fresh game in one tra
       (await archiveAndStart(original.revision, "not a date")).status,
       400,
     );
+    const invalidMarks = await fetch(`http://127.0.0.1:${port}/api/games/${original.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...original, requiredRackSlots: [0] }),
+    });
+    assert.equal(invalidMarks.status, 400);
     const stale = await archiveAndStart(initial.revision);
     assert.equal(stale.status, 409);
     assert.equal((await stale.json()).game.revision, original.revision);
@@ -442,6 +449,7 @@ test("archive and start saves the original and creates one fresh game in one tra
       original.trackedMoves,
     );
     assert.equal(archived.archivedState?.rack, original.rack);
+    assert.deepEqual(archived.archivedState?.requiredRackSlots, [1]);
     assert.notEqual(created.id, original.id);
     assert.equal(created.profileId, original.profileId);
     assert.equal(created.name, original.name);
@@ -461,6 +469,7 @@ test("archive and start saves the original and creates one fresh game in one tra
       "scoring",
       "trackedMoves",
       "excludedRackSlots",
+      "requiredRackSlots",
       "archivedBoard",
       "archivedState",
     ] as const)

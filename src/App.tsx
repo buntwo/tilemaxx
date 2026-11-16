@@ -173,6 +173,7 @@ function positionSignature(game: Game) {
     game.dictionaryId,
     game.rack,
     game.excludedRackSlots ?? [],
+    game.requiredRackSlots ?? [],
     game.board,
     size,
     start,
@@ -1457,6 +1458,7 @@ function Tilemaxx() {
                   board: emptyBoard(template.size),
                   rack: "",
                   excludedRackSlots: undefined,
+                  requiredRackSlots: undefined,
                   past: [],
                   future: [],
                   archived: false,
@@ -2045,6 +2047,7 @@ function Tilemaxx() {
                   board: emptyBoard(game.template.size),
                   rack: "",
                   excludedRackSlots: undefined,
+                  requiredRackSlots: undefined,
                 });
                 setDialog(null);
                 notify("Board cleared. Use Undo to restore it.");

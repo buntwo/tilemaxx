@@ -300,6 +300,9 @@ function replayedMove(
       ...(player === "you" && {
         rack: entry.rack,
         excludedRackSlots: entry.excludedRackSlots,
+        ...(entry.requiredRackSlots?.length && {
+          requiredRackSlots: entry.requiredRackSlots,
+        }),
       }),
       dictionaryId: entry.review?.dictionaryId ?? game.dictionaryId,
       premiums: template.premiums,

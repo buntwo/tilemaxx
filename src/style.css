@@ -4300,10 +4300,23 @@ label + label {
   color: var(--muted);
   box-shadow: none;
 }
-.rack-excluded-icon {
+.rack-excluded-icon,
+.rack-required-icon {
   position: absolute;
   top: 4px;
   left: 4px;
+}
+.rack-required-icon {
+  color: #20644c;
+  filter: drop-shadow(0 0 1px #ffffffa0);
+}
+.rack-tile.required-tile .rack-slot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid #358064;
+  border-radius: inherit;
+  pointer-events: none;
 }
 .rack-entry-actions {
   display: flex;
@@ -5485,12 +5498,12 @@ label + label {
   line-height: 1;
 }
 .compact-game .rack-panel .rack-face.empty { font-size: min(18px, 40cqi); }
-.compact-game .rack-panel :is(.rack-excluded-icon, .rack-exchange-icon) {
+.compact-game .rack-panel :is(.rack-excluded-icon, .rack-required-icon, .rack-exchange-icon) {
   width: min(11px, 23cqi);
   height: min(11px, 23cqi);
   top: 2px;
 }
-.compact-game .rack-panel .rack-excluded-icon { left: 2px; }
+.compact-game .rack-panel :is(.rack-excluded-icon, .rack-required-icon) { left: 2px; }
 .compact-game .rack-panel .rack-exchange-icon { right: 2px; }
 .compact-game .rack-panel .rack-tools summary { min-height: 25px; }
 .compact-game .rack-panel .rack-exchange-advice { min-height: 25px; }

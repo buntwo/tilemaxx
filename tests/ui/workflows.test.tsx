@@ -3426,12 +3426,48 @@ test("exclude rack tiles with Down or taps, keep the unseen count, and retain he
   expect(screen.getByText(/89 right now/)).toBeTruthy();
   await user.click(move);
   await waitFor(() => expect(current().rack).toBe("...S"));
-  expect(current().excludedRackSlots).toEqual([3]);
+  expect(current().excludedRackSlots).toBeUndefined();
   await user.click(screen.getByRole("button", { name: "Undo" }));
   expect(current().rack).toBe("CATS");
   expect(current().excludedRackSlots).toEqual([3]);
   await user.click(rackTile(4));
   await user.keyboard("S");
+  expect(current().excludedRackSlots).toBeUndefined();
+});
+
+test("Down cycles rack marks, Require tiles filters moves, and Undo restores both marks", async () => {
+  const user = await start();
+  await typeRack(user, "CATSQ");
+  await user.click(rackTile(4));
+  await user.keyboard("{ArrowDown}{ArrowDown}");
+  expect(current().excludedRackSlots).toBeUndefined();
+  expect(current().requiredRackSlots).toEqual([3]);
+  expect(rackTile(4).getAttribute("aria-label")).toContain("required for this move");
+  await user.keyboard("{ArrowDown}");
+  expect(current().requiredRackSlots).toBeUndefined();
+  await user.click(rackTile(5));
+  await user.keyboard("{ArrowDown}");
+  await user.click(screen.getByText("Rack tools"));
+  await user.click(screen.getByRole("button", { name: "Require tiles" }));
+  await user.click(rackTile(4));
+  expect(rackTile(4).getAttribute("aria-pressed")).toBe("true");
+  await user.click(screen.getByRole("button", { name: "Done" }));
+  await waitFor(() => expect(remote.games[0].requiredRackSlots).toEqual([3]));
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  const move = (await screen.findAllByRole("button", { name: /^CATS, / }))[0];
+  expect(screen.queryByRole("button", { name: /^CAT, / })).toBeNull();
+
+  await user.click(move);
+  await waitFor(() => expect(current().rack).toBe("....Q"));
+  expect(current().excludedRackSlots).toBeUndefined();
+  expect(current().requiredRackSlots).toBeUndefined();
+  await user.click(screen.getByRole("button", { name: "Undo" }));
+  expect(current().rack).toBe("CATSQ");
+  expect(current().excludedRackSlots).toEqual([4]);
+  expect(current().requiredRackSlots).toEqual([3]);
+  expect(rackTile(4).classList.contains("required-tile")).toBe(true);
+  await user.click(screen.getByRole("button", { name: "Redo" }));
+  expect(current().requiredRackSlots).toBeUndefined();
   expect(current().excludedRackSlots).toBeUndefined();
 });
 

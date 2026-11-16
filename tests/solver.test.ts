@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Lexicon, parseWords } from "../shared/lexicon";
-import { solve, inspectBoard, prepareSolver } from "../shared/solver";
+import { solve, solvePosition, inspectBoard, prepareSolver } from "../shared/solver";
 import { PRESETS } from "../shared/presets";
 import { scorePlacement } from "../shared/game-scoring";
 import {
@@ -16,6 +16,35 @@ import {
 
 const lex = (words: string) =>
   new Lexicon(parseWords(words.split(" ").join("\n")));
+
+test("required tiles filter moves by newly placed physical copies, including a blank", () => {
+  const template = PRESETS[0];
+  const board = emptyBoard(template.size);
+  board[template.start] = "A";
+  const dictionary = lex("AT CAT TACT AA AAT AAA AAAT AAAA CAAA");
+  const position = { board, rack: "AAA?TC", excludedRackSlots: [0] };
+  const all = solvePosition(dictionary, position, template);
+  const required = solvePosition(
+    dictionary,
+    { ...position, requiredRackSlots: [1, 2, 3] },
+    template,
+  );
+  const exact = all.filter(({ tiles }) =>
+    tiles.filter(({ letter }) => letter === "A").length === 2 &&
+    tiles.some(({ letter }) => letter === letter.toLowerCase()),
+  );
+  assert.ok(exact.length > 0 && exact.length < all.length);
+  assert.deepEqual(required, exact);
+  assert.ok(required.every(({ leave }) => leave.includes("A")));
+
+  const noMatches = solvePosition(
+    lex("AT"),
+    { ...position, requiredRackSlots: [1, 2, 3] },
+    template,
+    { maxMoves: 0 },
+  );
+  assert.deepEqual(noMatches, []);
+});
 
 test("variant boards apply their own premiums, letter values, and opening bonuses", () => {
   for (const [id, layout, corner, start, word, faceScore] of [

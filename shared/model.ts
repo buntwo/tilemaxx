@@ -29,6 +29,7 @@ export interface Position {
   // A–Z are letters, ? is a blank, and . preserves an empty slot.
   rack: string;
   excludedRackSlots?: number[];
+  requiredRackSlots?: number[];
 }
 export type Player = "you" | "opponent";
 export interface TrackedMove {
@@ -45,6 +46,7 @@ export interface TurnPosition {
   // The observer’s physical rack at an opponent play, when established by the entry history.
   observerRack?: string;
   excludedRackSlots?: number[];
+  requiredRackSlots?: number[];
   dictionaryId: string;
   premiums?: Premium[];
   tiles: Placement[];
@@ -120,6 +122,7 @@ export type ArchiveState = Pick<
   Game,
   | "rack"
   | "excludedRackSlots"
+  | "requiredRackSlots"
   | "scoring"
   | "trackScores"
   | "trackedMoves"
@@ -131,6 +134,7 @@ export function archiveGame(game: Game): Game {
   const {
     rack,
     excludedRackSlots,
+    requiredRackSlots,
     scoring,
     trackScores,
     trackedMoves,
@@ -145,6 +149,7 @@ export function archiveGame(game: Game): Game {
       premiums: game.template.premiums,
       rack,
       excludedRackSlots,
+      requiredRackSlots,
       scoring,
       trackScores,
       trackedMoves,
@@ -193,6 +198,7 @@ export function restoreArchivedGame(game: Game): Game {
     premiums,
     rack,
     excludedRackSlots,
+    requiredRackSlots,
     scoring,
     trackScores,
     trackedMoves,
@@ -205,6 +211,7 @@ export function restoreArchivedGame(game: Game): Game {
     template: premiums ? { ...game.template, premiums } : game.template,
     rack,
     excludedRackSlots,
+    requiredRackSlots,
     scoring,
     trackScores,
     trackedMoves,
@@ -422,6 +429,7 @@ export function remember(
     board: [...game.board],
     rack: game.rack,
     excludedRackSlots: game.excludedRackSlots,
+    requiredRackSlots: game.requiredRackSlots,
     label,
     score,
     player,
@@ -458,6 +466,9 @@ export function applyMove(game: Game, move: Move, player?: Player): Game {
             board: game.board,
             rack: game.rack,
             excludedRackSlots: game.excludedRackSlots ?? [],
+            ...(game.requiredRackSlots?.length && {
+              requiredRackSlots: game.requiredRackSlots,
+            }),
             dictionaryId: game.dictionaryId,
             premiums: game.template.premiums,
             tiles: move.tiles,
@@ -467,6 +478,8 @@ export function applyMove(game: Game, move: Move, player?: Player): Game {
     ),
     board,
     rack: rackAfterMove(game, move.tiles, move.leave),
+    excludedRackSlots: undefined,
+    requiredRackSlots: undefined,
   };
 }
 export function undo(game: Game): Game {
@@ -480,6 +493,7 @@ export function undo(game: Game): Game {
       : game.template,
     rack: step.rack,
     excludedRackSlots: step.excludedRackSlots,
+    requiredRackSlots: step.requiredRackSlots,
     trackScores: step.trackScores ?? game.trackScores,
     scoring: step.scoring,
     trackedMoves:
@@ -495,6 +509,7 @@ export function undo(game: Game): Game {
         ...(step.premiums && { premiums: game.template.premiums }),
         rack: game.rack,
         excludedRackSlots: game.excludedRackSlots,
+        requiredRackSlots: game.requiredRackSlots,
         label: step.label,
         score: step.score,
         player: step.player,
@@ -523,6 +538,7 @@ export function redo(game: Game): Game {
       : game.template,
     rack: step.rack,
     excludedRackSlots: step.excludedRackSlots,
+    requiredRackSlots: step.requiredRackSlots,
     trackScores: step.trackScores ?? game.trackScores,
     scoring: step.scoring,
     trackedMoves:
@@ -535,6 +551,7 @@ export function redo(game: Game): Game {
         ...(step.premiums && { premiums: game.template.premiums }),
         rack: game.rack,
         excludedRackSlots: game.excludedRackSlots,
+        requiredRackSlots: game.requiredRackSlots,
         label: step.label,
         score: step.score,
         player: step.player,

@@ -16,6 +16,7 @@ function sameEditPosition(a: Game, b: Game) {
     a.board === b.board &&
     a.rack === b.rack &&
     a.excludedRackSlots === b.excludedRackSlots &&
+    a.requiredRackSlots === b.requiredRackSlots &&
     a.past === b.past &&
     a.future === b.future &&
     a.scoring === b.scoring &&
