@@ -21,9 +21,12 @@ export function useAutoUpdate(
   enabled: boolean,
   busy: boolean,
 ) {
+  const availableVersion = hasNewerVersion(serverVersion)
+    ? serverVersion
+    : undefined;
   useEffect(() => {
-    if (!enabled || busy || !hasNewerVersion(serverVersion)) return;
-    const attempt = `${version} → ${serverVersion}`;
+    if (!enabled || busy || !availableVersion) return;
+    const attempt = `${version} → ${availableVersion}`;
     try {
       if (sessionStorage.getItem(updateAttemptKey) === attempt) return;
     } catch {
@@ -53,5 +56,6 @@ export function useAutoUpdate(
     const timer = setInterval(reloadWhenIdle, 500);
     reloadWhenIdle();
     return () => clearInterval(timer);
-  }, [serverVersion, enabled, busy]);
+  }, [availableVersion, enabled, busy]);
+  return availableVersion;
 }

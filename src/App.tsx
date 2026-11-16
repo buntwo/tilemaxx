@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
+  CircleArrowUp,
   BookOpen,
   Check,
   CheckCheck,
@@ -286,11 +287,10 @@ function Tilemaxx() {
     workspace === "games" && flight?.destination === signature
       ? flight
       : undefined;
-  useAutoUpdate(
-    state.serverVersion,
+  const availableUpdate = useAutoUpdate(
+    state.online ? state.serverVersion : undefined,
     preferences.autoUpdate,
-    !state.online ||
-      state.pending.length > 0 ||
+    state.pending.length > 0 ||
       !!dialog ||
       formBusy ||
       !!busy ||
@@ -874,7 +874,19 @@ function Tilemaxx() {
               >
                 <Settings size={17} aria-hidden="true" />
               </button>
-              <span className="app-version">v{version}</span>
+              <span className="app-version">
+                v{version}
+                {!preferences.autoUpdate && availableUpdate && (
+                  <span
+                    className="app-update-icon"
+                    role="img"
+                    aria-label={`Update available · v${availableUpdate}`}
+                    title={`Update available · v${availableUpdate}`}
+                  >
+                    <CircleArrowUp size={14} aria-hidden="true" />
+                  </span>
+                )}
+              </span>
             </div>
           </div>
           <div className="profile-picker">

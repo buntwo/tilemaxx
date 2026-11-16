@@ -833,10 +833,17 @@ label + label {
   gap: 8px;
 }
 .app-version {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--muted);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.app-update-icon {
+  display: inline-flex;
+  color: var(--primary);
 }
 .theme-switch {
   display: flex;
@@ -2745,7 +2752,20 @@ label + label {
 }
 .workspace-preference-list {
   display: grid;
+  gap: 12px;
   margin-top: 8px;
+}
+.workspace-preference-list fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.workspace-preference-list legend {
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
 }
 .workspace-preference-list label {
   display: flex;
