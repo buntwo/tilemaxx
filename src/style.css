@@ -5457,11 +5457,13 @@ label + label {
 :is(.compact-game, .phone-layout) .results-panel .search-input[hidden] { display: none; }
 :is(.compact-game, .phone-layout) .bingo-odds-controls > .search-input { margin-top: 5px; }
 :is(.compact-game, .phone-layout) .result-filters > .search-input { flex: 1 0 100%; order: 1; }
-.compact-game .result-scroll:not(.is-shortlist) {
-  height: clamp(185px, calc(100svh - 248px), calc(9 * var(--move-row-height)));
+.compact-game .result-scroll {
+  --desktop-move-list-height: calc(6 * var(--move-row-height));
+  height: var(--desktop-move-list-height);
 }
-.compact-game .results-panel:has(.search-input:not([hidden])) .result-scroll:not(.is-shortlist) {
-  height: clamp(148px, calc(100svh - 283px), calc(9 * var(--move-row-height)));
+.compact-game .result-scroll.is-shortlist {
+  height: auto;
+  max-height: var(--desktop-move-list-height);
 }
 
 .compact-game .bingo-odds-actions {
@@ -5493,16 +5495,7 @@ label + label {
   border-radius: 7px;
   box-shadow: 0 6px 16px #0002;
 }
-.compact-game .results-panel:has(.inline-reply) {
-  --reply-list-room: calc(100svh - 449px);
-}
-.compact-game .results-panel:has(.inline-reply):has(.search-input:not([hidden])) {
-  --reply-list-room: calc(100svh - 483px);
-}
-.compact-game .results-panel:has(.inline-reply) .result-scroll {
-  max-height: clamp(116px, var(--reply-list-room), calc(5 * var(--move-row-height)));
-}
-.compact-game .results-panel:has(.inline-reply) .results-foot {
+.compact-game .results-foot {
   padding: 5px 12px;
 }
 .compact-reply {
