@@ -46,6 +46,7 @@ interface Snapshot {
   games: Record<string, Game>;
   loadErrors: Record<string, string>;
   online: boolean;
+  serverVersion?: string;
   error: string;
   pending: string[];
   conflicts: Record<string, Game>;
@@ -342,7 +343,9 @@ export class GameStore {
     this.refreshing = true;
     const before = this.snapshot.data;
     try {
-      const remote = await api<GameIndex>("/state/index");
+      const { version: serverVersion, ...remote } = await api<
+        GameIndex & { version?: string }
+      >("/state/index");
       remote.games = remote.games.map((game) => {
         const known = this.confirmedSummaries.get(game.id);
         const current = known && known.revision > game.revision ? known : game;
@@ -416,6 +419,7 @@ export class GameStore {
       remote.games = remote.games.filter((g) => !this.deletedGames.has(g.id));
       const unchanged =
         this.snapshot.online &&
+        this.snapshot.serverVersion === serverVersion &&
         this.snapshot.data &&
         JSON.stringify(remote) === JSON.stringify(this.snapshot.data);
       if (!unchanged) {
@@ -423,6 +427,7 @@ export class GameStore {
           ...this.snapshot,
           data: remote,
           online: true,
+          serverVersion,
           error: "",
         };
         this.persist();

@@ -11,12 +11,25 @@ import { attachBrandSparkle } from "./brand-sparkle";
 import { attachBrandIdle } from "./brand-idle";
 
 const uniqueLetters = "TILEMAX";
-const brandIndex = Math.floor(Math.random() * uniqueLetters.length);
-const brandLetter = uniqueLetters[brandIndex];
-const highlightedIndex =
-  brandLetter === "X" && Math.random() < 0.5 ? brandIndex + 1 : brandIndex;
 const fireTileKey = "tilemaxx:fire-next-refresh";
+const brandReloadKey = "tilemaxx:brand-on-update";
 const fireTileCombo = [6, 7, 4, 5, 6, 7];
+
+function takePreservedBrand() {
+  try {
+    const saved = sessionStorage.getItem(brandReloadKey);
+    if (!saved) return;
+    sessionStorage.removeItem(brandReloadKey);
+    const tile = JSON.parse(saved);
+    if (
+      Number.isInteger(tile?.index) &&
+      tile.index >= 0 &&
+      tile.index < BRAND_WORD.length &&
+      typeof tile.fire === "boolean"
+    )
+      return { index: tile.index as number, fire: tile.fire as boolean };
+  } catch {}
+}
 
 function forceFireTile() {
   try {
@@ -28,7 +41,23 @@ function forceFireTile() {
   }
 }
 
-const brandOnFire = forceFireTile() || Math.random() < 0.1;
+const preservedBrand = takePreservedBrand();
+const brandIndex =
+  preservedBrand?.index ?? Math.floor(Math.random() * uniqueLetters.length);
+const highlightedIndex =
+  !preservedBrand && uniqueLetters[brandIndex] === "X" && Math.random() < 0.5
+    ? brandIndex + 1
+    : brandIndex;
+const brandLetter = BRAND_WORD[highlightedIndex].toUpperCase();
+const brandOnFire =
+  preservedBrand?.fire ?? (forceFireTile() || Math.random() < 0.1);
+
+export function preserveBrandForUpdate() {
+  sessionStorage.setItem(
+    brandReloadKey,
+    JSON.stringify({ index: highlightedIndex, fire: brandOnFire }),
+  );
+}
 
 export function updateFavicon() {
   const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');

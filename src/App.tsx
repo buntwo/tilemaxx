@@ -38,7 +38,10 @@ import {
 import { version } from "../package.json";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
 import BoardEntry, { BoardEntryHelp } from "./components/BoardEntry";
-import { GameCalculations } from "./components/GameCalculations";
+import {
+  GameCalculations,
+  useGameCalculating,
+} from "./components/GameCalculations";
 import GameId from "./components/GameId";
 import { MoveSquareFilterControls, useMoveSquareFilter } from "./components/MoveSquareFilter";
 import GameWorkspace, { usePhoneMoveReview } from "./components/GameWorkspace";
@@ -87,6 +90,7 @@ import {
 import { defaultDictionary } from "../shared/dictionaries";
 import { DEFENSE_LIMIT } from "../shared/premium-defense";
 import { useSolver } from "./useSolver";
+import { useAutoUpdate } from "./useAutoUpdate";
 import { store, useStore } from "./store";
 import { premiumPalette } from "./premium-palettes";
 import {
@@ -270,6 +274,7 @@ function Tilemaxx() {
   const gameOver = !!game?.scoring?.end && !game.archived;
   const solver = useSolver(signature);
   const { busy, warnings } = solver;
+  const calculating = useGameCalculating();
   const replyAnalysis = useReplyAnalysis(
     game,
     signature,
@@ -281,6 +286,17 @@ function Tilemaxx() {
     workspace === "games" && flight?.destination === signature
       ? flight
       : undefined;
+  useAutoUpdate(
+    state.serverVersion,
+    preferences.autoUpdate,
+    !state.online ||
+      state.pending.length > 0 ||
+      !!dialog ||
+      formBusy ||
+      !!busy ||
+      calculating ||
+      !!activeFlight,
+  );
   const phoneReview = usePhoneMoveReview(
     phoneLayout && workspace === "games" && !gameOver,
     !busy && !solver.error && solver.results?.total
