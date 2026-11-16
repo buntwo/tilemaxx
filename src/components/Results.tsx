@@ -916,23 +916,8 @@ export default function Results({
                         setInspectedReply({ id: m.id, searchId });
                     }}
                     onPointerLeave={(e) => {
-                      if (locked || !canHoverWithMouse(e.pointerType)) return;
-                      if (compact && replyMove?.id === m.id && replyDetail) {
-                        const row = e.currentTarget.getBoundingClientRect();
-                        const bottom =
-                          scroller.current?.getBoundingClientRect().bottom;
-                        // Shrinking the list can clip the hovered row under a still pointer.
-                        if (
-                          bottom !== undefined &&
-                          e.clientY >= bottom &&
-                          e.clientY >= row.top &&
-                          e.clientY < row.bottom &&
-                          e.clientX >= row.left &&
-                          e.clientX < row.right
-                        )
-                          return;
-                      }
-                      onPreview(null);
+                      if (!locked && canHoverWithMouse(e.pointerType))
+                        onPreview(null);
                     }}
                   >
                     {start + offset === endgameDivider && (
