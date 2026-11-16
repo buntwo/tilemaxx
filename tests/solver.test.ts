@@ -1,7 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Lexicon, parseWords } from "../shared/lexicon";
-import { solve, solvePosition, inspectBoard, prepareSolver } from "../shared/solver";
+import {
+  inspectBoard,
+  prepareSolver,
+  solve,
+  solvePosition,
+  solvePositionWithBaseline,
+} from "../shared/solver";
 import { PRESETS } from "../shared/presets";
 import { scorePlacement } from "../shared/game-scoring";
 import {
@@ -44,6 +50,41 @@ test("required tiles filter moves by newly placed physical copies, including a b
     { maxMoves: 0 },
   );
   assert.deepEqual(noMatches, []);
+});
+
+test("points baseline uses the full rack for required and excluded tiles", () => {
+  const template = PRESETS[0];
+  const position = { board: emptyBoard(template.size), rack: "CATSDOG" };
+  const dictionary = lex("CAT CATS DOG");
+  const unmarked = solvePositionWithBaseline(dictionary, position, template);
+  assert.equal(unmarked.topScore, unmarked.moves[0].score);
+  assert.equal(unmarked.moves[0].word, "CATS");
+
+  for (const marks of [
+    { requiredRackSlots: [4] },
+    { excludedRackSlots: [3] },
+    { requiredRackSlots: [4], excludedRackSlots: [3] },
+  ]) {
+    const marked = { ...position, ...marks };
+    const result = solvePositionWithBaseline(dictionary, marked, template);
+    assert.deepEqual(result.moves, solvePosition(dictionary, marked, template));
+    assert.ok(result.moves[0].score < unmarked.topScore!);
+    assert.equal(result.topScore, unmarked.topScore);
+  }
+});
+
+test("a bounded full-rack search can leave the points baseline unavailable", () => {
+  const template = PRESETS[0];
+  const position = {
+    board: emptyBoard(template.size),
+    rack: "CATS",
+    excludedRackSlots: [3],
+  };
+  const result = solvePositionWithBaseline(
+    lex("CAT CATS"), position, template, { maxMoves: 6 },
+  );
+  assert.equal(result.moves.length, 6);
+  assert.equal(result.topScore, null);
 });
 
 test("variant boards apply their own premiums, letter values, and opening bonuses", () => {

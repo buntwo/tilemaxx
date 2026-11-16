@@ -598,11 +598,45 @@ export function solvePosition(
   template: BoardTemplate,
   limits?: Limits,
 ) {
+  const solver = prepareSolver(lexicon, position.board, template);
+  return solveAvailableTiles(solver, position, limits);
+}
+
+/** Find playable moves and the points reference for a rack with no marks. */
+export function solvePositionWithBaseline(
+  lexicon: Lexicon,
+  position: Position,
+  template: BoardTemplate,
+  limits?: Limits,
+) {
+  const solver = prepareSolver(lexicon, position.board, template);
+  const moves = solveAvailableTiles(solver, position, limits);
+  let topScore: number | null = moves[0]?.score ?? 0;
+  if (
+    moves.length &&
+    (position.excludedRackSlots?.length || position.requiredRackSlots?.length)
+  ) {
+    try {
+      topScore = solver.summarize(position.rack, limits).score;
+    } catch (error) {
+      // A full rack can exceed the search budget even if its marked search fits.
+      if (!(error instanceof SearchLimitError)) throw error;
+      topScore = null;
+    }
+  }
+  return { moves, topScore };
+}
+
+function solveAvailableTiles(
+  solver: ReturnType<typeof prepareSolver>,
+  position: Position,
+  limits?: Limits,
+) {
   const { available, held } = splitRack(position);
   const requiredTiles = position.requiredRackSlots
     ?.map((slot) => position.rack[slot])
     .join("");
-  const moves = solve(lexicon, position.board, available, template, limits, {
+  const moves = solver.solve(available, limits, {
     requiredTiles,
   });
   if (held) {

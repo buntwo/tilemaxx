@@ -1,6 +1,6 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
 import {
-  solvePosition,
+  solvePositionWithBaseline,
   inspectBoard,
   SearchLimitError,
 } from "../shared/solver";
@@ -186,7 +186,11 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     post({ id, kind: "solve-status", status: "Finding every move…" });
     const start = performance.now();
     const warnings = inspectBoard(lexicon, board, template);
-    const moves = solvePosition(lexicon, request, template);
+    const { moves, topScore } = solvePositionWithBaseline(
+      lexicon,
+      request,
+      template,
+    );
     const movesElapsed = performance.now() - start;
     const indexingStart = performance.now();
     const result = new MoveResultIndex(moves, template);
@@ -199,7 +203,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     post({
       id,
       kind: "moves",
-      results: result.summary(id),
+      results: result.summary(id, topScore),
       warnings,
       stages: {
         dictionary: dictionaryElapsed,
