@@ -9,6 +9,7 @@ export const MOVE_PAGE_SIZE = 64;
 export const MOVE_CACHE_LIMIT = 8;
 export type MoveSort =
   | "score"
+  | "reply-adjusted"
   | "word"
   | "position"
   | "reply"
@@ -99,6 +100,7 @@ const comparators: Partial<Record<MoveSort, (a: Move, b: Move) => number>> = {
 export function defaultSortDescending(sort: MoveSort) {
   return [
     "score",
+    "reply-adjusted",
     "equity",
     "endgame",
     "length",
@@ -106,6 +108,10 @@ export function defaultSortDescending(sort: MoveSort) {
     "bingo-draw",
     "board-bingo",
   ].includes(sort);
+}
+
+export function replyAdjustedPoints(move: Move, delta: number | undefined) {
+  return delta === undefined ? undefined : move.score - delta;
 }
 
 function isExactEndgame(
@@ -145,6 +151,7 @@ export function moveComparator(
       "bingo-draw": (move) => rackOdds?.byLeave[move.leave],
       "board-bingo": (move) => boardOdds?.byMove[move.id]?.chance,
       reply: (move) => replyDeltas?.[move.id],
+      "reply-adjusted": (move) => replyAdjustedPoints(move, replyDeltas?.[move.id]),
       endgame: (move) =>
         exactEndgameSpreads?.[move.id] ?? endgames?.get(move.id)?.spread,
     };

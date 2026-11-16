@@ -55,6 +55,7 @@ import {
   coversRequiredSquares,
   defaultSortDescending,
   moveComparator,
+  replyAdjustedPoints,
   type MoveResults,
   type MoveSort,
   type RequiredSquares,
@@ -266,6 +267,9 @@ export default function Results({
       ),
     [replyAnalysis.results],
   );
+  const showAdjustedPoints = !!analysisGame && replyEnabled && !endgame && !replyAnalysis.invalid;
+  const canSortAdjusted =
+    showAdjustedPoints && !replyAnalysis.pending && Object.keys(replyDeltas).length > 0;
   const shortlistReplies = replyAnalysis.pending
     ? undefined
     : replyAnalysis.results;
@@ -290,9 +294,14 @@ export default function Results({
   const sort =
     activeOrder &&
     (activeOrder.sort !== "endgame" || showEndgameSwing) &&
+    (activeOrder.sort !== "reply-adjusted" || canSortAdjusted) &&
     (!endgame || (activeOrder.sort !== "bingo-draw" && activeOrder.sort !== "board-bingo"))
       ? activeOrder.sort
-      : showEndgameSwing ? "endgame" : "score";
+      : showEndgameSwing
+        ? "endgame"
+        : canSortAdjusted && !shortlistActive
+          ? "reply-adjusted"
+          : "score";
   const reversed =
     (activeOrder?.sort === sort && activeOrder.reversed) || false;
   function setSort(sort: MoveSort, reversed = false) {
@@ -342,7 +351,12 @@ export default function Results({
       ? scoreTotalsAtPosition(analysisGame)
       : undefined;
   const topScore = resultSet?.head[0]?.score ?? 0;
-  const scoreTooltip = useMoveScoreTooltip(analysisGame);
+  const scoreTooltip = useMoveScoreTooltip(analysisGame, (move) => {
+    const delta = replyDeltas[move.id];
+    const adjusted = replyAdjustedPoints(move, delta);
+    if (!showAdjustedPoints || delta === undefined || adjusted === undefined) return;
+    return `${move.score} pts − (${signedPoints(delta, 1)} Δ Reply) = ${Number(adjusted.toFixed(1))} reply-adjusted pts`;
+  });
   const [inspectedDefense, setInspectedDefense] = useState<{
     move: Move;
     risk: MoveDefense;
@@ -373,7 +387,8 @@ export default function Results({
         : Math.max(0, Math.floor(scroll / moveRowHeight) - 5),
       rackOdds: sort === "bingo-draw" ? rackOdds : undefined,
       boardOdds: sort === "board-bingo" ? boardOdds : undefined,
-      replyDeltas: sort === "reply" ? replyDeltas : undefined,
+      replyDeltas:
+        sort === "reply" || sort === "reply-adjusted" ? replyDeltas : undefined,
       endgameId: endgameRanked ? ranking.id : undefined,
       exactEndgameSpreads: sort === "endgame" ? replyAnalysis.exactEndgameSpreads : undefined,
     },
@@ -458,6 +473,41 @@ export default function Results({
       </button>
     );
   }
+  function sortMenu(label: string, accessibleLabel: string, options: ReactElement) {
+    return (
+      <details
+        className="result-sort-menu"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget))
+            event.currentTarget.open = false;
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "Escape" || !event.currentTarget.open) return;
+          event.preventDefault();
+          event.currentTarget.open = false;
+          event.currentTarget.querySelector("summary")?.focus();
+        }}
+      >
+        <summary className="result-column-sort" aria-label={accessibleLabel}>
+          {label}
+          <ChevronDown size={9} aria-hidden="true" />
+        </summary>
+        <div
+          className="result-sort-options"
+          onClick={(event) => {
+            if (!(event.target instanceof Element) || !event.target.closest("button"))
+              return;
+            const menu = event.currentTarget.closest("details");
+            if (!menu) return;
+            menu.open = false;
+            menu.querySelector("summary")?.focus();
+          }}
+        >
+          {options}
+        </div>
+      </details>
+    );
+  }
   const hasBingoControls = !!(analysisGame && onBoardOdds && onCancelBoardOdds);
   const showFilters = !!resultSet && !!(totalMoves || requiredSquares) && !busy && !error;
   const viewPicker = analysisGame && (
@@ -470,8 +520,9 @@ export default function Results({
         type="button"
         aria-pressed={!shortlistOnly}
         onClick={() => {
+          if (!shortlistOnly) return;
           setShortlistOnly(false);
-          setSort("score");
+          setOrdering(undefined);
         }}
       >
         All moves
@@ -530,7 +581,7 @@ export default function Results({
   return (
     <section
       aria-label="Possible moves"
-      className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${showEndgameSwing ? " with-endgame-estimates" : ""}`}
+      className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${showEndgameSwing ? " with-endgame-estimates" : ""}${showAdjustedPoints ? " with-adjusted-points" : ""}`}
       style={{ "--move-row-height": `${moveRowHeight}px` } as CSSProperties}
     >
       <header
@@ -802,7 +853,14 @@ export default function Results({
               {column("WORD", "word", "word")}
             </div>
             <div className="result-points-heading">
-              {column("PTS", "score", "points")}
+              {canSortAdjusted
+                ? sortMenu("PTS", "Sort by points or reply-adjusted points", (
+                    <>
+                      {column("Points", "score", "points")}
+                      {column("Reply-adjusted points", "reply-adjusted", "reply-adjusted points")}
+                    </>
+                  ))
+                : column("PTS", "score", "points")}
             </div>
             {analysisGame && (replyEnabled || defense) && (
               <div className="result-reply-heading">
@@ -818,45 +876,14 @@ export default function Results({
             )}
             <div className="result-leave-heading">
               {!endgame && (analysisGame || rackOdds || boardOdds?.checked) ? (
-                <details
-                  className="result-leave-sort"
-                  onBlur={(event) => {
-                    if (!event.currentTarget.contains(event.relatedTarget))
-                      event.currentTarget.open = false;
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Escape" || !event.currentTarget.open)
-                      return;
-                    event.preventDefault();
-                    event.currentTarget.open = false;
-                    event.currentTarget.querySelector("summary")?.focus();
-                  }}
-                >
-                  <summary
-                    className="result-column-sort"
-                    aria-label="Sort by leave or bingo odds"
-                  >
-                    {sort === "bingo-draw"
-                      ? "DRAW %"
-                      : sort === "board-bingo"
-                        ? "AFTER %"
-                        : "LEAVE"}
-                    <ChevronDown size={9} aria-hidden="true" />
-                  </summary>
-                  <div
-                    className="result-leave-sort-options"
-                    onClick={(event) => {
-                      const menu = event.currentTarget.closest("details");
-                      if (
-                        !(event.target instanceof Element) ||
-                        !event.target.closest("button") ||
-                        !menu
-                      )
-                        return;
-                      menu.open = false;
-                      menu.querySelector("summary")?.focus();
-                    }}
-                  >
+                sortMenu(
+                  sort === "bingo-draw"
+                    ? "DRAW %"
+                    : sort === "board-bingo"
+                      ? "AFTER %"
+                      : "LEAVE",
+                  "Sort by leave or bingo odds",
+                  <>
                     {column("Rack leave", "leave", "rack leave")}
                     {column(
                       "Bingo draw %",
@@ -870,8 +897,8 @@ export default function Results({
                       "bingo odds after play",
                       !boardOdds?.checked,
                     )}
-                  </div>
-                </details>
+                  </>,
+                )
               ) : (
                 column("LEAVE", "leave", "rack leave")
               )}
@@ -908,6 +935,12 @@ export default function Results({
                   ? blockedReplyPoints(risk.closed)
                   : undefined;
                 const reply = replyAnalysis.results?.[m.id];
+                const adjusted = showAdjustedPoints && reply?.kind === "distribution"
+                  ? replyAdjustedPoints(m, reply.difference)
+                  : undefined;
+                const adjustedLabel = adjusted === undefined
+                  ? undefined
+                  : Number(adjusted.toFixed(1));
                 const estimate = page.endgame?.[m.id];
                 const exactLine = showEndgameSwing
                   ? replyAnalysis.cachedEndgame(m.id)
@@ -983,7 +1016,7 @@ export default function Results({
                         !selected &&
                         candidates.length >= ANALYSIS_LIMIT
                       }
-                      aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrifice ? `, ${sacrifice} below top score` : ""}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : ""}`}
+                      aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrifice ? `, ${sacrifice} below top score` : ""}${adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : ""}`}
                       onPointerDown={(e) => {
                         pointer.current = e.pointerType;
                       }}
@@ -1084,6 +1117,9 @@ export default function Results({
                         >
                           {signedPoints(-sacrifice)}
                         </small>
+                        {adjustedLabel !== undefined && (
+                          <small className="result-score-adjusted">Adj. {adjustedLabel}</small>
+                        )}
                       </span>
                       {showEndgameSwing ? (
                         <span className="result-reply-metric" id={metricId}>

@@ -5,7 +5,10 @@ import type { Game, Move } from "../../shared/model";
 import { placeTiles } from "../../shared/move-analysis";
 import { ScoreBreakdownContent } from "./ScoreBreakdown";
 
-export function useMoveScoreTooltip(game?: Game) {
+export function useMoveScoreTooltip(
+  game?: Game,
+  describeAdjustment?: (move: Move) => string | undefined,
+) {
   const id = useId();
   const [active, setActive] = useState<{
     move: Move;
@@ -91,6 +94,7 @@ export function useMoveScoreTooltip(game?: Game) {
       game.template,
       active.move.direction,
     );
+  const adjustment = active && describeAdjustment?.(active.move);
   return {
     close,
     trigger(move: Move, label: string) {
@@ -166,6 +170,7 @@ export function useMoveScoreTooltip(game?: Game) {
         >
           <strong>Score breakdown</strong>
           <ScoreBreakdownContent breakdown={breakdown} />
+          {adjustment && <div className="move-score-adjustment">{adjustment}</div>}
         </div>,
         document.body,
       ),

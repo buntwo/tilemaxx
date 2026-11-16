@@ -48,6 +48,7 @@ export interface ReplyDistribution {
   buckets: number[];
   difference: number;
   discordant: number[];
+  outscored: number;
   count: number;
   exact: boolean;
   reference: { mean: number; buckets: number[] };
@@ -302,6 +303,7 @@ export function prepareReplyAnalysis(
     >();
     const seen = new Uint32Array(board.length);
     let sum = 0;
+    let outscored = 0;
     for (const [i, { rack, weight }] of racks.entries()) {
       let score: number;
       if (captureHeatmap) {
@@ -335,6 +337,7 @@ export function prepareReplyAnalysis(
       buckets[index] += weight;
       bucketByRack[i] = index;
       sum += score * weight;
+      if (score > candidate.score) outscored += weight;
       if (referenceScores && referenceScores[i] !== index) {
         discordant[referenceScores[i]] += weight;
         discordant[index] += weight;
@@ -350,11 +353,11 @@ export function prepareReplyAnalysis(
         examples: ranked.slice(0, 3),
       };
     }).sort((a, b) => b.count - a.count || a.square - b.square);
-    return { mean: sum / count, buckets, discordant, bucketByRack, squares };
+    return { mean: sum / count, buckets, discordant, bucketByRack, squares, outscored };
   }
   const baseline = summarize(reference);
   return (candidate: Move): ReplyDistribution => {
-    const { mean, buckets, discordant, squares } =
+    const { mean, buckets, discordant, squares, outscored } =
       candidate.id === reference.id
         ? baseline
         : summarize(candidate, baseline.bucketByRack);
@@ -364,6 +367,7 @@ export function prepareReplyAnalysis(
       buckets,
       difference: mean - baseline.mean,
       discordant,
+      outscored,
       count,
       exact,
       reference: { mean: baseline.mean, buckets: baseline.buckets },

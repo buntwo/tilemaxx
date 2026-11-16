@@ -298,6 +298,7 @@ test("reply rows resolve individually and compare against the highest score afte
     mean: 31,
     buckets: [5, 200, 240, 25, 30],
     difference: -4,
+    outscored: 420,
     count: 500,
     exact: false,
     discordant: [0, 130, 115, 45, 60],
@@ -340,6 +341,36 @@ test("reply rows resolve individually and compare against the highest score afte
   ).toHaveLength(2);
   await user.unhover(pendingRow);
   expect(screen.getByRole("region", { name: "Reply after CAT" })).toBeTruthy();
+  expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
+  expect(within(pendingRow).getByText("Adj. 14")).toBeTruthy();
+
+  act(() => {
+    worker!.onmessage?.({
+      data: {
+        kind: "reply-summary", id: request.id, moveId: "a",
+        result: { ...reply, difference: 0 },
+      },
+    });
+    worker!.onmessage?.({
+      data: {
+        kind: "reply-summary", id: request.id, moveId: "c",
+        result: { ...reply, difference: -20.4 },
+      },
+    });
+  });
+  expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
+  act(() => {
+    worker!.onmessage?.({
+      data: { kind: "reply-summary", id: request.id, done: true },
+    });
+  });
+  expect(rows()[0].getAttribute("aria-label")).toMatch(/^AT,/);
+  expect(within(rows()[0]).getByText("Adj. 24.4")).toBeTruthy();
+
+  const pointsMenu = screen.getByLabelText("Sort by points or reply-adjusted points");
+  await user.click(pointsMenu);
+  await user.click(screen.getByRole("button", { name: "Sort by points" }));
+  await waitFor(() => expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/));
   await user.click(screen.getByRole("button", { name: "Sort by word" }));
   const row = rows().find((element) =>
     element.getAttribute("aria-label")?.startsWith("CAT,"),
@@ -357,6 +388,11 @@ test("reply rows resolve individually and compare against the highest score afte
   const highReply = within(inline).getByText("11.0%");
   expect(highReply.parentElement?.textContent).toBe("27.0% → 11.0%");
   expect(highReply.classList.contains("value-good")).toBe(true);
+  expect(within(inline).getByText("84.0%").parentElement?.textContent).toBe("Chance they outscore this play 84.0%");
+  await user.click(screen.getByRole("button", { name: /^Score breakdown for CAT at/ }));
+  const scoreBreakdown = screen.getByRole("tooltip");
+  expect(within(scoreBreakdown).getByText("10 pts − (−4.0 Δ Reply) = 14 reply-adjusted pts")).toBeTruthy();
+  await user.keyboard("{Escape}");
   expect(within(inline).getByText("Reference · After CATS")).toBeTruthy();
   expect(worker!.request?.kind).toBe("reply-summary");
   await user.click(within(inline).getByRole("button", { name: "Heatmap" }));
@@ -681,6 +717,7 @@ test("empty-bag rows wait for estimates unless the user skips to points", async 
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
   expect(screen.getByText("QI out")).toBeTruthy();
   const winningSwing = screen.getByTitle("Exact endgame swing +5");
+  expect(screen.queryByText(/^Adj\./)).toBeNull();
   expect(winningSwing.querySelector(".value-good")?.textContent).toBe("+5");
   const losingSwing = screen.getByTitle(/^Estimated endgame swing −41/);
   expect(losingSwing.querySelector("strong.value-bad")?.textContent).toBe(
