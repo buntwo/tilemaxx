@@ -10,7 +10,12 @@ type Reason =
   | "Safer reply"
   | "Closes a premium"
   | "Better bingo odds";
-export type ShortlistEntry = { move: Move; reason: Reason; detail?: string };
+export type ShortlistEntry = {
+  move: Move;
+  scoreRank: number;
+  reason: Reason;
+  detail?: string;
+};
 
 function nearDuplicate(a: Move, b: Move) {
   if (a.id === b.id) return true;
@@ -43,13 +48,13 @@ export function shortlistMoves(
 ): ShortlistEntry[] {
   const top = moves[0];
   if (!top) return [];
-  const entries: ShortlistEntry[] = [{ move: top, reason: "Top score" }];
+  const entries: ShortlistEntry[] = [{ move: top, scoreRank: 1, reason: "Top score" }];
   function add(
     reason: Reason,
     metric: (move: Move) => { rank: number; detail: string } | undefined,
   ) {
-    let best: { move: Move; rank: number; detail: string } | undefined;
-    for (const move of moves) {
+    let best: { move: Move; scoreRank: number; rank: number; detail: string } | undefined;
+    for (const [index, move] of moves.entries()) {
       if (top.score - move.score > 15) break;
       const value = metric(move);
       if (
@@ -58,9 +63,12 @@ export function shortlistMoves(
         entries.some((entry) => nearDuplicate(entry.move, move))
       )
         continue;
-      best = { move, ...value };
+      best = { move, scoreRank: index + 1, ...value };
     }
-    if (best) entries.push({ move: best.move, reason, detail: best.detail });
+    if (best) {
+      const { move, scoreRank, detail } = best;
+      entries.push({ move, scoreRank, reason, detail });
+    }
     return !!best;
   }
 

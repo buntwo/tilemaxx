@@ -48,12 +48,12 @@ test("shortlist keeps distinct choices and considers premium blocks below the to
     },
   });
   assert.deepEqual(
-    list.map(({ move, reason }) => [move.id, reason]),
+    list.map(({ move, scoreRank, reason }) => [move.id, scoreRank, reason]),
     [
-      [top.id, "Top score"],
-      [leave.id, "Better leave"],
-      [lower.id, "Closes a premium"],
-      [bingo.id, "Better bingo odds"],
+      [top.id, 1, "Top score"],
+      [leave.id, 3, "Better leave"],
+      [lower.id, 29, "Closes a premium"],
+      [bingo.id, 4, "Better bingo odds"],
     ],
   );
 });

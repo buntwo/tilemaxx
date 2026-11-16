@@ -148,6 +148,7 @@ export function useMoveResults(
     head,
     start: Math.max(start, slice?.offset ?? 0),
     visible,
+    scoreRanks: page?.scoreRanks,
     endgame: page?.endgame,
     exactEndgameCount: page?.exactEndgameCount,
     pending: needsPage && !page && !initialHead,

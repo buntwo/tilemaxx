@@ -28,6 +28,10 @@ test("the worker index keeps all placements while sending bounded windows", () =
   assert.equal(first.total, expected.length);
   assert.deepEqual(first.head, expected.slice(0, 30));
   assert.deepEqual(first.rows, expected.slice(0, MOVE_PAGE_SIZE));
+  assert.deepEqual(
+    first.scoreRanks,
+    Object.fromEntries(first.rows.map((move) => [move.id, moves.indexOf(move) + 1])),
+  );
   const later = index.page({ ...query, offset: 70 });
   assert.deepEqual(later.head, first.head);
   assert.deepEqual(
