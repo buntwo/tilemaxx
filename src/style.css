@@ -1404,7 +1404,7 @@ label + label {
   flex-shrink: 0;
   color: var(--primary);
 }
-.score-add-move {
+.score-action {
   margin-top: 8px;
 }
 .modal .score-edit-bingo {
