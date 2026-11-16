@@ -1242,7 +1242,12 @@ export default function Results({
             {replyLine && <span className="optimal-reply-badge"><Check size={13} aria-hidden="true" /> Exact line</span>}
           </h3>
           {replyLine ? (
-            <OptimalReplyDetails key={replyMove.id} game={analysisGame} line={replyLine} />
+            <OptimalReplyDetails
+              key={replyMove.id}
+              game={analysisGame}
+              line={replyLine}
+              opponentRack={replyAnalysis.opponentRack}
+            />
           ) : replyDetail && (
             <ReplyPreview
               game={analysisGame}
