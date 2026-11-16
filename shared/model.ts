@@ -42,6 +42,8 @@ export interface TrackedMove {
 export interface TurnPosition {
   board: Board;
   rack?: string;
+  // The observer’s physical rack at an opponent play, when established by the entry history.
+  observerRack?: string;
   excludedRackSlots?: number[];
   dictionaryId: string;
   premiums?: Premium[];

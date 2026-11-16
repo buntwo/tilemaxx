@@ -139,6 +139,7 @@ const review = z
   .object({
     board: z.array(cell).max(625),
     rack: rack.optional(),
+    observerRack: rack.optional(),
     excludedRackSlots,
     dictionaryId: z.string().max(100),
     premiums: premiums.optional(),
@@ -220,6 +221,7 @@ export const gameSchema = gameProgress
       (position.board.length === size &&
         (!position.premiums || position.premiums.length === size) &&
         validRack(position.rack ?? "", position.excludedRackSlots) &&
+        validRack(position.observerRack ?? "") &&
         position.tiles.every(
           (tile) => tile.index < size && !position.board[tile.index],
         ) &&

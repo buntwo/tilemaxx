@@ -17,6 +17,11 @@ import {
   reviewTurn,
   type ReviewSummary,
 } from "../shared/turn-review";
+import {
+  analyzeOpponentPolicy,
+  type OpponentPolicyInput,
+  type OpponentPolicyResult,
+} from "../shared/opponent-policy";
 import type { BoardTemplate, TrackedMove, TurnPosition } from "../shared/model";
 
 type ReviewJob = { position: TurnPosition; move: TrackedMove; index: number };
@@ -32,7 +37,16 @@ export type PracticeRequest =
       dictionaryId: string;
       exchange: ExchangeAdviceRequest;
     }
+  | {
+      kind: "opponent-policy";
+      dictionaryId: string;
+      input: OpponentPolicyInput;
+    }
   | { kind: "turn" | "game"; template: BoardTemplate; turns: ReviewJob[] };
+
+export type OpponentPolicyMessage =
+  | { result: OpponentPolicyResult }
+  | { error: string };
 
 export type ExchangeAdviceMessage =
   | { result: ExchangeAdvice | undefined }
@@ -87,6 +101,13 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
       self.postMessage({
         result: simulateExchange(lexicon, data.exchange, progress),
       });
+      return;
+    }
+    if (data.kind === "opponent-policy") {
+      const lexicon = await dictionary(data.dictionaryId);
+      self.postMessage({
+        result: analyzeOpponentPolicy(lexicon, data.input),
+      } satisfies OpponentPolicyMessage);
       return;
     }
     const opportunities: ReviewSummary["opportunities"] = [];

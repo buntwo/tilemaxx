@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { scorePlacement } from "../../shared/game-scoring";
 import {
   coordinate,
@@ -7,11 +7,16 @@ import {
   type Game,
   type Move,
 } from "../../shared/model";
+import type {
+  OpponentPolicyInput,
+  OpponentPolicyResult,
+} from "../../shared/opponent-policy";
 import { reviewTurns, type ReviewSummary } from "../../shared/turn-review";
 import { scoreTone } from "../score-tone";
 import Board from "./Board";
 import Modal from "./Modal";
 import MoveWord from "./MoveWord";
+import OpponentPolicyReview from "./OpponentPolicyReview";
 import ScoreBreakdown from "./ScoreBreakdown";
 import { usePractice } from "./usePractice";
 
@@ -48,6 +53,43 @@ export default function TurnReview({
   const eligible = turns.flatMap(({ position, move, index }) =>
     position?.rack && move.player === "you" ? [{ position, move, index }] : [],
   );
+  const [policyResults, setPolicyResults] = useState<
+    Record<string, OpponentPolicyResult>
+  >({});
+  const savePolicyResult = useCallback(
+    (key: string, result: OpponentPolicyResult) => {
+      setPolicyResults((results) => ({ ...results, [key]: result }));
+    },
+    [],
+  );
+  const opponentTurns = useMemo(
+    () =>
+      turns.flatMap(({ move, index, position }) => {
+        if (move.player !== "opponent") return [];
+        const input: OpponentPolicyInput | undefined = position && {
+          position: {
+            board: position.board,
+            tiles: position.tiles,
+            observerRack: position.observerRack,
+          },
+          template: position.premiums
+            ? { ...game.template, premiums: position.premiums }
+            : game.template,
+          word: move.word,
+        };
+        const key = JSON.stringify([index, game.dictionaryId, input]);
+        return [{ move, index, input, key }];
+      }),
+    [turns, game.template, game.dictionaryId],
+  );
+  const opponentTurn = opponentTurns.find(({ index }) => index === selected);
+  const checkedOpponentTurns = opponentTurns.filter(
+    ({ key }) =>
+      policyResults[key] && policyResults[key].kind !== "unavailable",
+  ).length;
+  const topOneRuledOut = opponentTurns.filter(
+    ({ key }) => policyResults[key]?.higherScoringPlacement,
+  ).length;
   const alternatives = Array.isArray(result) ? result : undefined;
   const summary = result && !Array.isArray(result) ? result : undefined;
   const tiles = preview?.tiles ?? position?.tiles;
@@ -74,6 +116,16 @@ export default function TurnReview({
           <>
             Review move {turn.index + 1} ·{" "}
             <MoveWord word={turn.move.word} bingo={turnBingo(turn, template)} />
+            {opponentTurn && (
+              <OpponentPolicyReview
+                key={opponentTurn.key}
+                analysisKey={opponentTurn.key}
+                dictionaryId={game.dictionaryId}
+                input={opponentTurn.input}
+                savedResult={policyResults[opponentTurn.key]}
+                saveResult={savePolicyResult}
+              />
+            )}
           </>
         ) : (
           "Review game"
@@ -109,13 +161,9 @@ export default function TurnReview({
                     Rack before the move ·{" "}
                     <strong>{position.rack.replaceAll(".", "·")}</strong>
                   </p>
-                ) : (
-                  <p>
-                    {turn.move.player === "opponent"
-                      ? "Opponent rack is unknown."
-                      : "Rack before the move is unknown."}
-                  </p>
-                )}
+                ) : turn.move.player === "you" ? (
+                  <p>Rack before the move is unknown.</p>
+                ) : null}
                 {breakdown && <ScoreBreakdown breakdown={breakdown} />}
                 {position.rack && !progress && !alternatives && (
                   <button
@@ -273,6 +321,42 @@ export default function TurnReview({
                   </p>
                 )}
               </>
+            )}
+            {!!opponentTurns.length && (
+              <section
+                className="policy-fit practice-body"
+                aria-label="Opponent turns"
+              >
+                <h3>Opponent turns</h3>
+                {!!(checkedOpponentTurns || topOneRuledOut) && (
+                  <p>
+                    Policy fit calculated for {checkedOpponentTurns} of{" "}
+                    {opponentTurns.length} turns.
+                    {topOneRuledOut > 0 &&
+                      ` Top 1 by points was ruled out on ${topOneRuledOut}.`}
+                  </p>
+                )}
+                <ul className="practice-results">
+                  {opponentTurns.map(({ index, move, input, key }) => (
+                    <li key={index}>
+                      <button
+                        className="button secondary"
+                        onClick={() => choose(index)}
+                      >
+                        Move {index + 1} ·{" "}
+                        <MoveWord
+                          word={move.word}
+                          bingo={turnBingo(turns[index], template)}
+                        />
+                      </button>
+                      {(!input ||
+                        policyResults[key]?.kind === "unavailable") && (
+                        <small>Policy fit unavailable</small>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
           </>
         )}

@@ -1028,3 +1028,23 @@ test("correcting a move from before a score reset keeps current totals and pendi
   assert.deepEqual(corrected.scoring, pending.scoring);
   assert.equal(trackedMoveHistory(corrected)[0].score, 12);
 });
+
+test("opponent review saves a full observer rack from before entry, with older or changed racks left unknown", () => {
+  const game = { ...fixture(), rack: "ZSEI?MR" };
+  const board = [...game.board];
+  board.splice(game.template.start, 3, "C", "A", "T");
+  const entered = new BoardEditHistory().apply(game, board, "enter");
+  const unchanged = recordOpponentPlay(entered);
+  const saved = gameSchema.parse(JSON.parse(JSON.stringify(unchanged)));
+  assert.equal(saved.trackedMoves?.[0].review?.observerRack, "?EIMRSZ");
+
+  const changed = recordOpponentPlay({
+    ...entered,
+    ...remember(entered, "Entered rack letters"),
+    rack: "ZSEILMR",
+  });
+  assert.equal(changed.trackedMoves?.[0].review?.observerRack, undefined);
+  const older = JSON.parse(JSON.stringify(unchanged));
+  delete older.trackedMoves[0].review.observerRack;
+  assert.equal(gameSchema.parse(older).trackedMoves?.[0].review?.observerRack, undefined);
+});
