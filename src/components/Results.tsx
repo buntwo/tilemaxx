@@ -258,6 +258,7 @@ export default function Results({
   const ranking =
     replyEnabled && !shortlistActive ? replyAnalysis.ranking : undefined;
   const waitingForEndgame = replyEnabled && replyAnalysis.estimatingEndgame;
+  const endgameProgress = replyEnabled ? replyAnalysis.endgameProgress : undefined;
   const endgameRanked = !!ranking?.checked;
   const sort =
     activeOrder &&
@@ -509,6 +510,8 @@ export default function Results({
             active={
               calculating ||
               localCalculation ||
+              waitingForEndgame ||
+              !!endgameProgress?.pending ||
               replyAnalysis.pending ||
               !!replyAnalysis.detail?.pending
             }
@@ -720,8 +723,23 @@ export default function Results({
               {replyAnalysis.error ?? "Check tile counts for reply analysis."}
             </div>
           )}
-          {replyEnabled && estimateNotice && (
-            <div className="reply-controls" role="status">{estimateNotice}</div>
+          {replyEnabled && (estimateNotice || endgameProgress) && (
+            <div className="reply-controls">
+              {estimateNotice && <span role="status">{estimateNotice}</span>}
+              {endgameProgress && (
+                <span
+                  role="status"
+                  title={[...endgameProgress.limits, endgameProgress.error].filter(Boolean).join("\n") || undefined}
+                >
+                  {endgameProgress.pending
+                    ? `Solving exact lines · ${endgameProgress.checked}/${endgameProgress.total} checked`
+                    : `${endgameProgress.ready}/${endgameProgress.total} exact lines ready`}
+                  {!!endgameProgress.limits.length &&
+                    ` · ${endgameProgress.limits.length} hit a limit`}
+                  {endgameProgress.error && " · Background search stopped"}
+                </span>
+              )}
+            </div>
           )}
           {replyEnabled && analysisGame && !onBoardOdds && (
             <div className="reply-controls">

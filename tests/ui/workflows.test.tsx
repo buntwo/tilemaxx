@@ -360,17 +360,28 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
   expect(screen.queryByRole("spinbutton", { name: /Endgame budget/ })).toBeNull();
 });
 
-test("the first five endgame moves precompute exact lines that Analyze reuses for matching settings", async () => {
+test("the first five endgame moves report progress and update Analyze with exact lines for matching settings", async () => {
   const lexicon = new Lexicon(["AT", "CAT", "CATS", "ACT", "RAT", "ART", "TAR"]);
   const analyses: AnalysisRequest[] = [];
   let background: { worker: SolverWorker; request: EndgamePrecomputeRequest } | undefined;
   let firstFive: string[] = [];
   class EndgameWorker extends SolverWorker {
-    postMessage(request: SolverRequest | AnalysisRequest | EndgamePrecomputeRequest) {
+    postMessage(request: SolverRequest | AnalysisRequest | EndgamePrecomputeRequest | ReplyRequest) {
       if (!("kind" in request)) {
         analyses.push(request);
         const result = analyzeMoves(lexicon, request, new Set());
+        const second = result.forecasts[1];
+        if (second && !request.cachedEndgames?.[second.move.id]) {
+          second.endgame = null;
+          second.endgameLimit = "Foreground endgame position limit reached.";
+        }
         queueMicrotask(() => this.onmessage?.({ data: { result } }));
+      } else if (request.kind === "reply-summary") {
+        queueMicrotask(() => this.onmessage?.({
+          data: { id: request.id, kind: request.kind, done: true },
+        }));
+      } else if (request.kind === "reply-line" || request.kind === "reply-detail") {
+        return;
       } else if (request.kind === "precompute-endgames") {
         background = { worker: this, request };
       } else if (request.kind === "endgame") {
@@ -406,8 +417,12 @@ test("the first five endgame moves precompute exact lines that Analyze reuses fo
   await waitFor(() => expect(background?.request.moves.map(({ id }) => id)).toEqual(firstFive));
   const { worker, request } = background!;
   const [first, second] = request.moves;
+  expect(screen.getByText("Solving exact lines · 0/5 checked")).toBeTruthy();
+  const spinner = document.querySelector(".calculation-indicator")!;
+  expect(spinner.getAttribute("data-phase")).toBe("active");
   const line = replyEndgameLine(lexicon, request, first, Infinity);
   act(() => worker.onmessage?.({ data: { moveId: first.id, line } }));
+  expect(screen.getByText("Solving exact lines · 1/5 checked")).toBeTruthy();
   await user.click(await screen.findByRole("button", { name: "Analyze" }));
   const rows = within(screen.getByLabelText("Suggested moves")).getAllByRole("button", { name: /points,/ });
   await user.click(rows[1]);
@@ -415,12 +430,30 @@ test("the first five endgame moves precompute exact lines that Analyze reuses fo
   await screen.findByRole("button", { name: "Refine estimates" });
   expect(analyses[0].candidates.map(({ id }) => id)).toEqual([first.id, second.id]);
   expect(analyses[0].cachedEndgames).toEqual({ [first.id]: line });
+  const cards = screen.getAllByRole("article", { name: /^Analysis for / });
+  await user.click(cards[1].querySelector("summary")!);
+  expect(within(cards[1]).getByText("Foreground endgame position limit reached.")).toBeTruthy();
+  const secondLine = replyEndgameLine(lexicon, request, second, Infinity);
+  act(() => worker.onmessage?.({ data: { moveId: second.id, line: secondLine } }));
+  expect(within(cards[1]).getByRole("table", { name: "Optimal endgame line" })).toBeTruthy();
+  expect(within(cards[1]).queryByText("Foreground endgame position limit reached.")).toBeNull();
+
+  const timeLimit = "Endgame search reached its 5,000 ms time limit.";
+  act(() => {
+    for (const move of request.moves.slice(2))
+      worker.onmessage?.({ data: { moveId: move.id, limit: timeLimit } });
+    worker.onmessage?.({ data: { done: true } });
+  });
+  const finished = screen.getByText("2/5 exact lines ready · 3 hit a limit");
+  expect(finished.getAttribute("title")).toContain(timeLimit);
+  expect(spinner.textContent).toBe("");
 
   await user.selectOptions(screen.getByRole("combobox", { name: "Prior scoreless turns" }), "1");
   await user.click(screen.getByRole("button", { name: "Run analysis" }));
   await screen.findByRole("button", { name: "Refine estimates" });
   expect(analyses[1].cachedEndgames).toBeUndefined();
-  await typeRack(user, "CAT");
+  await typeRack(user, "Z");
+  expect(screen.queryByText(/exact lines ready/)).toBeNull();
   expect(worker.terminate).toHaveBeenCalledOnce();
 });
 

@@ -72,10 +72,7 @@ export default function MoveAnalysis({
   );
   const [endgameBudgetText, setEndgameBudgetText] = useState("1");
   const budgetHintId = useId();
-  const [result, setResult] = useState<AnalysisResult>();
-  const totals = result?.forecasts.some(({ endgame }) => endgame)
-    ? scoreTotalsAtPosition(game)
-    : undefined;
+  const [analysisResult, setResult] = useState<AnalysisResult>();
   const [error, setError] = useState("");
   const [progress, setProgress] = useState<AnalysisProgress>();
   useGameCalculation(!!progress);
@@ -100,6 +97,23 @@ export default function MoveAnalysis({
   const inferenceKey = canInfer && infer ? previous.join(".") : "";
   const streak = endgameStreaks[game.template.rules];
   const endgame = bagValid && bagSize === 0 && (total > 0 || !streak);
+  const useCachedLines =
+    endgame &&
+    bagSize === endgameSettings.bagSize &&
+    scoreless === endgameSettings.scorelessTurns &&
+    opponentHasFinalTurn === endgameSettings.opponentHasFinalTurn;
+  const result = useCachedLines && analysisResult?.bagSize === 0
+    ? {
+        ...analysisResult,
+        forecasts: analysisResult.forecasts.map((forecast) => {
+          const line = !forecast.endgame && endgameSettings.cachedEndgame(forecast.move.id);
+          return line ? { ...forecast, endgame: line, endgameLimit: undefined } : forecast;
+        }),
+      }
+    : analysisResult;
+  const totals = result?.forecasts.some(({ endgame }) => endgame)
+    ? scoreTotalsAtPosition(game)
+    : undefined;
   const endgameBudget = endgame ? Number(endgameBudgetText) : 1;
   const budgetValid = isEndgameBudgetMultiplier(endgameBudget);
   const { positionLimit, timeLimitMs } = endgameAnalysisLimits(
@@ -151,10 +165,7 @@ export default function MoveAnalysis({
       };
     }
     const cachedEndgames =
-      endgame &&
-      bagSize === endgameSettings.bagSize &&
-      scoreless === endgameSettings.scorelessTurns &&
-      opponentHasFinalTurn === endgameSettings.opponentHasFinalTurn
+      useCachedLines
         ? Object.fromEntries(candidates.flatMap(({ id }) => {
             const line = endgameSettings.cachedEndgame(id);
             return line ? [[id, line]] : [];

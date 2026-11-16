@@ -166,7 +166,7 @@ export function useReplyAnalysis(
     [game?.board, game?.rack, game?.template, bagSize, scorelessTurns, opponentHasFinalTurn],
   );
   const dictionaryId = game?.dictionaryId;
-  const cachedEndgame = useEndgameLines(
+  const { cachedEndgame, endgameProgress } = useEndgameLines(
     estimateRun ? moveList : undefined,
     position,
     dictionaryId,
@@ -296,6 +296,18 @@ export function useReplyAnalysis(
     worker.current.postMessage(request);
   }
 
+  const savedDetail = moveList && details.current.get(moveList);
+  const currentDetail =
+    detail?.runKey === runKey
+      ? detail
+      : savedDetail?.runKey === runKey
+        ? savedDetail
+        : undefined;
+  const linePrefix = "reply-line:";
+  const backgroundLine = currentDetail?.key.startsWith(linePrefix)
+    ? cachedEndgame(currentDetail.key.slice(linePrefix.length))
+    : undefined;
+
   return {
     enabled,
     bagSize,
@@ -310,6 +322,7 @@ export function useReplyAnalysis(
     scorelessTurns,
     opponentHasFinalTurn,
     cachedEndgame,
+    endgameProgress,
     ranking,
     estimatingEndgame: !!estimateKey && !estimateRun,
     skipEndgameEstimate: () => setSkippedEstimate(estimateKey),
@@ -338,11 +351,9 @@ export function useReplyAnalysis(
     error: current?.error,
     reference,
     detail:
-      detail?.runKey === runKey
-        ? detail
-        : moveList && details.current.get(moveList)?.runKey === runKey
-          ? details.current.get(moveList)
-          : undefined,
+      currentDetail && backgroundLine
+        ? { ...currentDetail, pending: false, error: undefined, line: backgroundLine }
+        : currentDetail,
     requestDetail,
   };
 }
