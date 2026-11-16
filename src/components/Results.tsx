@@ -633,7 +633,10 @@ export default function Results({
     <section
       aria-label="Possible moves"
       className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${showEndgameSwing ? " with-endgame-estimates" : ""}${showAdjustedPoints ? " with-adjusted-points" : ""}`}
-      style={{ "--move-row-height": `${moveRowHeight}px` } as CSSProperties}
+      style={{
+        "--move-row-height": `${moveRowHeight}px`,
+        "--result-rank-digits": String(totalMoves).length,
+      } as CSSProperties}
     >
       <header
         className={`results-title${exchangeAction ? " has-exchange-advice" : ""}`}
