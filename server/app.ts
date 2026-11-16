@@ -2,6 +2,7 @@ import express from "express";
 import compression from "compression";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import { version } from "../package.json";
 import { createStore } from "./store";
 import {
   gameSchema,
@@ -34,7 +35,9 @@ export function createApp(store: ReturnType<typeof createStore>) {
   app.use(express.json({ limit: "16mb" }));
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
   app.get("/api/state", (_req, res) => res.json(store.state()));
-  app.get("/api/state/index", (_req, res) => res.json(store.index()));
+  app.get("/api/state/index", (_req, res) =>
+    res.json({ ...store.index(), version }),
+  );
   app.post("/api/screenshot-examples", (req, res) => {
     const example = screenshotExampleSchema.parse(req.body);
     const header = Buffer.from(example.croppedPng.slice(0, 32), "base64");

@@ -484,6 +484,30 @@ test("polling refreshes an older cached summary at the same game revision", asyn
   }
 });
 
+test("polling notices version changes without changing the cached game index", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    const index = { ...client.snapshot.data!, games: [summarizeGame(game)] };
+    let version = "0.1.22";
+    globalThis.fetch = async (url) => {
+      assert.equal(url, "/api/state/index");
+      return response({ ...index, version });
+    };
+
+    await client.refresh();
+    assert.equal(client.snapshot.serverVersion, "0.1.22");
+    const notify = client.getSnapshot();
+    version = "0.1.23";
+    await client.refresh();
+    assert.notEqual(client.getSnapshot(), notify);
+    assert.equal(client.snapshot.serverVersion, "0.1.23");
+    assert.deepEqual(client.snapshot.data, index);
+    assert.equal(new GameStore().snapshot.serverVersion, undefined);
+  } finally {
+    cleanup();
+  }
+});
+
 test("polling only loads full histories for watched games with a new revision", async () => {
   const { client, game, cleanup } = setup();
   try {

@@ -6,6 +6,7 @@ const defaults = {
   highlightRackPreview: true,
   pulseMovePreviews: true,
   animatePlayedTiles: true,
+  autoUpdate: true,
 };
 type Preferences = typeof defaults;
 
@@ -13,6 +14,7 @@ const options = [
   ["highlightRackPreview", "Highlight rack tiles on move preview"],
   ["pulseMovePreviews", "Pulse move previews"],
   ["animatePlayedTiles", "Animate tiles when playing a move"],
+  ["autoUpdate", "Automatically reload when an update is available"],
 ] as const satisfies ReadonlyArray<readonly [keyof Preferences, string]>;
 
 function readPreferences(): Preferences {
@@ -22,6 +24,7 @@ function readPreferences(): Preferences {
       highlightRackPreview: saved?.highlightRackPreview !== false,
       pulseMovePreviews: saved?.pulseMovePreviews !== false,
       animatePlayedTiles: saved?.animatePlayedTiles !== false,
+      autoUpdate: saved?.autoUpdate !== false,
     };
   } catch {
     return defaults;

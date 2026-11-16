@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { version } from "../package.json";
 import { createStore } from "../server/store";
 import { createApp } from "../server/app";
 import { archiveGame, emptyBoard, type AppState, type Game } from "../shared/model";
@@ -33,6 +34,9 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
       body: body ? JSON.stringify(body) : undefined,
     });
   try {
+    const indexResponse = await req("/state/index");
+    assert.equal(indexResponse.headers.get("cache-control"), "no-store");
+    assert.equal((await indexResponse.json()).version, version);
     const state: AppState = await (await req("/state")).json(),
       game = state.games[0];
     assert.deepEqual(state.templates, PRESETS);

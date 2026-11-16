@@ -3182,10 +3182,11 @@ test("workspace settings keep board previews visible with plain rack tiles and p
   const rackHighlight = "Highlight rack tiles on move preview";
   const pulse = "Pulse move previews";
   const playAnimation = "Animate tiles when playing a move";
+  const autoUpdate = "Automatically reload when an update is available";
 
   await openSettings();
   expect(dialog().getByText("Applies to all games in this browser only.")).toBeTruthy();
-  for (const name of [rackHighlight, pulse, playAnimation]) {
+  for (const name of [rackHighlight, pulse, playAnimation, autoUpdate]) {
     expect(option(name).checked).toBe(true);
     await user.click(option(name));
   }
@@ -3204,7 +3205,7 @@ test("workspace settings keep board previews visible with plain rack tiles and p
   render(<App />);
   await screen.findByRole("heading", { name: /First game/ });
   await openSettings();
-  for (const name of [rackHighlight, pulse, playAnimation]) {
+  for (const name of [rackHighlight, pulse, playAnimation, autoUpdate]) {
     expect(option(name).checked).toBe(false);
   }
 });
