@@ -199,6 +199,15 @@ export default function GameScores({
           moves and count future plays.
         </p>
       ) : null}
+      {!!moves.length && (
+        <button
+          type="button"
+          className="button secondary score-action"
+          onClick={() => setReview(null)}
+        >
+          Review game
+        </button>
+      )}
       <details className="score-history">
         <summary>
           <span>
@@ -293,20 +302,11 @@ export default function GameScores({
         )}
         <button
           type="button"
-          className="button secondary score-add-move"
+          className="button secondary score-action"
           onClick={() => openEditor()}
         >
           <Plus size={14} aria-hidden="true" /> Add missed move
         </button>
-        {!!moves.length && (
-          <button
-            type="button"
-            className="button secondary score-add-move"
-            onClick={() => setReview(null)}
-          >
-            Review game
-          </button>
-        )}
       </details>
       {review !== undefined && (
         <TurnReview
