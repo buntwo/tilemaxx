@@ -1,4 +1,5 @@
 import type { Lexicon } from "../shared/lexicon";
+import { computeWorkerLimit } from "./compute-workers";
 import {
   analyzeCandidate,
   type CandidateJob,
@@ -10,11 +11,6 @@ const defaultWorker = () =>
   new Worker(new URL("./candidate-analysis.worker.ts", import.meta.url), {
     type: "module",
   });
-
-function workerCount() {
-  const mobile = /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent);
-  return Math.min(mobile ? 2 : 4, navigator.hardwareConcurrency || 2);
-}
 
 function requestCandidate(worker: Worker, request: CandidateRequest) {
   return new Promise<CandidateResult>((resolve, reject) => {
@@ -34,8 +30,8 @@ export async function runCandidateJobs(
   lexicon: Lexicon,
   jobs: readonly CandidateJob[],
   receive: (job: CandidateJob, result: CandidateResult) => void | Promise<void>,
+  concurrency = computeWorkerLimit(),
   createWorker = defaultWorker,
-  concurrency = workerCount(),
 ) {
   const workers: Worker[] = [];
   let next = 0;

@@ -27,7 +27,7 @@ async function loadDictionary(id: string) {
 async function precomputeEndgames(request: EndgamePrecomputeRequest) {
   const post = (message: EndgamePrecomputeMessage) => self.postMessage(message);
   try {
-    const { dictionaryId, moves, kind: _, ...position } = request;
+    const { dictionaryId, moves, workerLimit, kind: _, ...position } = request;
     const lexicon = await loadDictionary(dictionaryId);
     await runCandidateJobs(
       lexicon,
@@ -45,6 +45,7 @@ async function precomputeEndgames(request: EndgamePrecomputeRequest) {
               : "Unexpected endgame result.",
           );
       },
+      workerLimit,
     );
     post({ done: true });
   } catch (error) {

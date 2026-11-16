@@ -87,7 +87,7 @@ export type ReplyRequest = ReplyPosition & {
   dictionaryId: string;
   reference: Move;
 } & (
-    | { kind: "reply-summary"; candidates: Move[] }
+    | { kind: "reply-summary"; candidates: Move[]; workerLimit?: number }
     | (ReplyDetailOptions & { candidate: Move })
   );
 

@@ -12,6 +12,7 @@ export type EndgamePrecomputeRequest = ReplyPosition & {
   kind: "precompute-endgames";
   dictionaryId: string;
   moves: Move[];
+  workerLimit: number;
 };
 
 export type EndgamePrecomputeMessage =
@@ -37,6 +38,7 @@ export function useEndgameLines(
   position: ReplyPosition | undefined,
   dictionaryId: string | undefined,
   key: string,
+  workerLimit: number,
 ) {
   const [cache, setCache] = useState(
     () => new Map<string, Map<string, EndgameLine>>(),
@@ -148,10 +150,11 @@ export function useEndgameLines(
       kind: "precompute-endgames",
       dictionaryId,
       moves: missing,
+      workerLimit,
     } satisfies EndgamePrecomputeRequest);
     return stop;
     // Equivalent game snapshots from sync share a key and do not restart the worker.
-  }, [moves, dictionaryId, key]);
+  }, [moves, dictionaryId, key, workerLimit]);
 
   return {
     cachedEndgame: (moveId: string) => lines?.get(moveId),

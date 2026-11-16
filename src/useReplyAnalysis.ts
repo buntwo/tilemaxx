@@ -16,6 +16,7 @@ import { MOVE_CACHE_LIMIT, type EndgameRanking } from "../shared/move-results";
 import { unseenTiles } from "../shared/tile-pool";
 import type { RankEndgame } from "./useSolver";
 import { useEndgameLines } from "./useEndgameLines";
+import { computeWorkerLimit } from "./compute-workers";
 
 type WorkerMessage = {
   id: number;
@@ -50,6 +51,7 @@ export function useReplyAnalysis(
   moves: Move[] | null,
   enabled: boolean,
   endgame?: { searchId: number | undefined; rank: RankEndgame },
+  workerLimit = computeWorkerLimit(),
 ) {
   const [settings, setSettings] = useState<
     Record<string, { bagSize: number } & EndgameSettings>
@@ -175,6 +177,7 @@ export function useReplyAnalysis(
     position,
     dictionaryId,
     runKey,
+    workerLimit,
   );
 
   useEffect(() => {
@@ -259,6 +262,7 @@ export function useReplyAnalysis(
       reference,
       kind: "reply-summary",
       candidates: target,
+      workerLimit,
     };
     if (!previous?.done || previous.error) {
       const remaining = target.filter(
@@ -271,7 +275,7 @@ export function useReplyAnalysis(
       active.terminate();
       activeDetail.current = undefined;
     };
-  }, [moveList, runKey, dictionaryId, invalid]);
+  }, [moveList, runKey, dictionaryId, invalid, workerLimit]);
 
   function requestDetail(candidate: Move, options: ReplyDetailOptions) {
     const key = `${options.kind}:${candidate.id}`;

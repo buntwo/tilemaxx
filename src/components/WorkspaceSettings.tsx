@@ -7,6 +7,7 @@ const defaults = {
   pulseMovePreviews: true,
   animatePlayedTiles: true,
   autoUpdate: true,
+  singleComputeWorker: false,
 };
 type Preferences = typeof defaults;
 
@@ -38,6 +39,7 @@ function readPreferences(): Preferences {
       pulseMovePreviews: saved?.pulseMovePreviews !== false,
       animatePlayedTiles: saved?.animatePlayedTiles !== false,
       autoUpdate: saved?.autoUpdate !== false,
+      singleComputeWorker: saved?.singleComputeWorker === true,
     };
   } catch {
     return defaults;
@@ -56,10 +58,14 @@ export function useWorkspacePreferences() {
 
 export default function WorkspaceSettings({
   preferences,
+  concurrencyHint,
+  workerLimit,
   onChange,
   onClose,
 }: {
   preferences: Preferences;
+  concurrencyHint: number | undefined;
+  workerLimit: number;
   onChange: (preferences: Preferences) => void;
   onClose: () => void;
 }) {
@@ -87,6 +93,37 @@ export default function WorkspaceSettings({
             ))}
           </fieldset>
         ))}
+        <fieldset>
+          <legend>Hardware info</legend>
+          <dl className="workspace-hardware-info">
+            <div>
+              <dt>Browser concurrency hint</dt>
+              <dd>{concurrencyHint ?? "Unavailable"}</dd>
+            </div>
+            <div>
+              <dt>Compute worker limit</dt>
+              <dd aria-live="polite">{workerLimit}</dd>
+            </div>
+          </dl>
+          <label>
+            <input
+              type="checkbox"
+              checked={preferences.singleComputeWorker}
+              aria-describedby="compute-worker-scope"
+              onChange={(event) =>
+                onChange({
+                  ...preferences,
+                  singleComputeWorker: event.target.checked,
+                })
+              }
+            />
+            Limit to one compute worker
+          </label>
+          <p className="workspace-hardware-scope" id="compute-worker-scope">
+            Applies to opponent reply histograms and automatic exact endgame
+            lines.
+          </p>
+        </fieldset>
       </div>
     </Modal>
   );
