@@ -1,7 +1,6 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { analyzeMoves, type AnalysisRequest } from "../shared/move-analysis";
-import { EndgameSearchLimitError } from "../shared/endgame";
-import { replyEndgameLine } from "../shared/reply-analysis";
+import { runCandidateJobs } from "./candidate-analysis-pool";
 import type {
   EndgamePrecomputeMessage,
   EndgamePrecomputeRequest,
@@ -9,7 +8,6 @@ import type {
 
 let dictionary: { id: string; lexicon: Lexicon } | undefined;
 let familiar: Set<string> | undefined;
-const PRECOMPUTE_TIME_LIMIT_MS = 5_000;
 
 async function words(url: string) {
   const response = await fetch(url);
@@ -29,23 +27,25 @@ async function loadDictionary(id: string) {
 async function precomputeEndgames(request: EndgamePrecomputeRequest) {
   const post = (message: EndgamePrecomputeMessage) => self.postMessage(message);
   try {
-    const lexicon = await loadDictionary(request.dictionaryId);
-    for (const move of request.moves) {
-      const started = performance.now();
-      try {
-        const line = replyEndgameLine(
-          lexicon,
-          request,
-          move,
-          PRECOMPUTE_TIME_LIMIT_MS,
-          Infinity,
-        );
-        post({ moveId: move.id, line, elapsed: performance.now() - started });
-      } catch (error) {
-        if (!(error instanceof EndgameSearchLimitError)) throw error;
-        post({ moveId: move.id, limit: error.message, elapsed: performance.now() - started });
-      }
-    }
+    const { dictionaryId, moves, kind: _, ...position } = request;
+    const lexicon = await loadDictionary(dictionaryId);
+    await runCandidateJobs(
+      lexicon,
+      moves.map((move) => ({ kind: "endgame", position, move })),
+      ({ move }, result) => {
+        const { id: moveId } = move;
+        if (result.kind === "endgame")
+          post({ moveId, line: result.line, elapsed: result.elapsed });
+        else if (result.kind === "limit")
+          post({ moveId, limit: result.message, elapsed: result.elapsed });
+        else
+          throw new Error(
+            result.kind === "error"
+              ? result.message
+              : "Unexpected endgame result.",
+          );
+      },
+    );
     post({ done: true });
   } catch (error) {
     post({

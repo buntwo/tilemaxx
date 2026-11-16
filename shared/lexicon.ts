@@ -25,6 +25,12 @@ export class Lexicon {
   readonly maxTail: Uint8Array;
   readonly count: number;
 
+  static fromIndex(
+    index: Pick<Lexicon, "first" | "mask" | "terminal" | "maxTail" | "count">,
+  ): Lexicon {
+    return Object.assign(Object.create(Lexicon.prototype) as Lexicon, index);
+  }
+
   constructor(words: string[]) {
     const capacity = 1 + words.reduce((n, w) => n + w.length, 0);
     const first = new Int32Array(capacity),
