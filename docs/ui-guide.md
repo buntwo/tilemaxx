@@ -19,7 +19,8 @@
 | **Opponent rack** | The inferred tiles centered directly below yours when the bag is empty. In a phone move preview both racks stack vertically beside the board. |
 | **Unseen tiles** | The expandable tile counts below the racks. It includes tiles in the bag and on other racks. |
 | **Game scores** | The score tracking panel with totals, lead or result, and pending opponent plays. If you pass or exchange, use **Record opponent move** before entering their next play whenever the two plays could read as one. |
-| **Tracked move history** | The scored turn list inside Game scores. Select a word to open **Turn review**, or select **Review game** for missed opportunities across turns. |
+| **Tracked move history** | The scored turn list inside Game scores. Select a word to open **Turn review**, or select **Review game** for the opponent timeline and missed opportunities. |
+| **Opponent policy timeline** | In **Review game**, select **Analyze all opponent turns** to check recorded placements in chronological order. **Top 5 fit** shows how often the placement makes the scoring shortlist across racks that could supply the played tiles. **Random** shows the shortlist's share of legal placements. Highlights mark fit of at least 80% when the random share is at most 25%, using exact calculations or at least 64 samples. Select a move for rack assumptions and the three individual policy estimates. |
 | **Bingo trophy** | The gold highlight and trophy next to a bingo in the move list, analysis, or a recorded game. |
 | **Move history** | The board and rack change log behind the history button. Undo and Redo step through these changes. |
 

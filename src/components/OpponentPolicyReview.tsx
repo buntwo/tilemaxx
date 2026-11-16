@@ -32,16 +32,18 @@ export default function OpponentPolicyReview({
   analysisKey,
   savedResult,
   saveResult,
+  queued,
 }: {
   input?: OpponentPolicyInput;
   dictionaryId: string;
   analysisKey: string;
   savedResult?: OpponentPolicyResult;
   saveResult: (key: string, result: OpponentPolicyResult) => void;
+  queued: boolean;
 }) {
   const { result, error, progress, run, reset } =
     usePractice<OpponentPolicyResult>();
-  const displayed = result ?? savedResult;
+  const displayed = savedResult ?? result;
   useEffect(() => {
     if (result) saveResult(analysisKey, result);
   }, [analysisKey, result, saveResult]);
@@ -54,6 +56,12 @@ export default function OpponentPolicyReview({
         ? displayed.reason
         : undefined;
   const finding = displayed?.higherScoringPlacement;
+  const refine =
+    displayed?.kind === "unavailable"
+      ? displayed.limited
+      : displayed?.kind === "sampled" &&
+        displayed.samples < displayed.sampleTarget;
+  const waiting = queued && !displayed && !!input;
 
   return (
     <section
@@ -61,18 +69,20 @@ export default function OpponentPolicyReview({
       aria-label="Opponent policy fit"
     >
       <h3>Opponent policy fit</h3>
-      <p>
-        Chance each policy would choose this exact placement under the rack
-        assumptions shown.
-      </p>
-      {input && !unavailable && !displayed && !progress && (
-        <button
-          className="button secondary"
-          onClick={() => run({ kind: "opponent-policy", dictionaryId, input })}
-        >
-          Analyze policy fit
-        </button>
-      )}
+      {waiting && <p role="status">Queued in timeline analysis.</p>}
+      {input &&
+        !waiting &&
+        !progress &&
+        ((!unavailable && !displayed) || refine) && (
+          <button
+            className="button secondary"
+            onClick={() =>
+              run({ kind: "opponent-policy", dictionaryId, input })
+            }
+          >
+            {refine ? "Retry with more time" : "Analyze policy fit"}
+          </button>
+        )}
       {progress && (
         <>
           <p role="status">Checking possible opponent racks…</p>
@@ -98,6 +108,33 @@ export default function OpponentPolicyReview({
               "The search limit was reached. "}
             {describeRack(displayed.rack)}
           </p>
+          {displayed.shortlist ? (
+            <p>
+              Top 5 fit{" "}
+              <strong>
+                {displayProbability(
+                  displayed.shortlist.fit,
+                  displayed.kind === "exact" || !!displayed.topFiveRuledOut,
+                )}
+              </strong>
+              {" · "}Random placement{" "}
+              <strong>
+                {displayProbability(
+                  displayed.shortlist.random,
+                  displayed.kind === "exact",
+                )}
+              </strong>
+            </p>
+          ) : (
+            <p>
+              No possible rack could supply the recorded tiles under these
+              assumptions.
+            </p>
+          )}
+          <p>
+            Chance each policy would choose this exact placement under the rack
+            assumptions shown.
+          </p>
           <dl className="policy-fit-values">
             {(
               Object.keys(
@@ -110,6 +147,7 @@ export default function OpponentPolicyReview({
                   {displayProbability(
                     displayed.probabilities[policy],
                     displayed.kind === "exact" ||
+                      !!displayed.topFiveRuledOut ||
                       (policy === "topOne" && !!finding),
                   )}
                 </dd>
@@ -117,6 +155,12 @@ export default function OpponentPolicyReview({
             ))}
           </dl>
         </>
+      )}
+      {displayed?.topFiveRuledOut && (
+        <p>
+          Top 5 by points is ruled out. The played tiles alone allow at least
+          five higher-scoring placements.
+        </p>
       )}
       {finding && (
         <p>
