@@ -6,6 +6,7 @@
 | --- | --- |
 | **Workspace menu** | The desktop sidebar or the menu button on a phone. It contains the profile picker, My games, Archived games, Board studio, Word lists, UI guide, and theme controls. |
 | **Settings** | The gear below the theme controls, beside the version number. Control rack highlighting, animations, and automatic reloads when the server has a newer version. These choices apply to this browser only. |
+| **Update available** | The arrow beside the version number appears when automatic updates are off and the server has a newer version. |
 | **Game header** | The game name, tracked score, and Game options at the top. Open the name to use the **Game picker** and its opponent filter. |
 | **Game options** | The menu beside the game name. It includes game details, duplication, **End game**, and archiving. On phones it also holds Board help, Import screenshot, and Move history. |
 | **End game** | Record a final score or mark the game finished without a score. **Archive game** starts checked. **Deduct unplayed tiles** starts checked when deductions apply and is disabled otherwise. Clear **Archive game** to keep the game in **My games**, where **Undo** can resume it. |

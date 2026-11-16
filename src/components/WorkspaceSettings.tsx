@@ -10,12 +10,25 @@ const defaults = {
 };
 type Preferences = typeof defaults;
 
-const options = [
-  ["highlightRackPreview", "Highlight rack tiles on move preview"],
-  ["pulseMovePreviews", "Pulse move previews"],
-  ["animatePlayedTiles", "Animate tiles when playing a move"],
-  ["autoUpdate", "Automatically reload when an update is available"],
-] as const satisfies ReadonlyArray<readonly [keyof Preferences, string]>;
+const sections = [
+  {
+    title: "Move previews",
+    options: [
+      ["highlightRackPreview", "Highlight rack tiles on move preview"],
+      ["pulseMovePreviews", "Pulse move previews"],
+    ],
+  },
+  {
+    title: "Gameplay",
+    options: [["animatePlayedTiles", "Animate tiles when playing a move"]],
+  },
+  {
+    title: "Updates",
+    options: [
+      ["autoUpdate", "Automatically reload when an update is available"],
+    ],
+  },
+] as const;
 
 function readPreferences(): Preferences {
   try {
@@ -57,17 +70,22 @@ export default function WorkspaceSettings({
       onClose={onClose}
     >
       <div className="workspace-preference-list">
-        {options.map(([key, label]) => (
-          <label key={key}>
-            <input
-              type="checkbox"
-              checked={preferences[key]}
-              onChange={(event) =>
-                onChange({ ...preferences, [key]: event.target.checked })
-              }
-            />
-            {label}
-          </label>
+        {sections.map(({ title, options }) => (
+          <fieldset key={title}>
+            <legend>{title}</legend>
+            {options.map(([key, label]) => (
+              <label key={key}>
+                <input
+                  type="checkbox"
+                  checked={preferences[key]}
+                  onChange={(event) =>
+                    onChange({ ...preferences, [key]: event.target.checked })
+                  }
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
         ))}
       </div>
     </Modal>

@@ -34,7 +34,7 @@ import type { EndgamePrecomputeRequest } from "../../src/useEndgameLines";
 import { simulateExchange } from "../../shared/exchange";
 import { TILE_SYMBOLS } from "../../shared/tile-pool";
 
-let remote: AppState;
+let remote: AppState & { version?: string };
 const game = (): Game => ({
   id: "g",
   profileId: "p",
@@ -3186,6 +3186,12 @@ test("workspace settings keep board previews visible with plain rack tiles and p
 
   await openSettings();
   expect(dialog().getByText("Applies to all games in this browser only.")).toBeTruthy();
+  expect(
+    ["Move previews", "Gameplay", "Updates"].map(
+      (name) =>
+        within(dialog().getByRole("group", { name })).getAllByRole("checkbox").length,
+    ),
+  ).toEqual([2, 1, 1]);
   for (const name of [rackHighlight, pulse, playAnimation, autoUpdate]) {
     expect(option(name).checked).toBe(true);
     await user.click(option(name));
@@ -3208,6 +3214,30 @@ test("workspace settings keep board previews visible with plain rack tiles and p
   for (const name of [rackHighlight, pulse, playAnimation, autoUpdate]) {
     expect(option(name).checked).toBe(false);
   }
+});
+
+test("the version shows an available update when automatic updates are off", async () => {
+  const user = await start();
+  const settings = () => within(screen.getByRole("dialog", { name: "Settings" }));
+  const autoUpdate = () =>
+    settings().getByRole("checkbox", { name: "Automatically reload when an update is available" });
+  const updateIcon = () => screen.queryByRole("img", { name: /^Update available/ });
+  await user.click(cell("Settings"));
+  await user.click(autoUpdate());
+  await user.click(settings().getByRole("button", { name: "Close dialog" }));
+  remote.version = version;
+  await act(() => store.refresh());
+  expect(updateIcon()).toBeNull();
+
+  const [major, minor, patch] = version.split(".").map(Number);
+  remote.version = `${major}.${minor}.${patch + 1}`;
+  await act(() => store.refresh());
+  expect(updateIcon()?.parentElement).toBe(screen.getByText(`v${version}`));
+  expect(updateIcon()?.getAttribute("title")).toBe(`Update available · v${remote.version}`);
+
+  await user.click(cell("Settings"));
+  await user.click(autoUpdate());
+  expect(document.querySelector(".app-update-icon")).toBeNull();
 });
 
 test("typing in the game picker filters active games by opponent name", async () => {
