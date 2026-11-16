@@ -483,6 +483,107 @@ test("reply details color the lead, reply and final result from your side", asyn
   }
 });
 
+test("a completed reply line replaces the immediate warning and replays each turn", async () => {
+  const requests: ReplyRequest[] = [];
+  let worker: ReplyWorker | undefined;
+  class ReplyWorker {
+    onmessage?: (message: { data: unknown }) => void;
+    terminate() {}
+    postMessage(request: ReplyRequest) {
+      worker = this;
+      requests.push(request);
+    }
+  }
+  vi.stubGlobal("Worker", ReplyWorker);
+  const { user } = setup(true, {
+    analysisGame: {
+      ...endgame,
+      trackScores: true,
+      scoring: {
+        you: { points: 100, moves: 1, best: 100, bingos: 0 },
+        opponent: { points: 116, moves: 1, best: 116, bingos: 0 },
+      },
+    },
+  });
+  const reply = {
+    ...moves[2],
+    id: "za",
+    word: "ZA",
+    score: 25,
+    row: 6,
+    tiles: [{ index: 97, letter: "Z" }],
+    leave: "T",
+  };
+  const finish = {
+    ...moves[2],
+    id: "ta",
+    word: "TA",
+    score: 21,
+    tiles: [{ index: 111, letter: "T" }],
+    leave: "",
+  };
+  act(() =>
+    worker!.onmessage?.({
+      data: {
+        kind: "reply-summary",
+        id: requests[0].id,
+        moveId: "a",
+        result: {
+          kind: "empty-bag",
+          rack: "ZT",
+          highest: reply,
+          reply,
+          ends: null,
+          yourAdjustment: 0,
+          opponentAdjustment: 0,
+          difference: 0,
+        },
+      },
+    }),
+  );
+  await user.click(rows()[0]);
+  const details = within(screen.getByRole("region", { name: "Reply after CATS" }));
+  expect(details.getByText("They can take the lead by 21")).toBeTruthy();
+  await user.click(details.getByRole("button", { name: "Calculate optimal endgame line" }));
+  expect(requests.at(-1)?.kind).toBe("reply-line");
+  act(() =>
+    worker!.onmessage?.({
+      data: {
+        kind: "reply-line",
+        id: requests.at(-1)!.id,
+        line: {
+          spread: 20,
+          points: { you: 43, opponent: 23 },
+          line: [moves[0], reply, null, null, finish],
+        },
+      },
+    }),
+  );
+  expect(details.queryByText(/They can take the lead|Strongest immediate reply/)).toBeNull();
+  expect(details.getByText("Optimal final score")).toBeTruthy();
+  expect(details.getByText("143")).toBeTruthy();
+  expect(details.getByText("139")).toBeTruthy();
+  const replyTurn = details.getByRole("button", { name: /ZA .* Behind by 21/ });
+  expect(replyTurn.getAttribute("aria-pressed")).toBe("true");
+  expect(details.getByRole("button", { name: /^H7: Z/ }).classList.contains("ghost")).toBe(true);
+
+  const pass = details.getByRole("button", { name: /^Pass You/ });
+  await user.click(pass);
+  expect(details.getByText("Board after your pass")).toBeTruthy();
+  expect(details.getByRole("button", { name: /^H7: Z/ }).classList.contains("ghost")).toBe(false);
+  await user.click(details.getByRole("button", { name: /^TA You/ }));
+  expect(details.getByText("Board after TA")).toBeTruthy();
+  expect(details.getByRole("button", { name: /^G8: T/ }).classList.contains("ghost")).toBe(true);
+  await user.click(details.getByRole("button", { name: /^Rack adjustment/ }));
+  expect(details.getByText("Final board")).toBeTruthy();
+  expect(details.getByText("143–139")).toBeTruthy();
+
+  await user.click(rows()[1]);
+  await user.click(rows()[0]);
+  expect(screen.getByText("Optimal final score")).toBeTruthy();
+  expect(requests.filter(({ kind }) => kind === "reply-line")).toHaveLength(1);
+});
+
 test("empty-bag rows wait for estimates unless the user skips to points", async () => {
   vi.stubGlobal(
     "Worker",

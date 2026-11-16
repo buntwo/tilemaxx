@@ -59,6 +59,7 @@ export default function MoveAnalysis({
   endgameSettings: EndgameSettings & {
     bagSize: number;
     cachedEndgame: (moveId: string) => EndgameLine | undefined;
+    rememberEndgame: (moveId: string, line: EndgameLine) => void;
   };
 }) {
   const { total, excess } = unseenTiles(game, game.template);
@@ -140,30 +141,35 @@ export default function MoveAnalysis({
     setProgress({ phase: "scenarios", completed: 0, total: trials });
     if (trials === ANALYSIS_TRIALS)
       seed.current = Math.floor(Math.random() * 0x1_0000_0000);
-    if (!worker.current) {
-      const active = new Worker(
+    const active = worker.current ?? new Worker(
         new URL("../analysis.worker.ts", import.meta.url),
         { type: "module" },
-      );
-      worker.current = active;
-      active.onmessage = (event: MessageEvent<WorkerMessage>) => {
-        if (worker.current !== active) return;
-        const response = event.data;
-        if ("progress" in response) {
-          setProgress(response.progress);
-        } else {
-          setProgress(undefined);
-          if ("result" in response) setResult(response.result);
-          else setError(response.error);
-        }
-      };
-      active.onerror = () => {
-        if (worker.current !== active) return;
-        stop();
+    );
+    worker.current = active;
+    active.onmessage = (event: MessageEvent<WorkerMessage>) => {
+      if (worker.current !== active) return;
+      const response = event.data;
+      if ("progress" in response) {
+        setProgress(response.progress);
+      } else {
         setProgress(undefined);
-        setError("The analysis stopped unexpectedly. Try again.");
-      };
-    }
+        if ("result" in response) {
+          setResult(response.result);
+          if (useCachedLines) {
+            for (const { move, endgame } of response.result.forecasts)
+              if (endgame) endgameSettings.rememberEndgame(move.id, endgame);
+          }
+        } else {
+          setError(response.error);
+        }
+      }
+    };
+    active.onerror = () => {
+      if (worker.current !== active) return;
+      stop();
+      setProgress(undefined);
+      setError("The analysis stopped unexpectedly. Try again.");
+    };
     const cachedEndgames =
       useCachedLines
         ? Object.fromEntries(candidates.flatMap(({ id }) => {
@@ -171,7 +177,7 @@ export default function MoveAnalysis({
             return line ? [[id, line]] : [];
           }))
         : undefined;
-    worker.current.postMessage({
+    active.postMessage({
       dictionaryId: game.dictionaryId,
       board: game.board,
       rack: game.rack,

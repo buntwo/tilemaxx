@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { EndgameLine } from "../shared/endgame";
 import type { Move } from "../shared/model";
 import { MOVE_CACHE_LIMIT } from "../shared/move-results";
 import type { ReplyPosition } from "../shared/reply-analysis";
 
 const PRECOMPUTED_MOVES = 5;
+const ENDGAME_LINES_PER_POSITION = 20;
 
 export type EndgamePrecomputeRequest = ReplyPosition & {
   kind: "precompute-endgames";
@@ -23,7 +24,6 @@ type EndgamePrecomputeProgress = {
   total: number;
   checked: number;
   ready: number;
-  exactSpreads?: Record<string, number>;
   pending: boolean;
   limits: string[];
   error?: string;
@@ -35,26 +35,44 @@ export function useEndgameLines(
   dictionaryId: string | undefined,
   key: string,
 ) {
-  const cache = useRef(new Map<string, Map<string, EndgameLine>>());
+  const [cache, setCache] = useState(
+    () => new Map<string, Map<string, EndgameLine>>(),
+  );
   const [progress, setProgress] = useState<EndgamePrecomputeProgress>();
+  const lines = cache.get(key);
+  const exactEndgameSpreads = useMemo(
+    () =>
+      lines &&
+      Object.fromEntries(Array.from(lines, ([id, line]) => [id, line.spread])),
+    [lines],
+  );
+
+  function rememberEndgame(moveId: string, line: EndgameLine) {
+    setCache((previous) => {
+      const saved = previous.get(key);
+      if (saved?.has(moveId)) return previous;
+      const next = new Map(previous);
+      const lines = new Map(saved).set(moveId, line);
+      if (lines.size > ENDGAME_LINES_PER_POSITION)
+        lines.delete(lines.keys().next().value!);
+      next.delete(key);
+      next.set(key, lines);
+      if (next.size > MOVE_CACHE_LIMIT) next.delete(next.keys().next().value!);
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!moves || !position || !dictionaryId) return;
-    const lines = cache.current.get(key) ?? new Map<string, EndgameLine>();
     const candidates = moves.slice(0, PRECOMPUTED_MOVES);
-    const missing = candidates.filter(({ id }) => !lines.has(id));
+    const missing = candidates.filter(({ id }) => !lines?.has(id));
     const ready = candidates.length - missing.length;
-    const exactSpreads = () =>
-      lines.size
-        ? Object.fromEntries(Array.from(lines, ([id, line]) => [id, line.spread]))
-        : undefined;
     let next: EndgamePrecomputeProgress = {
       moves,
       key,
       total: candidates.length,
       checked: ready,
       ready,
-      exactSpreads: exactSpreads(),
       pending: !!missing.length,
       limits: [],
     };
@@ -80,18 +98,11 @@ export function useEndgameLines(
         return;
       }
       if ("line" in data) {
-        lines.set(data.moveId, data.line);
-        if (lines.size > PRECOMPUTED_MOVES)
-          lines.delete(lines.keys().next().value!);
-        cache.current.delete(key);
-        cache.current.set(key, lines);
-        if (cache.current.size > MOVE_CACHE_LIMIT)
-          cache.current.delete(cache.current.keys().next().value!);
+        rememberEndgame(data.moveId, data.line);
         next = {
           ...next,
           checked: next.checked + 1,
           ready: next.ready + 1,
-          exactSpreads: exactSpreads(),
         };
       } else {
         const word = candidates.find(({ id }) => id === data.moveId)?.word;
@@ -123,7 +134,9 @@ export function useEndgameLines(
   }, [moves, dictionaryId, key]);
 
   return {
-    cachedEndgame: (moveId: string) => cache.current.get(key)?.get(moveId),
+    cachedEndgame: (moveId: string) => lines?.get(moveId),
+    exactEndgameSpreads,
+    rememberEndgame,
     endgameProgress:
       progress?.moves === moves && progress?.key === key ? progress : undefined,
   };

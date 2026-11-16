@@ -2198,8 +2198,7 @@ label + label {
   font-size: 11px;
 }
 .reply-settings summary,
-.reply-bin-values summary,
-.reply-line summary {
+.reply-bin-values summary {
   color: var(--primary);
   cursor: pointer;
 }
@@ -2286,8 +2285,7 @@ label + label {
   margin-top: 6px;
   font-size: 11px;
 }
-.reply-bin-values ul,
-.reply-line ol {
+.reply-bin-values ul {
   padding-left: 20px;
   margin: 4px 0;
 }

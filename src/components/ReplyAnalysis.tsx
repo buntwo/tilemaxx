@@ -316,10 +316,6 @@ function ExactReplyDetails({
     analysis.detail?.key === `reply-line:${move.id}`
       ? analysis.detail
       : undefined;
-  const finalSpread =
-    line?.line && totals
-      ? totals.you - totals.opponent + line.line.spread
-      : undefined;
   const scorePair = (you: number, opponent: number) => `${you}–${opponent}`;
   const leadLabel =
     scores && !ends
@@ -464,62 +460,21 @@ function ExactReplyDetails({
       )}
       {!ends && (
         <div className="reply-line">
-          {!line?.line && (
-            <button
-              className="button secondary"
-              type="button"
-              disabled={line?.pending}
-              onClick={() =>
-                analysis.requestDetail(move, { kind: "reply-line" })
-              }
-            >
-              {line?.pending ? (
-                <>
-                  <LoaderCircle size={14} className="spin" /> Checking endgame…
-                </>
-              ) : (
-                "Calculate optimal endgame line"
-              )}
-            </button>
-          )}
+          <button
+            className="button secondary"
+            type="button"
+            disabled={line?.pending}
+            onClick={() => analysis.requestDetail(move, { kind: "reply-line" })}
+          >
+            {line?.pending ? (
+              <>
+                <LoaderCircle size={14} className="spin" /> Checking endgame…
+              </>
+            ) : (
+              "Calculate optimal endgame line"
+            )}
+          </button>
           {line?.error && <p role="status">{line.error}</p>}
-          {line?.line && (
-            <details open>
-              <summary>
-                Optimal endgame line
-                {finalSpread !== undefined && (
-                  <>
-                    {" "}
-                    · Final margin{" "}
-                    <span className={scoreTone(finalSpread)}>
-                      {signedPoints(finalSpread)}
-                    </span>
-                  </>
-                )}
-              </summary>
-              <ol>
-                {line.line.line.map((play, index) => (
-                  <li key={index}>
-                    {index % 2 === 0 ? "You" : "Opponent"} ·{" "}
-                    {play ? (
-                      <>
-                        <MoveWord move={play} rules={game.template} /> ·{" "}
-                        <span
-                          className={scoreTone(
-                            index % 2 ? -play.score : play.score,
-                          )}
-                        >
-                          {play.score} pts
-                        </span>
-                      </>
-                    ) : (
-                      "Pass"
-                    )}
-                  </li>
-                ))}
-              </ol>
-            </details>
-          )}
         </div>
       )}
     </div>

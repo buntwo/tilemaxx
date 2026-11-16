@@ -1,0 +1,173 @@
+.optimal-reply-title,
+.optimal-reply-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.optimal-reply-title {
+  justify-content: space-between;
+}
+.optimal-reply-badge {
+  color: var(--primary);
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 630;
+}
+.optimal-reply {
+  container-type: inline-size;
+}
+.optimal-reply-outcome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+.optimal-reply-label {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+.optimal-reply-final,
+.optimal-reply-score-pair {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.optimal-reply-final {
+  flex-wrap: wrap;
+  row-gap: 4px;
+  font-size: 12px;
+}
+.optimal-reply-score-pair strong {
+  font-size: clamp(21px, 5cqi, 30px);
+  line-height: 1.15;
+}
+.optimal-reply-score-pair small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+}
+.optimal-reply-swing {
+  display: grid;
+  flex: none;
+  gap: 4px;
+}
+.with-final-score .optimal-reply-swing {
+  padding-inline-start: 10px;
+  border-inline-start: 1px solid var(--line);
+  text-align: end;
+}
+.optimal-reply-swing strong {
+  font-size: 21px;
+  line-height: 1.1;
+}
+.optimal-reply-swing small {
+  font-size: 11px;
+}
+.optimal-reply-layout {
+  display: grid;
+  align-items: start;
+  gap: 11px;
+}
+.optimal-reply-layout h4 {
+  margin: 0 0 5px;
+  font-size: 13px;
+}
+.optimal-reply-start {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 7px 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.optimal-reply-turns {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  list-style: none;
+}
+.optimal-reply-turns li + li {
+  border-top: 1px solid var(--line);
+}
+.optimal-reply-turn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 7px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.optimal-reply-turns li:first-child .optimal-reply-turn {
+  border-radius: 6px 6px 0 0;
+}
+.optimal-reply-turns li:last-child .optimal-reply-turn {
+  border-radius: 0 0 6px 6px;
+}
+.optimal-reply-turn:is(:hover, [aria-pressed="true"]) {
+  background: var(--soft);
+}
+.optimal-reply-turn[aria-pressed="true"] {
+  box-shadow: inset 2px 0 var(--primary);
+}
+.optimal-reply-turn:focus-visible {
+  outline-offset: -2px;
+}
+:where(.optimal-reply-turn-label, .optimal-reply-step-score) small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.optimal-reply-turn-label .bingo-badge {
+  margin-inline-end: 2px;
+}
+.optimal-reply-turn-label.rack-adjustment {
+  grid-column: span 2;
+}
+.optimal-reply-step-score {
+  text-align: end;
+}
+.optimal-reply-step-score small {
+  white-space: nowrap;
+}
+.optimal-reply-points {
+  font-size: 11px;
+}
+.optimal-reply-board {
+  width: min(100%, 340px);
+  min-width: 0;
+  margin: 0 auto;
+}
+.optimal-reply-board figcaption {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 620;
+}
+.optimal-reply-board .board-wrap {
+  padding: 0;
+}
+.optimal-reply-board .ghost::before {
+  animation: none;
+}
+@container (min-width: 440px) {
+  .optimal-reply-layout {
+    grid-template-columns: minmax(0, 1.16fr) minmax(0, 1fr);
+  }
+}
