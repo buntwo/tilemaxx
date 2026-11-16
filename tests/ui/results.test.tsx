@@ -127,7 +127,6 @@ function setup(
         fetchPage={fetchPage}
         fetchShortlist={fetchShortlist}
         busy=""
-        elapsed={4}
         error=""
         size={options.size ?? 15}
         bingoRules={bingoRules}
@@ -733,10 +732,11 @@ test("endgame rows rank exact swings first and mark the boundary as more lines f
     background!.onmessage!({
       data: {
         moveId: "a",
+        elapsed: 5,
         line: { spread: 10, points: { you: 20, opponent: 10 }, line: [moves[0]] },
       },
     });
-    background!.onmessage!({ data: { moveId: "c", limit: "Time limit reached." } });
+    background!.onmessage!({ data: { moveId: "c", limit: "Time limit reached.", elapsed: 10 } });
   });
   expect(rows()).toEqual(results);
   await act(async () => publishUpdatedPage!());

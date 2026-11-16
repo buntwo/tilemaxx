@@ -31,6 +31,7 @@ type Summary = {
   runKey: string;
   results: Record<string, ReplyResult | undefined>;
   done: boolean;
+  elapsed?: number;
   error?: string;
 };
 
@@ -60,6 +61,7 @@ export function useReplyAnalysis(
   const [estimateResult, setEstimateResult] = useState<{
     key: string;
     ranking?: EndgameRanking;
+    elapsed: number;
   }>();
   const [skippedEstimate, setSkippedEstimate] = useState<string>();
   const worker = useRef<Worker | null>(null);
@@ -117,8 +119,10 @@ export function useReplyAnalysis(
     if (!rank || searchId === undefined || !estimateKey || !game) return;
     const key = estimateKey;
     const abort = new AbortController();
+    const started = performance.now();
     function finish(ranking?: EndgameRanking) {
-      if (!abort.signal.aborted) setEstimateResult({ key, ranking });
+      if (!abort.signal.aborted)
+        setEstimateResult({ key, ranking, elapsed: performance.now() - started });
     }
     void rank(
       searchId,
@@ -183,6 +187,7 @@ export function useReplyAnalysis(
     });
     worker.current = active;
     const id = ++requestId.current;
+    const started = performance.now();
     function publish(next: Summary) {
       cache.current.delete(moveList!);
       cache.current.set(moveList!, next);
@@ -205,6 +210,7 @@ export function useReplyAnalysis(
             ? { ...results, [message.moveId]: message.result }
             : results,
           done: !!message.done,
+          elapsed: message.done ? performance.now() - started : undefined,
           error: message.error,
         };
         publish(previous);
@@ -239,6 +245,7 @@ export function useReplyAnalysis(
         runKey,
         results: current?.results ?? {},
         done: true,
+        elapsed: performance.now() - started,
         error,
       }));
       setDetail((current) =>
@@ -326,6 +333,8 @@ export function useReplyAnalysis(
     exactEndgameSpreads,
     rememberEndgame,
     endgameProgress,
+    repliesElapsed: current?.elapsed,
+    estimatesElapsed: estimateRun?.elapsed,
     ranking,
     estimatingEndgame: !!estimateKey && !estimateRun,
     skipEndgameEstimate: () => setSkippedEstimate(estimateKey),

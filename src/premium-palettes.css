@@ -26,6 +26,7 @@
 }
 
 [data-premium-palette="crossplay"] {
+  --premium-label: #606060;
   --dl: #f4e8c6;
   --tl: #dee9cf;
   --dw: #dce4f5;

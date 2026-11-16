@@ -25,7 +25,7 @@ import {
 import { Lexicon } from "../../shared/lexicon";
 import { solve, solvePosition } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
-import { replyEndgameLine, type ReplyRequest } from "../../shared/reply-analysis";
+import { replyEndgameLine, type ReplyDistribution, type ReplyRequest } from "../../shared/reply-analysis";
 import { MoveResultIndex } from "../../shared/move-results";
 import { prepareEndgameEstimate } from "../../shared/endgame-estimate";
 import type { SolverMessage, SolverRequest } from "../../src/solver-messages";
@@ -108,17 +108,18 @@ class SolverWorker {
           id: request.id,
           results: result.summary(request.id),
           warnings: [],
-          elapsed: 1,
+          stages: { moves: 1, indexing: 0.5 },
           exchange: this.exchangeRequest(request),
         },
       });
       this.onmessage?.({
-        data: { kind: "defense", id: request.id, done: true },
+        data: { kind: "defense", id: request.id, elapsed: 2 },
       });
       this.onmessage?.({
         data: {
           kind: "rack-odds",
           id: request.id,
+          elapsed: 3,
           odds: { byLeave: this.rackOdds, exact: true, bagSize: 89 },
         },
       });
@@ -420,8 +421,9 @@ test("the first five endgame moves report progress and update Analyze with exact
   expect(screen.getByText("Solving exact lines · 0/5 checked")).toBeTruthy();
   const spinner = document.querySelector(".calculation-indicator")!;
   expect(spinner.getAttribute("data-phase")).toBe("active");
+  expect(screen.queryByRole("button", { name: /^Calculation timing/ })).toBeNull();
   const line = replyEndgameLine(lexicon, request, first, Infinity);
-  act(() => worker.onmessage?.({ data: { moveId: first.id, line } }));
+  act(() => worker.onmessage?.({ data: { moveId: first.id, line, elapsed: 17 } }));
   expect(screen.getByText("Solving exact lines · 1/5 checked")).toBeTruthy();
   await user.click(await screen.findByRole("button", { name: "Analyze" }));
   const rows = within(screen.getByLabelText("Suggested moves")).getAllByRole("button", { name: /points,/ });
@@ -434,19 +436,29 @@ test("the first five endgame moves report progress and update Analyze with exact
   await user.click(cards[1].querySelector("summary")!);
   expect(within(cards[1]).getByText("Foreground endgame position limit reached.")).toBeTruthy();
   const secondLine = replyEndgameLine(lexicon, request, second, Infinity);
-  act(() => worker.onmessage?.({ data: { moveId: second.id, line: secondLine } }));
+  act(() => worker.onmessage?.({ data: { moveId: second.id, line: secondLine, elapsed: 30 } }));
   expect(within(cards[1]).getByRole("table", { name: "Optimal endgame line" })).toBeTruthy();
   expect(within(cards[1]).queryByText("Foreground endgame position limit reached.")).toBeNull();
 
   const timeLimit = "Endgame search reached its 5,000 ms time limit.";
   act(() => {
     for (const move of request.moves.slice(2))
-      worker.onmessage?.({ data: { moveId: move.id, limit: timeLimit } });
+      worker.onmessage?.({ data: { moveId: move.id, limit: timeLimit, elapsed: 5000 } });
     worker.onmessage?.({ data: { done: true } });
   });
   const finished = screen.getByText("2/5 exact lines ready · 3 hit a limit");
   expect(finished.getAttribute("title")).toContain(timeLimit);
   await waitFor(() => expect(spinner.textContent).toBe(""));
+  await user.click(await screen.findByRole("button", { name: /^Calculation timing/ }));
+  const timing = within(screen.getByRole("dialog", { name: "Calculation timing" }));
+  expect(timing.getByText("Endgame estimates")).toBeTruthy();
+  expect(timing.getByText("Exact endgame lines")).toBeTruthy();
+  const attempts = within(timing.getByRole("region", { name: "Individual endgame solves" }));
+  expect(attempts.getAllByText("Limit reached", { exact: false })).toHaveLength(3);
+  expect(attempts.getByText("17 ms").previousElementSibling?.textContent).toContain(first.word);
+  expect(attempts.getByText("30 ms").previousElementSibling?.textContent).toContain(second.word);
+  expect(attempts.getAllByText("5.00 s")).toHaveLength(3);
+  await user.click(timing.getByRole("button", { name: "Close dialog" }));
 
   await user.selectOptions(screen.getByRole("combobox", { name: "Prior scoreless turns" }), "1");
   await user.click(screen.getByRole("button", { name: "Run analysis" }));
@@ -576,6 +588,114 @@ test("a new game defaults to imported WOW24 even from another dictionary", async
     ).value,
   ).toBe(wow.id);
   expect(current().dictionaryId).toBe("test");
+});
+
+test("new game board follows the platform until the board is picked manually", async () => {
+  const user = await start();
+  const openSetup = async () => {
+    await user.click(screen.getByRole("button", { name: "New game" }));
+    return within(screen.getByRole("dialog", { name: "New game" }));
+  };
+  const setup = await openSetup();
+  const board = setup.getByRole("combobox", { name: "Board layout" });
+  const platform = setup.getByRole("combobox", { name: "Platform" });
+  await user.selectOptions(platform, "Wordfeud");
+  expect(board).toHaveProperty("value", "wordfeud");
+  await user.selectOptions(platform, "NYT Crossplay");
+  expect(board).toHaveProperty("value", "crossplay");
+  await user.selectOptions(board, "super");
+  await user.selectOptions(platform, "In person");
+  expect(board).toHaveProperty("value", "super");
+  await user.type(setup.getByRole("textbox", { name: "Opponent" }), "Preset check");
+  await user.click(setup.getByRole("button", { name: "Create game" }));
+  await screen.findByRole("heading", { name: "Preset check" });
+  expect(remote.games.find(({ name }) => name === "Preset check")?.template.id).toBe("super");
+
+  const next = await openSetup();
+  await user.selectOptions(next.getByRole("combobox", { name: "Platform" }), "Words With Friends");
+  expect(next.getByRole("combobox", { name: "Board layout" })).toHaveProperty("value", "wwf");
+});
+
+test("calculation timing waits for reply histograms and stays fixed for follow-up requests", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query !== "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  type ReplySummary = Extract<ReplyRequest, { kind: "reply-summary" }>;
+  type BoardOdds = Extract<SolverRequest, { kind: "board-odds" }>;
+  let replies: { worker: SolverWorker; request: ReplySummary } | undefined;
+  let boardOdds: { worker: SolverWorker; request: BoardOdds } | undefined;
+  let detail: { worker: SolverWorker; request: ReplyRequest } | undefined;
+  class DeferredReplyWorker extends SolverWorker {
+    postMessage(request: SolverRequest | ReplyRequest) {
+      if (request.kind === "reply-summary") replies = { worker: this, request };
+      else if (request.kind === "board-odds") boardOdds = { worker: this, request };
+      else if (request.kind === "reply-detail" || request.kind === "reply-line")
+        detail = { worker: this, request };
+      else super.postMessage(request);
+    }
+  }
+  vi.stubGlobal("Worker", DeferredReplyWorker);
+  const user = await start();
+  await typeRack(user, "CATS");
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  await waitFor(() => expect(replies).toBeDefined());
+  expect(screen.queryByRole("button", { name: /^Calculation timing/ })).toBeNull();
+  const { worker, request } = replies!;
+  const [candidate] = request.candidates;
+  const distribution: ReplyDistribution = {
+    kind: "distribution",
+    count: 24,
+    mean: 20,
+    difference: 0,
+    exact: false,
+    buckets: [0, 24, 0, 0, 0],
+    discordant: [0, 0, 0, 0, 0],
+    reference: { mean: 20, buckets: [0, 24, 0, 0, 0] },
+  };
+  act(() => {
+    worker.onmessage?.({
+      data: { id: request.id, kind: request.kind, moveId: candidate.id, result: distribution },
+    });
+    worker.onmessage?.({ data: { id: request.id, kind: request.kind, done: true } });
+  });
+  await waitFor(() => expect(boardOdds).toBeDefined());
+  expect(screen.getByText(/^Bingo 0\//)).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /^Calculation timing/ })).toBeNull();
+  act(() => {
+    const { worker, request } = boardOdds!;
+    worker.onmessage?.({
+      data: {
+        id: request.id,
+        kind: request.kind,
+        odds: {
+          byMove: {},
+          checked: request.candidates.length,
+          total: request.candidates.length,
+          bagSize: request.bagSize,
+        },
+      },
+    });
+  });
+  const timer = await screen.findByRole("button", { name: /^Calculation timing/ });
+  const total = timer.textContent;
+  await user.click(timer);
+  const timing = within(screen.getByRole("dialog", { name: "Calculation timing" }));
+  expect(timing.getByText("Total elapsed time").nextElementSibling?.textContent).toBe(total);
+  expect(timing.getByText("Board check and legal moves").nextElementSibling?.textContent).toBe("1 ms");
+  expect(timing.getByText("Premium reply risk").nextElementSibling?.textContent).toBe("2 ms");
+  expect(timing.getByText("Bingo draw odds").nextElementSibling?.textContent).toBe("3 ms");
+  expect(timing.getByText("Bingo after your play")).toBeTruthy();
+  expect(timing.getByText("Reply histograms")).toBeTruthy();
+  await user.click(timing.getByRole("button", { name: "Close dialog" }));
+  await user.hover(screen.getAllByRole("button", { name: /^CATS, / })[0]);
+  await user.click(await screen.findByRole("button", { name: /Refine/ }));
+  await waitFor(() => expect(detail).toBeDefined());
+  act(() => detail!.worker.onmessage?.({
+    data: { id: detail!.request.id, kind: detail!.request.kind, result: distribution },
+  }));
+  expect(screen.getByRole("button", { name: /^Calculation timing/ }).textContent).toBe(total);
 });
 
 test("board check uses the current filtered moves, and cancelled results stay out of the list", async () => {

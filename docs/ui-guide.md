@@ -30,6 +30,7 @@
 | **Possible moves** | The entire results panel next to the board on desktop or below the board and racks on a phone. The heading reads **Possible moves - Endgame** when the bag count is zero. |
 | **Move filters** | The Shortlist and All moves switch, word search, and square filter above the results list. |
 | **Move list** | The sortable table of suggestions. A **move row** is one suggestion, and a **column header** controls sorting. PTS is the play’s score. The smaller number underneath is the gap from the top score. |
+| **Calculation timing** | Select the time below the move list for a breakdown of the initial Find moves run, including individual exact endgame solves when available. |
 | **Reply delta** | The move-list number showing the change in the opponent’s reply score against the reference move. A lower opponent reply is favorable. |
 | **Estimated endgame swing** | The EST. SWING column when the bag is empty. The figure measures the change in your lead. It may also name an opponent go-out threat. |
 | **Reply details** | The box at the bottom of Possible moves headed **Reply after [move]**. With tiles in the bag it shows the **reply distribution**, summary comparisons, and Heatmap. With an empty bag it shows the opponent rack, immediate reply, score checkpoints, and the option to calculate the optimal endgame line when applicable. |

@@ -11,6 +11,7 @@ import type { ShortlistEntry } from "../shared/move-shortlist";
 import type { DefenseResults } from "../shared/premium-defense";
 import type { ExchangeAdviceRequest } from "../shared/exchange-advice";
 import type { EndgameSettings } from "../shared/endgame";
+import type { SolverStages } from "./move-timing";
 
 type PositionRequest = Position & {
   id: number;
@@ -44,14 +45,14 @@ type SolverUpdate =
       kind: "moves";
       results: MoveResults;
       warnings: string[];
-      elapsed: number;
+      stages: Pick<SolverStages, "dictionary" | "moves" | "indexing">;
       exchange?: ExchangeAdviceRequest & { dictionaryId: string };
     }
   | { kind: "solve-status"; status: string }
   | { kind: "solve-error"; error: string }
-  | { kind: "defense"; defense?: DefenseResults; done?: boolean }
+  | { kind: "defense"; defense?: DefenseResults; elapsed?: number }
   | { kind: "defense-progress"; checked: number }
-  | { kind: "rack-odds"; odds: RackOdds }
+  | { kind: "rack-odds"; odds: RackOdds; elapsed: number }
   | {
       kind: "board-odds-progress";
       checked: number;

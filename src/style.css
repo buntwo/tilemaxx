@@ -1519,6 +1519,9 @@ label + label {
   font-weight: 700;
   letter-spacing: -0.1px;
 }
+.square:not(.qw) :is(.premium-label, .start-bonus) {
+  color: var(--premium-label, currentColor);
+}
 :is(.dl, .tl, .ql, .dw, .tw, .qw) {
   color: #fff;
 }
@@ -2475,6 +2478,49 @@ label + label {
   display: flex;
   justify-content: space-between;
   gap: 8px;
+}
+.move-timing-button {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin-left: auto;
+  flex: none;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.modal.move-timing-dialog {
+  max-width: min(420px, calc(100% - 24px));
+}
+.move-timing-stages {
+  margin: 0;
+  font-size: 13px;
+}
+.move-timing-stages div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 6px;
+}
+.move-timing-stages dd {
+  margin: 0;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.move-timing-total {
+  border-bottom: 1px solid var(--line);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.move-timing-dialog h3 {
+  margin: 12px 0 2px;
+  font-size: 13px;
+}
+.move-timing-attempts small {
+  color: var(--muted);
 }
 .tap-hint {
   display: none;

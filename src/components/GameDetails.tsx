@@ -44,7 +44,13 @@ export function GameMetadata({
 
 const platforms: string[] = gamePlatforms.map(({ name }) => name);
 
-export function GameDetailFields({ game }: { game?: Game }) {
+export function GameDetailFields({
+  game,
+  onPlatformChange,
+}: {
+  game?: Game;
+  onPlatformChange?: (platform: string) => void;
+}) {
   const savedPlatform = game?.platform ?? "";
   const [platform, setPlatform] = useState(() =>
     savedPlatform && !platforms.includes(savedPlatform)
@@ -72,7 +78,11 @@ export function GameDetailFields({ game }: { game?: Game }) {
         <select
           name={isOther ? undefined : "platform"}
           value={platform}
-          onChange={(event) => setPlatform(event.currentTarget.value)}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            setPlatform(value);
+            onPlatformChange?.(value);
+          }}
         >
           <option value="">No platform</option>
           {platforms.map((name) => (
