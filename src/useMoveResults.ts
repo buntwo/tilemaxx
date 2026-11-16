@@ -29,6 +29,7 @@ export function useMoveResults(
     boardOdds,
     replyDeltas,
     endgameId,
+    exactEndgameSpreads,
   } = query;
   const searchId = results?.searchId;
   const key = useMemo(
@@ -56,7 +57,11 @@ export function useMoveResults(
       endgameId,
     ],
   );
-  const [received, setReceived] = useState<{ key: string; page?: MovePage }>();
+  const [received, setReceived] = useState<{
+    key: string;
+    page?: MovePage;
+    exactEndgameSpreads?: MoveQuery["exactEndgameSpreads"];
+  }>();
   const response = received?.key === key ? received : undefined;
   const page = response?.page;
   const initial =
@@ -82,7 +87,11 @@ export function useMoveResults(
     Math.min(total, start + visibleMoveRows) <=
       slice.offset + slice.rows.length;
   const unavailable = !!response && !page;
-  const needsPage = enabled && !!results && !unavailable && !hasWindow;
+  const orderChanged = response?.exactEndgameSpreads !== exactEndgameSpreads;
+  const needsPage =
+    enabled && !!results && (orderChanged || (!unavailable && !hasWindow));
+  // Keep the current rows visible while the worker applies new exact scores.
+  const previousOrder = orderChanged && hasWindow ? page : undefined;
   // Keep a window wider than the rendered rows. A small overlapping scroll
   // stays synchronous, and only a new page boundary needs a worker message.
   const pageOffset = Math.max(0, Math.floor((start - 12) / 16) * 16);
@@ -91,7 +100,8 @@ export function useMoveResults(
     if (!needsPage || searchId === undefined) return;
     let current = true;
     const settle = (next?: MovePage) => {
-      if (current) setReceived({ key, page: next });
+      if (current)
+        setReceived({ key, page: next ?? previousOrder, exactEndgameSpreads });
     };
     void fetchPage(searchId, {
       filter,
@@ -103,6 +113,7 @@ export function useMoveResults(
       boardOdds,
       replyDeltas,
       endgameId,
+      exactEndgameSpreads,
     }).then(settle, () => settle());
     return () => {
       current = false;
@@ -121,6 +132,8 @@ export function useMoveResults(
     boardOdds,
     replyDeltas,
     endgameId,
+    exactEndgameSpreads,
+    previousOrder,
   ]);
 
   return {

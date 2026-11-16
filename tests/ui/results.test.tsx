@@ -556,7 +556,7 @@ test("empty-bag rows wait for estimates unless the user skips to points", async 
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
 });
 
-test("endgame rows update the swing and implied result as exact lines finish", async () => {
+test("endgame rows reorder as exact lines finish and stay visible while the worker reranks", async () => {
   let background: EndgameWorker | undefined;
   class EndgameWorker {
     onmessage?: (event: { data: EndgamePrecomputeMessage }) => void;
@@ -567,6 +567,8 @@ test("endgame rows update the swing and implied result as exact lines finish", a
   }
   vi.stubGlobal("Worker", EndgameWorker);
   const onBoardOdds = vi.fn();
+  let index: MoveResultIndex;
+  let publishUpdatedPage: (() => void) | undefined;
   const { user } = setup(false, {
     analysisGame: {
       ...endgame,
@@ -584,12 +586,22 @@ test("endgame rows update the swing and implied result as exact lines finish", a
       bagSize: 0,
     },
     onBoardOdds,
-    rankEndgame: (index) => async () =>
-      index.setEndgame(1, new Map([
-        ["a", { spread: -41, exact: false }],
-        ["b", { spread: 5, exact: true }],
-        ["c", { spread: -5, exact: false }],
-      ])),
+    rankEndgame: (resultIndex) => {
+      index = resultIndex;
+      return async () =>
+        index.setEndgame(1, new Map([
+          ["a", { spread: -41, exact: false }],
+          ["b", { spread: 5, exact: true }],
+          ["c", { spread: -5, exact: false }],
+        ]));
+    },
+    fetchPage: async (_id, query) => {
+      if (query.exactEndgameSpreads && !query.reversed)
+        return new Promise((resolve) => {
+          publishUpdatedPage = () => resolve(index.page(query));
+        });
+      return index.page(query);
+    },
   });
   await screen.findByText("Win by 10");
   const results = rows();
@@ -616,10 +628,14 @@ test("endgame rows update the swing and implied result as exact lines finish", a
     background!.onmessage!({ data: { moveId: "c", limit: "Time limit reached." } });
   });
   expect(rows()).toEqual(results);
+  await act(async () => publishUpdatedPage!());
+  expect(rows()).toEqual([results[2], results[0], results[1]]);
   const updated = within(results[2]).getByTitle("Exact endgame swing +10");
   expect(updated.querySelector("strong")?.textContent).toBe("+10");
   expect(within(updated).getByText("Win by 15").classList.contains("value-good")).toBe(true);
   expect(within(results[1]).getByTitle("Estimated endgame swing −5").querySelector("strong")?.textContent).toBe("≈−5");
+  await user.click(screen.getByRole("button", { name: "Sort by estimated endgame swing" }));
+  await waitFor(() => expect(rows().map((row) => row.getAttribute("aria-label")?.split(",")[0])).toEqual(["AT", "CAT", "CATS"]));
 
   await user.click(screen.getByText("Options"));
   expect(screen.getByText("Reply settings")).toBeTruthy();

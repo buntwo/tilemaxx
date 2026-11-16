@@ -264,10 +264,10 @@ export default function Results({
     endgameRanked || (!shortlistActive && !!endgameProgress?.ready);
   const sort =
     activeOrder &&
-    (activeOrder.sort !== "endgame" || endgameRanked) &&
+    (activeOrder.sort !== "endgame" || showEndgameSwing) &&
     (!endgame || (activeOrder.sort !== "bingo-draw" && activeOrder.sort !== "board-bingo"))
       ? activeOrder.sort
-      : endgameRanked ? "endgame" : "score";
+      : showEndgameSwing ? "endgame" : "score";
   const reversed =
     (activeOrder?.sort === sort && activeOrder.reversed) || false;
   function setSort(sort: MoveSort, reversed = false) {
@@ -350,6 +350,7 @@ export default function Results({
       boardOdds: sort === "board-bingo" ? boardOdds : undefined,
       replyDeltas: sort === "reply" ? replyDeltas : undefined,
       endgameId: endgameRanked ? ranking.id : undefined,
+      exactEndgameSpreads: sort === "endgame" ? endgameProgress?.exactSpreads : undefined,
     },
     fetchPage,
     !busy && !error && !waitingForEndgame,
@@ -758,7 +759,7 @@ export default function Results({
             {analysisGame && (replyEnabled || defense) && (
               <div className="result-reply-heading">
                 {showEndgameSwing
-                  ? column("EST. SWING", "endgame", "estimated endgame swing", !endgameRanked)
+                  ? column("EST. SWING", "endgame", "estimated endgame swing")
                   : column(
                       "Δ REPLY",
                       "reply",

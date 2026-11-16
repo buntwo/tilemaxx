@@ -446,7 +446,7 @@ test("the first five endgame moves report progress and update Analyze with exact
   });
   const finished = screen.getByText("2/5 exact lines ready · 3 hit a limit");
   expect(finished.getAttribute("title")).toContain(timeLimit);
-  expect(spinner.textContent).toBe("");
+  await waitFor(() => expect(spinner.textContent).toBe(""));
 
   await user.selectOptions(screen.getByRole("combobox", { name: "Prior scoreless turns" }), "1");
   await user.click(screen.getByRole("button", { name: "Run analysis" }));

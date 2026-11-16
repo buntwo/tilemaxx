@@ -67,6 +67,19 @@ test("endgame ranking includes lower-scoring moves outside the initial page and 
   assert.equal(raw.rows[0], first);
   assert.deepEqual(raw.endgame, { [first.id]: { spread: -50, exact: false } });
   assert.equal(index.page({ ...query, endgameId: 1 }).endgame, undefined);
+
+  const exactEndgameSpreads = { [first.id]: 20, [last.id]: 0 };
+  const corrected = { ...query, exactEndgameSpreads };
+  assert.deepEqual(index.page(corrected).head.slice(0, 2), [first, last]);
+  assert.deepEqual(
+    index.page({ ...corrected, reversed: true }).head.slice(0, 2),
+    [last, first],
+  );
+  assert.deepEqual(
+    index.page({ ...corrected, sort: "score" }).head,
+    raw.head,
+  );
+  assert.equal(index.page(query).head[0], last);
 });
 
 test("square filtering finds every required square in the main word before paginating", () => {
