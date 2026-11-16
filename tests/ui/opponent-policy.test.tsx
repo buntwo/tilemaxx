@@ -17,11 +17,16 @@ class TimelineWorker {
     TimelineWorker.instances.push(this);
   }
 
-  returnTurn(job: Batch, index: number, result: OpponentPolicyResult) {
+  returnTurn(
+    job: Batch,
+    index: number,
+    result: OpponentPolicyResult,
+    completed = index + 1,
+  ) {
     act(() => {
       this.onmessage?.({
         data: {
-          progress: { completed: index + 1, total: job.turns.length },
+          progress: { completed, total: job.turns.length },
           update: { key: job.turns[index].key, result },
         },
       });
@@ -105,6 +110,22 @@ function fit(random: number) {
     samples: 0,
   } satisfies OpponentPolicyResult;
 }
+
+test("the timeline keeps the recorded turn order when a later job finishes first", () => {
+  setup();
+  const table = within(
+    screen.getByRole("table", { name: "Opponent moves by turn" }),
+  );
+  const { worker, job } = start();
+  worker.returnTurn(job, 1, fit(0.2), 1);
+  expect(screen.getByText("Checked 1 of 2 turns in this batch.")).toBeTruthy();
+  const rows = table.getAllByRole("row").slice(1);
+  expect(
+    rows.map((row) => within(row).getByRole("rowheader").textContent),
+  ).toEqual(["1 · AT", "3 · OX", "4 · TEA"]);
+  expect(within(rows[1]).getByText("High fit")).toBeTruthy();
+  expect(within(rows[0]).queryByText("High fit")).toBeNull();
+});
 
 test("the timeline streams in order, keeps finished turns after cancellation and opens their saved detail", () => {
   setup();

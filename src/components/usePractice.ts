@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { PracticeRequest } from "../practice.worker";
 import { useGameCalculation } from "./GameCalculations";
+import { ComputeWorkerLimit } from "./ComputeWorkerLimit";
 
 type Progress = { completed: number; total: number };
 type PracticeMessage<Result, Update> =
@@ -11,6 +12,7 @@ type PracticeMessage<Result, Update> =
 export function usePractice<Result, Update = never>(
   onUpdate?: (update: Update) => void,
 ) {
+  const workerLimit = useContext(ComputeWorkerLimit);
   const worker = useRef<Worker | null>(null);
   const [result, setResult] = useState<Result>();
   const [progress, setProgress] = useState<Progress>();
@@ -63,13 +65,19 @@ export function usePractice<Result, Update = never>(
           finish();
           setError("Analysis stopped unexpectedly.");
         };
-        active.postMessage(request);
+        active.postMessage(
+          workerLimit !== undefined &&
+            (request.kind === "optimal-exchange" ||
+              request.kind === "opponent-policy-timeline")
+            ? { ...request, workerLimit }
+            : request,
+        );
       } catch {
         setProgress(undefined);
         setError("Could not start the analysis.");
       }
     },
-    [onUpdate, reset],
+    [onUpdate, reset, workerLimit],
   );
   return { result, progress, error, run, reset };
 }

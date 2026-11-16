@@ -1,9 +1,8 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { RackBingoIndex } from "../shared/bingo-odds";
-import {
-  optimizeExchange,
-  type OptimalExchangeRequest,
-  type OptimalExchangeResult,
+import type {
+  OptimalExchangeRequest,
+  OptimalExchangeResult,
 } from "../shared/optimal-exchange";
 import { simulateExchange, type ExchangeRequest } from "../shared/exchange";
 import {
@@ -23,6 +22,9 @@ import {
   type OpponentPolicyResult,
 } from "../shared/opponent-policy";
 import type { BoardTemplate, TrackedMove, TurnPosition } from "../shared/model";
+import { runCandidateJobs } from "./candidate-analysis-pool";
+import { computeWorkerLimit } from "./compute-workers";
+import { parallelOptimalExchange } from "./parallel-exchange";
 
 type ReviewJob = { position: TurnPosition; move: TrackedMove; index: number };
 type PolicyReviewJob = { key: string; input: OpponentPolicyInput };
@@ -38,7 +40,6 @@ type OpponentPolicyBatchMessage =
     }
   | { result: OpponentPolicyBatchResult };
 
-const POLICY_TURN_BUDGET_MS = 1_250;
 const POLICY_BATCH_BUDGET_MS = 45_000;
 
 export type PracticeRequest =
@@ -47,6 +48,7 @@ export type PracticeRequest =
       kind: "optimal-exchange";
       dictionaryId: string;
       exchange: OptimalExchangeRequest;
+      workerLimit?: number;
     }
   | {
       kind: "exchange-advice";
@@ -62,6 +64,7 @@ export type PracticeRequest =
       kind: "opponent-policy-timeline";
       dictionaryId: string;
       turns: PolicyReviewJob[];
+      workerLimit?: number;
     }
   | { kind: "turn" | "game"; template: BoardTemplate; turns: ReviewJob[] };
 
@@ -98,7 +101,7 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
   try {
     if (data.kind === "optimal-exchange") {
       const words = await loadWords(data.dictionaryId);
-      const result = optimizeExchange(
+      const result = await parallelOptimalExchange(
         new Lexicon(words),
         new RackBingoIndex(words),
         data.exchange,
@@ -106,6 +109,7 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
           self.postMessage({
             progress: { completed, total },
           } satisfies OptimalExchangeMessage),
+        data.workerLimit ?? computeWorkerLimit(),
       );
       self.postMessage({ result } satisfies OptimalExchangeMessage);
       return;
@@ -133,19 +137,32 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
     }
     if (data.kind === "opponent-policy-timeline") {
       const lexicon = await dictionary(data.dictionaryId);
-      const deadline = performance.now() + POLICY_BATCH_BUDGET_MS;
+      const deadline =
+        performance.timeOrigin + performance.now() + POLICY_BATCH_BUDGET_MS;
       let completed = 0;
-      for (const { key, input } of data.turns) {
-        const remaining = deadline - performance.now();
-        if (remaining <= 0) break;
-        const result = analyzeOpponentPolicy(lexicon, input, {
-          maxMs: Math.min(POLICY_TURN_BUDGET_MS, remaining),
-        });
-        self.postMessage({
-          progress: { completed: ++completed, total: data.turns.length },
-          update: { key, result },
-        } satisfies OpponentPolicyBatchMessage);
-      }
+      await runCandidateJobs(
+        lexicon,
+        data.turns.map(({ key, input }) => ({
+          kind: "policy-turn",
+          key,
+          input,
+          deadline,
+        })),
+        (job, result) => {
+          if (job.kind !== "policy-turn" || result.kind !== "policy-turn")
+            throw new Error(
+              result.kind === "error"
+                ? result.message
+                : "Unexpected policy analysis result.",
+            );
+          if (!result.policy) return;
+          self.postMessage({
+            progress: { completed: ++completed, total: data.turns.length },
+            update: { key: job.key, result: result.policy },
+          } satisfies OpponentPolicyBatchMessage);
+        },
+        data.workerLimit,
+      );
       self.postMessage({
         result: { reachedTimeLimit: completed < data.turns.length },
       } satisfies OpponentPolicyBatchMessage);

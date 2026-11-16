@@ -5,7 +5,7 @@ import { MOVE_CACHE_LIMIT } from "../shared/move-results";
 import type { ReplyPosition } from "../shared/reply-analysis";
 import type { ExactLineTiming } from "./move-timing";
 
-const PRECOMPUTED_MOVES = 5;
+const PRECOMPUTED_MOVES = 6;
 const ENDGAME_LINES_PER_POSITION = 20;
 
 export type EndgamePrecomputeRequest = ReplyPosition & {

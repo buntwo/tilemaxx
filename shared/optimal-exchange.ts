@@ -66,14 +66,35 @@ function interval(hits: number, samples: number) {
   };
 }
 
-export function optimizeExchange(
+type ExchangeBatch = { racks: string[]; deadline: number };
+type ExchangeHits = (boolean | undefined)[];
+
+export function checkExchangeRacks(
+  solver: ReturnType<typeof prepareSolver>,
+  racks: readonly string[],
+  deadline: number,
+): ExchangeHits {
+  const hits: ExchangeHits = [];
+  try {
+    for (const rack of racks) {
+      const maxMs = Math.min(SEARCH_LIMITS.maxMs, deadline - performance.now());
+      if (maxMs <= 0) break;
+      hits.push(!!solver.solve(rack, { maxMs }, { bingoOnly: true }).length);
+    }
+  } catch (error) {
+    if (!(error instanceof SearchLimitError)) throw error;
+  }
+  return hits;
+}
+
+export function* planOptimalExchange(
   lexicon: Lexicon,
   rackIndex: RackBingoIndex,
   request: OptimalExchangeRequest,
-  progress: (completed: number, total: number) => void = () => {},
+  progress: (completed: number, total: number) => void,
   { seed = 0x604bd5, maxMs = 6000 } = {},
-): OptimalExchangeResult {
-  const { board, template, bag } = request;
+): Generator<ExchangeBatch, OptimalExchangeResult, ExchangeHits> {
+  const { template, bag } = request;
   const { available } = splitRack(request);
   const { tiles, total, excess } = unseenTiles(request, template);
   if (excess.length) throw new Error("Check the entered tile counts first.");
@@ -91,57 +112,89 @@ export function optimizeExchange(
     Array<string>(count).fill(symbol),
   );
   const random = randomGenerator(seed);
-  const solver = prepareSolver(lexicon, board, template);
   const memo = new Map<string, boolean>();
-  function canBingo(rack: string, deadline: number) {
-    const key = canonical(rack);
-    const cached = memo.get(key);
-    if (cached !== undefined) return cached;
-    const maxMs = Math.min(SEARCH_LIMITS.maxMs, deadline - performance.now());
-    if (maxMs <= 0) throw new SearchLimitError();
-    const hit = !!solver.solve(key, { maxMs }, { bingoOnly: true }).length;
-    memo.set(key, hit);
-    return hit;
-  }
+  const deals: string[] = [];
+  let dealIndex = 0;
   const start = performance.now();
   const deadline = start + maxMs;
-  const keepBingo = canBingo(available, deadline);
-  function sample(swaps: Swap[], limit: number, until: number, offset: number) {
+  const kept = canonical(available);
+  const [keepBingo] = yield { racks: [kept], deadline };
+  if (keepBingo === undefined) throw new SearchLimitError();
+  memo.set(kept, keepBingo);
+
+  function* sample(
+    swaps: Swap[],
+    limit: number,
+    until: number,
+    offset: number,
+  ): Generator<ExchangeBatch, number, ExchangeHits> {
     let completed = 0;
-    try {
-      for (; completed < limit && performance.now() < until; completed++) {
-        const dealt = sampleTiles(pool, maxDraw, random);
-        // Only count a round when every candidate has seen the same draw.
-        const hits = swaps.map(({ slots, leave }) =>
-          canBingo(leave + dealt.slice(0, slots.length), until),
+    while (completed < limit && performance.now() < until) {
+      const rounds: string[][] = [];
+      const pending = new Set<string>();
+      const batchSize = Math.min(16, limit - completed);
+      for (let i = 0; i < batchSize; i++) {
+        const dealt = (deals[dealIndex + i] ??= sampleTiles(
+          pool,
+          maxDraw,
+          random,
+        ));
+        const racks = swaps.map(({ slots, leave }) =>
+          canonical(leave + dealt.slice(0, slots.length)),
         );
+        for (const rack of racks) if (!memo.has(rack)) pending.add(rack);
+        rounds.push(racks);
+      }
+      if (pending.size) {
+        const racks = [...pending];
+        const hits = yield { racks, deadline: until };
+        for (const [i, rack] of racks.entries()) {
+          const hit = hits[i];
+          if (hit !== undefined) memo.set(rack, hit);
+        }
+      }
+      for (const racks of rounds) {
+        dealIndex++;
+        const hits = racks.map((rack) => memo.get(rack));
+        // A draw contributes only when every swap has a result.
+        if (hits.includes(undefined)) return completed;
         hits.forEach((hit, i) => {
           if (hit) swaps[i].hits++;
         });
-        if ((completed + 1) % 16 === 0)
-          progress(offset + completed + 1, SCREEN_DRAWS + REFINE_DRAWS);
+        if (++completed % 16 === 0)
+          progress(offset + completed, SCREEN_DRAWS + REFINE_DRAWS);
       }
-    } catch (error) {
-      if (!(error instanceof SearchLimitError)) throw error;
     }
     return completed;
   }
 
-  const screeningDraws = sample(options, SCREEN_DRAWS, start + maxMs * 0.45, 0);
+  const screeningDraws = yield* sample(
+    options,
+    SCREEN_DRAWS,
+    start + maxMs * 0.45,
+    0,
+  );
   if (screeningDraws < MIN_DRAWS)
     throw new Error("This position exceeded the exchange search limit.");
   progress(screeningDraws, SCREEN_DRAWS + REFINE_DRAWS);
   // Break screening ties with dictionary-only bingo odds.
   const drawOdds =
     available.length === template.rackSize && screeningDraws === SCREEN_DRAWS
-      ? rackIndex.calculate(lexicon, request, template, options, bag).byLeave
+      ? rackIndex.calculate(
+          lexicon,
+          request,
+          template,
+          options,
+          bag,
+          randomGenerator(seed),
+        ).byLeave
       : {};
   const drawChance = (choice: Swap) => drawOdds[choice.leave] ?? 0;
   options.sort((a, b) => b.hits - a.hits || drawChance(b) - drawChance(a));
   const finalists = options
     .slice(0, FINALIST_LIMIT)
     .map((choice) => ({ ...choice, hits: 0 }));
-  const refinementDraws = sample(
+  const refinementDraws = yield* sample(
     finalists,
     REFINE_DRAWS,
     deadline,
@@ -168,4 +221,27 @@ export function optimizeExchange(
           : interval(swap.hits, samples).high >= bestLow,
     })),
   };
+}
+
+export function optimizeExchange(
+  lexicon: Lexicon,
+  rackIndex: RackBingoIndex,
+  request: OptimalExchangeRequest,
+  progress: (completed: number, total: number) => void = () => {},
+  options?: { seed?: number; maxMs?: number },
+): OptimalExchangeResult {
+  const solver = prepareSolver(lexicon, request.board, request.template);
+  const plan = planOptimalExchange(
+    lexicon,
+    rackIndex,
+    request,
+    progress,
+    options,
+  );
+  let step = plan.next();
+  while (!step.done) {
+    const { racks, deadline } = step.value;
+    step = plan.next(checkExchangeRacks(solver, racks, deadline));
+  }
+  return step.value;
 }

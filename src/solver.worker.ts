@@ -4,7 +4,16 @@ import {
   inspectBoard,
   SearchLimitError,
 } from "../shared/solver";
-import { RackBingoIndex, checkBoardBingo } from "../shared/bingo-odds";
+import {
+  BOARD_BINGO_BUDGET_MS,
+  RackBingoIndex,
+  checkBoardBingo,
+  prepareBoardBingo,
+  type BoardOdds,
+  type BoardOddsResult,
+} from "../shared/bingo-odds";
+import { runCandidateJobs } from "./candidate-analysis-pool";
+import { computeWorkerLimit } from "./compute-workers";
 import { checkPremiumDefense } from "../shared/premium-defense";
 import { MOVE_CACHE_LIMIT, MoveResultIndex } from "../shared/move-results";
 import { exchangeAdvicePlays } from "../shared/exchange-advice";
@@ -59,6 +68,45 @@ async function rankEndgame(
   }
   if (signal.aborted || results.get(searchId) !== result) return;
   return result.setEndgame(id, estimates);
+}
+
+async function boardBingoOdds(
+  lexicon: Lexicon,
+  request: Extract<SolverRequest, { kind: "board-odds" }>,
+): Promise<BoardOddsResult> {
+  const { id, board, template, candidates, bagSize } = request;
+  const concurrency = Math.min(request.workerLimit ?? computeWorkerLimit(), candidates.length);
+  const report = (checked: number, moveId: string, odds: BoardOdds) =>
+    post({ id, kind: "board-odds-progress", checked, moveId, odds });
+  if (concurrency <= 1)
+    return checkBoardBingo(lexicon, request, template, candidates, bagSize, report);
+
+  const total = candidates.length;
+  const drawsFor = prepareBoardBingo(request, template, total, bagSize);
+  const deadline = performance.timeOrigin + performance.now() + BOARD_BINGO_BUDGET_MS;
+  const byMove: Record<string, BoardOdds> = Object.create(null);
+  let checked = 0;
+  await runCandidateJobs(
+    lexicon,
+    candidates.map((move, index) => ({
+      kind: "board-bingo",
+      board,
+      template,
+      move,
+      draws: drawsFor(move),
+      deadline,
+      wavesRemaining: Math.ceil((total - index) / concurrency),
+    })),
+    (job, result) => {
+      if (job.kind !== "board-bingo" || result.kind !== "board-bingo")
+        throw new Error(result.kind === "error" ? result.message : "Unexpected board odds result.");
+      if (!result.odds) return;
+      byMove[job.move.id] = result.odds;
+      report(++checked, job.move.id, result.odds);
+    },
+    concurrency,
+  );
+  return { byMove, checked, total, bagSize };
 }
 
 self.onmessage = async (event: MessageEvent<SolverRequest>) => {
@@ -130,15 +178,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       return;
     }
     if (request.kind === "board-odds") {
-      const odds = checkBoardBingo(
-        lexicon,
-        request,
-        template,
-        request.candidates,
-        request.bagSize,
-        (checked, moveId, odds) =>
-          post({ id, kind: "board-odds-progress", checked, moveId, odds }),
-      );
+      const odds = await boardBingoOdds(lexicon, request);
       post({ id, kind: "board-odds", odds });
       return;
     }

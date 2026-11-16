@@ -386,11 +386,11 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
   expect(screen.queryByRole("spinbutton", { name: /Endgame budget/ })).toBeNull();
 });
 
-test("the first five endgame moves report progress and update Analyze with exact lines for matching settings", async () => {
+test("the first six endgame moves report progress and update Analyze with exact lines for matching settings", async () => {
   const lexicon = new Lexicon(["AT", "CAT", "CATS", "ACT", "RAT", "ART", "TAR"]);
   const analyses: AnalysisRequest[] = [];
   let background: { worker: SolverWorker; request: EndgamePrecomputeRequest } | undefined;
-  let firstFive: string[] = [];
+  let firstSix: string[] = [];
   class EndgameWorker extends SolverWorker {
     postMessage(request: SolverRequest | AnalysisRequest | EndgamePrecomputeRequest | ReplyRequest) {
       if (!("kind" in request)) {
@@ -417,8 +417,8 @@ test("the first five endgame moves report progress and update Analyze with exact
           request.id,
           new Map(index.moves.map((move) => [move.id, estimate(move, Infinity)])),
         );
-        expect(ranking.checked).toBeGreaterThan(5);
-        firstFive = ranking.head.slice(0, 5).map(({ id }) => id);
+        expect(ranking.checked).toBeGreaterThan(6);
+        firstSix = ranking.head.slice(0, 6).map(({ id }) => id);
         queueMicrotask(() => this.onmessage?.({
           data: { kind: "endgame", id: request.id, ranking },
         }));
@@ -440,16 +440,16 @@ test("the first five endgame moves report progress and update Analyze with exact
     },
   }));
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
-  await waitFor(() => expect(background?.request.moves.map(({ id }) => id)).toEqual(firstFive));
+  await waitFor(() => expect(background?.request.moves.map(({ id }) => id)).toEqual(firstSix));
   const { worker, request } = background!;
   const [first, second] = request.moves;
-  expect(screen.getByText("Solving exact lines · 0/5 checked")).toBeTruthy();
+  expect(screen.getByText("Solving exact lines · 0/6 checked")).toBeTruthy();
   const spinner = document.querySelector(".calculation-indicator")!;
   expect(spinner.getAttribute("data-phase")).toBe("active");
   expect(screen.queryByRole("button", { name: /^Calculation timing/ })).toBeNull();
   const line = replyEndgameLine(lexicon, request, first, Infinity);
   act(() => worker.onmessage?.({ data: { moveId: first.id, line, elapsed: 17 } }));
-  expect(screen.getByText("Solving exact lines · 1/5 checked")).toBeTruthy();
+  expect(screen.getByText("Solving exact lines · 1/6 checked")).toBeTruthy();
   await user.click(await screen.findByRole("button", { name: "Analyze" }));
   const rows = within(screen.getByLabelText("Suggested moves")).getAllByRole("button", { name: /points,/ });
   await user.click(rows[1]);
@@ -471,7 +471,7 @@ test("the first five endgame moves report progress and update Analyze with exact
       worker.onmessage?.({ data: { moveId: move.id, limit: timeLimit, elapsed: 5000 } });
     worker.onmessage?.({ data: { done: true } });
   });
-  const finished = screen.getByText("2/5 exact lines ready · 3 hit a limit");
+  const finished = screen.getByText("2/6 exact lines ready · 4 hit a limit");
   expect(finished.getAttribute("title")).toContain(timeLimit);
   await waitFor(() => expect(spinner.textContent).toBe(""));
   await user.click(await screen.findByRole("button", { name: /^Calculation timing/ }));
@@ -479,10 +479,10 @@ test("the first five endgame moves report progress and update Analyze with exact
   expect(timing.getByText("Endgame estimates")).toBeTruthy();
   expect(timing.getByText("Exact endgame lines")).toBeTruthy();
   const attempts = within(timing.getByRole("region", { name: "Individual endgame solves" }));
-  expect(attempts.getAllByText("Limit reached", { exact: false })).toHaveLength(3);
+  expect(attempts.getAllByText("Limit reached", { exact: false })).toHaveLength(4);
   expect(attempts.getByText("17 ms").previousElementSibling?.textContent).toContain(first.word);
   expect(attempts.getByText("30 ms").previousElementSibling?.textContent).toContain(second.word);
-  expect(attempts.getAllByText("5.00 s")).toHaveLength(3);
+  expect(attempts.getAllByText("5.00 s")).toHaveLength(4);
   await user.click(timing.getByRole("button", { name: "Close dialog" }));
 
   await user.selectOptions(screen.getByRole("combobox", { name: "Prior scoreless turns" }), "1");

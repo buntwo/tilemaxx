@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import {
+  checkBoardBingo,
+  prepareBoardBingo,
+  RackBingoIndex,
+} from "../shared/bingo-odds";
+import { optimizeExchange } from "../shared/optimal-exchange";
+import { analyzeOpponentPolicy } from "../shared/opponent-policy";
+import { randomGenerator } from "../shared/move-analysis";
+import { parallelOptimalExchange } from "../src/parallel-exchange";
 import { Lexicon } from "../shared/lexicon";
 import { emptyBoard } from "../shared/model";
 import { PRESETS } from "../shared/presets";
@@ -12,7 +21,7 @@ import {
 import { solve } from "../shared/solver";
 import { unseenTiles } from "../shared/tile-pool";
 import {
-  analyzeCandidate,
+  createCandidateAnalyzer,
   type CandidateJob,
   type CandidateRequest,
   type CandidateResult,
@@ -35,17 +44,20 @@ class TestWorker {
   onerror?: (error: Error) => void;
   requests: CandidateRequest[] = [];
   stopped = false;
-  private lexicon?: Lexicon;
+  private analyze?: ReturnType<typeof createCandidateAnalyzer>;
 
   postMessage(request: CandidateRequest) {
     const sent = structuredClone(request);
     this.requests.push(sent);
-    if (sent.dictionary) this.lexicon = Lexicon.fromIndex(sent.dictionary);
+    if (sent.dictionary)
+      this.analyze = createCandidateAnalyzer(
+        Lexicon.fromIndex(sent.dictionary),
+      );
   }
 
   finish() {
-    assert.ok(this.lexicon);
-    const result = analyzeCandidate(this.lexicon, this.requests.at(-1)!.job);
+    assert.ok(this.analyze);
+    const result = this.analyze(this.requests.at(-1)!.job);
     this.onmessage?.({ data: structuredClone(result) });
   }
 
@@ -61,7 +73,7 @@ test("histogram workers pull candidates independently and match serial paired re
   const moves = choices.slice(0, 3);
   assert.equal(moves.length, 3);
   const jobs = moves.map(
-    (move): CandidateJob => ({
+    (move): Extract<CandidateJob, { kind: "histogram" }> => ({
       kind: "histogram",
       position: board,
       move,
@@ -91,11 +103,16 @@ test("histogram workers pull candidates independently and match serial paired re
   );
 
   assert.equal(workers.length, 2);
-  assert.equal(workers[0].requests[0].job.move.id, moves[0].id);
-  assert.equal(workers[1].requests[0].job.move.id, moves[1].id);
+  function sentMove(worker: TestWorker, index: number) {
+    const job = worker.requests[index].job;
+    assert.equal(job.kind, "histogram");
+    return job.move.id;
+  }
+  assert.equal(sentMove(workers[0], 0), moves[0].id);
+  assert.equal(sentMove(workers[1], 0), moves[1].id);
   workers[1].finish();
   await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.equal(workers[1].requests[1].job.move.id, moves[2].id);
+  assert.equal(sentMove(workers[1], 1), moves[2].id);
   assert.equal(workers[1].requests[1].dictionary, undefined);
   workers[1].finish();
   workers[0].finish();
@@ -130,7 +147,11 @@ test("endgame jobs preserve the exact line when a worker cannot start", async ()
   );
   const board = { ...available, template: { ...template, tileCounts } };
   const jobs = twoMoves.map(
-    (move): CandidateJob => ({ kind: "endgame", position: board, move }),
+    (move): Extract<CandidateJob, { kind: "endgame" }> => ({
+      kind: "endgame",
+      position: board,
+      move,
+    }),
   );
   const completed: string[] = [];
   await runCandidateJobs(
@@ -168,12 +189,14 @@ test("the one-worker limit executes a batch without starting nested workers", as
   const bagSize = unseenTiles(position, template).total - template.rackSize;
   const board = { ...position, bagSize };
   const samples = sampleReplyRacks(board, 500);
-  const jobs: CandidateJob[] = choices.slice(0, 2).map((move) => ({
-    kind: "histogram",
-    position: board,
-    move,
-    samples,
-  }));
+  const jobs: Extract<CandidateJob, { kind: "histogram" }>[] = choices
+    .slice(0, 2)
+    .map((move) => ({
+      kind: "histogram",
+      position: board,
+      move,
+      samples,
+    }));
   const completed: string[] = [];
   let started = 0;
   await runCandidateJobs(
@@ -194,4 +217,147 @@ test("the one-worker limit executes a batch without starting nested workers", as
     completed,
     jobs.map(({ move }) => move.id),
   );
+});
+
+class ComputingWorker extends TestWorker {
+  postMessage(request: CandidateRequest) {
+    super.postMessage(request);
+    queueMicrotask(() => this.finish());
+  }
+}
+
+const makeComputingWorker = () => new ComputingWorker() as unknown as Worker;
+
+test("parallel board bingo jobs match serial odds with common draws", async () => {
+  const moves = choices.slice(0, 4);
+  const bagSize = unseenTiles(position, template).total - template.rackSize;
+  const expected = checkBoardBingo(
+    lexicon,
+    position,
+    template,
+    moves,
+    bagSize,
+    undefined,
+    randomGenerator(100),
+  );
+  const drawsFor = prepareBoardBingo(
+    position,
+    template,
+    moves.length,
+    bagSize,
+    randomGenerator(100),
+  );
+  const actual = Object.create(null);
+  await runCandidateJobs(
+    lexicon,
+    moves.map((move) => ({
+      kind: "board-bingo",
+      board: position.board,
+      template,
+      move,
+      draws: drawsFor(move),
+      deadline: Infinity,
+      wavesRemaining: 1,
+    })),
+    (job, result) => {
+      assert.equal(result.kind, "board-bingo");
+      actual[job.move.id] = result.odds;
+    },
+    2,
+    makeComputingWorker,
+  );
+  assert.deepEqual(actual, expected.byMove);
+});
+
+test("Optimal Exchange uses the same screening draws and finalists across reusable workers", async () => {
+  const words = ["ATT", "TAT", "TA", "AT", "VAT", "TAV"];
+  const lexicon = new Lexicon(words);
+  const request = {
+    board: emptyBoard(15),
+    rack: "AVV",
+    bag: 7,
+    template: {
+      ...template,
+      rackSize: 3,
+      tileCounts: Object.fromEntries(
+        Object.keys(template.tileCounts!).map((tile) => [
+          tile,
+          tile === "A"
+            ? 1
+            : tile === "V"
+              ? 2
+              : tile === "T"
+                ? 5
+                : tile === "E"
+                  ? 5
+                  : 0,
+        ]),
+      ),
+    },
+  };
+  const expected = optimizeExchange(
+    lexicon,
+    new RackBingoIndex(words),
+    request,
+  );
+  const workers: ComputingWorker[] = [];
+  const progress: number[] = [];
+  const result = await parallelOptimalExchange(
+    lexicon,
+    new RackBingoIndex(words),
+    request,
+    (completed) => progress.push(completed),
+    2,
+    () => {
+      const worker = new ComputingWorker();
+      workers.push(worker);
+      return worker as unknown as Worker;
+    },
+  );
+  assert.deepEqual(result, expected);
+  assert.equal(result.refinementDraws, 1200);
+  assert.deepEqual(
+    progress,
+    [...progress].sort((a, b) => a - b),
+  );
+  assert.equal(workers.length, 2);
+  assert.ok(
+    workers.every(
+      (worker) =>
+        worker.stopped &&
+        worker.requests.length > 1 &&
+        worker.requests.filter(({ dictionary }) => dictionary).length === 1,
+    ),
+  );
+});
+
+test("policy turn jobs return the serial result and skip work after the batch deadline", async () => {
+  const moves = choices.slice(0, 2);
+  const inputs = moves.map((move) => ({
+    position: { board: position.board, tiles: move.tiles },
+    template,
+    word: move.word,
+  }));
+  const completed = new Map();
+  await runCandidateJobs(
+    lexicon,
+    inputs.map((input, i) => ({
+      kind: "policy-turn",
+      key: String(i),
+      input,
+      deadline: i === 0 ? Infinity : performance.timeOrigin,
+    })),
+    (job, result) => {
+      assert.equal(result.kind, "policy-turn");
+      completed.set(job.key, result.policy);
+    },
+    2,
+    makeComputingWorker,
+  );
+  assert.deepEqual(
+    completed.get("0"),
+    analyzeOpponentPolicy(lexicon, inputs[0], { maxMs: 1250 }),
+  );
+  assert.ok(completed.has("1"));
+  assert.equal(completed.get("1"), undefined);
 });

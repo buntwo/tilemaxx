@@ -129,7 +129,7 @@ async function runHistograms(
       samples,
     })),
     async ({ move }, result) => {
-      if (result.kind === "error" || result.kind === "endgame")
+      if (result.kind !== "histogram" && result.kind !== "limit")
         throw new Error(
           result.kind === "error"
             ? result.message

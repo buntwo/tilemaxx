@@ -114,6 +114,7 @@ export class RackBingoIndex {
     template: BoardTemplate,
     moves: readonly Pick<Move, "leave">[],
     knownBagSize?: number,
+    random = Math.random,
   ): RackOdds {
     const { tiles, total, excess } = unseenTiles(position, template);
     const size = template.rackSize;
@@ -216,7 +217,7 @@ export class RackBingoIndex {
       Array<string>(count).fill(symbol),
     );
     const deals = Array.from({ length: SAMPLES }, () =>
-      sampleTiles(pool, maxDraw, Math.random),
+      sampleTiles(pool, maxDraw, random),
     );
     const memo = new Map<string, boolean>();
     try {
@@ -294,15 +295,15 @@ function canSpellRack(
   return walk(0, rack.length, available, counts[26]);
 }
 
-export function checkBoardBingo(
-  lexicon: Lexicon,
+export const BOARD_BINGO_BUDGET_MS = 8_000;
+
+export function prepareBoardBingo(
   position: Position,
   template: BoardTemplate,
-  candidates: readonly Move[],
+  candidateCount: number,
   bagSize: number,
-  progress: (checked: number, moveId: string, odds: BoardOdds) => void = () => {},
   random = Math.random,
-): BoardOddsResult {
+) {
   const { tiles, total, excess } = unseenTiles(position, template);
   const minimum = minimumBingoTiles(template);
   if (excess.length)
@@ -314,7 +315,7 @@ export function checkBoardBingo(
   ) {
     throw new Error("Check the number of tiles in the bag.");
   }
-  if (!candidates.length || candidates.length > BOARD_ODDS_LIMIT) {
+  if (!candidateCount || candidateCount > BOARD_ODDS_LIMIT) {
     throw new Error("Choose up to 20 moves to check.");
   }
   const pool = tiles.flatMap(({ symbol, count }) =>
@@ -324,83 +325,122 @@ export function checkBoardBingo(
   const deals = Array.from({ length: SAMPLES }, () =>
     sampleTiles(pool, maxDraw, random),
   );
-  const drawsBySize = new Map<number, string[]>();
-  const deadline = performance.now() + 8_000;
-  const byMove: Record<string, BoardOdds> = Object.create(null);
-  function canBingo(
-    prepared: ReturnType<typeof prepareSolver>,
-    rack: string,
-    until: number,
-  ) {
-    const maxMs = Math.min(SEARCH_LIMITS.maxMs, until - performance.now());
-    if (maxMs <= 0) throw new SearchLimitError();
-    return !!prepared.solve(rack, { maxMs }, { bingoOnly: true }).length;
-  }
-  for (const [index, move] of candidates.entries()) {
-    const size = Math.min(bagSize, template.rackSize - move.leave.length);
-    if (move.leave.length + size < minimum) {
-      byMove[move.id] = { chance: 0, exact: true };
-    } else {
-      // Let unused time carry forward while reserving time for later rows.
-      const now = performance.now();
-      if (now >= deadline) break;
-      const until = now + (deadline - now) / (candidates.length - index);
-      const prepared = prepareSolver(
-        lexicon,
-        placeTiles(position.board, move),
-        template,
-      );
-      if (size <= 2) {
-        try {
-          const start = performance.now();
-          const exactUntil =
-            start + Math.min(DRAW_TIMEOUT, (until - start) / 2);
-          let hits = 0;
-          let total = 0;
-          for (const { draw, weight } of weightedDraws(pool, size)) {
-            if (canBingo(prepared, move.leave + draw, exactUntil))
-              hits += weight;
-            total += weight;
-          }
-          byMove[move.id] = { chance: hits / total, exact: true };
-        } catch (error) {
-          if (!(error instanceof SearchLimitError)) throw error;
-        }
-      }
-      if (!byMove[move.id]) {
-        let draws = drawsBySize.get(size);
-        if (!draws) {
-          // Preserve sample order so a truncated run uses a prefix of the deals.
-          draws = deals.map((deal) => sortTiles(deal.slice(0, size)));
-          drawsBySize.set(size, draws);
-        }
-        const memo = new Map<string, boolean>();
-        let hits = 0;
-        let samples = 0;
-        try {
-          for (const draw of draws) {
-            let hit = memo.get(draw);
-            if (hit === undefined) {
-              hit = canBingo(prepared, move.leave + draw, until);
-              memo.set(draw, hit);
-            }
-            if (hit) hits++;
-            samples++;
-          }
-        } catch (error) {
-          if (!(error instanceof SearchLimitError)) throw error;
-        }
-        if (samples >= MIN_BOARD_SAMPLES)
-          byMove[move.id] = { chance: hits / samples, exact: false, samples };
-      }
+  const drawsBySize = new Map<
+    number,
+    {
+      sampled: string[];
+      exact?: ReturnType<typeof weightedDraws>;
     }
-    const odds = byMove[move.id];
-    if (odds) progress(Object.keys(byMove).length, move.id, odds);
-  }
-  return {
-    byMove,
-    checked: Object.keys(byMove).length,
-    total: candidates.length,
-    bagSize,
+  >();
+  return (move: Move) => {
+    const size = Math.min(bagSize, template.rackSize - move.leave.length);
+    if (move.leave.length + size < minimum) return;
+    let draws = drawsBySize.get(size);
+    if (!draws) {
+      draws = {
+        sampled: deals.map((deal) => sortTiles(deal.slice(0, size))),
+        exact: size <= 2 ? weightedDraws(pool, size) : undefined,
+      };
+      drawsBySize.set(size, draws);
+    }
+    return draws;
   };
+}
+
+type BoardBingoDraws = ReturnType<ReturnType<typeof prepareBoardBingo>>;
+
+export function checkBoardBingoMove(
+  lexicon: Lexicon,
+  board: Position["board"],
+  template: BoardTemplate,
+  move: Move,
+  draws: BoardBingoDraws,
+  until: number,
+): BoardOdds | undefined {
+  if (!draws) return { chance: 0, exact: true };
+  const prepared = prepareSolver(lexicon, placeTiles(board, move), template);
+  function canBingo(draw: string, deadline: number) {
+    const maxMs = Math.min(SEARCH_LIMITS.maxMs, deadline - performance.now());
+    if (maxMs <= 0) throw new SearchLimitError();
+    return !!prepared.solve(move.leave + draw, { maxMs }, { bingoOnly: true })
+      .length;
+  }
+  if (draws.exact) {
+    try {
+      const start = performance.now();
+      const exactUntil = start + Math.min(DRAW_TIMEOUT, (until - start) / 2);
+      let hits = 0;
+      let total = 0;
+      for (const { draw, weight } of draws.exact) {
+        if (canBingo(draw, exactUntil)) hits += weight;
+        total += weight;
+      }
+      return { chance: hits / total, exact: true };
+    } catch (error) {
+      if (!(error instanceof SearchLimitError)) throw error;
+    }
+  }
+  const memo = new Map<string, boolean>();
+  let hits = 0;
+  let samples = 0;
+  try {
+    for (const draw of draws.sampled) {
+      let hit = memo.get(draw);
+      if (hit === undefined) {
+        hit = canBingo(draw, until);
+        memo.set(draw, hit);
+      }
+      if (hit) hits++;
+      samples++;
+    }
+  } catch (error) {
+    if (!(error instanceof SearchLimitError)) throw error;
+  }
+  if (samples >= MIN_BOARD_SAMPLES)
+    return { chance: hits / samples, exact: false, samples };
+}
+
+export function checkBoardBingo(
+  lexicon: Lexicon,
+  position: Position,
+  template: BoardTemplate,
+  candidates: readonly Move[],
+  bagSize: number,
+  progress: (
+    checked: number,
+    moveId: string,
+    odds: BoardOdds,
+  ) => void = () => {},
+  random = Math.random,
+): BoardOddsResult {
+  const drawsFor = prepareBoardBingo(
+    position,
+    template,
+    candidates.length,
+    bagSize,
+    random,
+  );
+  const deadline = performance.now() + BOARD_BINGO_BUDGET_MS;
+  const byMove: Record<string, BoardOdds> = Object.create(null);
+  let checked = 0;
+  for (const [index, move] of candidates.entries()) {
+    const draws = drawsFor(move);
+    // Let unused time carry forward while reserving time for later rows.
+    const now = performance.now();
+    if (draws && now >= deadline) break;
+    const until = now + (deadline - now) / (candidates.length - index);
+    const odds = checkBoardBingoMove(
+      lexicon,
+      position.board,
+      template,
+      move,
+      draws,
+      until,
+    );
+    if (odds) {
+      byMove[move.id] = odds;
+      progress(++checked, move.id, odds);
+    }
+  }
+  return { byMove, checked, total: candidates.length, bagSize };
 }

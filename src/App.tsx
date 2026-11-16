@@ -68,6 +68,7 @@ import WorkspaceSettings, {
   useWorkspacePreferences,
 } from "./components/WorkspaceSettings";
 import { browserConcurrency, computeWorkerLimit } from "./compute-workers";
+import { ComputeWorkerLimit } from "./components/ComputeWorkerLimit";
 import Results from "./components/Results";
 import GamePicker from "./components/GamePicker";
 import {
@@ -215,14 +216,23 @@ function useMediaQuery(query: string) {
 }
 
 export default function App() {
+  const preferenceState = useWorkspacePreferences();
+  const concurrencyHint = browserConcurrency();
+  const workerLimit = computeWorkerLimit(preferenceState[0].singleComputeWorker, concurrencyHint);
   return (
     <GameCalculations>
-      <Tilemaxx />
+      <ComputeWorkerLimit.Provider value={workerLimit}>
+        <Tilemaxx preferenceState={preferenceState} concurrencyHint={concurrencyHint} workerLimit={workerLimit} />
+      </ComputeWorkerLimit.Provider>
     </GameCalculations>
   );
 }
 
-function Tilemaxx() {
+function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
+  preferenceState: ReturnType<typeof useWorkspacePreferences>;
+  concurrencyHint: number | undefined;
+  workerLimit: number;
+}) {
   const phoneLayout = useMediaQuery("(max-width: 650px)");
   const sidebarOverlay = useMediaQuery("(max-width: 800px)");
   const sidebarOpenButton = useRef<HTMLButtonElement>(null);
@@ -251,9 +261,7 @@ function Tilemaxx() {
     button.current?.focus({ preventScroll: true });
   }, [sidebarVisible]);
   const [theme, setTheme] = useState(saved("tilewise:theme", "system"));
-  const [preferences, setPreferences] = useWorkspacePreferences();
-  const concurrencyHint = browserConcurrency();
-  const workerLimit = computeWorkerLimit(preferences.singleComputeWorker, concurrencyHint);
+  const [preferences, setPreferences] = preferenceState;
   const [movePreview, setPreview] = useState<{
     move: Move;
     analysis: boolean;
@@ -1333,7 +1341,7 @@ function Tilemaxx() {
                   boardOddsProgress={solver.boardOddsProgress}
                   boardOddsError={solver.boardOddsError}
                   onBoardOdds={(candidates, bagSize) =>
-                    solver.runBoardOdds(game, candidates, bagSize)
+                    solver.runBoardOdds(game, candidates, bagSize, workerLimit)
                   }
                   onCancelBoardOdds={solver.cancelBoardOdds}
                 />

@@ -332,7 +332,7 @@ export function useSolver(positionKey: string) {
     }
   }
 
-  function runBoardOdds(game: Game, candidates: Move[], bagSize: number) {
+  function runBoardOdds(game: Game, candidates: Move[], bagSize: number, workerLimit: number) {
     if (
       solving.current !== undefined ||
       oddsWorker.current ||
@@ -391,6 +391,7 @@ export function useSolver(positionKey: string) {
       active.postMessage({
         id,
         kind: "board-odds",
+        workerLimit,
         dictionaryId,
         board,
         rack,

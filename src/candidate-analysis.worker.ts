@@ -1,13 +1,14 @@
 import { Lexicon } from "../shared/lexicon";
 import {
-  analyzeCandidate,
+  createCandidateAnalyzer,
   type CandidateRequest,
 } from "./candidate-analysis-jobs";
 
-let lexicon: Lexicon;
+let analyze: ReturnType<typeof createCandidateAnalyzer>;
 self.onmessage = ({
   data: { job, dictionary },
 }: MessageEvent<CandidateRequest>) => {
-  if (dictionary) lexicon = Lexicon.fromIndex(dictionary);
-  self.postMessage(analyzeCandidate(lexicon, job));
+  if (dictionary)
+    analyze = createCandidateAnalyzer(Lexicon.fromIndex(dictionary));
+  self.postMessage(analyze(job));
 };

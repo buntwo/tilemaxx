@@ -24,6 +24,7 @@ export type SolverRequest =
       kind: "board-odds";
       candidates: Move[];
       bagSize: number;
+      workerLimit?: number;
     })
   | (PositionRequest & EndgameSettings & {
       kind: "endgame";

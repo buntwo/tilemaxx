@@ -5,7 +5,7 @@
 | Name | Where to find it |
 | --- | --- |
 | **Sidebar** | The profile picker, game navigation, settings, and UI guide. Use the three-line **Open sidebar** button beside the page title or **Collapse sidebar** in the sidebar’s upper-right corner. |
-| **Settings** | The gear below the theme controls, beside the version number. Control rack highlighting, animations, and automatic reloads when the server has a newer version. **Hardware info** shows the browser concurrency hint and Tilemaxx’s compute worker limit. **Limit to one compute worker** applies to opponent reply histograms and automatic exact endgame lines. These choices apply to this browser only. |
+| **Settings** | The gear below the theme controls, beside the version number. Control rack highlighting, animations, and automatic reloads when the server has a newer version. **Hardware info** shows the browser concurrency hint and Tilemaxx’s compute worker limit. **Limit to one compute worker** applies to opponent reply histograms, automatic exact endgame lines, board-based bingo odds, Optimal Exchange, and policy timelines. These choices apply to this browser only. |
 | **Update available** | The arrow beside the version number appears when automatic updates are off and the server has a newer version. |
 | **Game header** | The game name, tracked score, and Game options at the top. Open the name to use the **Game picker** and its opponent filter. |
 | **Game options** | The menu beside the game name. It includes game details, duplication, **End game**, and archiving. When the board and move list are stacked, it also holds Board help, Import screenshot, and Move history. |
