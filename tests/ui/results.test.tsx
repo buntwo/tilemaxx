@@ -548,6 +548,7 @@ test("a completed reply line replaces the immediate warning and replays each tur
   await user.click(rows()[0]);
   const details = within(screen.getByRole("region", { name: "Reply after CATS" }));
   expect(details.getByText("They can take the lead by 21")).toBeTruthy();
+  expect(screen.queryByText(/\b(?:ply|plies)\b/)).toBeNull();
   await user.click(details.getByRole("button", { name: "Calculate optimal endgame line" }));
   expect(requests.at(-1)?.kind).toBe("reply-line");
   act(() =>
@@ -564,6 +565,10 @@ test("a completed reply line replaces the immediate warning and replays each tur
     }),
   );
   expect(details.queryByText(/They can take the lead|Strongest immediate reply/)).toBeNull();
+  expect((await screen.findByText("5 plies (3)")).getAttribute("title")).toBe(
+    "5 plies · 3 plays · 2 passes",
+  );
+  expect(details.getByText("5 plies · 3 plays · 2 passes")).toBeTruthy();
   expect(details.getByText("Optimal final score")).toBeTruthy();
   expect(details.getByText("143")).toBeTruthy();
   expect(details.getByText("139")).toBeTruthy();
@@ -759,6 +764,8 @@ test("endgame rows rank exact swings first and mark the boundary as more lines f
   expect(divider().parentElement?.previousElementSibling).toBe(results[0].parentElement);
   const updated = within(results[2]).getByTitle("Exact endgame swing +10");
   expect(updated.querySelector("strong")?.textContent).toBe("+10");
+  expect(within(updated).getByText("1 ply")).toBeTruthy();
+  expect(within(results[1]).queryByText(/\b(?:ply|plies)\b/)).toBeNull();
   expect(within(updated).getByText("Win by 15").classList.contains("value-good")).toBe(true);
   expect(within(results[1]).getByTitle("Estimated endgame swing +12").querySelector("strong")?.textContent).toBe("≈+12");
   const words = () => rows().map((row) => row.getAttribute("aria-label")?.split(",")[0]);
