@@ -828,6 +828,7 @@ label + label {
   color: #ac7c40;
 }
 .workspace-settings-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -844,6 +845,27 @@ label + label {
 .app-update-icon {
   display: inline-flex;
   color: var(--primary);
+  cursor: help;
+}
+.app-update-tooltip {
+  display: none;
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: 0;
+  bottom: calc(100% + 4px);
+  width: max-content;
+  max-width: 148px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+  white-space: normal;
+  pointer-events: none;
+}
+.app-update-icon:is(:hover, :focus) .app-update-tooltip {
+  display: block;
 }
 .theme-switch {
   display: flex;
