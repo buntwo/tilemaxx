@@ -23,7 +23,7 @@ import {
   type Game,
 } from "../../shared/model";
 import { Lexicon } from "../../shared/lexicon";
-import { solve, solvePosition } from "../../shared/solver";
+import { solve, solvePositionWithBaseline } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
 import { replyEndgameLine, type ReplyDistribution, type ReplyRequest } from "../../shared/reply-analysis";
 import { MoveResultIndex } from "../../shared/move-results";
@@ -119,7 +119,7 @@ class SolverWorker {
       return;
     }
     if (request.kind !== "solve") return;
-    const moves = solvePosition(
+    const { moves, topScore } = solvePositionWithBaseline(
       new Lexicon(["AT", "CAT", "CATS", "ACT", "DOG", "RAT", "ART", "TAR"]),
       request,
       request.template,
@@ -131,7 +131,7 @@ class SolverWorker {
         data: {
           kind: "moves",
           id: request.id,
-          results: result.summary(request.id),
+          results: result.summary(request.id, topScore),
           warnings: [],
           stages: { moves: 1, indexing: 0.5 },
           exchange: this.exchangeRequest(request),
@@ -3415,6 +3415,32 @@ test("delete game requires confirmation, cancel retains it, deleting last game s
   expect(screen.getByRole("button", { name: "Create a game" })).toBeTruthy();
 });
 
+test.each([
+  { mark: "exclude", tile: 4, keys: "{ArrowDown}", word: "CAT" },
+  { mark: "require", tile: 5, keys: "{ArrowDown}{ArrowDown}", word: "DOG" },
+])("points delta uses the unmarked rack when we $mark a tile", async ({ tile, keys, word }) => {
+  const user = await start();
+  await typeRack(user, "CATSDOG");
+  const find = () => screen.getAllByRole("button", { name: "Find moves" })[0];
+  const rows = (word: string) => screen.findAllByRole("button", {
+    name: new RegExp(`^${word}, `),
+  });
+  const score = (row: HTMLElement) => Number(row.querySelector(".result-score strong")?.textContent);
+  await user.click(find());
+  const top = score((await rows("CATS"))[0]);
+
+  await user.click(rackTile(tile));
+  await user.keyboard(keys);
+  await user.click(find());
+  const [move] = await rows(word);
+  expect(screen.queryByRole("button", { name: /^CATS, / })).toBeNull();
+  const sacrificed = top - score(move);
+  expect(sacrificed).toBeGreaterThan(0);
+  const delta = move.querySelector(".result-score-delta");
+  expect(delta?.textContent).toBe(`−${sacrificed}`);
+  expect(delta?.getAttribute("title")).toBe(`Best score with rack marks cleared is ${top} points`);
+});
+
 test("exclude rack tiles with Down or taps, keep the unseen count, and retain held tiles when playing", async () => {
   const user = await start();
   await typeRack(user, "CATS");
@@ -3471,6 +3497,10 @@ test("Down cycles rack marks, Require tiles filters moves, and Undo restores bot
   await waitFor(() => expect(current().rack).toBe("....Q"));
   expect(current().excludedRackSlots).toBeUndefined();
   expect(current().requiredRackSlots).toBeUndefined();
+  await waitFor(() => {
+    expect(remote.games[0].rack).toBe("....Q");
+    expect(remote.games[0].requiredRackSlots).toBeUndefined();
+  });
   await user.click(screen.getByRole("button", { name: "Undo" }));
   expect(current().rack).toBe("CATSQ");
   expect(current().excludedRackSlots).toEqual([4]);

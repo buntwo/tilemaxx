@@ -27,6 +27,8 @@ export interface MoveResults {
   searchId: number;
   total: number;
   bingoCount: number;
+  // The best score with rack marks cleared. Null means the reference search timed out or hit a work limit.
+  topScore: number | null;
   head: Move[];
 }
 
@@ -215,11 +217,15 @@ export class MoveResultIndex {
     return bingoCount;
   }
 
-  summary(searchId: number): MoveResults {
+  summary(
+    searchId: number,
+    topScore: number | null = this.moves[0]?.score ?? 0,
+  ): MoveResults {
     return {
       searchId,
       total: this.moves.length,
       bingoCount: this.bingoCount,
+      topScore,
       head: this.moves.slice(0, MOVE_HEAD_SIZE),
     };
   }

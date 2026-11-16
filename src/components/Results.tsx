@@ -422,7 +422,17 @@ export default function Results({
     analysisGame && endgame
       ? scoreTotalsAtPosition(analysisGame)
       : undefined;
-  const topScore = resultSet?.head[0]?.score ?? 0;
+  const topScore = resultSet ? resultSet.topScore : null;
+  const rackMarked = !!(
+    analysisGame?.excludedRackSlots?.length ||
+    analysisGame?.requiredRackSlots?.length
+  );
+  const scoreDeltaHint =
+    topScore === null
+      ? "Best score with rack marks cleared exceeded the search limit"
+      : rackMarked
+        ? `Best score with rack marks cleared is ${topScore} points`
+        : undefined;
   const headScoreRanks = useMemo(
     () => Object.fromEntries(resultSet?.head.map(({ id }, index) => [id, index + 1]) ?? []),
     [resultSet],
@@ -1026,7 +1036,13 @@ export default function Results({
                   targetIds.has(m.id) &&
                   replyAnalysis.pending &&
                   !(m.id in (replyAnalysis.results ?? {}));
-                const sacrifice = topScore - m.score;
+                const sacrifice = topScore === null ? 0 : topScore - m.score;
+                const sacrificeLabel =
+                  topScore === null
+                    ? ", top score unavailable"
+                    : sacrifice
+                      ? `, ${sacrifice} below top score${rackMarked ? " with rack marks cleared" : ""}`
+                      : "";
                 const short = shortlistOnly
                   ? shortlistById.get(m.id)
                   : undefined;
@@ -1071,7 +1087,7 @@ export default function Results({
                         !selected &&
                         candidates.length >= ANALYSIS_LIMIT
                       }
-                      aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrifice ? `, ${sacrifice} below top score` : ""}${adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : ""}${scoreRankLabel ? `, ${scoreRankLabel}` : ""}`}
+                      aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrificeLabel}${adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : ""}${scoreRankLabel ? `, ${scoreRankLabel}` : ""}`}
                       onPointerDown={(e) => {
                         pointer.current = e.pointerType;
                       }}
@@ -1163,6 +1179,7 @@ export default function Results({
                         <strong>{m.score}</strong>
                         <small
                           className="result-score-delta"
+                          title={scoreDeltaHint}
                           data-loss={
                             sacrifice >= 6
                               ? "high"
@@ -1173,7 +1190,7 @@ export default function Results({
                                   : "none"
                           }
                         >
-                          {signedPoints(-sacrifice)}
+                          {topScore === null ? "—" : signedPoints(-sacrifice)}
                         </small>
                         {adjustedLabel !== undefined && (
                           <small className="result-score-adjusted">Adj. {adjustedLabel}</small>
