@@ -643,8 +643,27 @@ test("the game index backfills old SQLite saves and leaves full history on the d
       .prepare("UPDATE games SET revision=?,data=? WHERE id=?")
       .run(next.revision, JSON.stringify(next), next.id);
     assert.deepEqual((await getIndex()).games, [summarizeGame(next)]);
-    assert.equal(store.saveGame({ ...next, name: "Saved" })?.revision, 4);
+    const saved = store.saveGame({ ...next, name: "Saved" })!;
+    assert.equal(saved.revision, 4);
     assert.equal((await getIndex()).games[0].name, "Saved");
+    assert.equal((await getIndex()).games[0].endedOn, undefined);
+    const archiveWithDate = (endedOn: string) =>
+      archiveGame({
+        ...saved,
+        scoring: { ...emptyScoring(), end: { manual: true, endedOn } },
+      });
+    const saveArchive = (endedOn: string) =>
+      fetch(base + "/games/old", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(archiveWithDate(endedOn)),
+      });
+    assert.equal((await saveArchive("2026-11-31")).status, 400);
+    const endedOn = "2026-11-16";
+    assert.equal((await saveArchive(endedOn)).status, 200);
+    const archived: Game = await (await fetch(base + "/games/old")).json();
+    assert.equal(archived.archivedState?.scoring?.end?.endedOn, endedOn);
+    assert.equal((await getIndex()).games[0].endedOn, endedOn);
     store.deleteGame(next.id);
     assert.deepEqual((await getIndex()).games, []);
     assert.equal((await fetch(base + "/games/old")).status, 404);

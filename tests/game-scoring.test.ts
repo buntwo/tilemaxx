@@ -26,6 +26,7 @@ import { Lexicon } from "../shared/lexicon";
 import {
   archiveGame,
   emptyBoard,
+  localDate,
   redo,
   remember,
   restoreArchivedGame,
@@ -56,7 +57,9 @@ function fixture(): Game {
   };
 }
 
-test("manual game results preserve board history and round-trip through saves, undo, and archives", () => {
+test("manual game results preserve the end date through saves, undo, redo, and archives", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date(2026, 10, 16, 20) });
+  const endedOn = "2026-11-16";
   const base = fixture();
   const game = {
     ...base,
@@ -82,8 +85,11 @@ test("manual game results preserve board history and round-trip through saves, u
   const scores = { you: -3, opponent: 14 };
   const ended = endGameManually(game, { manual: true, scores, outcome: "win" });
   const saved = gameSchema.parse(JSON.parse(JSON.stringify(ended)));
+  assert.equal(saved.scoring?.end?.endedOn, endedOn);
   assert.deepEqual(gameScoreTotals(saved.scoring), scores);
-  assert.deepEqual(summarizeGame(archiveGame(saved)).score, {
+  const archive = summarizeGame(archiveGame(saved));
+  assert.equal(archive.endedOn, endedOn);
+  assert.deepEqual(archive.score, {
     ...scores,
     outcome: "win",
   });
@@ -91,14 +97,21 @@ test("manual game results preserve board history and round-trip through saves, u
   assert.equal(saved.rack, "Q");
   const resumed = undo(saved);
   assert.deepEqual(resumed.scoring, game.scoring);
+  assert.equal(summarizeGame(resumed).endedOn, undefined);
+  t.mock.timers.setTime(new Date(2026, 10, 17, 8).getTime());
   assert.deepEqual(redo(resumed).scoring?.end, ended.scoring?.end);
   assert.deepEqual(trackedMoveHistory(saved), trackedMoveHistory(game));
   const unscored = endGameManually(
     { ...base, trackScores: false },
     { manual: true },
   );
-  assert.deepEqual(unscored.scoring?.end, { manual: true });
-  assert.equal(summarizeGame(archiveGame(unscored)).score, null);
+  assert.deepEqual(unscored.scoring?.end, {
+    manual: true,
+    endedOn: "2026-11-17",
+  });
+  const unscoredArchive = summarizeGame(archiveGame(unscored));
+  assert.equal(unscoredArchive.score, null);
+  assert.equal(unscoredArchive.endedOn, "2026-11-17");
 });
 
 test("recording a pending turn folds separate board edits into one scored move after saving", () => {
@@ -232,7 +245,11 @@ test("entering an opponent rack-out records their play and finish in one undo st
   const board = [...partial];
   board[start + 3] = "S";
   const finished = history.apply(entered, board, "enter");
-  assert.deepEqual(finished.scoring?.end, { out: "opponent", rackPoints: 10 });
+  assert.deepEqual(finished.scoring?.end, {
+    out: "opponent",
+    rackPoints: 10,
+    endedOn: localDate(),
+  });
   assert.deepEqual(gameScoreTotals(finished.scoring), {
     you: 10,
     opponent: 26,
@@ -291,7 +308,11 @@ test("opponent rack-out waits for complete valid counts and a scoreable play", (
   assert.equal(invalid.scoring?.end, undefined);
   assert.equal(pendingOpponentPlay(invalid), null);
   const finished = recordOpponentRackOut({ ...entered, rack: "Q" });
-  assert.deepEqual(finished.scoring?.end, { out: "opponent", rackPoints: 10 });
+  assert.deepEqual(finished.scoring?.end, {
+    out: "opponent",
+    rackPoints: 10,
+    endedOn: localDate(),
+  });
   assert.equal(recordOpponentRackOut(finished), finished);
   assert.equal(finished.past.length, 1);
   const restored = undo(finished);
@@ -310,7 +331,11 @@ test("playing out uses the actual remaining rack and respects a known nonempty b
   ).find((move) => move.tiles[0].index === game.template.start + 3)!;
   assert.ok(move);
   const finished = playTrackedMove(game, move, 0);
-  assert.deepEqual(finished.scoring?.end, { out: "you", rackPoints: 10 });
+  assert.deepEqual(finished.scoring?.end, {
+    out: "you",
+    rackPoints: 10,
+    endedOn: localDate(),
+  });
   assert.deepEqual(gameScoreTotals(finished.scoring), { you: 36, opponent: 0 });
   assert.equal(undo(finished).scoring?.end, undefined);
   assert.throws(() => playTrackedMove(finished, move), /game has ended/);

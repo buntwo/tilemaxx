@@ -153,18 +153,23 @@ export default function OptimalReplyDetails({
                   >
                     {entry.kind === "turn" ? (
                       <>
-                        <strong className="optimal-reply-turn-label">
-                          {entry.move ? (
-                            <MoveWord move={entry.move} rules={game.template} />
-                          ) : (
-                            "Pass"
-                          )}
-                        </strong>
-                        <small className="optimal-reply-turn-note">
-                          {entry.player === "you" ? "You" : "Opponent"}
-                          {entry.move &&
-                            ` · ${coordinate(entry.move.row * size + entry.move.col, size)} ${entry.move.direction}`}
-                        </small>
+                        <span className="optimal-reply-turn-label">
+                          <strong>
+                            {entry.move ? (
+                              <MoveWord
+                                move={entry.move}
+                                rules={game.template}
+                              />
+                            ) : (
+                              "Pass"
+                            )}
+                          </strong>
+                          <small>
+                            {entry.player === "you" ? "You" : "Opponent"}
+                            {entry.move &&
+                              ` · ${coordinate(entry.move.row * size + entry.move.col, size)} ${entry.move.direction}`}
+                          </small>
+                        </span>
                         <span
                           className="optimal-reply-leave"
                           role="img"

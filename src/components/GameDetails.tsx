@@ -18,15 +18,19 @@ export function FullMoveHistoryIcon() {
 
 export function GameMetadata({
   game,
+  endedOn,
 }: {
   game: Pick<Game, "platform" | "startedOn">;
+  endedOn?: string;
 }) {
+  const date = endedOn ?? game.startedOn;
   return (
     <>
       {game.platform && <>{game.platform} · </>}
-      {game.startedOn ? (
-        <time dateTime={game.startedOn}>
-          {new Date(game.startedOn + "T00:00:00").toLocaleDateString(
+      {date ? (
+        <time dateTime={date}>
+          {endedOn && "Ended "}
+          {new Date(date + "T00:00:00").toLocaleDateString(
             undefined,
             {
               month: "short",

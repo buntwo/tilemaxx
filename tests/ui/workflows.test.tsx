@@ -2214,7 +2214,10 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
     ...game(),
     id: "finished",
     name: "Finished opponent",
-    scoring: { ...scoring, end: { out: "you", rackPoints: 4 } },
+    scoring: {
+      ...scoring,
+      end: { out: "you", rackPoints: 4, endedOn: "2026-11-16" },
+    },
   });
   remote.games.push(
     { ...finished, scoring: { ...scoring, you: player(350) } },
@@ -2229,6 +2232,7 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
   const badge = (name: string) => within(row(name)).getByRole("group", { name: "Tracked score" });
   expect(badge("Finished opponent").textContent).toBe("304–276");
   expect(badge("Finished opponent").getAttribute("data-outcome")).toBe("win");
+  expect(row("Finished opponent").querySelector("time")?.dateTime).toBe("2026-11-16");
   expect(row("Finished opponent").getAttribute("aria-description")).toContain("You won");
   expect(badge("Unfinished opponent").textContent).toBe("300–280");
   expect(badge("Unfinished opponent").getAttribute("data-outcome")).toBe("archived");
@@ -2241,21 +2245,26 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
   expect(scoreDelta()?.className).toBe("game-score-delta");
 });
 
-test("archived games filter by opponent while honoring the selected sort", async () => {
+test("archived games sort by end date with a start-date fallback and can filter by opponent", async () => {
   remote.games.push(
     {
       ...game(),
       id: "recent",
       name: "Sam Cooke",
       archived: true,
-      startedOn: "2026-05-12",
+      startedOn: "2026-04-01",
+      scoring: {
+        you: { points: 0, moves: 0, best: 0, bingos: 0 },
+        opponent: { points: 0, moves: 0, best: 0, bingos: 0 },
+        end: { manual: true, endedOn: "2026-06-05" },
+      },
     },
     {
       ...game(),
       id: "older",
       name: "Alex Sampson",
       archived: true,
-      startedOn: "2026-04-20",
+      startedOn: "2026-05-12",
     },
     {
       ...game(),
@@ -2279,6 +2288,8 @@ test("archived games filter by opponent while honoring the selected sort", async
       .map((row) => row.querySelector("strong")?.textContent);
 
   expect(count.textContent).toBe("3");
+  expect(names()).toEqual(["Sam Cooke", "Morgan", "Alex Sampson"]);
+  expect(archive.getByText("Ended Jun 5, 2026")).toBeTruthy();
   await user.type(search, " sAm ");
   expect(names()).toEqual(["Sam Cooke", "Alex Sampson"]);
   expect(count.textContent).toBe("2 / 3");
@@ -2810,7 +2821,11 @@ test("entering the opponent's final tile updates the score and ends the game on 
   expect(screen.queryByRole("button", { name: "Find moves" })).toBeNull();
   expect(current().trackedMoves?.at(-1)).toMatchObject({ word: "CATS", player: "opponent", score: 6 });
   await act(() => store.flush());
-  expect(remote.games[0].scoring?.end).toEqual({ out: "opponent", rackPoints: 10 });
+  expect(remote.games[0].scoring?.end).toEqual({
+    out: "opponent",
+    rackPoints: 10,
+    endedOn: localDate(),
+  });
   await user.click(cell("Undo"));
   expect(current().board[115]).toBe("");
   expect(scoreTotals()).toBe("20–10");
@@ -2872,6 +2887,7 @@ test("end game defaults to deductions and archiving with both settings reversibl
     manual: true,
     scores: { you: 20, opponent: 23 },
     outcome: "win",
+    endedOn: localDate(),
   });
   expect(remote.games[0].archived).toBe(false);
   await user.click(cell("Undo"));
@@ -2891,7 +2907,9 @@ test("end game defaults to deductions and archiving with both settings reversibl
   expect(remote.games[0]).toMatchObject({
     archived: true,
     archivedState: {
-      scoring: { end: { manual: true, scores: { you: 30, opponent: 24 } } },
+      scoring: {
+        end: { manual: true, scores: { you: 30, opponent: 24 }, endedOn: localDate() },
+      },
     },
   });
 });

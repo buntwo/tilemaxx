@@ -6,6 +6,7 @@ import {
   coordinate,
   isBingo,
   letterBonuses,
+  localDate,
   remember,
   restoreArchivedGame,
   trackedMoveHistory,
@@ -642,8 +643,10 @@ function rackOutResult(game: Game, out: Player): GameScoring["end"] {
 }
 
 function opponentRackOut(game: Game) {
-  if (game.scoring?.pendingBase && canRecordRackOut(game))
-    return rackOutResult(game, "opponent");
+  if (game.scoring?.pendingBase && canRecordRackOut(game)) {
+    const end = rackOutResult(game, "opponent");
+    if (end) return { ...end, endedOn: localDate() };
+  }
 }
 
 export function recordOpponentRackOut(game: Game) {
@@ -819,7 +822,7 @@ export function endGameManually(game: Game, result: ManualGameEnd): Game {
     scoring: {
       ...(recorded.scoring ?? emptyScoring(isImportedPosition(recorded))),
       pendingBase: undefined,
-      end: result,
+      end: { ...result, endedOn: localDate() },
     },
   };
 }
@@ -854,7 +857,8 @@ export function playTrackedMove(
   });
   if (canRecordRackOut(previous) && !rackLetters(result.rack) && !bagSize) {
     // With an empty bag, every unseen tile is on the opponent’s rack.
-    scoring.end = rackOutResult(result, "you");
+    const end = rackOutResult(result, "you");
+    if (end) scoring.end = { ...end, endedOn: localDate() };
   }
   return {
     ...result,
@@ -874,7 +878,10 @@ function recoverFinishedPosition(game: Game): Game {
   if (scoring.pendingBase) {
     if (game.future.length) return game;
     const active = game.archived ? { ...game, archived: false } : game;
-    const finished = recordOpponentRackOut(active);
+    const end = rackOutResult(active, "opponent");
+    if (!end) return game;
+    // A migration can recover the result without knowing when it happened.
+    const finished = recordOpponentPlay(active, end);
     return finished === active
       ? game
       : { ...finished, archived: game.archived };

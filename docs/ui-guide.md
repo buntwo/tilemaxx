@@ -48,7 +48,7 @@
 
 | Name | Where to find it |
 | --- | --- |
-| **Archived games** | Saved games moved out of the active game list, with filters and tracked scores. |
+| **Archived games** | Saved games moved out of the active game list, with filters and tracked scores. The default sort shows the newest end dates first and uses the start date when no end date was recorded. |
 | **Board studio** | The board template library. The **board editor** sets board size, premium squares, and tile counts. |
 | **Screenshot import** | The dialog that reads a board from a picture. The **crop controls** set the grid bounds. **Premium review** checks special squares, including **Use opening play scores** when available. |
 | **Word lists** | The dictionary manager in the sidebar. Each game’s selected dictionary is in the Game header. |
