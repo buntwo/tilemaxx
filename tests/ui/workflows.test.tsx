@@ -2569,21 +2569,55 @@ test("word lists confirm removal, display a conflict and update the game selecto
   expect((picker as HTMLSelectElement).value).toBe("test");
 });
 
-test.each([false, true])("the workspace menu opens the illustrated guide (phone %s)", async (phone) => {
+test.each([1320, 760, 390])("the sidebar collapses and reopens at %ipx", async (width) => {
+  const overlay = width <= 800;
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(max-width: 650px)" ? phone : query === "(min-width: 1000px)" && !phone,
+    matches:
+      (query === "(max-width: 800px)" && overlay) ||
+      (query === "(max-width: 650px)" && width <= 650) ||
+      (query === "(min-width: 1000px)" && width >= 1000),
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const user = await start();
+  const sidebar = () => screen.queryByRole("complementary", { name: "Sidebar" });
+  const open = () => screen.getByRole("button", { name: "Open sidebar" });
+  const collapse = () => within(sidebar()!).getByRole("button", { name: "Collapse sidebar" });
+  if (overlay) {
+    expect(sidebar()).toBeNull();
+    await user.click(open());
+    expect(open().getAttribute("aria-expanded")).toBe("true");
+    expect(document.activeElement).toBe(collapse());
+  }
+  await user.click(collapse());
+  expect(sidebar()).toBeNull();
+  expect(document.activeElement).toBe(open());
+  expect(open().getAttribute("aria-expanded")).toBe("false");
+  await user.keyboard("{Enter}");
+  expect(sidebar()?.id).toBe("tilemaxx-sidebar");
+  expect(document.activeElement).toBe(collapse());
+  if (overlay) {
+    await user.keyboard("{Escape}");
+    expect(sidebar()).toBeNull();
+    expect(document.activeElement).toBe(open());
+  }
+});
+
+test.each([false, true])("the sidebar opens the illustrated guide (phone %s)", async (phone) => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: phone ? ["(max-width: 650px)", "(max-width: 800px)"].includes(query) : query === "(min-width: 1000px)",
     addEventListener() {},
     removeEventListener() {},
   }));
   const user = await start();
   if (phone)
-    await user.click(screen.getByRole("button", { name: "Open workspace menu" }));
-  const menu = within(screen.getByRole("complementary", { name: "Workspace menu" }));
+    await user.click(screen.getByRole("button", { name: "Open sidebar" }));
+  const menu = within(screen.getByRole("complementary", { name: "Sidebar" }));
   await user.click(menu.getByRole("button", { name: "UI guide" }));
 
   const guide = within(screen.getByRole("dialog", { name: "UI guide" }));
   expect(guide.getByRole("img").getAttribute("alt")).toMatch(
-    phone ? /selected JILT/ : /workspace menu, board, rack/,
+    phone ? /selected JILT/ : /sidebar, board, rack/,
   );
   await user.click(guide.getByRole("button", { name: "Possible moves" }));
   expect(guide.getByRole("img", { name: /Reply after JANTY/ })).toBeTruthy();
@@ -2607,13 +2641,13 @@ test.each([false, true])("the workspace menu opens the illustrated guide (phone 
 
 test("the phone layout keeps settings, the build version, board help and move filtering accessible", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(max-width: 650px)",
+    matches: ["(max-width: 650px)", "(max-width: 800px)"].includes(query),
     addEventListener() {},
     removeEventListener() {},
   }));
   const user = await start();
   const main = within(screen.getByRole("main"));
-  const menu = main.getByRole("button", { name: "Open workspace menu" });
+  const menu = main.getByRole("button", { name: "Open sidebar" });
   expect(menu.closest(".game-heading")).toBeTruthy();
   expect(document.querySelector(".breadcrumb")).toBeNull();
   expect(main.queryByRole("button", { name: "dark theme" })).toBeNull();
@@ -3319,7 +3353,7 @@ test("workspace settings keep board previews visible with plain rack tiles and p
   await screen.findByRole("heading", { name: /First game/ });
   const openSettings = () =>
     user.click(
-      within(screen.getByRole("complementary", { name: "Workspace menu" }))
+      within(screen.getByRole("complementary", { name: "Sidebar" }))
         .getByRole("button", { name: "Settings" }),
     );
   const dialog = () => within(screen.getByRole("dialog", { name: "Settings" }));

@@ -23,7 +23,7 @@
   <a href="docs/screenshots/reply-heatmap.webp"><img src="docs/screenshots/reply-heatmap.webp" width="326" alt="Opponent reply heatmap after REALIZED, with example replies for a selected square."></a>
 </p>
 
-Open **UI guide** from the Workspace menu for annotated screenshots or read the [UI guide](docs/ui-guide.md).
+Open **UI guide** from the sidebar for annotated screenshots or read the [UI guide](docs/ui-guide.md).
 
 <details>
 <summary>Board, rack, and game controls</summary>

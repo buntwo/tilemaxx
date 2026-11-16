@@ -4,7 +4,7 @@
 
 | Name | Where to find it |
 | --- | --- |
-| **Workspace menu** | The desktop sidebar or the menu button on a phone. It contains the profile picker, My games, Archived games, Board studio, Word lists, UI guide, and theme controls. |
+| **Sidebar** | The profile picker, game navigation, settings, and UI guide. Use **Collapse sidebar** in its upper-right corner and **Open sidebar** beside the page title or breadcrumb. |
 | **Settings** | The gear below the theme controls, beside the version number. Control rack highlighting, animations, and automatic reloads when the server has a newer version. These choices apply to this browser only. |
 | **Update available** | The arrow beside the version number appears when automatic updates are off and the server has a newer version. |
 | **Game header** | The game name, tracked score, and Game options at the top. Open the name to use the **Game picker** and its opponent filter. |
@@ -51,6 +51,6 @@
 | **Archived games** | Saved games moved out of the active game list, with filters and tracked scores. |
 | **Board studio** | The board template library. The **board editor** sets board size, premium squares, and tile counts. |
 | **Screenshot import** | The dialog that reads a board from a picture. The **crop controls** set the grid bounds. **Premium review** checks special squares, including **Use opening play scores** when available. |
-| **Word lists** | The dictionary manager. Each game’s selected dictionary is in the Game header or Workspace menu, depending on the layout. |
+| **Word lists** | The dictionary manager in the sidebar. Each game’s selected dictionary is in the Game header. |
 
 Green marks a favorable result or change for you. Red marks an unfavorable one. The comparison labels, signs, and lead or loss text carry the same meaning. Ties, reference values, and counts such as rack size and sample size use neutral styling. Gold marks bingos.

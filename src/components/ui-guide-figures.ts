@@ -22,12 +22,12 @@ export const guideFigures: GuideFigure[] = [
     src: workspace,
     width: 1440,
     height: 870,
-    alt: "Practice game with the workspace menu, board, rack, and possible moves visible together.",
+    alt: "Practice game with the sidebar, board, rack, and possible moves visible together.",
     labels: [
       {
         x: 205,
         y: 201,
-        name: "Workspace menu",
+        name: "Sidebar",
         hint: "Open other games, settings, or this guide.",
       },
       {
@@ -85,8 +85,8 @@ export const guideFigures: GuideFigure[] = [
       {
         x: 55,
         y: 50,
-        name: "Workspace menu",
-        hint: "Tap the menu icon to find the UI guide and other screens.",
+        name: "Sidebar",
+        hint: "Tap Open sidebar to find the UI guide and other screens.",
       },
       {
         x: 155,

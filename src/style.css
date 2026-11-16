@@ -283,6 +283,16 @@ label + label {
   inset: 0 auto 0 0;
   z-index: 30;
 }
+.sidebar[hidden] {
+  display: none;
+}
+.sidebar-collapse {
+  position: absolute;
+  top: 1px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+}
 .brand {
   --brand-highlight: var(--primary);
   display: flex;
@@ -779,6 +789,10 @@ label + label {
   width: calc(100% - 220px);
   padding: 0 38px;
   max-width: 1750px;
+}
+.sidebar-collapsed .main-content {
+  margin-left: 0;
+  width: 100%;
 }
 .topbar {
   height: 73px;
@@ -2586,7 +2600,7 @@ label + label {
 }
 .game-id .icon-button { flex-shrink: 0; }
 .menu-button {
-  display: none;
+  flex-shrink: 0;
 }
 .banner {
   padding: 13px 15px;
@@ -3309,13 +3323,15 @@ label + label {
 }
 @media (max-width: 800px) {
   .sidebar {
-    display: none;
     width: 230px;
     padding: 28px 18px;
-  }
-  .sidebar.open {
-    display: flex;
     box-shadow: 10px 0 50px #0003;
+  }
+  .sidebar-collapse {
+    top: 23px;
+    right: 8px;
+    width: 44px;
+    height: 44px;
   }
   .sidebar-scrim {
     position: fixed;
