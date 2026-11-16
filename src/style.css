@@ -2056,6 +2056,14 @@ label + label {
   width: calc(100% + 2 * var(--result-gutter));
   margin-inline: calc(-1 * var(--result-gutter));
 }
+.result-endgame-divider {
+  position: absolute;
+  z-index: 2;
+  inset: 0 0 auto;
+  height: 1px;
+  background: color-mix(in srgb, var(--primary) 42%, var(--line));
+  pointer-events: none;
+}
 .result-slot:has(:is(.result-score-trigger, .result-defense-action):hover) .result-row {
   background: var(--soft);
 }

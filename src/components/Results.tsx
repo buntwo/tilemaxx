@@ -356,6 +356,8 @@ export default function Results({
     !busy && !error && !waitingForEndgame,
   );
   const total = shortlistActive ? filteredShortlist.length : page.total;
+  const exactCount = page.exactEndgameCount ?? 0;
+  const endgameDivider = exactCount > 0 && exactCount < total ? exactCount : -1;
   const start = shortlistActive ? 0 : page.start;
   const visible = shortlistActive ? filteredShortlist : page.visible;
   const pagePending = shortlistActive
@@ -914,6 +916,13 @@ export default function Results({
                         onPreview(null);
                     }}
                   >
+                    {start + offset === endgameDivider && (
+                      <span
+                        className="result-endgame-divider"
+                        role="separator"
+                        aria-label="End of exact swings"
+                      />
+                    )}
                     <button
                       className={`result-row${bingo ? " bingo" : ""}${preview?.id === m.id || selected ? " active" : ""}${locked === m.id ? " pinned" : ""}`}
                       aria-pressed={analyzing ? selected : undefined}
