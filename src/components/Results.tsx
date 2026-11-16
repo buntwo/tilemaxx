@@ -30,6 +30,7 @@ import {
   REPLY_SAMPLES,
 } from "../../shared/reply-analysis";
 import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
+import type { EndgameLine } from "../../shared/endgame";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
@@ -69,6 +70,19 @@ import ReplyHeatmapDialog, {
   ReplyPreview,
   ReplySettings,
 } from "./ReplyAnalysis";
+
+function endgameLength({ line }: EndgameLine) {
+  const plies = line.length;
+  const plays = line.filter((move) => move !== null).length;
+  const passes = plies - plays;
+  const label = `${plies} ${plies === 1 ? "ply" : "plies"}`;
+  return {
+    compact: passes ? `${label} (${plays})` : label,
+    expanded: passes
+      ? `${label} · ${plays} ${plays === 1 ? "play" : "plays"} · ${passes} ${passes === 1 ? "pass" : "passes"}`
+      : label,
+  };
+}
 
 function formatOdds(chance: number, exact: boolean) {
   const value =
@@ -211,6 +225,7 @@ export default function Results({
       : undefined);
   const replyDetail = replyMove && replyAnalysis.results?.[replyMove.id];
   const replyLine = replyMove && replyAnalysis.cachedEndgame(replyMove.id);
+  const replyLength = replyLine && endgameLength(replyLine);
   const heatmapMove =
     heatmap?.searchId === resultSet?.searchId
       ? replyAnalysis.target.find(({ id }) => id === heatmap?.id)
@@ -897,6 +912,7 @@ export default function Results({
                 const exactLine = showEndgameSwing
                   ? replyAnalysis.cachedEndgame(m.id)
                   : undefined;
+                const length = exactLine && endgameLength(exactLine);
                 const swing = exactLine?.spread ?? estimate?.spread;
                 const exact = !!exactLine || !!estimate?.exact;
                 const finalMargin = swing !== undefined && replyScores
@@ -1101,6 +1117,14 @@ export default function Results({
                                   {threat.word} out
                                 </small>
                               )}
+                              {length && (
+                                <small
+                                  className="reply-neutral endgame-ply-count"
+                                  title={length.expanded}
+                                >
+                                  {length.compact}
+                                </small>
+                              )}
                             </span>
                           ) : (
                             <span
@@ -1239,7 +1263,12 @@ export default function Results({
         >
           <h3 className={replyLine ? "optimal-reply-title" : undefined}>
             <span>Reply after <MoveWord move={replyMove} rules={analysisGame.template} /></span>
-            {replyLine && <span className="optimal-reply-badge"><Check size={13} aria-hidden="true" /> Exact line</span>}
+            {replyLength && (
+              <span className="exact-reply-metadata">
+                <span className="optimal-reply-badge"><Check size={13} aria-hidden="true" /> Exact line</span>
+                <small>{replyLength.expanded}</small>
+              </span>
+            )}
           </h3>
           {replyLine ? (
             <OptimalReplyDetails

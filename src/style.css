@@ -2166,6 +2166,7 @@ label + label {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.endgame-estimate .endgame-ply-count { line-height: 1.15; }
 .endgame-threat-badge { margin: 0 0 0 3px; }
 .reply-neutral { color: var(--muted); }
 .reply-mini {
@@ -4969,6 +4970,13 @@ label + label {
   scroll-margin: 12px;
 }
 .inline-reply h3 { margin: 0 0 6px; font-size: 13px; }
+.exact-reply-metadata {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: end;
+}
+.exact-reply-metadata small { color: var(--muted); font-size: 10px; font-weight: 500; }
 .inline-reply-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 
 /* Keep the board, rack and first move rows in view in a desktop game. */
