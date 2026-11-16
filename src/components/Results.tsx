@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   useEffect,
+  type CSSProperties,
   type ReactElement,
 } from "react";
 import {
@@ -199,8 +200,6 @@ export default function Results({
       ? replyAnalysis.target.find(({ id }) => id === inspectedReply?.id)
       : undefined);
   const replyDetail = replyMove && replyAnalysis.results?.[replyMove.id];
-  const reserveReplySpace =
-    compact && !analyzing && replyEnabled && replyAnalysis.bagSize > 0;
   const heatmapMove =
     heatmap?.searchId === resultSet?.searchId
       ? replyAnalysis.target.find(({ id }) => id === heatmap?.id)
@@ -505,7 +504,8 @@ export default function Results({
   return (
     <section
       aria-label="Possible moves"
-      className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${reserveReplySpace ? " with-reply-preview" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${showEndgameSwing ? " with-endgame-estimates" : ""}`}
+      className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${showEndgameSwing ? " with-endgame-estimates" : ""}`}
+      style={{ "--move-row-height": `${moveRowHeight}px` } as CSSProperties}
     >
       <header
         className={`results-title${exchangeAction ? " has-exchange-advice" : ""}`}
@@ -908,12 +908,31 @@ export default function Results({
                     onPointerEnter={(e) => {
                       if (locked || !canHoverWithMouse(e.pointerType)) return;
                       onPreview(m, analyzing);
-                      if (!analyzing && searchId !== undefined && reply)
+                      if (
+                        !analyzing &&
+                        searchId !== undefined &&
+                        (reply || (compact && replyPending))
+                      )
                         setInspectedReply({ id: m.id, searchId });
                     }}
                     onPointerLeave={(e) => {
-                      if (!locked && canHoverWithMouse(e.pointerType))
-                        onPreview(null);
+                      if (locked || !canHoverWithMouse(e.pointerType)) return;
+                      if (compact && replyMove?.id === m.id && replyDetail) {
+                        const row = e.currentTarget.getBoundingClientRect();
+                        const bottom =
+                          scroller.current?.getBoundingClientRect().bottom;
+                        // Shrinking the list can clip the hovered row under a still pointer.
+                        if (
+                          bottom !== undefined &&
+                          e.clientY >= bottom &&
+                          e.clientY >= row.top &&
+                          e.clientY < row.bottom &&
+                          e.clientX >= row.left &&
+                          e.clientX < row.right
+                        )
+                          return;
+                      }
+                      onPreview(null);
                     }}
                   >
                     {start + offset === endgameDivider && (
