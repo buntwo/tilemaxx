@@ -23,7 +23,6 @@ import {
   Moon,
   MoreHorizontal,
   PanelLeftClose,
-  PanelLeftOpen,
   Pencil,
   Plus,
   Redo2,
@@ -94,6 +93,7 @@ import { defaultDictionary } from "../shared/dictionaries";
 import { DEFENSE_LIMIT } from "../shared/premium-defense";
 import { useSolver } from "./useSolver";
 import { useAutoUpdate } from "./useAutoUpdate";
+import { useWorkspaceWidth } from "./useWorkspaceWidth";
 import { store, useStore } from "./store";
 import { defaultPlatformBoard, premiumPalette } from "./premium-palettes";
 import {
@@ -220,7 +220,6 @@ export default function App() {
 }
 
 function Tilemaxx() {
-  const desktopGame = useMediaQuery("(min-width: 1000px)");
   const phoneLayout = useMediaQuery("(max-width: 650px)");
   const sidebarOverlay = useMediaQuery("(max-width: 800px)");
   const sidebarOpenButton = useRef<HTMLButtonElement>(null);
@@ -233,6 +232,7 @@ function Tilemaxx() {
   const [flight, setFlight] = useState<TileFlight>();
   const state = useStore(),
     data = state.data;
+  const { main, twoColumns } = useWorkspaceWidth(!!data);
   const [profileId, setProfileId] = useState(saved("tilewise:profile")),
     [gameId, setGameId] = useState(saved("tilewise:game"));
   const [dialog, setDialog] = useState<Dialog>(null),
@@ -606,10 +606,7 @@ function Tilemaxx() {
         )}
       </div>
     );
-  const compactGame = desktopGame && workspace === "games" && !!game;
-  const phoneBoardControls = phoneLayout && !compactGame;
-  const collapsibleBoardHelp = compactGame || phoneLayout;
-  const menuInTitle = phoneLayout && workspace === "games";
+  const compactGame = workspace === "games" && twoColumns;
   function changeSidebarVisibility(visible: boolean) {
     if (visible === sidebarVisible) return;
     moveSidebarFocus.current = true;
@@ -630,7 +627,7 @@ function Tilemaxx() {
       aria-expanded={sidebarVisible}
       onClick={() => changeSidebarVisibility(true)}
     >
-      {sidebarOverlay ? <Menu size={20} /> : <PanelLeftOpen size={18} />}
+      <Menu size={20} aria-hidden="true" />
     </button>
   );
   const gameScores = game && (
@@ -761,29 +758,27 @@ function Tilemaxx() {
           {boardName}
         </span>
         <span className="board-size">{boardSize}</span>
-        {collapsibleBoardHelp && (
-          <details
-            className="board-help"
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && event.currentTarget.open) {
-                event.currentTarget.open = false;
-                event.currentTarget.querySelector("summary")?.focus();
-              }
-            }}
+        <details
+          className="board-help"
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && event.currentTarget.open) {
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector("summary")?.focus();
+            }
+          }}
+        >
+          <summary
+            className="icon-button"
+            aria-label="Board help"
+            title="Board help"
           >
-            <summary
-              className="icon-button"
-              aria-label="Board help"
-              title="Board help"
-            >
-              <CircleHelp size={16} />
-            </summary>
-            <div className="board-help-content">
-              <BoardEntryHelp />
-              {boardLegend}
-            </div>
-          </details>
-        )}
+            <CircleHelp size={16} />
+          </summary>
+          <div className="board-help-content">
+            <BoardEntryHelp />
+            {boardLegend}
+          </div>
+        </details>
       </div>
       <div className="board-actions">
         <button
@@ -807,7 +802,7 @@ function Tilemaxx() {
   );
   return (
     <div
-      className={`app-shell${compactGame ? " compact-game" : ""}${phoneLayout ? " phone-layout" : ""}${!sidebarVisible ? " sidebar-collapsed" : ""}`}
+      className={`app-shell${workspace === "games" ? (compactGame ? " compact-game" : " stacked-game") : ""}${phoneLayout ? " phone-layout" : ""}${!sidebarVisible ? " sidebar-collapsed" : ""}`}
       data-static-previews={preferences.pulseMovePreviews ? undefined : true}
       data-premium-palette={premiumPalette(
         workspace === "games" ? game?.platform : undefined,
@@ -895,7 +890,7 @@ function Tilemaxx() {
         </button>
         <div className="sidebar-bottom">
           <div className="workspace-controls">
-            {collapsibleBoardHelp && syncStatus}
+            {syncStatus}
             <div className="theme-switch" role="group" aria-label="Color theme">
               {[
                 ["light", Sun],
@@ -988,28 +983,7 @@ function Tilemaxx() {
           </div>
         </div>
       </aside>
-      <main className="main-content">
-        {phoneLayout && !menuInTitle && (
-          <header className="phone-menu">{sidebarButton}</header>
-        )}
-        {!compactGame && !phoneLayout && (
-          <header className="topbar">
-            <div className="breadcrumb">
-              {sidebarButton}
-              <Home size={15} />
-              <span>My games</span>
-              <span className="breadcrumb-slash">/</span>
-              <span>
-                {workspace === "studio"
-                  ? "Board studio"
-                  : workspace === "archive"
-                    ? "Archived games"
-                    : selectedGame?.name || "Your workspace"}
-              </span>
-            </div>
-            {syncStatus}
-          </header>
-        )}
+      <main ref={main} className="main-content">
         {viewingArchivedGame && (
           <button
             className="button secondary archive-back archived-game-back"
@@ -1020,11 +994,10 @@ function Tilemaxx() {
           </button>
         )}
         {workspace === "games" && (
-          <div className="workspace-heading game-heading">
-            {menuInTitle && sidebarButton}
+          <header className="workspace-heading game-heading">
             <div className="game-heading-details">
               <div className="game-title-row">
-                {compactGame && !menuInTitle && sidebarButton}
+                {sidebarButton}
                 {selectedGame?.archived ? (
                   <h1>{selectedGame.name}</h1>
                 ) : (
@@ -1039,9 +1012,8 @@ function Tilemaxx() {
                 {selectedGame?.archived && selectedGame.fullMoveHistory && (
                   <FullMoveHistoryIcon />
                 )}
-                {!compactGame && headlineScore}
               </div>
-              {compactGame && headlineScore}
+              {headlineScore}
               {selectedGame && (
                 <div className="game-title-meta">
                   <div>
@@ -1090,7 +1062,7 @@ function Tilemaxx() {
                 </button>
               </div>
             )}
-          </div>
+          </header>
         )}
         {state.storageError && (
           <div className="banner warning">
@@ -1145,6 +1117,7 @@ function Tilemaxx() {
         )}
         {workspace === "studio" ? (
           <BoardStudio
+            headerControl={sidebarButton}
             onDelete={async (id) => {
               await store.deleteTemplate(id);
               notify(
@@ -1165,6 +1138,7 @@ function Tilemaxx() {
           />
         ) : workspace === "archive" ? (
           <ArchivedGames
+            headerControl={sidebarButton}
             games={archivedGames}
             sort={archiveSort}
             onSort={setArchiveSort}
@@ -1189,11 +1163,10 @@ function Tilemaxx() {
                   }
                 }}
               >
-                {!compactGame && !phoneBoardControls && boardToolbar}
                 <BoardEntry
                   key={game.id}
                   game={game}
-                  hideHelp={collapsibleBoardHelp}
+                  hideHelp
                   preview={activeFlight?.move ?? preview}
                   displayBoard={activeFlight?.before.board}
                   onChange={update}
@@ -1246,7 +1219,6 @@ function Tilemaxx() {
                     )}
                   </div>
                 )}
-                {!collapsibleBoardHelp && boardLegend}
               </section>
               <section
                 ref={rackPanel}
@@ -1276,7 +1248,6 @@ function Tilemaxx() {
                 />
                 <TilePool key={`tile-pool:${game.id}`} game={game} />
               </section>
-              {!phoneLayout && gameScores}
             </div>
             <div className="results-column">
               {gameOver ? (
@@ -1286,7 +1257,7 @@ function Tilemaxx() {
               ) : (
                 <Results
                   compact={compactGame}
-                  collapsibleSearch={compactGame || phoneLayout}
+                  collapsibleSearch
                   results={solver.results}
                   exchangeAction={
                     solver.exchangeAdvice &&
@@ -1356,7 +1327,6 @@ function Tilemaxx() {
                   onCancelBoardOdds={solver.cancelBoardOdds}
                 />
               )}
-              {phoneLayout && gameScores}
               {warnings.length > 0 && (
                 <div className="board-warnings">
                   <Info size={17} />
@@ -1382,6 +1352,7 @@ function Tilemaxx() {
                 </div>
               )}
             </div>
+            <div className="game-scores-column">{gameScores}</div>
           </GameWorkspace>
         ) : selectedGame ? (
           <section className="welcome-panel panel" aria-label="Game board">
@@ -1933,7 +1904,7 @@ function Tilemaxx() {
           closeDisabled={formBusy}
         >
           <div className="game-option-list" aria-busy={formBusy}>
-            {phoneBoardControls && (
+            {!compactGame && (
               <>
                 <button disabled={formBusy} onClick={() => openDialog("screenshot")}>
                   <ImagePlus size={19} />

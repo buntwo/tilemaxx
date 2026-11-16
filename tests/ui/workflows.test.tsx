@@ -35,6 +35,31 @@ import { simulateExchange } from "../../shared/exchange";
 import { TILE_SYMBOLS } from "../../shared/tile-pool";
 
 let remote: AppState & { version?: string };
+let workspaceWidth: number;
+const workspaceObservers = new Set<(width: number) => void>();
+
+function resizeWorkspace(width: number) {
+  workspaceWidth = width;
+  for (const notify of workspaceObservers) notify(width);
+}
+
+class WorkspaceResizeObserver {
+  private readonly notify: (width: number) => void;
+
+  constructor(callback: (entries: { contentRect: { width: number } }[]) => void) {
+    this.notify = (width) => callback([{ contentRect: { width } }]);
+  }
+
+  observe() {
+    workspaceObservers.add(this.notify);
+    this.notify(workspaceWidth);
+  }
+
+  disconnect() {
+    workspaceObservers.delete(this.notify);
+  }
+}
+
 const game = (): Game => ({
   id: "g",
   profileId: "p",
@@ -785,9 +810,7 @@ test("board check uses the current filtered moves, and cancelled results stay ou
 
 test.each(["narrow", "wide"])("%s results stream bingo odds after replies finish and discard odds for an older bag size", async (layout) => {
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches:
-      (layout === "narrow" && query === "(max-width: 650px)") ||
-      (layout === "wide" && query === "(min-width: 1000px)"),
+    matches: layout === "narrow" && query === "(max-width: 650px)",
     addEventListener() {},
     removeEventListener() {},
   }));
@@ -816,7 +839,7 @@ test.each(["narrow", "wide"])("%s results stream bingo odds after replies finish
       }
     },
   );
-  const user = await start();
+  const user = await start(layout === "narrow" ? 360 : 950);
   await typeRack(user, "CATS");
   await user.keyboard("{Enter}");
   await screen.findByRole("button", { name: "Sort by points" });
@@ -875,6 +898,8 @@ test.each(["narrow", "wide"])("%s results stream bingo odds after replies finish
 });
 
 beforeEach(() => {
+  workspaceWidth = 950;
+  vi.stubGlobal("ResizeObserver", WorkspaceResizeObserver);
   localStorage.clear();
   history.replaceState(null, "", "/");
   remote = {
@@ -1015,7 +1040,8 @@ beforeEach(() => {
   );
 });
 afterEach(() => clearTimeout(store.timer));
-async function start() {
+async function start(width = workspaceWidth) {
+  workspaceWidth = width;
   const user = userEvent.setup();
   render(<App />);
   await screen.findByRole("heading", { name: /First game/ });
@@ -2497,23 +2523,17 @@ test.each(["phone", "tablet", "desktop"])(
   "the word list is in the game metadata on the %s layout",
   async (layout) => {
     vi.stubGlobal("matchMedia", (query: string) => ({
-      matches:
-        (query === "(max-width: 650px)" && layout === "phone") ||
-        (query === "(min-width: 1000px)" && layout === "desktop"),
+      matches: query === "(max-width: 650px)" && layout === "phone",
       addEventListener() {},
       removeEventListener() {},
     }));
-    await start();
+    await start(layout === "phone" ? 360 : 950);
     const scores = screen.getByRole("region", { name: "Game scores" });
     const moves = screen.getByRole("heading", { name: "Possible moves" });
     const dictionary = screen.getByRole("combobox", {
       name: "Game dictionary",
     });
-    expect(moves.compareDocumentPosition(scores)).toBe(
-      layout === "phone"
-        ? Node.DOCUMENT_POSITION_FOLLOWING
-        : Node.DOCUMENT_POSITION_PRECEDING,
-    );
+    expect(moves.compareDocumentPosition(scores)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(dictionary.closest(".game-title-meta")).toBeTruthy();
     expect(dictionary.compareDocumentPosition(scores)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
@@ -2574,12 +2594,11 @@ test.each([1320, 760, 390])("the sidebar collapses and reopens at %ipx", async (
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches:
       (query === "(max-width: 800px)" && overlay) ||
-      (query === "(max-width: 650px)" && width <= 650) ||
-      (query === "(min-width: 1000px)" && width >= 1000),
+      (query === "(max-width: 650px)" && width <= 650),
     addEventListener() {},
     removeEventListener() {},
   }));
-  const user = await start();
+  const user = await start(width === 1320 ? 1050 : width - 30);
   const sidebar = () => screen.queryByRole("complementary", { name: "Sidebar" });
   const open = () => screen.getByRole("button", { name: "Open sidebar" });
   const collapse = () => within(sidebar()!).getByRole("button", { name: "Collapse sidebar" });
@@ -2603,13 +2622,41 @@ test.each([1320, 760, 390])("the sidebar collapses and reopens at %ipx", async (
   }
 });
 
+test("the same game header and score history follow available workspace width", async () => {
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const user = await start(690);
+  const header = screen.getByRole("heading", { name: "First game" }).closest("header");
+  const scores = screen.getByRole("region", { name: "Game scores" });
+  const history = within(scores).getByText("Tracked move history");
+  await user.click(history);
+  const shell = header?.closest(".app-shell");
+  expect(shell?.classList.contains("stacked-game")).toBe(true);
+  expect(header?.querySelector(".board-toolbar")).toBeNull();
+  await user.click(cell("Collapse sidebar"));
+  act(() => resizeWorkspace(720));
+  const open = within(header!).getByRole("button", { name: "Open sidebar" });
+  expect(open.querySelector(".lucide-menu")).toBeTruthy();
+  expect(shell?.classList.contains("compact-game")).toBe(true);
+  expect(header?.querySelector(".board-toolbar")).toBeTruthy();
+  expect(screen.getByRole("region", { name: "Game scores" })).toBe(scores);
+  expect(history.closest("details")?.open).toBe(true);
+  await user.click(open);
+  act(() => resizeWorkspace(719));
+  expect(shell?.classList.contains("stacked-game")).toBe(true);
+  expect(document.querySelector(".breadcrumb, .topbar")).toBeNull();
+});
+
 test.each([false, true])("the sidebar opens the illustrated guide (phone %s)", async (phone) => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: phone ? ["(max-width: 650px)", "(max-width: 800px)"].includes(query) : query === "(min-width: 1000px)",
     addEventListener() {},
     removeEventListener() {},
   }));
-  const user = await start();
+  const user = await start(phone ? 360 : 950);
   if (phone)
     await user.click(screen.getByRole("button", { name: "Open sidebar" }));
   const menu = within(screen.getByRole("complementary", { name: "Sidebar" }));
@@ -2645,7 +2692,7 @@ test("the phone layout keeps settings, the build version, board help and move fi
     addEventListener() {},
     removeEventListener() {},
   }));
-  const user = await start();
+  const user = await start(360);
   const main = within(screen.getByRole("main"));
   const menu = main.getByRole("button", { name: "Open sidebar" });
   expect(menu.closest(".game-heading")).toBeTruthy();

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowLeft, LockKeyhole, Pencil, Plus, Trash2 } from "lucide-react";
 import { additionalPlayBonuses, type BoardTemplate } from "../../shared/model";
 import BoardEditor from "./BoardEditor";
@@ -7,11 +7,13 @@ import LayoutThumbnail from "./LayoutThumbnail";
 
 export default function BoardStudio({
   templates,
+  headerControl,
   onSave,
   onDelete,
   onBack,
 }: {
   templates: BoardTemplate[];
+  headerControl?: ReactNode;
   onSave: (template: BoardTemplate, editing: boolean) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onBack: () => void;
@@ -25,6 +27,7 @@ export default function BoardStudio({
     return (
       <BoardEditor
         templates={templates}
+        headerControl={headerControl}
         initial={editing || undefined}
         onClose={() => setEditing(undefined)}
         onSave={async (draft) => {
@@ -37,7 +40,10 @@ export default function BoardStudio({
   return (
     <section className="studio-view" aria-labelledby="studio-heading">
       <div className="workspace-heading studio-heading">
-        <h1 id="studio-heading">Board studio</h1>
+        <div className="game-title-row">
+          {headerControl}
+          <h1 id="studio-heading">Board studio</h1>
+        </div>
         <button className="button secondary archive-back" onClick={onBack}>
           <ArrowLeft size={16} /> Back to games
         </button>

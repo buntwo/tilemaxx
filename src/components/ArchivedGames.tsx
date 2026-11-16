@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Pencil } from "lucide-react";
 import { opponentNameMatches, type GameSummary } from "../../shared/game-index";
 import { FullMoveHistoryIcon, GameMetadata } from "./GameDetails";
@@ -13,6 +13,7 @@ const opponentOrder = new Intl.Collator(undefined, {
 
 export default function ArchivedGames({
   games,
+  headerControl,
   sort,
   onSort,
   onOpen,
@@ -20,6 +21,7 @@ export default function ArchivedGames({
   onBack,
 }: {
   games: GameSummary[];
+  headerControl?: ReactNode;
   sort: ArchiveSort;
   onSort: (sort: ArchiveSort) => void;
   onOpen: (id: string) => void;
@@ -43,6 +45,7 @@ export default function ArchivedGames({
     <section className="archive-view" aria-labelledby="archive-heading">
       <div className="workspace-heading">
         <div className="archive-title">
+          {headerControl}
           <h1 id="archive-heading">Archived games</h1>
           <output
             className="count-badge archive-count"

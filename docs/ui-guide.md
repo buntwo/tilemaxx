@@ -4,11 +4,11 @@
 
 | Name | Where to find it |
 | --- | --- |
-| **Sidebar** | The profile picker, game navigation, settings, and UI guide. Use **Collapse sidebar** in its upper-right corner and **Open sidebar** beside the page title or breadcrumb. |
+| **Sidebar** | The profile picker, game navigation, settings, and UI guide. Use **Collapse sidebar** in its upper-right corner and the three-line **Open sidebar** button beside the page title. |
 | **Settings** | The gear below the theme controls, beside the version number. Control rack highlighting, animations, and automatic reloads when the server has a newer version. These choices apply to this browser only. |
 | **Update available** | The arrow beside the version number appears when automatic updates are off and the server has a newer version. |
 | **Game header** | The game name, tracked score, and Game options at the top. Open the name to use the **Game picker** and its opponent filter. |
-| **Game options** | The menu beside the game name. It includes game details, duplication, **End game**, and archiving. On phones it also holds Board help, Import screenshot, and Move history. |
+| **Game options** | The menu beside the game name. It includes game details, duplication, **End game**, and archiving. When the board and move list are stacked, it also holds Board help, Import screenshot, and Move history. |
 | **End game** | Record a final score or mark the game finished without a score. **Archive game** starts checked. **Deduct unplayed tiles** starts checked when deductions apply and is disabled otherwise. Clear **Archive game** to keep the game in **My games**, where **Undo** can resume it. |
 | **Game board** | The editable letter and premium grid. With your rack entered, press **Enter** while typing on the board to find moves. The **board control strip** is the row directly below the board with the direction, blank, erase, Undo, and Redo controls. |
 | **Board help** | The premium-square legend and board-entry instructions. |
@@ -27,7 +27,7 @@
 
 | Name | Where to find it |
 | --- | --- |
-| **Possible moves** | The entire results panel next to the board on desktop or below the board and racks on a phone. The heading reads **Possible moves - Endgame** when the bag count is zero. |
+| **Possible moves** | The results panel sits next to the board when at least 720 px of workspace is available, and below the board and racks on narrower workspaces. The heading reads **Possible moves - Endgame** when the bag count is zero. |
 | **Move filters** | The Shortlist and All moves switch, word search, and square filter above the results list. |
 | **Move list** | The sortable table of suggestions. A **move row** is one suggestion, and a **column header** controls sorting. PTS is the play’s score. The smaller number underneath is the gap from the top score. |
 | **Calculation timing** | Select the time below the move list for a breakdown of the initial Find moves run, including individual exact endgame solves when available. |
