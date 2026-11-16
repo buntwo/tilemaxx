@@ -11,6 +11,7 @@ import {
 import { placeTiles } from "../../shared/move-analysis";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import Board from "./Board";
+import MiniTiles from "./MiniTiles";
 import MoveWord from "./MoveWord";
 import "./optimal-reply.css";
 
@@ -181,7 +182,7 @@ export default function OptimalReplyDetails({
                           }
                           title={entry.leave ? "Rack leave" : "Empty rack"}
                         >
-                          {entry.leave.replaceAll("?", "□") || "—"}
+                          {entry.leave ? <MiniTiles tiles={entry.leave} /> : "—"}
                         </span>
                         <span
                           className={`optimal-reply-points ${scoreTone((entry.move?.score ?? 0) * (entry.player === "you" ? 1 : -1)) ?? ""}`}

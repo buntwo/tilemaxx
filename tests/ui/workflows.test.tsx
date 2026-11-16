@@ -3889,7 +3889,7 @@ test("exchange simulation starts on open, shows draw scores, and closes when mar
   const row = within(cat.closest("li")!);
   expect(requests).toHaveLength(1);
   expect(
-    row.getByText("C", { selector: ".rack-exchange-letters span" }),
+    row.getByText("C", { selector: ".mini-tiles span" }),
   ).toBeTruthy();
   expect(row.getByRole("img", { name: "Blank tile" }).textContent).toBe("");
   expect(row.getAllByText("10 pts")).toHaveLength(2);

@@ -41,7 +41,7 @@
 | **Move analysis** | The panel opened by **Analyze**. Pick **analysis candidates** and choose **Run analysis**. With an empty bag, adjust the **Endgame budget** to give each exact search more work. |
 | **Move comparison** | The metric table in Move analysis. The first candidate is the **reference move** for relative comparisons. |
 | **Move analysis details** | The expandable card for an individual candidate beneath Move comparison. It can show example replies, endgame swing, and final score. |
-| **Optimal endgame line** | The exact sequence of plays in Move analysis details or in Reply details after **Calculate optimal endgame line**. In Reply details, each turn shows the tiles its player keeps, with `□` for a blank and `—` for an empty rack. |
+| **Optimal endgame line** | The exact sequence of plays in Move analysis details or in Reply details after **Calculate optimal endgame line**. In Reply details, each turn shows the tiles its player keeps, with a blue tile for a blank and `—` for an empty rack. |
 | **Score breakdown** | The per-word and bonus scoring details for an individual play. |
 
 ## Other screens

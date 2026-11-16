@@ -4337,16 +4337,16 @@ label + label {
 .optimal-exchange-options small { display: block; color: var(--muted); }
 .optimal-exchange-options td:last-child { text-align: right; }
 .optimal-exchange-options .best-swap { background: var(--soft); color: var(--primary); }
-.optimal-exchange-options .rack-exchange-letters { flex-wrap: wrap; vertical-align: middle; }
+.optimal-exchange-options .mini-tiles { flex-wrap: wrap; vertical-align: middle; }
 .optimal-exchange-simulate { min-height: 32px; gap: 4px; color: var(--primary); }
 @media (max-width: 650px) {
-  .optimal-exchange-options .rack-exchange-letters { gap: 2px; }
-  .optimal-exchange-options .rack-exchange-letters span { min-width: 15px; height: 16px; padding-inline: 2px; }
+  .optimal-exchange-options .mini-tiles { gap: 2px; }
+  .optimal-exchange-options .mini-tiles span { min-width: 15px; height: 16px; padding-inline: 2px; }
   .optimal-exchange-simulate { font-size: 11px; }
 }
 .rack-simulation-bag { margin-left: auto; color: var(--muted); font-size: 11px; }
-.rack-exchange-letters { display: inline-flex; gap: 3px; }
-.rack-exchange-letters span {
+.mini-tiles { display: inline-flex; gap: 3px; }
+.mini-tiles span {
   display: grid;
   place-items: center;
   min-width: 18px;
@@ -4358,7 +4358,7 @@ label + label {
   font-size: 10px;
   font-weight: 700;
 }
-.rack-exchange-letters .blank { background: var(--blank-tile); color: var(--blank-ink); }
+.mini-tiles .blank { background: var(--blank-tile); color: var(--blank-ink); }
 .rack-simulation-actions .button { min-height: 30px; padding: 5px 9px; font-size: 11px; }
 .rack-simulation [aria-label="Exchange results"] { width: 100%; }
 .rack-simulation-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 1px 0 6px; }
