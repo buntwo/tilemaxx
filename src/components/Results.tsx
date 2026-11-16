@@ -15,6 +15,7 @@ import {
   LoaderCircle,
   Trophy,
   ChartNoAxesCombined,
+  Check,
 } from "lucide-react";
 import {
   bingoPoints,
@@ -36,6 +37,7 @@ import MoveAnalysis from "./MoveAnalysis";
 import MoveWord, { BingoBadge } from "./MoveWord";
 import BingoOddsControls from "./BingoOddsControls";
 import CalculationIndicator from "./CalculationIndicator";
+import OptimalReplyDetails from "./OptimalReplyDetails";
 import { useGameCalculating } from "./GameCalculations";
 import { useMoveScoreTooltip } from "./MoveScoreTooltip";
 import PremiumDefense, {
@@ -190,16 +192,17 @@ export default function Results({
     [replyAnalysis.target],
   );
   const [inspectedReply, setInspectedReply] = useState<{
-    id: string;
+    move: Move;
     searchId: number;
   }>();
   const [heatmap, setHeatmap] = useState<{ id: string; searchId: number }>();
   const replyMove =
     (analyzing ? null : preview) ??
     (inspectedReply?.searchId === resultSet?.searchId
-      ? replyAnalysis.target.find(({ id }) => id === inspectedReply?.id)
+      ? inspectedReply?.move
       : undefined);
   const replyDetail = replyMove && replyAnalysis.results?.[replyMove.id];
+  const replyLine = replyMove && replyAnalysis.cachedEndgame(replyMove.id);
   const heatmapMove =
     heatmap?.searchId === resultSet?.searchId
       ? replyAnalysis.target.find(({ id }) => id === heatmap?.id)
@@ -260,7 +263,7 @@ export default function Results({
   const endgameProgress = replyEnabled ? replyAnalysis.endgameProgress : undefined;
   const endgameRanked = !!ranking?.checked;
   const showEndgameSwing =
-    endgameRanked || (!shortlistActive && !!endgameProgress?.ready);
+    endgameRanked || (replyEnabled && !shortlistActive && !!replyAnalysis.exactEndgameSpreads);
   const sort =
     activeOrder &&
     (activeOrder.sort !== "endgame" || showEndgameSwing) &&
@@ -349,7 +352,7 @@ export default function Results({
       boardOdds: sort === "board-bingo" ? boardOdds : undefined,
       replyDeltas: sort === "reply" ? replyDeltas : undefined,
       endgameId: endgameRanked ? ranking.id : undefined,
-      exactEndgameSpreads: sort === "endgame" ? endgameProgress?.exactSpreads : undefined,
+      exactEndgameSpreads: sort === "endgame" ? replyAnalysis.exactEndgameSpreads : undefined,
     },
     fetchPage,
     !busy && !error && !waitingForEndgame,
@@ -911,9 +914,9 @@ export default function Results({
                       if (
                         !analyzing &&
                         searchId !== undefined &&
-                        (reply || (compact && replyPending))
+                        (reply || exactLine || (compact && replyPending))
                       )
-                        setInspectedReply({ id: m.id, searchId });
+                        setInspectedReply({ move: m, searchId });
                     }}
                     onPointerLeave={(e) => {
                       if (!locked && canHoverWithMouse(e.pointerType))
@@ -1207,22 +1210,27 @@ export default function Results({
           )
         )}
       </footer>
-      {analysisGame && replyMove && replyDetail && (
+      {analysisGame && replyMove && (replyLine || replyDetail) && (
         <section
-          className={`inline-reply${compact && replyDetail.kind === "distribution" ? " compact-reply" : ""}`}
+          className={`inline-reply${compact && replyDetail?.kind === "distribution" ? " compact-reply" : ""}`}
           aria-label={`Reply after ${replyMove.word}`}
         >
-          <h3>
-            Reply after <MoveWord move={replyMove} rules={analysisGame.template} />
+          <h3 className={replyLine ? "optimal-reply-title" : undefined}>
+            <span>Reply after <MoveWord move={replyMove} rules={analysisGame.template} /></span>
+            {replyLine && <span className="optimal-reply-badge"><Check size={13} aria-hidden="true" /> Exact line</span>}
           </h3>
-          <ReplyPreview
-            game={analysisGame}
-            move={replyMove}
-            result={replyDetail}
-            defense={defense?.[replyMove.id]}
-            analysis={replyAnalysis}
-            onHeatmap={() => openHeatmap(replyMove)}
-          />
+          {replyLine ? (
+            <OptimalReplyDetails key={replyMove.id} game={analysisGame} line={replyLine} />
+          ) : replyDetail && (
+            <ReplyPreview
+              game={analysisGame}
+              move={replyMove}
+              result={replyDetail}
+              defense={defense?.[replyMove.id]}
+              analysis={replyAnalysis}
+              onHeatmap={() => openHeatmap(replyMove)}
+            />
+          )}
         </section>
       )}
       {scoreTooltip.popup}

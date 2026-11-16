@@ -63,7 +63,7 @@ export function useReplyAnalysis(
   }>();
   const [skippedEstimate, setSkippedEstimate] = useState<string>();
   const worker = useRef<Worker | null>(null);
-  const activeDetail = useRef<{ id: number; key: string } | undefined>(
+  const activeDetail = useRef<{ id: number; key: string; moveId: string } | undefined>(
     undefined,
   );
   const requestId = useRef(0);
@@ -166,7 +166,7 @@ export function useReplyAnalysis(
     [game?.board, game?.rack, game?.template, bagSize, scorelessTurns, opponentHasFinalTurn],
   );
   const dictionaryId = game?.dictionaryId;
-  const { cachedEndgame, endgameProgress } = useEndgameLines(
+  const { cachedEndgame, exactEndgameSpreads, rememberEndgame, endgameProgress } = useEndgameLines(
     estimateRun ? moveList : undefined,
     position,
     dictionaryId,
@@ -209,6 +209,7 @@ export function useReplyAnalysis(
         };
         publish(previous);
       } else if (message.id === activeDetail.current?.id) {
+        if (message.line) rememberEndgame(activeDetail.current.moveId, message.line);
         const next = {
           key: activeDetail.current.key,
           runKey,
@@ -275,7 +276,7 @@ export function useReplyAnalysis(
     }
     if (!worker.current || !reference || !position || !dictionaryId) return;
     const id = ++requestId.current;
-    activeDetail.current = { id, key };
+    activeDetail.current = { id, key, moveId: candidate.id };
     setDetail((previous) => ({
       key,
       runKey,
@@ -322,6 +323,8 @@ export function useReplyAnalysis(
     scorelessTurns,
     opponentHasFinalTurn,
     cachedEndgame,
+    exactEndgameSpreads,
+    rememberEndgame,
     endgameProgress,
     ranking,
     estimatingEndgame: !!estimateKey && !estimateRun,
