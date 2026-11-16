@@ -2000,7 +2000,7 @@ label + label {
 .result-scroll.is-shortlist { height: auto; max-height: 350px; }
 .result-row {
   width: 100%;
-  height: 58px;
+  height: var(--move-row-height);
   background: var(--surface);
   border: 0;
   border-bottom: 1px solid var(--line);
@@ -5438,10 +5438,10 @@ label + label {
 :is(.compact-game, .phone-layout) .bingo-odds-controls > .search-input { margin-top: 5px; }
 :is(.compact-game, .phone-layout) .result-filters > .search-input { flex: 1 0 100%; order: 1; }
 .compact-game .result-scroll:not(.is-shortlist) {
-  height: clamp(185px, calc(100svh - 248px), 520px);
+  height: clamp(185px, calc(100svh - 248px), calc(9 * var(--move-row-height)));
 }
 .compact-game .results-panel:has(.search-input:not([hidden])) .result-scroll:not(.is-shortlist) {
-  height: clamp(148px, calc(100svh - 283px), 485px);
+  height: clamp(148px, calc(100svh - 283px), calc(9 * var(--move-row-height)));
 }
 
 .compact-game .bingo-odds-actions {
@@ -5473,18 +5473,16 @@ label + label {
   border-radius: 7px;
   box-shadow: 0 6px 16px #0002;
 }
-/* Reserve room before hover so the move under the pointer stays put. */
-.compact-game .results-panel.with-reply-preview .result-scroll {
-  height: clamp(116px, calc(100svh - 449px), 480px);
+.compact-game .results-panel:has(.inline-reply) {
+  --reply-list-room: calc(100svh - 449px);
 }
-.compact-game .results-panel.with-reply-preview .result-scroll.is-shortlist {
-  height: auto;
-  max-height: clamp(116px, calc(100svh - 449px), 480px);
+.compact-game .results-panel:has(.inline-reply):has(.search-input:not([hidden])) {
+  --reply-list-room: calc(100svh - 483px);
 }
-.compact-game .results-panel.with-reply-preview:has(.search-input:not([hidden])) .result-scroll {
-  max-height: clamp(116px, calc(100svh - 483px), 446px);
+.compact-game .results-panel:has(.inline-reply) .result-scroll {
+  max-height: clamp(116px, var(--reply-list-room), calc(5 * var(--move-row-height)));
 }
-.compact-game .with-reply-preview .results-foot {
+.compact-game .results-panel:has(.inline-reply) .results-foot {
   padding: 5px 12px;
 }
 .compact-reply {

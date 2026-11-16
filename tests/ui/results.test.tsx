@@ -79,6 +79,7 @@ const moves: Move[] = [
 function setup(
   mobile = false,
   options: {
+    compact?: boolean;
     hover?: boolean;
     moves?: Move[];
     size?: number;
@@ -137,6 +138,7 @@ function setup(
         replyEnabled={options.replyEnabled}
         preview={preview}
         phoneLayout={mobile}
+        compact={options.compact}
         onPreview={(m) => {
           setPreview(m);
           onPreview(m);
@@ -256,6 +258,7 @@ test("reply rows resolve individually and compare against the highest score afte
   };
   const { user, onPlay } = setup(false, {
     analysisGame: game,
+    compact: true,
     replyEnabled: true,
   });
   const request = worker!.request!;
@@ -292,6 +295,9 @@ test("reply rows resolve individually and compare against the highest score afte
       reference: [{ square: 1, count: 80 }],
     },
   };
+  const pendingRow = screen.getByRole("button", { name: /^CAT,/ });
+  await user.hover(pendingRow);
+  expect(screen.queryByRole("region", { name: "Reply after CAT" })).toBeNull();
   act(() =>
     worker!.onmessage?.({
       data: {
@@ -305,6 +311,8 @@ test("reply rows resolve individually and compare against the highest score afte
   expect(
     screen.getAllByRole("img", { name: /^Checking replies after/ }),
   ).toHaveLength(2);
+  await user.unhover(pendingRow);
+  expect(screen.getByRole("region", { name: "Reply after CAT" })).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Sort by word" }));
   const row = rows().find((element) =>
     element.getAttribute("aria-label")?.startsWith("CAT,"),
