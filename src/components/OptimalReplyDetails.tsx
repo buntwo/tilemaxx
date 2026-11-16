@@ -16,7 +16,7 @@ import "./optimal-reply.css";
 
 type Scores = EndgameLine["points"];
 type Step = { board: BoardState; scores?: Scores } & (
-  | { kind: "turn"; player: Player; move: Move | null }
+  | { kind: "turn"; player: Player; move: Move | null; leave: string }
   | { kind: "adjustment"; points: Scores }
 );
 
@@ -33,9 +33,11 @@ function leadLabel(margin: number) {
 export default function OptimalReplyDetails({
   game,
   line,
+  opponentRack,
 }: {
   game: Game;
   line: EndgameLine;
+  opponentRack: string;
 }) {
   const totals = scoreTotalsAtPosition(game);
   const scoresWith = (points: Scores) =>
@@ -46,6 +48,7 @@ export default function OptimalReplyDetails({
   const final = scoresWith(line.points);
   const finalMargin = final && final.you - final.opponent;
   const played = { you: 0, opponent: 0 };
+  const racks = { you: game.rack, opponent: opponentRack };
   let board = game.board;
   const steps = line.line.map<Step>((move, index) => {
     const player = index % 2 ? "opponent" : "you";
@@ -53,11 +56,13 @@ export default function OptimalReplyDetails({
     if (move) {
       played[player] += move.score;
       board = placeTiles(board, move);
+      racks[player] = move.leave;
     }
     return {
       kind: "turn",
       player,
       move,
+      leave: racks[player],
       board: before,
       scores: scoresWith(played),
     };
@@ -163,6 +168,20 @@ export default function OptimalReplyDetails({
                             {entry.move &&
                               ` · ${coordinate(entry.move.row * size + entry.move.col, size)} ${entry.move.direction}`}
                           </small>
+                        </span>
+                        <span
+                          className="optimal-reply-leave"
+                          role="img"
+                          aria-label={
+                            entry.leave
+                              ? `Leave: ${[...entry.leave]
+                                  .map((tile) => (tile === "?" ? "blank" : tile))
+                                  .join(", ")}`
+                              : "Empty rack"
+                          }
+                          title={entry.leave ? "Rack leave" : "Empty rack"}
+                        >
+                          {entry.leave.replaceAll("?", "□") || "—"}
                         </span>
                         <span
                           className={`optimal-reply-points ${scoreTone((entry.move?.score ?? 0) * (entry.player === "you" ? 1 : -1)) ?? ""}`}

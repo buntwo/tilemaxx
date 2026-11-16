@@ -100,7 +100,7 @@
 }
 .optimal-reply-turn {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto auto;
   align-items: center;
   gap: 6px;
   width: 100%;
@@ -137,8 +137,19 @@
 .optimal-reply-turn-label .bingo-badge {
   margin-inline-end: 2px;
 }
+.optimal-reply-turn-label {
+  overflow-wrap: anywhere;
+}
 .optimal-reply-turn-label.rack-adjustment {
-  grid-column: span 2;
+  grid-column: span 3;
+}
+.optimal-reply-leave {
+  color: var(--muted);
+  text-align: end;
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.05em;
+  overflow-wrap: anywhere;
 }
 .optimal-reply-step-score {
   text-align: end;
