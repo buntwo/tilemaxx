@@ -368,9 +368,33 @@ test("reply rows resolve individually and compare against the highest score afte
   expect(within(rows()[0]).getByText("Adj. 24.4")).toBeTruthy();
 
   const pointsMenu = screen.getByLabelText("Sort by points or reply-adjusted points");
+  const details = pointsMenu.closest("details")!;
+  async function pickWithoutButtonFocus(label: string) {
+    await user.click(pointsMenu);
+    act(() => pointsMenu.focus());
+    expect(document.activeElement).toBe(pointsMenu);
+    const option = screen.getByRole("button", { name: label });
+    fireEvent.pointerDown(option);
+    act(() => pointsMenu.blur());
+    expect(details.open).toBe(true);
+    fireEvent.click(option);
+    expect(details.open).toBe(false);
+  }
+  await pickWithoutButtonFocus("Sort by points");
+  expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
+  await pickWithoutButtonFocus("Sort by reply-adjusted points");
+  expect(rows()[0].getAttribute("aria-label")).toMatch(/^AT,/);
+
   await user.click(pointsMenu);
-  await user.click(screen.getByRole("button", { name: "Sort by points" }));
-  await waitFor(() => expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/));
+  fireEvent.pointerDown(document.body);
+  expect(details.open).toBe(false);
+  await user.click(pointsMenu);
+  const keyboardOption = screen.getByRole("button", { name: "Sort by points" });
+  act(() => keyboardOption.focus());
+  await user.keyboard("{Escape}");
+  expect(details.open).toBe(false);
+  expect(document.activeElement).toBe(pointsMenu);
+
   await user.click(screen.getByRole("button", { name: "Sort by word" }));
   const row = rows().find((element) =>
     element.getAttribute("aria-label")?.startsWith("CAT,"),

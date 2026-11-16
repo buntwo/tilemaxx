@@ -6,6 +6,7 @@ import {
   useEffect,
   type CSSProperties,
   type ReactElement,
+  type ReactNode,
 } from "react";
 import {
   ChevronDown,
@@ -97,6 +98,66 @@ function formatOdds(chance: number, exact: boolean) {
 
 function canHoverWithMouse(pointerType: string) {
   return pointerType === "mouse" && matchMedia("(any-hover: hover)").matches;
+}
+
+function ResultSortMenu({
+  label,
+  accessibleLabel,
+  children,
+}: {
+  label: string;
+  accessibleLabel: string;
+  children: ReactNode;
+}) {
+  const root = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    function dismissOutside(event: PointerEvent) {
+      const menu = root.current;
+      if (menu?.open && event.target instanceof Node && !menu.contains(event.target))
+        menu.open = false;
+    }
+    document.addEventListener("pointerdown", dismissOutside, true);
+    return () => document.removeEventListener("pointerdown", dismissOutside, true);
+  }, []);
+
+  function closeAndFocus() {
+    if (!root.current) return;
+    root.current.open = false;
+    root.current.querySelector("summary")?.focus({ preventScroll: true });
+  }
+
+  return (
+    <details
+      className="result-sort-menu"
+      ref={root}
+      onBlur={(event) => {
+        // A pointer click can blur the summary without focusing its option.
+        // Outside pointer presses are handled separately.
+        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget))
+          event.currentTarget.open = false;
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !event.currentTarget.open) return;
+        event.preventDefault();
+        closeAndFocus();
+      }}
+    >
+      <summary className="result-column-sort" aria-label={accessibleLabel}>
+        {label}
+        <ChevronDown size={9} aria-hidden="true" />
+      </summary>
+      <div
+        className="result-sort-options"
+        onClick={(event) => {
+          if (event.target instanceof Element && event.target.closest("button"))
+            closeAndFocus();
+        }}
+      >
+        {children}
+      </div>
+    </details>
+  );
 }
 
 export default function Results({
@@ -473,41 +534,6 @@ export default function Results({
       </button>
     );
   }
-  function sortMenu(label: string, accessibleLabel: string, options: ReactElement) {
-    return (
-      <details
-        className="result-sort-menu"
-        onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget))
-            event.currentTarget.open = false;
-        }}
-        onKeyDown={(event) => {
-          if (event.key !== "Escape" || !event.currentTarget.open) return;
-          event.preventDefault();
-          event.currentTarget.open = false;
-          event.currentTarget.querySelector("summary")?.focus();
-        }}
-      >
-        <summary className="result-column-sort" aria-label={accessibleLabel}>
-          {label}
-          <ChevronDown size={9} aria-hidden="true" />
-        </summary>
-        <div
-          className="result-sort-options"
-          onClick={(event) => {
-            if (!(event.target instanceof Element) || !event.target.closest("button"))
-              return;
-            const menu = event.currentTarget.closest("details");
-            if (!menu) return;
-            menu.open = false;
-            menu.querySelector("summary")?.focus();
-          }}
-        >
-          {options}
-        </div>
-      </details>
-    );
-  }
   const hasBingoControls = !!(analysisGame && onBoardOdds && onCancelBoardOdds);
   const showFilters = !!resultSet && !!(totalMoves || requiredSquares) && !busy && !error;
   const viewPicker = analysisGame && (
@@ -853,14 +879,14 @@ export default function Results({
               {column("WORD", "word", "word")}
             </div>
             <div className="result-points-heading">
-              {canSortAdjusted
-                ? sortMenu("PTS", "Sort by points or reply-adjusted points", (
-                    <>
-                      {column("Points", "score", "points")}
-                      {column("Reply-adjusted points", "reply-adjusted", "reply-adjusted points")}
-                    </>
-                  ))
-                : column("PTS", "score", "points")}
+              {canSortAdjusted ? (
+                <ResultSortMenu label="PTS" accessibleLabel="Sort by points or reply-adjusted points">
+                  {column("Points", "score", "points")}
+                  {column("Reply-adjusted points", "reply-adjusted", "reply-adjusted points")}
+                </ResultSortMenu>
+              ) : (
+                column("PTS", "score", "points")
+              )}
             </div>
             {analysisGame && (replyEnabled || defense) && (
               <div className="result-reply-heading">
@@ -876,29 +902,30 @@ export default function Results({
             )}
             <div className="result-leave-heading">
               {!endgame && (analysisGame || rackOdds || boardOdds?.checked) ? (
-                sortMenu(
-                  sort === "bingo-draw"
-                    ? "DRAW %"
-                    : sort === "board-bingo"
-                      ? "AFTER %"
-                      : "LEAVE",
-                  "Sort by leave or bingo odds",
-                  <>
-                    {column("Rack leave", "leave", "rack leave")}
-                    {column(
-                      "Bingo draw %",
-                      "bingo-draw",
-                      "bingo draw odds",
-                      !rackOdds || !!rackOdds.error,
-                    )}
-                    {column(
-                      "Bingo after play %",
-                      "board-bingo",
-                      "bingo odds after play",
-                      !boardOdds?.checked,
-                    )}
-                  </>,
-                )
+                <ResultSortMenu
+                  label={
+                    sort === "bingo-draw"
+                      ? "DRAW %"
+                      : sort === "board-bingo"
+                        ? "AFTER %"
+                        : "LEAVE"
+                  }
+                  accessibleLabel="Sort by leave or bingo odds"
+                >
+                  {column("Rack leave", "leave", "rack leave")}
+                  {column(
+                    "Bingo draw %",
+                    "bingo-draw",
+                    "bingo draw odds",
+                    !rackOdds || !!rackOdds.error,
+                  )}
+                  {column(
+                    "Bingo after play %",
+                    "board-bingo",
+                    "bingo odds after play",
+                    !boardOdds?.checked,
+                  )}
+                </ResultSortMenu>
               ) : (
                 column("LEAVE", "leave", "rack leave")
               )}
