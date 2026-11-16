@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowLeft, Check, RotateCcw } from "lucide-react";
 import Board from "./Board";
 import {
@@ -18,11 +18,13 @@ import {
 
 export default function BoardEditor({
   templates,
+  headerControl,
   initial,
   onSave,
   onClose,
 }: {
   templates: BoardTemplate[];
+  headerControl?: ReactNode;
   initial?: BoardTemplate;
   onSave: (t: BoardTemplate) => Promise<void>;
   onClose: () => void;
@@ -89,9 +91,12 @@ export default function BoardEditor({
       aria-labelledby="studio-editor-heading"
     >
       <div className="workspace-heading studio-heading">
-        <h1 id="studio-editor-heading">
-          {initial ? "Edit board" : "New custom board"}
-        </h1>
+        <div className="game-title-row">
+          {headerControl}
+          <h1 id="studio-editor-heading">
+            {initial ? "Edit board" : "New custom board"}
+          </h1>
+        </div>
         <button className="button secondary archive-back" onClick={onClose}>
           <ArrowLeft size={16} /> Board studio
         </button>
