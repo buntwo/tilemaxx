@@ -2,8 +2,10 @@ export default function OpponentRack({ rack }: { rack: string }) {
   if (!rack) return null;
   const tiles = [...rack];
   return (
-    <>
-      <small className="rack-owner-label" aria-hidden="true">Opponent</small>
+    <div className="rack-lane">
+      <small className="rack-owner-label" aria-hidden="true">
+        Opponent
+      </small>
       <div
         className="opponent-rack-tiles"
         role="img"
@@ -19,6 +21,6 @@ export default function OpponentRack({ rack }: { rack: string }) {
           </span>
         ))}
       </div>
-    </>
+    </div>
   );
 }
