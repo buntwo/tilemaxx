@@ -22,6 +22,8 @@ import {
   Monitor,
   Moon,
   MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pencil,
   Plus,
   Redo2,
@@ -220,6 +222,10 @@ export default function App() {
 function Tilemaxx() {
   const desktopGame = useMediaQuery("(min-width: 1000px)");
   const phoneLayout = useMediaQuery("(max-width: 650px)");
+  const sidebarOverlay = useMediaQuery("(max-width: 800px)");
+  const sidebarOpenButton = useRef<HTMLButtonElement>(null);
+  const sidebarCollapseButton = useRef<HTMLButtonElement>(null);
+  const moveSidebarFocus = useRef(false);
   const boardPanel = useRef<HTMLElement>(null);
   const squareFilterButton = useRef<HTMLButtonElement>(null);
   const rackPanel = useRef<HTMLElement>(null);
@@ -230,9 +236,17 @@ function Tilemaxx() {
   const [profileId, setProfileId] = useState(saved("tilewise:profile")),
     [gameId, setGameId] = useState(saved("tilewise:game"));
   const [dialog, setDialog] = useState<Dialog>(null),
-    [sidebar, setSidebar] = useState(false),
+    [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false),
     [toast, setToast] = useState(""),
     [error, setError] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const sidebarVisible = sidebarOverlay ? sidebarDrawerOpen : !sidebarCollapsed;
+  useLayoutEffect(() => {
+    if (!moveSidebarFocus.current) return;
+    moveSidebarFocus.current = false;
+    const button = sidebarVisible ? sidebarCollapseButton : sidebarOpenButton;
+    button.current?.focus({ preventScroll: true });
+  }, [sidebarVisible]);
   const [theme, setTheme] = useState(saved("tilewise:theme", "system"));
   const [preferences, setPreferences] = useWorkspacePreferences();
   const [movePreview, setPreview] = useState<{
@@ -401,7 +415,7 @@ function Tilemaxx() {
     const changeView = () => {
       setWorkspace(currentWorkspace());
       setDialog(null);
-      setSidebar(false);
+      setSidebarDrawerOpen(false);
       setPreview(null);
     };
     window.addEventListener("hashchange", changeView);
@@ -445,13 +459,13 @@ function Tilemaxx() {
         workspaceHashes[next] || location.pathname + location.search,
       );
     setWorkspace(next);
-    setSidebar(false);
+    setSidebarDrawerOpen(false);
     setPreview(null);
   }
   function chooseGame(id: string) {
     if (workspace !== "games") showWorkspace("games");
     setGameId(id);
-    setSidebar(false);
+    setSidebarDrawerOpen(false);
   }
   function openMyGames() {
     showWorkspace("games");
@@ -465,7 +479,7 @@ function Tilemaxx() {
     setError("");
     setFormBusy(false);
     setDialog(next);
-    setSidebar(false);
+    setSidebarDrawerOpen(false);
     if (next === "screenshot") importBase.current = game || null;
     if (next === "new") {
       setFormTrackScores(true);
@@ -596,17 +610,27 @@ function Tilemaxx() {
   const phoneBoardControls = phoneLayout && !compactGame;
   const collapsibleBoardHelp = compactGame || phoneLayout;
   const menuInTitle = phoneLayout && workspace === "games";
+  function changeSidebarVisibility(visible: boolean) {
+    if (visible === sidebarVisible) return;
+    moveSidebarFocus.current = true;
+    if (sidebarOverlay) setSidebarDrawerOpen(visible);
+    else setSidebarCollapsed(!visible);
+  }
   const headlineScore = game && (
     <GameScoreBadge score={summarizeGameScore(game)} prominent={compactGame} showMargin />
   );
-  const menuButton = (
+  const sidebarButton = (sidebarOverlay || !sidebarVisible) && (
     <button
+      ref={sidebarOpenButton}
       className="icon-button menu-button"
-      aria-label="Open workspace menu"
-      aria-expanded={sidebar}
-      onClick={() => setSidebar(true)}
+      type="button"
+      aria-label="Open sidebar"
+      title="Open sidebar"
+      aria-controls="tilemaxx-sidebar"
+      aria-expanded={sidebarVisible}
+      onClick={() => changeSidebarVisibility(true)}
     >
-      <Menu size={20} />
+      {sidebarOverlay ? <Menu size={20} /> : <PanelLeftOpen size={18} />}
     </button>
   );
   const gameScores = game && (
@@ -783,16 +807,43 @@ function Tilemaxx() {
   );
   return (
     <div
-      className={`app-shell${compactGame ? " compact-game" : ""}${phoneLayout ? " phone-layout" : ""}`}
+      className={`app-shell${compactGame ? " compact-game" : ""}${phoneLayout ? " phone-layout" : ""}${!sidebarVisible ? " sidebar-collapsed" : ""}`}
       data-static-previews={preferences.pulseMovePreviews ? undefined : true}
       data-premium-palette={premiumPalette(
         workspace === "games" ? game?.platform : undefined,
       )}
     >
-      {sidebar && (
-        <div className="sidebar-scrim" onClick={() => setSidebar(false)} />
+      {sidebarOverlay && sidebarVisible && (
+        <div
+          className="sidebar-scrim"
+          onClick={() => changeSidebarVisibility(false)}
+        />
       )}
-      <aside aria-label="Workspace menu" className={`sidebar ${sidebar ? "open" : ""}`}>
+      <aside
+        id="tilemaxx-sidebar"
+        aria-label="Sidebar"
+        className="sidebar"
+        hidden={!sidebarVisible}
+        onKeyDown={(event) => {
+          if (
+            sidebarOverlay &&
+            event.key === "Escape" &&
+            !event.defaultPrevented
+          )
+            changeSidebarVisibility(false);
+        }}
+      >
+        <button
+          ref={sidebarCollapseButton}
+          type="button"
+          className="icon-button sidebar-collapse"
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar"
+          aria-controls="tilemaxx-sidebar"
+          onClick={() => changeSidebarVisibility(false)}
+        >
+          <PanelLeftClose size={18} />
+        </button>
         <Brand />
         <button
           className="button new-game"
@@ -939,12 +990,12 @@ function Tilemaxx() {
       </aside>
       <main className="main-content">
         {phoneLayout && !menuInTitle && (
-          <header className="phone-menu">{menuButton}</header>
+          <header className="phone-menu">{sidebarButton}</header>
         )}
         {!compactGame && !phoneLayout && (
           <header className="topbar">
             <div className="breadcrumb">
-              {menuButton}
+              {sidebarButton}
               <Home size={15} />
               <span>My games</span>
               <span className="breadcrumb-slash">/</span>
@@ -970,9 +1021,10 @@ function Tilemaxx() {
         )}
         {workspace === "games" && (
           <div className="workspace-heading game-heading">
-            {menuInTitle && menuButton}
+            {menuInTitle && sidebarButton}
             <div className="game-heading-details">
               <div className="game-title-row">
+                {compactGame && !menuInTitle && sidebarButton}
                 {selectedGame?.archived ? (
                   <h1>{selectedGame.name}</h1>
                 ) : (

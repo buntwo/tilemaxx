@@ -18,8 +18,8 @@ Object.defineProperty(HTMLDialogElement.prototype, "close", {
 Object.defineProperty(window, "matchMedia", {
   configurable: true,
   writable: true,
-  value: vi.fn(() => ({
-    matches: true,
+  value: vi.fn((query: string) => ({
+    matches: query !== "(max-width: 800px)",
     addEventListener() {},
     removeEventListener() {},
   })),
