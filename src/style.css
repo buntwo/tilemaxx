@@ -937,7 +937,7 @@ label + label {
 .game-score-totals [aria-hidden] {
   opacity: 0.7;
 }
-.game-title-score[data-outcome="playing"] {
+.game-title-score:is([data-outcome="playing"], [data-outcome="untracked"]) {
   background: light-dark(#e8e8e9, #3a3a3d);
   color: light-dark(#353539, #e5e5e8);
 }
@@ -5114,6 +5114,7 @@ label + label {
   font-size: clamp(20px, 2vw, 26px);
   line-height: 1;
 }
+.game-scoreboard[data-outcome="untracked"] { font-size: 16px; }
 .compact-game .game-heading .game-title-meta { margin: 0; }
 .compact-game .game-heading .game-actions {
   align-items: center;

@@ -17,12 +17,22 @@ export default function GameScoreBadge({
   score,
   prominent = false,
   showMargin = false,
+  showNoScore = false,
 }: {
   score: GameScoreSummary | null;
   prominent?: boolean;
   showMargin?: boolean;
+  showNoScore?: boolean;
 }) {
-  if (!score) return null;
+  const badgeClass = prominent
+    ? "game-title-score game-scoreboard"
+    : "game-title-score";
+  if (!score)
+    return showNoScore ? (
+      <span className={badgeClass} data-outcome="untracked">
+        No score
+      </span>
+    ) : null;
   const margin = score.you - score.opponent;
   const tone =
     score.outcome === "win"
@@ -44,9 +54,7 @@ export default function GameScoreBadge({
     score.outcome === "playing" ? scoreTone(margin) : undefined;
   return (
     <span
-      className={["game-title-score", prominent && "game-scoreboard", tone]
-        .filter(Boolean)
-        .join(" ")}
+      className={tone ? `${badgeClass} ${tone}` : badgeClass}
       role="group"
       aria-label="Tracked score"
       aria-description={description}
