@@ -556,7 +556,7 @@ test("empty-bag rows wait for estimates unless the user skips to points", async 
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
 });
 
-test("endgame rows reorder as exact lines finish and stay visible while the worker reranks", async () => {
+test("endgame rows rank exact swings first and mark the boundary as more lines finish", async () => {
   let background: EndgameWorker | undefined;
   class EndgameWorker {
     onmessage?: (event: { data: EndgamePrecomputeMessage }) => void;
@@ -592,7 +592,7 @@ test("endgame rows reorder as exact lines finish and stay visible while the work
         index.setEndgame(1, new Map([
           ["a", { spread: -41, exact: false }],
           ["b", { spread: 5, exact: true }],
-          ["c", { spread: -5, exact: false }],
+          ["c", { spread: 12, exact: false }],
         ]));
     },
     fetchPage: async (_id, query) => {
@@ -605,9 +605,11 @@ test("endgame rows reorder as exact lines finish and stay visible while the work
   });
   await screen.findByText("Win by 10");
   const results = rows();
+  const divider = () => screen.getByRole("separator", { name: "End of exact swings" });
+  expect(divider().parentElement).toBe(results[1].parentElement);
   for (const [row, outcome, tone] of [
     [results[0], "Win by 10", "value-good"],
-    [results[1], "Tie", "reply-neutral"],
+    [results[1], "Win by 17", "value-good"],
     [results[2], "Lose by 36", "value-bad"],
   ] as const) {
     expect(row.querySelector(".endgame-estimate small")?.textContent).toBe(outcome);
@@ -630,17 +632,23 @@ test("endgame rows reorder as exact lines finish and stay visible while the work
   expect(rows()).toEqual(results);
   await act(async () => publishUpdatedPage!());
   expect(rows()).toEqual([results[2], results[0], results[1]]);
+  expect(divider().parentElement?.previousElementSibling).toBe(results[0].parentElement);
   const updated = within(results[2]).getByTitle("Exact endgame swing +10");
   expect(updated.querySelector("strong")?.textContent).toBe("+10");
   expect(within(updated).getByText("Win by 15").classList.contains("value-good")).toBe(true);
-  expect(within(results[1]).getByTitle("Estimated endgame swing −5").querySelector("strong")?.textContent).toBe("≈−5");
+  expect(within(results[1]).getByTitle("Estimated endgame swing +12").querySelector("strong")?.textContent).toBe("≈+12");
+  const words = () => rows().map((row) => row.getAttribute("aria-label")?.split(",")[0]);
   await user.click(screen.getByRole("button", { name: "Sort by estimated endgame swing" }));
-  await waitFor(() => expect(rows().map((row) => row.getAttribute("aria-label")?.split(",")[0])).toEqual(["AT", "CAT", "CATS"]));
+  await waitFor(() => expect(words()).toEqual(["CAT", "CATS", "AT"]));
+  expect(divider().parentElement?.previousElementSibling).toBe(rows()[1].parentElement);
 
   await user.click(screen.getByText("Options"));
   expect(screen.getByText("Reply settings")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Check bingo after your play" })).toBeNull();
   expect(onBoardOdds).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Sort by points" }));
+  await waitFor(() => expect(words()).toEqual(["CATS", "CAT", "AT"]));
+  expect(screen.queryByRole("separator", { name: "End of exact swings" })).toBeNull();
 });
 
 test("rack odds sort every move and board odds rank checked moves separately", async () => {

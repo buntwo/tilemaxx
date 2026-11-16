@@ -60,6 +60,7 @@ export interface MovePage {
   head: Move[];
   rows: Move[];
   endgame?: Record<string, EndgameEstimate>;
+  exactEndgameCount?: number;
 }
 
 export function coversRequiredSquares(
@@ -107,6 +108,14 @@ export function defaultSortDescending(sort: MoveSort) {
   ].includes(sort);
 }
 
+function isExactEndgame(
+  move: Move,
+  estimates?: ReadonlyMap<string, EndgameEstimate>,
+  exactSpreads?: MoveQuery["exactEndgameSpreads"],
+) {
+  return exactSpreads?.[move.id] !== undefined || !!estimates?.get(move.id)?.exact;
+}
+
 export function moveComparator(
   {
     sort,
@@ -117,6 +126,7 @@ export function moveComparator(
     exactEndgameSpreads,
   }: Omit<MoveQuery, "filter" | "offset" | "requiredSquares">,
   endgames?: ReadonlyMap<string, EndgameEstimate>,
+  exactEndgamesFirst = true,
 ) {
   const order = reversed ? -1 : 1;
   if (sort === "shortlist") return undefined;
@@ -149,6 +159,12 @@ export function moveComparator(
           Number(first === undefined) - Number(second === undefined) ||
           b.score - a.score
         );
+      if (sort === "endgame" && exactEndgamesFirst) {
+        const exactOrder =
+          Number(isExactEndgame(b, endgames, exactEndgameSpreads)) -
+          Number(isExactEndgame(a, endgames, exactEndgameSpreads));
+        if (exactOrder) return exactOrder;
+      }
       return direction * (first - second) || b.score - a.score;
     };
   }
@@ -160,7 +176,12 @@ export function moveComparator(
 }
 
 export class MoveResultIndex {
-  private ordered?: { key: string; moves: readonly Move[]; bingoCount: number };
+  private ordered?: {
+    key: string;
+    moves: readonly Move[];
+    bingoCount: number;
+    exactEndgameCount?: number;
+  };
   private endgame?: { id: number; estimates: Map<string, EndgameEstimate> };
   private readonly bingoCount: number;
 
@@ -198,12 +219,10 @@ export class MoveResultIndex {
   ): EndgameRanking {
     this.endgame = { id, estimates };
     this.ordered = undefined;
-    const head = this.page({
-      filter: "",
-      sort: "endgame",
-      offset: 0,
-      endgameId: id,
-    }).head;
+    // Background searches pick candidates by the initial swing.
+    const head = [...this.moves]
+      .sort(moveComparator({ sort: "endgame" }, estimates, false))
+      .slice(0, MOVE_HEAD_SIZE);
     return { id, checked: estimates.size, head };
   }
 
@@ -232,14 +251,22 @@ export class MoveResultIndex {
         order.sort === "score" && !order.reversed
           ? undefined
           : moveComparator(order, estimates);
+      const moves = compare ? [...matches].sort(compare) : matches;
+      const firstEstimated =
+        order.sort === "endgame"
+          ? moves.findIndex(
+              (move) => !isExactEndgame(move, estimates, order.exactEndgameSpreads),
+            )
+          : undefined;
       this.ordered = {
         key,
-        moves: compare ? [...matches].sort(compare) : matches,
+        moves,
         bingoCount:
           matches === this.moves ? this.bingoCount : this.countBingos(matches),
+        exactEndgameCount: firstEstimated === -1 ? moves.length : firstEstimated,
       };
     }
-    const { moves, bingoCount } = this.ordered;
+    const { moves, bingoCount, exactEndgameCount } = this.ordered;
     const start = Math.min(offset, Math.max(0, moves.length - MOVE_PAGE_SIZE));
     const rows = moves.slice(start, start + MOVE_PAGE_SIZE);
     return {
@@ -248,6 +275,7 @@ export class MoveResultIndex {
       bingoCount,
       head: moves.slice(0, MOVE_HEAD_SIZE),
       rows,
+      exactEndgameCount,
       endgame:
         estimates &&
         Object.fromEntries(

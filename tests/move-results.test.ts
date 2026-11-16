@@ -47,12 +47,12 @@ test("endgame ranking includes lower-scoring moves outside the initial page and 
   const ranked = index.setEndgame(
     2,
     new Map([
-      [first.id, { spread: -50, exact: false }],
+      [first.id, { spread: 50, exact: false }],
       [last.id, { spread: 15, exact: true }],
     ]),
   );
   assert.equal(ranked.checked, 2);
-  assert.deepEqual(ranked.head.slice(0, 2), [last, first]);
+  assert.deepEqual(ranked.head.slice(0, 2), [first, last]);
   assert.deepEqual(index.summary(1).head, moves.slice(0, 30));
 
   const query = {
@@ -61,16 +61,23 @@ test("endgame ranking includes lower-scoring moves outside the initial page and 
     offset: 0,
     endgameId: 2,
   };
-  assert.equal(index.page(query).rows[0], last);
-  assert.equal(index.page({ ...query, reversed: true }).rows[0], first);
+  assert.deepEqual(index.page(query).head.slice(0, 2), [last, first]);
+  assert.equal(index.page(query).exactEndgameCount, 1);
+  assert.equal(index.page({ ...query, reversed: true }).rows[0], last);
   const raw = index.page({ ...query, sort: "score" });
   assert.equal(raw.rows[0], first);
-  assert.deepEqual(raw.endgame, { [first.id]: { spread: -50, exact: false } });
+  assert.deepEqual(raw.endgame, { [first.id]: { spread: 50, exact: false } });
+  assert.equal(raw.exactEndgameCount, undefined);
   assert.equal(index.page({ ...query, endgameId: 1 }).endgame, undefined);
 
   const exactEndgameSpreads = { [first.id]: 20, [last.id]: 0 };
   const corrected = { ...query, exactEndgameSpreads };
   assert.deepEqual(index.page(corrected).head.slice(0, 2), [first, last]);
+  assert.equal(index.page(corrected).exactEndgameCount, 2);
+  assert.equal(
+    index.page({ ...corrected, offset: moves.length }).exactEndgameCount,
+    2,
+  );
   assert.deepEqual(
     index.page({ ...corrected, reversed: true }).head.slice(0, 2),
     [last, first],
