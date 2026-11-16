@@ -22,6 +22,10 @@ import { MoveResultIndex, type MoveResults } from "../../shared/move-results";
 import { moveRowHeight, type FetchMovePage } from "../../src/useMoveResults";
 import { useReplyAnalysis } from "../../src/useReplyAnalysis";
 import type { RankEndgame } from "../../src/useSolver";
+import type {
+  EndgamePrecomputeMessage,
+  EndgamePrecomputeRequest,
+} from "../../src/useEndgameLines";
 const moves: Move[] = [
   {
     id: "a",
@@ -552,11 +556,16 @@ test("empty-bag rows wait for estimates unless the user skips to points", async 
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
 });
 
-test("endgame rows show the implied result beside the swing and only letters in Leave", async () => {
-  vi.stubGlobal("Worker", class {
+test("endgame rows update the swing and implied result as exact lines finish", async () => {
+  let background: EndgameWorker | undefined;
+  class EndgameWorker {
+    onmessage?: (event: { data: EndgamePrecomputeMessage }) => void;
     terminate() {}
-    postMessage() {}
-  });
+    postMessage(request: ReplyRequest | EndgamePrecomputeRequest) {
+      if (request.kind === "precompute-endgames") background = this;
+    }
+  }
+  vi.stubGlobal("Worker", EndgameWorker);
   const onBoardOdds = vi.fn();
   const { user } = setup(false, {
     analysisGame: {
@@ -579,7 +588,7 @@ test("endgame rows show the implied result beside the swing and only letters in 
       index.setEndgame(1, new Map([
         ["a", { spread: -41, exact: false }],
         ["b", { spread: 5, exact: true }],
-        ["c", { spread: -5, exact: true }],
+        ["c", { spread: -5, exact: false }],
       ])),
   });
   await screen.findByText("Win by 10");
@@ -596,6 +605,22 @@ test("endgame rows show the implied result beside the swing and only letters in 
   }
   expect(screen.getByRole("button", { name: "Sort by rack leave" })).toBeTruthy();
   expect(screen.queryByLabelText("Sort by leave or bingo odds")).toBeNull();
+
+  act(() => {
+    background!.onmessage!({
+      data: {
+        moveId: "a",
+        line: { spread: 10, points: { you: 20, opponent: 10 }, line: [moves[0]] },
+      },
+    });
+    background!.onmessage!({ data: { moveId: "c", limit: "Time limit reached." } });
+  });
+  expect(rows()).toEqual(results);
+  const updated = within(results[2]).getByTitle("Exact endgame swing +10");
+  expect(updated.querySelector("strong")?.textContent).toBe("+10");
+  expect(within(updated).getByText("Win by 15").classList.contains("value-good")).toBe(true);
+  expect(within(results[1]).getByTitle("Estimated endgame swing −5").querySelector("strong")?.textContent).toBe("≈−5");
+
   await user.click(screen.getByText("Options"));
   expect(screen.getByText("Reply settings")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Check bingo after your play" })).toBeNull();

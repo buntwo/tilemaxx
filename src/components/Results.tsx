@@ -260,6 +260,8 @@ export default function Results({
   const waitingForEndgame = replyEnabled && replyAnalysis.estimatingEndgame;
   const endgameProgress = replyEnabled ? replyAnalysis.endgameProgress : undefined;
   const endgameRanked = !!ranking?.checked;
+  const showEndgameSwing =
+    endgameRanked || (!shortlistActive && !!endgameProgress?.ready);
   const sort =
     activeOrder &&
     (activeOrder.sort !== "endgame" || endgameRanked) &&
@@ -500,7 +502,7 @@ export default function Results({
   return (
     <section
       aria-label="Possible moves"
-      className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${reserveReplySpace ? " with-reply-preview" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${endgameRanked ? " with-endgame-estimates" : ""}`}
+      className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${reserveReplySpace ? " with-reply-preview" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${showEndgameSwing ? " with-endgame-estimates" : ""}`}
     >
       <header
         className={`results-title${exchangeAction ? " has-exchange-advice" : ""}`}
@@ -755,8 +757,8 @@ export default function Results({
             </div>
             {analysisGame && (replyEnabled || defense) && (
               <div className="result-reply-heading">
-                {endgameRanked
-                  ? column("EST. SWING", "endgame", "estimated endgame swing")
+                {showEndgameSwing
+                  ? column("EST. SWING", "endgame", "estimated endgame swing", !endgameRanked)
                   : column(
                       "Δ REPLY",
                       "reply",
@@ -858,17 +860,30 @@ export default function Results({
                   : undefined;
                 const reply = replyAnalysis.results?.[m.id];
                 const estimate = page.endgame?.[m.id];
-                const finalMargin = estimate && replyScores
-                  ? replyScores.you - replyScores.opponent + estimate.spread
+                const exactLine = showEndgameSwing
+                  ? replyAnalysis.cachedEndgame(m.id)
                   : undefined;
-                const threat = estimate?.reply?.goesOut
-                  ? estimate.reply
+                const swing = exactLine?.spread ?? estimate?.spread;
+                const exact = !!exactLine || !!estimate?.exact;
+                const finalMargin = swing !== undefined && replyScores
+                  ? replyScores.you - replyScores.opponent + swing
                   : undefined;
+                const openingReply = exactLine?.line[1];
+                const threat = exactLine
+                  ? openingReply && !openingReply.leave && !replyAnalysis.crossplay
+                    ? openingReply
+                    : undefined
+                  : estimate?.reply?.goesOut
+                    ? estimate.reply
+                    : undefined;
                 const threatBingo =
                   !!threat &&
-                  isBingo(bingoRules, replyAnalysis.opponentRack.length);
+                  isBingo(
+                    bingoRules,
+                    "tiles" in threat ? threat.tiles.length : replyAnalysis.opponentRack.length,
+                  );
                 const metricId =
-                  (reply || endgameRanked) && analysisGame
+                  (reply || showEndgameSwing) && analysisGame
                     ? `${replyMetricId}-${start + offset}`
                     : undefined;
                 const replyPending =
@@ -1009,20 +1024,18 @@ export default function Results({
                           {signedPoints(-sacrifice)}
                         </small>
                       </span>
-                      {endgameRanked ? (
+                      {showEndgameSwing ? (
                         <span className="result-reply-metric" id={metricId}>
-                          {estimate ? (
+                          {swing !== undefined ? (
                             <span
                               className="reply-cell endgame-estimate"
-                              title={`${estimate.exact ? "Exact" : "Estimated"} endgame swing ${signedPoints(estimate.spread)}${threat ? `. Opponent can go out with ${threat.word} for ${threat.score} points.` : ""}`}
+                              title={`${exact ? "Exact" : "Estimated"} endgame swing ${signedPoints(swing)}${threat ? `. Opponent can go out with ${threat.word} for ${threat.score} points.` : ""}`}
                             >
                               <strong
-                                className={
-                                  scoreTone(estimate.spread) ?? "reply-neutral"
-                                }
+                                className={scoreTone(swing) ?? "reply-neutral"}
                               >
-                                {!estimate.exact && "≈"}
-                                {signedPoints(estimate.spread)}
+                                {!exact && "≈"}
+                                {signedPoints(swing)}
                                 {threatBingo && finalMargin === undefined && (
                                   <BingoBadge className="endgame-threat-badge" />
                                 )}
@@ -1030,7 +1043,7 @@ export default function Results({
                               {finalMargin !== undefined ? (
                                 <small
                                   className={scoreTone(finalMargin) ?? "reply-neutral"}
-                                  title={estimate.exact ? "Final margin" : "Estimated final margin"}
+                                  title={exact ? "Final margin" : "Estimated final margin"}
                                 >
                                   {finalMarginLabel(finalMargin)}
                                 </small>
@@ -1100,7 +1113,7 @@ export default function Results({
                         m,
                         `Score breakdown for ${m.word} at ${coordinate(m.row * size + m.col, size)} ${m.direction}`,
                       )}
-                    {!endgameRanked && replyPending && (
+                    {!showEndgameSwing && replyPending && (
                       <span
                         className="result-defense-action result-reply-pending"
                         role="img"
@@ -1113,7 +1126,7 @@ export default function Results({
                         />
                       </span>
                     )}
-                    {!endgameRanked && !reply && !replyPending && risk && (
+                    {!showEndgameSwing && !reply && !replyPending && risk && (
                       <button
                         type="button"
                         className={`result-defense-action icon-button ${risk.opened ? "defense-warning" : "defense-covered"}`}
