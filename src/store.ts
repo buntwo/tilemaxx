@@ -480,6 +480,7 @@ export class GameStore {
               future: draft.future,
               trackedMoves: draft.trackedMoves,
               excludedRackSlots: draft.excludedRackSlots,
+              requiredRackSlots: draft.requiredRackSlots,
             });
           } else {
             const newer = {

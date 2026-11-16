@@ -40,6 +40,8 @@ export function exchangeAdvicePlays(
   template: BoardTemplate,
   moves: Move[],
 ): Move[] | undefined {
+  // A forced play is not a baseline for an automatic exchange recommendation.
+  if (position.requiredRackSlots?.length) return;
   const { available, held } = splitRack(position);
   if (!available || available.length + held.length !== template.rackSize)
     return;

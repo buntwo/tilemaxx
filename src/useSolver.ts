@@ -312,7 +312,7 @@ export function useSolver(positionKey: string) {
     try {
       const active = startWorker();
       solving.current = id;
-      const { dictionaryId, board, rack, excludedRackSlots, template } = game;
+      const { dictionaryId, board, rack, excludedRackSlots, requiredRackSlots, template } = game;
       active.postMessage({
         id,
         kind: "solve",
@@ -320,6 +320,7 @@ export function useSolver(positionKey: string) {
         board,
         rack,
         excludedRackSlots,
+        requiredRackSlots,
         template,
       } satisfies SolverRequest);
       return true;

@@ -23,7 +23,7 @@ export const SEARCH_LIMITS = {
   maxMs: 2_000,
 };
 type Limits = Partial<typeof SEARCH_LIMITS>;
-type Options = { bingoOnly?: boolean; unsorted?: boolean };
+type Options = { bingoOnly?: boolean; unsorted?: boolean; requiredTiles?: string };
 export const BIG_REPLY_SCORE = 40;
 
 export interface PremiumReply {
@@ -256,6 +256,23 @@ export function prepareSolver(
       blankCount = premiumSearch.counts[26];
     }
 
+    // Required tiles describe physical rack copies. Compare what remains so
+    // a board letter or a blank assigned to the same letter cannot satisfy it.
+    const required = options.requiredTiles?.toUpperCase();
+    const maxRemaining = required ? new Map<number, number>() : undefined;
+    let maxBlanks = blankCount;
+    if (required && maxRemaining) {
+      for (const letter of required) {
+        if (letter === "?") maxBlanks--;
+        else {
+          const code = letter.charCodeAt(0) - 65;
+          maxRemaining.set(code, (maxRemaining.get(code) ?? counts[code]) - 1);
+        }
+      }
+      if (maxBlanks < 0 || [...maxRemaining.values()].some((n) => !(n >= 0)))
+        return { moves, bestScore, hasBingo };
+    }
+
     let nodes = 0,
       moveCount = 0;
     const seenSingles = new Set<number>();
@@ -298,6 +315,11 @@ export function prepareSolver(
         available: number,
         blanks: number,
       ) {
+        if (maxRemaining) {
+          if (blanks > maxBlanks) return;
+          for (const [code, max] of maxRemaining)
+            if (counts[code] > max) return;
+        }
         // Multiple new squares determine the word's axis. A one-tile play
         // making two words can be found from both axes.
         if (used === 1) {
@@ -577,7 +599,12 @@ export function solvePosition(
   limits?: Limits,
 ) {
   const { available, held } = splitRack(position);
-  const moves = solve(lexicon, position.board, available, template, limits);
+  const requiredTiles = position.requiredRackSlots
+    ?.map((slot) => position.rack[slot])
+    .join("");
+  const moves = solve(lexicon, position.board, available, template, limits, {
+    requiredTiles,
+  });
   if (held) {
     for (const move of moves) {
       move.leave = (move.leave + held).split("").sort().join("");
