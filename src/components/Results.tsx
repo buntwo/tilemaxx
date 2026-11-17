@@ -381,13 +381,6 @@ export default function Results({
         captureHeatmap: true,
       });
   }
-  function checkReplyHistogram(move: Move) {
-    if (!resultSet || !replyAnalysis.canRequestHistogram) return;
-    setLocked(null);
-    onPreview(null);
-    setInspectedReply({ move, searchId: resultSet.searchId });
-    replyAnalysis.requestDetail(move, { kind: "reply-histogram" });
-  }
   const replyDeltas = useMemo(
     () =>
       Object.fromEntries(
@@ -437,6 +430,15 @@ export default function Results({
   const pointsSorted = sort === "score" || sort === "reply-adjusted";
   function setSort(sort: MoveSort, reversed = false) {
     setOrdering({ searchId, sort, reversed });
+  }
+  function checkReplyHistogram(move: Move) {
+    if (!resultSet || !replyAnalysis.canRequestHistogram) return;
+    // A histogram can make adjusted sorting available for the first time.
+    if (!activeOrder && !shortlistActive) setSort(sort, reversed);
+    setLocked(null);
+    onPreview(null);
+    setInspectedReply({ move, searchId: resultSet.searchId });
+    replyAnalysis.requestDetail(move, { kind: "reply-histogram" });
   }
   const estimateNotice = replyAnalysis.endgameEstimateUnavailable
     ? "Endgame estimates unavailable."
