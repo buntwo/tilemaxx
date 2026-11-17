@@ -9,7 +9,9 @@ import {
   type OpponentPolicyResult,
 } from "../shared/opponent-policy";
 import {
+  opponentEndgameLine,
   replyEndgameLine,
+  type OpponentEndgamePosition,
   summarizeReplyBoard,
   type ReplyPosition,
   type sampleReplyRacks,
@@ -23,6 +25,13 @@ export type CandidateJob =
       samples: ReturnType<typeof sampleReplyRacks>;
     })
   | (CandidateMove & { kind: "endgame" })
+  | {
+      kind: "opponent-endgame";
+      position: OpponentEndgamePosition;
+      move: Move | null;
+      deadline: number;
+      minimumSpread?: number;
+    }
   | {
       kind: "board-bingo";
       board: Board;
@@ -49,6 +58,7 @@ export type CandidateJob =
 export type CandidateResult =
   | { kind: "histogram"; board: ReturnType<typeof summarizeReplyBoard> }
   | { kind: "endgame"; line: EndgameLine; elapsed: number }
+  | { kind: "opponent-endgame"; line?: EndgameLine }
   | { kind: "board-bingo"; odds?: BoardOdds }
   | { kind: "exchange-racks"; hits: ReturnType<typeof checkExchangeRacks> }
   | { kind: "policy-turn"; policy?: OpponentPolicyResult }
@@ -92,6 +102,21 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
             kind: "endgame",
             line,
             elapsed: performance.now() - started,
+          };
+        }
+        case "opponent-endgame": {
+          const remaining = job.deadline - performance.timeOrigin - started;
+          if (remaining <= 0)
+            return { kind: "limit", message: "The opponent endgame reached its time limit.", elapsed: 0 };
+          return {
+            kind: "opponent-endgame",
+            line: opponentEndgameLine(
+              lexicon,
+              job.position,
+              job.move,
+              Math.min(5_000, remaining),
+              job.minimumSpread,
+            ),
           };
         }
         case "board-bingo": {

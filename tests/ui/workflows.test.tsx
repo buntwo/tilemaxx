@@ -33,6 +33,11 @@ import type { PracticeRequest } from "../../src/practice.worker";
 import type { EndgamePrecomputeRequest } from "../../src/useEndgameLines";
 import { simulateExchange } from "../../shared/exchange";
 import { TILE_SYMBOLS } from "../../shared/tile-pool";
+import {
+  parallelOpponentEndgame,
+  type OpponentEndgameRequest,
+} from "../../src/parallel-opponent-endgame";
+import { opponentEndgameWords, playBeforeRefill } from "../opponent-endgame-fixture";
 
 let remote: AppState & { version?: string };
 let workspaceWidth: number;
@@ -4297,4 +4302,89 @@ test("a new search after playing starts with highest points", async () => {
   const points = await screen.findByRole("button", { name: "Sort by points" });
   expect(points.getAttribute("aria-pressed")).toBe("true");
   expect(points.getAttribute("title")).toBe("points (descending)");
+});
+
+
+test.each([false, true])("after the last draw, Solve endgame previews opponent lines without playing (phone %s)", async (phone) => {
+  const played = playBeforeRefill();
+  remote.games[0] = played;
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: phone && query === "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const requests: OpponentEndgameRequest[] = [];
+  let finds = 0;
+  class WorkerWithEndgame extends SolverWorker {
+    postMessage(request: SolverRequest | OpponentEndgameRequest) {
+      if (request.kind !== "solve-opponent-endgame") {
+        if (request.kind === "solve") finds++;
+        return super.postMessage(request);
+      }
+      requests.push(request);
+      void parallelOpponentEndgame(
+        new Lexicon(opponentEndgameWords), request, 1, () => undefined,
+      ).then((result) => this.onmessage?.({ data: { result } }));
+    }
+  }
+  vi.stubGlobal("Worker", WorkerWithEndgame);
+  const user = await start();
+  expect(screen.queryByRole("button", { name: "Solve endgame" })).toBeNull();
+  await user.click(rackTile(3));
+  await user.keyboard("D");
+
+  const empty = within(screen.getByRole("region", { name: "Possible moves" }));
+  const solve = empty.getByRole("button", { name: "Solve endgame" });
+  expect(solve.previousElementSibling).toBe(empty.getByRole("button", { name: "Find moves" }));
+  await user.click(solve);
+
+  const result = within(await screen.findByRole("region", { name: "Opponent endgame" }));
+  const list = result.getByRole("list", { name: /sorted by swing for you/ });
+  const rows = within(list).getAllByRole("button");
+  expect(rows).toHaveLength(5);
+  expect(finds).toBe(0);
+  expect(requests[0]).toMatchObject({ rack: "DSD", opponentRack: "AOT", dictionaryId: "test" });
+  const boardBefore = [...current().board];
+
+  await user.click(rows[0]);
+  const preview = within(result.getByRole("region", { name: "Opponent reply details" }));
+  expect(preview.getByRole("heading", { name: "Optimal endgame line" })).toBeTruthy();
+  const firstTurn = preview.getAllByRole("button", { pressed: true })[0];
+  expect(firstTurn.textContent).toContain("Opponent");
+  expect(firstTurn.closest("ol")?.firstElementChild?.firstElementChild).toBe(firstTurn);
+  const secondTurn = firstTurn.closest("li")?.nextElementSibling?.querySelector("button");
+  if (secondTurn) {
+    await user.click(secondTurn);
+    expect(secondTurn.getAttribute("aria-pressed")).toBe("true");
+  }
+  expect(document.querySelector(".board-entry .ghost")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
+  await user.click(rows[0]);
+  expect(result.queryByRole("region", { name: "Opponent reply details" })).toBeNull();
+  expect(document.querySelector(".board-entry .ghost")).toBeNull();
+  expect(current().board).toEqual(boardBefore);
+  expect(current().rack).toBe("DSD");
+  await user.click(result.getByRole("button", { name: "Close opponent endgame" }));
+  expect(screen.getByRole("button", { name: "Solve endgame" })).toBeTruthy();
+});
+
+test("editing the position cancels the opponent worker and ignores its stale result", async () => {
+  remote.games[0] = { ...playBeforeRefill(), rack: "DSD" };
+  let pending: SolverWorker | undefined;
+  class DeferredEndgameWorker extends SolverWorker {
+    postMessage(request: SolverRequest | OpponentEndgameRequest) {
+      if (request.kind === "solve-opponent-endgame") pending = this;
+      else super.postMessage(request);
+    }
+  }
+  vi.stubGlobal("Worker", DeferredEndgameWorker);
+  const user = await start();
+  await user.click(screen.getByRole("button", { name: "Solve endgame" }));
+  expect(screen.getByText("Solving opponent endgame…")).toBeTruthy();
+  await user.click(rackTile(3));
+  await user.keyboard("{Backspace}");
+  expect(pending?.terminate).toHaveBeenCalledTimes(1);
+  await act(async () => pending?.onmessage?.({ data: { result: { checked: 0, total: 1, lines: [] } } }));
+  expect(screen.queryByRole("region", { name: "Opponent endgame" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Solve endgame" })).toBeNull();
 });

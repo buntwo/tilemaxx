@@ -1,4 +1,5 @@
 import {
+  useContext,
   useId,
   useMemo,
   useRef,
@@ -13,6 +14,7 @@ import {
   ChevronUp,
   Search,
   Sparkles,
+  Swords,
   LoaderCircle,
   Trophy,
   ChartNoAxesCombined,
@@ -24,6 +26,7 @@ import {
   type BingoRules,
   type Game,
   type Move,
+  type Player,
   coordinate,
 } from "../../shared/model";
 import {
@@ -32,6 +35,7 @@ import {
 } from "../../shared/reply-analysis";
 import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
 import type { EndgameLine } from "../../shared/endgame";
+import { endgameAfterRefill } from "../../shared/endgame-refill";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
@@ -40,6 +44,12 @@ import MoveWord, { BingoBadge } from "./MoveWord";
 import BingoOddsControls from "./BingoOddsControls";
 import CalculationIndicator from "./CalculationIndicator";
 import OptimalReplyDetails from "./OptimalReplyDetails";
+import OpponentEndgameResults, {
+  OpponentEndgamePending,
+} from "./OpponentEndgameResults";
+import { ComputeWorkerLimit } from "./ComputeWorkerLimit";
+import { computeWorkerLimit } from "../compute-workers";
+import { useOpponentEndgame } from "../useOpponentEndgame";
 import { useGameCalculating } from "./GameCalculations";
 import { useMoveScoreTooltip } from "./MoveScoreTooltip";
 import PremiumDefense, {
@@ -230,7 +240,7 @@ export default function Results({
   preview: Move | null;
   requiredSquares?: RequiredSquares;
   squareFilterControl?: ReactElement;
-  onPreview: (m: Move | null, analysis?: boolean) => void;
+  onPreview: (m: Move | null, analysis?: boolean, player?: Player) => void;
   phoneLayout?: boolean;
   onPlay: (m: Move) => void;
   onSolve: (reload?: boolean) => void;
@@ -254,6 +264,29 @@ export default function Results({
     [scroll, setScroll] = useState(0),
     [locked, setLocked] = useState<string | null>(null);
   const localCalculation = useGameCalculating();
+  const workerLimit = useContext(ComputeWorkerLimit) ?? computeWorkerLimit();
+  const refill = useMemo(
+    () =>
+      analysisGame && !resultSet && !busy && !error
+        ? endgameAfterRefill(analysisGame)
+        : undefined,
+    [analysisGame, resultSet, busy, error],
+  );
+  const opponentKey =
+    refill && analysisKey ? JSON.stringify([analysisKey, refill.scorelessTurns]) : undefined;
+  const opponent = useOpponentEndgame(opponentKey, workerLimit);
+  const opponentSearch = opponent.current;
+  function startOpponentEndgame() {
+    if (!analysisGame || !refill) return;
+    const { board, rack, template, dictionaryId } = analysisGame;
+    onPreview(null);
+    opponent.start({ board, rack, template, ...refill }, dictionaryId);
+  }
+
+  function closeOpponentEndgame() {
+    onPreview(null);
+    opponent.close();
+  }
   const scroller = useRef<HTMLDivElement>(null),
     pinnedRow = useRef<HTMLDivElement>(null),
     pointer = useRef("mouse");
@@ -649,6 +682,17 @@ export default function Results({
       <Search size={16} aria-hidden="true" />
     </button>
   );
+  if (analysisGame && refill && opponentSearch && "result" in opponentSearch) {
+    return (
+      <OpponentEndgameResults
+        game={analysisGame}
+        opponentRack={refill.opponentRack}
+        result={opponentSearch.result}
+        onClose={closeOpponentEndgame}
+        onPreview={(move) => onPreview(move, true, "opponent")}
+      />
+    );
+  }
   return (
     <section
       aria-label="Possible moves"
@@ -804,7 +848,22 @@ export default function Results({
           endgameSettings={replyAnalysis}
         />
       )}
-      {busy ? (
+      {opponentSearch?.pending ? (
+        <OpponentEndgamePending
+          progress={opponentSearch.progress}
+          onCancel={closeOpponentEndgame}
+        />
+      ) : opponentSearch && "error" in opponentSearch ? (
+        <div className="results-empty">
+          <h3>Couldn’t solve the opponent endgame</h3>
+          <p className="error" role="alert">
+            {opponentSearch.error}
+          </p>
+          <button type="button" className="button secondary" onClick={closeOpponentEndgame}>
+            Back
+          </button>
+        </div>
+      ) : busy ? (
         <div className="results-empty">
           <LoaderCircle className="spin" size={30} />
           <h3>{busy}</h3>
@@ -842,14 +901,27 @@ export default function Results({
             <br />
             We’ll find the possibilities.
           </p>
-          <button
-            className="button primary"
-            onClick={() => onSolve()}
-            disabled={!hasRack}
-          >
-            <Sparkles size={16} />
-            Find moves
-          </button>
+          <div className="results-search-actions">
+            <button
+              className="button primary"
+              type="button"
+              onClick={() => onSolve()}
+              disabled={!hasRack}
+            >
+              <Sparkles size={16} />
+              Find moves
+            </button>
+            {refill && (
+              <button
+                className="button secondary"
+                type="button"
+                onClick={startOpponentEndgame}
+              >
+                <Swords size={16} aria-hidden="true" />
+                Solve endgame
+              </button>
+            )}
+          </div>
         </div>
       ) : waitingForEndgame ? (
         <div className="results-empty">
@@ -1361,36 +1433,38 @@ export default function Results({
           </div>
         </>
       )}
-      <footer className="results-foot">
-        {analyzing ? (
-          <span>Choose up to three moves to analyze</span>
-        ) : (
-          <>
-            <span className="hover-hint">
-              Hover to preview · right-click or P to pin/unpin · click to play
+      {!opponentSearch && (
+        <footer className="results-foot">
+          {analyzing ? (
+            <span>Choose up to three moves to analyze</span>
+          ) : (
+            <>
+              <span className="hover-hint">
+                Hover to preview · right-click or P to pin/unpin · click to play
+              </span>
+              <span className="tap-hint">
+                Tap to preview · tap again to play
+              </span>
+            </>
+          )}
+          {replyAnalysis.pending ? (
+            <span title="Checking opponent replies">
+              Replies {Object.keys(replyAnalysis.results ?? {}).length}/
+              {replyAnalysis.target.length}
             </span>
-            <span className="tap-hint">
-              Tap to preview · tap again to play
+          ) : !endgame && boardOddsProgress ? (
+            <span role="status" title="Checking bingo odds after your play">
+              Bingo {boardOddsProgress.checked}/{boardOddsProgress.total}
             </span>
-          </>
-        )}
-        {replyAnalysis.pending ? (
-          <span title="Checking opponent replies">
-            Replies {Object.keys(replyAnalysis.results ?? {}).length}/
-            {replyAnalysis.target.length}
-          </span>
-        ) : !endgame && boardOddsProgress ? (
-          <span role="status" title="Checking bingo odds after your play">
-            Bingo {boardOddsProgress.checked}/{boardOddsProgress.total}
-          </span>
-        ) : !endgame && rackOddsPending ? (
-          <span role="status">Calculating bingo draws…</span>
-        ) : defenseProgress ? (
-          <span title="Checking premium replies">Risk {defenseProgress}</span>
-        ) : (
-          timing && <MoveTimingButton timing={timing} size={size} />
-        )}
-      </footer>
+          ) : !endgame && rackOddsPending ? (
+            <span role="status">Calculating bingo draws…</span>
+          ) : defenseProgress ? (
+            <span title="Checking premium replies">Risk {defenseProgress}</span>
+          ) : (
+            timing && <MoveTimingButton timing={timing} size={size} />
+          )}
+        </footer>
+      )}
       {analysisGame && replyMove && (replyLine || replyDetail) && (
         <section
           className={`inline-reply${compact && replyDetail?.kind === "distribution" ? " compact-reply" : ""}`}

@@ -39,6 +39,8 @@ export function createCandidatePool(
   async function run<Job extends CandidateJob>(
     jobs: readonly Job[],
     receive: (job: Job, result: CandidateResult) => void | Promise<void>,
+    // Read shared batch state at dispatch time. An undefined job stops a lane.
+    prepare?: (job: Job) => Job | undefined,
   ) {
     let next = 0;
     let stopped = false;
@@ -57,7 +59,9 @@ export function createCandidatePool(
 
     async function drain(slot?: (typeof slots)[number]) {
       while (!closed && !stopped && next < jobs.length) {
-        const job = jobs[next++];
+        const original = jobs[next++];
+        const job = prepare ? prepare(original) : original;
+        if (!job) return;
         let result: CandidateResult;
         if (slot?.worker) {
           try {

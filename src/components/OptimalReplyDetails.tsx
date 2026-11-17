@@ -35,10 +35,12 @@ export default function OptimalReplyDetails({
   game,
   line,
   opponentRack,
+  firstPlayer = "you",
 }: {
   game: Game;
   line: EndgameLine;
   opponentRack: string;
+  firstPlayer?: Player;
 }) {
   const totals = scoreTotalsAtPosition(game);
   const scoresWith = (points: Scores) =>
@@ -51,8 +53,9 @@ export default function OptimalReplyDetails({
   const played = { you: 0, opponent: 0 };
   const racks = { you: game.rack, opponent: opponentRack };
   let board = game.board;
+  const secondPlayer = firstPlayer === "you" ? "opponent" : "you";
   const steps = line.line.map<Step>((move, index) => {
-    const player = index % 2 ? "opponent" : "you";
+    const player = index % 2 ? secondPlayer : firstPlayer;
     const before = board;
     if (move) {
       played[player] += move.score;
@@ -85,7 +88,9 @@ export default function OptimalReplyDetails({
     index: number;
   }>();
   const selected =
-    selection?.line === line ? selection.index : line.line.length > 1 ? 1 : 0;
+    selection?.line === line
+      ? selection.index
+      : firstPlayer === "you" && line.line.length > 1 ? 1 : 0;
   const step = steps[selected];
   const candidate = line.line[0];
   const { size } = game.template;
@@ -133,7 +138,7 @@ export default function OptimalReplyDetails({
                 {candidate ? (
                   <MoveWord move={candidate} rules={game.template} />
                 ) : (
-                  "the line"
+                  "the pass"
                 )}
               </span>
               <strong>{scorePair(totals)}</strong>

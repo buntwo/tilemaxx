@@ -1,6 +1,11 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { analyzeMoves, type AnalysisRequest } from "../shared/move-analysis";
 import { runCandidateJobs } from "./candidate-analysis-pool";
+import {
+  parallelOpponentEndgame,
+  type OpponentEndgameMessage,
+  type OpponentEndgameRequest,
+} from "./parallel-opponent-endgame";
 import type {
   EndgamePrecomputeMessage,
   EndgamePrecomputeRequest,
@@ -61,12 +66,36 @@ async function precomputeEndgames(request: EndgamePrecomputeRequest) {
 
 self.onmessage = async (
   event: MessageEvent<
-    EndgamePrecomputeRequest | (AnalysisRequest & { dictionaryId: string })
+    | EndgamePrecomputeRequest
+    | OpponentEndgameRequest
+    | (AnalysisRequest & { dictionaryId: string })
   >,
 ) => {
   const request = event.data;
   if ("kind" in request) {
-    await precomputeEndgames(request);
+    if (request.kind === "precompute-endgames") {
+      await precomputeEndgames(request);
+    } else {
+      const post = (message: OpponentEndgameMessage) => self.postMessage(message);
+      try {
+        const { dictionaryId, workerLimit, kind: _, ...position } = request;
+        const lexicon = await loadDictionary(dictionaryId);
+        const result = await parallelOpponentEndgame(
+          lexicon,
+          position,
+          workerLimit,
+          (progress) => post({ progress }),
+        );
+        post({ result });
+      } catch (error) {
+        post({
+          error:
+            error instanceof Error
+              ? error.message
+              : "The opponent endgame stopped unexpectedly.",
+        });
+      }
+    }
     return;
   }
   try {
