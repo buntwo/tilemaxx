@@ -273,8 +273,9 @@ export default function Results({
   const [analyzing, setAnalyzing] = useState(false);
   const replyMetricId = useId();
   const [candidates, setCandidates] = useState<Move[]>([]);
-  const [shortlistOnly, setShortlistOnly] = useState(false);
-  const shortlistActive = shortlistOnly && !!analysisGame;
+  const [shortlistSearch, setShortlistSearch] = useState<number>();
+  const shortlistActive =
+    !!analysisGame && !!resultSet && shortlistSearch === resultSet.searchId;
   const totalMoves = resultSet?.total ?? 0;
   const endgame = !!analysisGame && replyAnalysis.bagSize === 0;
   const rackOdds = endgame ? undefined : calculatedRackOdds;
@@ -515,7 +516,7 @@ export default function Results({
     if (scroller.current) scroller.current.scrollTop = 0;
     setLocked(null);
     scoreTooltip.close();
-  }, [resultSet, filter, requiredSquares, sort, reversed, shortlistOnly]);
+  }, [resultSet, filter, requiredSquares, sort, reversed, shortlistActive]);
   useEffect(() => {
     setInspectedReply(undefined);
     if (requiredSquares)
@@ -588,10 +589,10 @@ export default function Results({
     >
       <button
         type="button"
-        aria-pressed={!shortlistOnly}
+        aria-pressed={!shortlistActive}
         onClick={() => {
-          if (!shortlistOnly) return;
-          setShortlistOnly(false);
+          if (!shortlistActive) return;
+          setShortlistSearch(undefined);
           setOrdering(undefined);
         }}
       >
@@ -599,9 +600,9 @@ export default function Results({
       </button>
       <button
         type="button"
-        aria-pressed={shortlistOnly}
+        aria-pressed={shortlistActive}
         onClick={() => {
-          setShortlistOnly(true);
+          setShortlistSearch(searchId);
           setSort("shortlist");
         }}
       >
@@ -720,6 +721,7 @@ export default function Results({
           <button
             type="button"
             className="button secondary analysis-toggle"
+            title={analyzing ? "Close analysis" : "Analyze"}
             aria-expanded={analyzing}
             disabled={
               !analyzing &&
@@ -858,7 +860,7 @@ export default function Results({
             className="button secondary"
             onClick={() => {
               replyAnalysis.skipEndgameEstimate();
-              setShortlistOnly(false);
+              setShortlistSearch(undefined);
               setSort("score");
             }}
           >
@@ -1064,7 +1066,7 @@ export default function Results({
                     : sacrifice
                       ? `, ${sacrifice} below top score${rackMarked ? " with rack marks cleared" : ""}`
                       : "";
-                const short = shortlistOnly
+                const short = shortlistActive
                   ? shortlistById.get(m.id)
                   : undefined;
                 const scoreRank = short?.scoreRank ?? page.scoreRanks?.[m.id] ?? headScoreRanks[m.id];

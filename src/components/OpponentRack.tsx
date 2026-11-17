@@ -1,8 +1,15 @@
-export default function OpponentRack({ rack }: { rack: string }) {
-  if (!rack) return null;
+import type { ReactNode } from "react";
+
+export default function OpponentRack({
+  rack,
+  children,
+}: {
+  rack: string;
+  children: ReactNode;
+}) {
   const tiles = [...rack];
   return (
-    <div className="rack-lane">
+    <div className="rack-lane opponent-rack-lane">
       <small className="rack-owner-label" aria-hidden="true">
         Opponent
       </small>
@@ -21,6 +28,7 @@ export default function OpponentRack({ rack }: { rack: string }) {
           </span>
         ))}
       </div>
+      {children}
     </div>
   );
 }

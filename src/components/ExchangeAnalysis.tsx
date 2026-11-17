@@ -94,7 +94,7 @@ export default function ExchangeAnalysis({
       {onBack && (
         <div className="rack-simulation-actions">
           <button type="button" className="button secondary" onClick={onBack}>
-            <ArrowLeft size={13} aria-hidden="true" /> Back to Optimal Exchange
+            <ArrowLeft size={13} aria-hidden="true" /> Back to Optimal exchange
           </button>
         </div>
       )}
@@ -159,7 +159,7 @@ export default function ExchangeAnalysis({
       {!result && bingoEstimate !== undefined && (
         <p className="small muted">
           Bingo chance · ≈{exchangePercent.format(bingoEstimate)} from Optimal
-          Exchange
+          exchange
         </p>
       )}
       {result && (

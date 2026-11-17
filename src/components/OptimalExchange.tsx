@@ -60,11 +60,11 @@ export default function OptimalExchange({
   return (
     <section
       className="rack-simulation practice-body"
-      aria-label="Optimal Exchange"
+      aria-label="Optimal exchange"
     >
       <div className="rack-simulation-heading optimal-exchange-heading">
         <h3 ref={heading} tabIndex={-1}>
-          Optimal Exchange
+          Optimal exchange
         </h3>
         <button type="button" className="text-button" onClick={onClose}>
           {progress ? "Cancel" : "Close"}
