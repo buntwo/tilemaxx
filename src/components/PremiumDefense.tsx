@@ -115,7 +115,7 @@ export default function PremiumDefense({
     <Modal
       title={
         <>
-          Reply risk · <MoveWord move={move} rules={game.template} />
+          Reply risk · <MoveWord move={move} rules={game.template} board={game.board} />
         </>
       }
       subtitle={
@@ -189,8 +189,9 @@ export function PremiumDefenseContent({
             Example {defense.opened ? "after" : "before"} your play{" "}
             <strong>
               <MoveWord
-                move={{ ...reply, word: reply.word.toUpperCase() }}
+                move={reply}
                 rules={template}
+                board={defense.opened ? placeTiles(game.board, move) : game.board}
               />{" "}
               · {reply.score} pts
             </strong>
@@ -248,7 +249,7 @@ export function PremiumReplyNote({
       <p className="reply-example">
         <strong>
           <MoveWord
-            move={{ ...reply, word: reply.word.toUpperCase() }}
+            move={reply}
             rules={game.template}
           />{" "}
           · <span className="value-bad">{reply.score} pts</span>

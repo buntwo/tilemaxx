@@ -52,6 +52,12 @@
 | **Optimal endgame line** | The exact sequence of plays in Move analysis details or in Reply details after **Calculate optimal endgame line**. In Reply details, each turn shows its rack leave: cream tiles for you and blue tiles for the opponent. `(Goes out)` marks an emptied rack. Lines start with no turn selected. Select a turn to preview its board; select it again, tap or click elsewhere, or press Escape to clear the preview. |
 | **Score breakdown** | The per-word and bonus scoring details for an individual play. |
 
+## Move notation
+
+Move locations encode direction: `8G` starts across at column G, row 8; `G8` starts down at the same square. Board squares keep their letter-first labels, such as `G8`.
+
+In move words, lowercase letters are blanks and parentheses group letters already on the board: `C(A)tS` places C, a blank T, and S around an existing A. Existing blanks stay lowercase inside parentheses. Tile colors and bingo trophies remain visible. Recorded moves without enough saved placement information retain their recorded spelling.
+
 ## Other screens
 
 | Name | Where to find it |

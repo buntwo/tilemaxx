@@ -1,7 +1,7 @@
+import { moveLocation } from "../../shared/notation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { scorePlacement } from "../../shared/game-scoring";
 import {
-  coordinate,
   isBingo,
   type BingoRules,
   type Game,
@@ -110,7 +110,12 @@ export default function TurnReview({
         turn ? (
           <>
             Review move {turn.index + 1} ·{" "}
-            <MoveWord word={turn.move.word} bingo={turnBingo(turn, template)} />
+            <MoveWord
+              word={turn.move.word}
+              bingo={turnBingo(turn, template)}
+              position={position}
+              size={template.size}
+            />
           </>
         ) : (
           "Review game"
@@ -198,7 +203,11 @@ export default function TurnReview({
                               onClick={() => setPreview(move)}
                             >
                               <strong>
-                                <MoveWord move={move} rules={template} />
+                                <MoveWord
+                                  move={move}
+                                  rules={template}
+                                  board={position.board}
+                                />
                               </strong>{" "}
                               ·{" "}
                               <span
@@ -209,12 +218,7 @@ export default function TurnReview({
                               >
                                 {move.score} pts
                               </span>{" "}
-                              ·{" "}
-                              {coordinate(
-                                move.row * game.template.size + move.col,
-                                game.template.size,
-                              )}{" "}
-                              {move.direction}
+                              · {moveLocation(move)}
                             </button>
                           </li>
                         ))}
@@ -275,6 +279,8 @@ export default function TurnReview({
                           Move {item.index + 1} ·{" "}
                           <MoveWord
                             word={item.word}
+                            position={turns[item.index].position}
+                            size={template.size}
                             bingo={turnBingo(turns[item.index], template)}
                           />
                         </button>
@@ -282,7 +288,11 @@ export default function TurnReview({
                           <p>
                             Missed bingo ·{" "}
                             <strong>
-                              <MoveWord move={item.bingo} rules={template} />
+                              <MoveWord
+                                move={item.bingo}
+                                rules={template}
+                                board={turns[item.index].position?.board}
+                              />
                             </strong>{" "}
                             for {item.bingo.score}
                           </p>
@@ -294,7 +304,11 @@ export default function TurnReview({
                             </strong>{" "}
                             ·{" "}
                             <strong>
-                              <MoveWord move={item.best} rules={template} />
+                              <MoveWord
+                                move={item.best}
+                                rules={template}
+                                board={turns[item.index].position?.board}
+                              />
                             </strong>{" "}
                             for {item.best.score} vs. {item.score}
                           </p>

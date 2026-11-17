@@ -1,8 +1,8 @@
+import { moveLocation } from "../../shared/notation";
 import { useEffect, useRef, useState } from "react";
 import type { EndgameLine } from "../../shared/endgame";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import {
-  coordinate,
   isBingo,
   type Board as BoardState,
   type Game,
@@ -147,7 +147,11 @@ export default function OptimalReplyDetails({
                   <td colSpan={3}>
                     Before{" "}
                     {candidate ? (
-                      <MoveWord move={candidate} rules={game.template} />
+                      <MoveWord
+                        move={candidate}
+                        rules={game.template}
+                        board={game.board}
+                      />
                     ) : (
                       "the pass"
                     )}
@@ -194,7 +198,11 @@ export default function OptimalReplyDetails({
                             {entry.move ? (
                               <>
                                 <span role="img" aria-label={entry.move.word}>
-                                  <MoveLetters move={entry.move} size={size} />
+                                  <MoveLetters
+                                    move={entry.move}
+                                    size={size}
+                                    board={entry.board}
+                                  />
                                 </span>
                                 {isBingo(
                                   game.template,
@@ -207,8 +215,7 @@ export default function OptimalReplyDetails({
                           </strong>
                           <small className="optimal-reply-turn-note">
                             {entry.player === "you" ? "You" : "Opponent"}
-                            {entry.move &&
-                              ` · ${coordinate(entry.move.row * size + entry.move.col, size)}${entry.move.direction === "across" ? "→" : "↓"}`}
+                            {entry.move && ` · ${moveLocation(entry.move)}`}
                           </small>
                         </>
                       ) : (
@@ -295,7 +302,12 @@ export default function OptimalReplyDetails({
               "Final board"
             ) : step.move ? (
               <>
-                Board after <MoveWord move={step.move} rules={game.template} />
+                Board after{" "}
+                <MoveWord
+                  move={step.move}
+                  rules={game.template}
+                  board={step.board}
+                />
               </>
             ) : step.player === "you" ? (
               "Board after your pass"

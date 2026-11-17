@@ -254,6 +254,7 @@ export function scorePlacement(
         letter: board[i].toUpperCase(),
         square: coordinate(i, size),
         blank: board[i] === board[i].toLowerCase(),
+        existing: Boolean(base[i]),
         points,
         premium,
         letterMultiplier,

@@ -1,3 +1,4 @@
+import { wordNotation } from "../../shared/notation";
 import { scorePlacement } from "../../shared/game-scoring";
 import MoveWord from "./MoveWord";
 
@@ -25,7 +26,7 @@ export function ScoreBreakdownContent({ breakdown }: { breakdown: Breakdown }) {
             <div className="score-breakdown-line">
               <strong>
                 <MoveWord
-                  word={word.word}
+                  word={wordNotation(word.tiles)}
                   bingo={index === 0 && breakdown.bingo}
                 />
               </strong>

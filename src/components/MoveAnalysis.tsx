@@ -1,3 +1,4 @@
+import { moveLocation, lineNotation } from "../../shared/notation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChartNoAxesCombined, X } from "lucide-react";
 import {
@@ -6,7 +7,7 @@ import {
   type EndgameSettings,
 } from "../../shared/endgame";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
-import { type Game, type Move, coordinate } from "../../shared/model";
+import { isBingo, type Game, type Move } from "../../shared/model";
 import { unseenTiles } from "../../shared/tile-pool";
 import { rackLetters } from "../../shared/rack-entry";
 import {
@@ -122,7 +123,7 @@ export default function MoveAnalysis({
     candidates.length,
   );
   const position = (move: Move) =>
-    `${coordinate(move.row * size + move.col, size)}${move.direction === "across" ? " →" : " ↓"}`;
+    moveLocation(move);
 
   function stop() {
     worker.current?.terminate();
@@ -214,7 +215,7 @@ export default function MoveAnalysis({
             onClick={() => onRemove(move)}
             aria-label={`Remove ${move.word} at ${position(move)} from comparison`}
           >
-            <MoveWord move={move} rules={game.template} /> {position(move)}{" "}
+            <MoveWord move={move} rules={game.template} board={game.board} /> {position(move)}{" "}
             <X size={12} />
           </button>
         ))}
@@ -377,10 +378,12 @@ export default function MoveAnalysis({
             position={position}
             totals={totals}
             rules={game.template}
+            board={game.board}
           />
           <div className="analysis-cards">
             {result.forecasts.map((forecast) => {
               const { move } = forecast;
+              const endgameWords = forecast.endgame && lineNotation(forecast.endgame.line, game.board, game.template.size);
               const finalScore = formatFinalScore(forecast.endgame, totals);
               const reply = forecast.models[model];
               const exampleReply = reply.example ?? forecast.availableExample;
@@ -392,7 +395,7 @@ export default function MoveAnalysis({
                 >
                   <details>
                     <summary>
-                      <MoveWord move={move} rules={game.template} />{" "}
+                      <MoveWord move={move} rules={game.template} board={game.board} />{" "}
                       {position(move)} details
                     </summary>
                     {!!forecast.bingoDraws.length && (
@@ -438,8 +441,8 @@ export default function MoveAnalysis({
                                 <td>
                                   {step ? (
                                     <MoveWord
-                                      move={step}
-                                      rules={game.template}
+                                      word={endgameWords![turn]}
+                                      bingo={isBingo(game.template, step.tiles.length)}
                                     />
                                   ) : (
                                     "Pass"
@@ -467,7 +470,7 @@ export default function MoveAnalysis({
                       >
                         Preview{" "}
                         {reply.example ? "modeled reply" : "available threat"}{" "}
-                        <MoveWord move={exampleReply} rules={game.template} /> ·{" "}
+                        <MoveWord move={exampleReply} rules={game.template} board={placeTiles(game.board, move)} /> ·{" "}
                         <span className={scoreTone(-exampleReply.score)}>
                           {exampleReply.score} pts
                         </span>
@@ -502,7 +505,7 @@ export default function MoveAnalysis({
         <Modal
           title={
             <>
-              <MoveWord move={example.reply} rules={game.template} /> ·{" "}
+              <MoveWord move={example.reply} rules={game.template} board={placeTiles(game.board, example.move)} /> ·{" "}
               <span className={scoreTone(-example.reply.score)}>
                 {example.reply.score} points
               </span>
@@ -511,7 +514,7 @@ export default function MoveAnalysis({
           subtitle={
             <>
               Example opponent reply after{" "}
-              <MoveWord move={example.move} rules={game.template} /> at{" "}
+              <MoveWord move={example.move} rules={game.template} board={game.board} /> at{" "}
               {position(example.move)}.
             </>
           }
@@ -535,12 +538,14 @@ function Comparison({
   position,
   totals,
   rules,
+  board,
 }: {
   result: AnalysisResult;
   model: OpponentModel;
   position: (move: Move) => string;
   totals: ReturnType<typeof scoreTotalsAtPosition>;
   rules: Game["template"];
+  board: Game["board"];
 }) {
   const rows: {
     label: string;
@@ -649,7 +654,7 @@ function Comparison({
             <th scope="col">Metric</th>
             {result.forecasts.map(({ move }, i) => (
               <th key={move.id} scope="col">
-                <MoveWord move={move} rules={rules} />
+                <MoveWord move={move} rules={rules} board={board} />
                 <small>
                   {position(move)} · {move.score} pts
                 </small>

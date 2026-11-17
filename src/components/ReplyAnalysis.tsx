@@ -1,7 +1,8 @@
+import { moveLocation } from "../../shared/notation";
 import { useState, type CSSProperties } from "react";
 import { LoaderCircle } from "lucide-react";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
-import { coordinate, type Game, type Move } from "../../shared/model";
+import { type Game, type Move } from "../../shared/model";
 import { placeTiles } from "../../shared/move-analysis";
 import type { MoveDefense } from "../../shared/premium-defense";
 import {
@@ -39,7 +40,7 @@ function replyLimitMessage(
     moves: `${SEARCH_LIMITS.maxMoves.toLocaleString("en-US")} legal move limit`,
   };
   const { word, row, col, direction } = limit.move;
-  const square = coordinate(row * size + col, size);
+  const square = moveLocation({ row, col, direction });
   const rack = limit.rack
     ? `opponent rack ${limit.rack}`
     : "an empty opponent rack";
@@ -241,11 +242,13 @@ function DistributionChart({
   move,
   reference,
   rules,
+  board,
 }: {
   result: ReplyDistribution;
   move: Move;
   reference: Move;
   rules: Game["template"];
+  board: Game["board"];
 }) {
   const compare = move.id !== reference.id;
   const max =
@@ -345,7 +348,7 @@ function DistributionChart({
           {compare && (
             <span>
               <i />
-              Reference · After <MoveWord move={reference} rules={rules} />
+              Reference · After <MoveWord move={reference} rules={rules} board={board} />
             </span>
           )}
           <span>
@@ -433,7 +436,7 @@ function ExactReplyDetails({
           <div>
             <dt>You go out</dt>
             <dd>
-              <MoveWord move={move} rules={game.template} /> ·{" "}
+              <MoveWord move={move} rules={game.template} board={game.board} /> ·{" "}
               <span className={scoreTone(move.score)}>{move.score} pts</span>
             </dd>
           </div>
@@ -459,16 +462,12 @@ function ExactReplyDetails({
             <dd>
               {reply ? (
                 <>
-                  <MoveWord move={reply} rules={game.template} /> ·{" "}
+                  <MoveWord move={reply} rules={game.template} board={placeTiles(game.board, move)} /> ·{" "}
                   <span className={scoreTone(-reply.score)}>
                     {reply.score} pts
                   </span>{" "}
                   ·{" "}
-                  {coordinate(
-                    reply.row * game.template.size + reply.col,
-                    game.template.size,
-                  )}
-                  {reply.direction === "across" ? "→" : "↓"}
+                  {moveLocation(reply)}
                 </>
               ) : (
                 "Pass"
@@ -480,7 +479,7 @@ function ExactReplyDetails({
           <div>
             <dt>Highest raw reply score</dt>
             <dd>
-              <MoveWord move={highest} rules={game.template} /> ·{" "}
+              <MoveWord move={highest} rules={game.template} board={placeTiles(game.board, move)} /> ·{" "}
               <span className={scoreTone(-highest.score)}>
                 {highest.score} pts
               </span>
@@ -491,7 +490,7 @@ function ExactReplyDetails({
           <div>
             <dt>
               Raw reply vs.{" "}
-              <MoveWord move={analysis.reference} rules={game.template} />
+              <MoveWord move={analysis.reference} rules={game.template} board={game.board} />
             </dt>
             <dd className={scoreTone(-result.difference)}>
               {signedPoints(result.difference)} pts
@@ -594,6 +593,7 @@ export function ReplyPreview({
         move={move}
         reference={analysis.reference}
         rules={game.template}
+        board={game.board}
       />
       <div className="inline-reply-actions">
         <button
@@ -662,7 +662,7 @@ export default function ReplyHeatmapDialog({
     <Modal
       title={
         <>
-          Reply heatmap after <MoveWord move={move} rules={game.template} />
+          Reply heatmap after <MoveWord move={move} rules={game.template} board={game.board} />
         </>
       }
       onClose={onClose}

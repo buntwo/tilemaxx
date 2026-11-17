@@ -1,8 +1,9 @@
+import { moveLocation } from "../../shared/notation";
 import { useEffect, useId, useRef, useState } from "react";
 import { Check, ChevronUp, LoaderCircle, Swords, X } from "lucide-react";
 import type { EndgameLine } from "../../shared/endgame";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
-import { coordinate, isBingo, type Game, type Move } from "../../shared/model";
+import { isBingo, type Game, type Move } from "../../shared/model";
 import type {
   OpponentEndgameProgress,
   OpponentEndgameResult,
@@ -12,7 +13,7 @@ import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import { endgameLength } from "../endgame-line-format";
 import CalculationIndicator from "./CalculationIndicator";
 import MoveTimingButton from "./MoveTimingButton";
-import { BingoBadge } from "./MoveWord";
+import { BingoBadge, MoveLetters } from "./MoveWord";
 import OptimalReplyDetails from "./OptimalReplyDetails";
 
 export default function OpponentEndgameResults({
@@ -112,9 +113,7 @@ export default function OpponentEndgameResults({
                       <span className="result-rank">{index + 1}</span>
                       <span className="result-letters">
                         {move ? (
-                          <span className="result-letter played">
-                            {move.word}
-                          </span>
+                          <MoveLetters move={move} size={game.template.size} board={game.board} />
                         ) : (
                           "Pass"
                         )}
@@ -150,10 +149,7 @@ export default function OpponentEndgameResults({
                     <span className="result-leave">{leave || "—"}</span>
                     <span className="result-coordinate">
                       {move
-                        ? coordinate(
-                            move.row * game.template.size + move.col,
-                            game.template.size,
-                          ) + (move.direction === "across" ? "→" : "↓")
+                        ? moveLocation(move)
                         : "—"}
                     </span>
                   </button>
@@ -171,7 +167,7 @@ export default function OpponentEndgameResults({
         {result.lines.length > 0 && (
           <span>Select an opponent move to preview its line</span>
         )}
-        <MoveTimingButton timing={timing} size={game.template.size} />
+        <MoveTimingButton timing={timing} size={game.template.size} board={game.board} />
       </footer>
       {selected && (
         <section

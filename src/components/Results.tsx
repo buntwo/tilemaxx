@@ -1,3 +1,4 @@
+import { moveLocation } from "../../shared/notation";
 import {
   useContext,
   useId,
@@ -28,7 +29,6 @@ import {
   type Game,
   type Move,
   type Player,
-  coordinate,
 } from "../../shared/model";
 import {
   REPLY_REFINED_SAMPLES,
@@ -1224,7 +1224,7 @@ export default function Results({
                 const extraReason = replyAnalysis.extraReasons[m.id];
                 const extraLabel = extraReason === "block" ? "Premium block" :
                   extraReason === "leave" ? "Better leave" : undefined;
-                const movePosition = coordinate(m.row * size + m.col, size);
+                const movePosition = moveLocation(m);
                 const adjusted = showAdjustedPoints && reply?.kind === "distribution"
                   ? replyAdjustedPoints(m, reply.difference)
                   : undefined;
@@ -1362,7 +1362,7 @@ export default function Results({
                           {scoreRank}
                         </span>
                         <span className="result-letters" aria-hidden="true">
-                          <MoveLetters move={m} size={size} />
+                          <MoveLetters move={m} size={size} board={analysisGame?.board} />
                         </span>
                         <small
                           className="result-word-detail"
@@ -1496,14 +1496,13 @@ export default function Results({
                         )}
                       </span>
                       <span className="result-coordinate">
-                        {coordinate(m.row * size + m.col, size)}
-                        {m.direction === "across" ? "→" : "↓"}
+                        {moveLocation(m)}
                       </span>
                     </button>
                     {analysisGame &&
                       scoreTooltip.trigger(
                         m,
-                        `Score breakdown for ${m.word} at ${coordinate(m.row * size + m.col, size)} ${m.direction}`,
+                        `Score breakdown for ${m.word} at ${moveLocation(m)} ${m.direction}`,
                       )}
                     {!showEndgameSwing && replyPending && (
                       <span
@@ -1579,7 +1578,7 @@ export default function Results({
         ) : defenseProgress ? (
           <span title="Checking premium replies">Risk {defenseProgress}</span>
         ) : (
-          timing && <MoveTimingButton timing={timing} size={size} />
+          timing && <MoveTimingButton timing={timing} size={size} board={analysisGame?.board} />
         )}
       </footer>
       {analysisGame && replyMove && (replyLine || replyDetail || requestedHistogram) && (
@@ -1589,7 +1588,7 @@ export default function Results({
           data-move-preview-action
         >
           <h3 className={replyLine ? "optimal-reply-title" : undefined}>
-            <span>Reply after <MoveWord move={replyMove} rules={analysisGame.template} /></span>
+            <span>Reply after <MoveWord move={replyMove} rules={analysisGame.template} board={analysisGame.board} /></span>
             {replyLength && (
               <span className="exact-reply-metadata">
                 <span className="optimal-reply-badge"><Check size={13} aria-hidden="true" /> Exact line</span>
