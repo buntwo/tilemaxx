@@ -512,7 +512,7 @@ test("legal placements, best scores, and tied strong replies match exhaustive en
   }
 });
 
-test("score-only pruning finds an exact result within a blank-heavy node budget", () => {
+test("starting with high score ceilings finds the exact blank-heavy reply within a small node budget", () => {
   const words = Array.from({ length: 4 ** 6 }, (_, index) =>
     index.toString(4).padStart(6, "0").replace(/[0-3]/g, (digit) => "ABCD"[+digit]),
   );
@@ -526,11 +526,15 @@ test("score-only pruning finds an exact result within a blank-heavy node budget"
   const rack = "???????";
   const score = solver.summarize(rack).score;
   assert.equal(score, 61);
-  const limits = { maxNodes: 25_000 };
+  const limits = { maxNodes: 200 };
   assert.throws(() => solver.summarize(rack, limits), {
     name: "SearchLimitError",
     reason: "nodes",
   });
+  assert.equal(solver.bestScore(rack, limits), score);
+  for (const nextRack of ["B??????", "C??????", "??", rack]) {
+    assert.equal(solver.bestScore(nextRack), solver.summarize(nextRack).score);
+  }
   assert.equal(solver.bestScore(rack, limits), score);
 });
 
