@@ -2358,6 +2358,11 @@ label + label {
   padding: 5px 8px;
   font-size: 11px;
 }
+.reply-limit-list ul {
+  margin: 4px 0 0;
+  padding-inline-start: 18px;
+}
+.reply-limit-list summary,
 .reply-settings summary,
 .reply-bin-values summary {
   color: var(--primary);

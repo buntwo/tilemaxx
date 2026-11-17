@@ -18,7 +18,7 @@ import {
   replyEndgameLine,
   sampleReplyRacks,
 } from "../shared/reply-analysis";
-import { solve } from "../shared/solver";
+import { SEARCH_LIMITS, solve } from "../shared/solver";
 import { unseenTiles } from "../shared/tile-pool";
 import {
   createCandidateAnalyzer,
@@ -133,6 +133,37 @@ test("histogram workers pull candidates independently and match serial paired re
       serial(move),
     );
   assert.ok(workers.every((worker) => worker.stopped));
+});
+
+test("histogram workers send the exact search counter, move, and opponent rack", (t) => {
+  const { maxNodes, maxMoves } = SEARCH_LIMITS;
+  t.after(() => Object.assign(SEARCH_LIMITS, { maxNodes, maxMoves }));
+  const bagSize = unseenTiles(position, template).total - template.rackSize;
+  const move = choices[0];
+  const rack = "?AS";
+  const job: CandidateJob = {
+    kind: "histogram",
+    move,
+    position: { ...position, bagSize },
+    samples: { exact: false, racks: [{ rack, weight: 1 }] },
+  };
+  const analyze = createCandidateAnalyzer(lexicon);
+  const { word, row, col, direction } = move;
+  for (const [key, reason] of [
+    ["maxNodes", "nodes"],
+    ["maxMoves", "moves"],
+  ] as const) {
+    const original = SEARCH_LIMITS[key];
+    SEARCH_LIMITS[key] = 0;
+    const result: CandidateResult = structuredClone(analyze(job));
+    SEARCH_LIMITS[key] = original;
+    assert.equal(result.kind, "limit");
+    assert.deepEqual(result.replyLimit, {
+      reason,
+      move: { word, row, col, direction },
+      rack,
+    });
+  }
 });
 
 test("endgame jobs preserve the exact line when a worker cannot start", async () => {

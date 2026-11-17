@@ -17,6 +17,7 @@ import { PRESETS } from "../../shared/presets";
 import { importBoard } from "../../shared/screenshot";
 import {
   archiveGame,
+  coordinate,
   emptyBoard,
   localDate,
   newGameFromSettings,
@@ -26,7 +27,7 @@ import {
 import { Lexicon } from "../../shared/lexicon";
 import { solve, solvePositionWithBaseline } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
-import { replyEndgameLine, type ReplyDistribution, type ReplyRequest } from "../../shared/reply-analysis";
+import { replyEndgameLine, type ReplyDistribution, type ReplyRequest, type ReplyWorkerMessage } from "../../shared/reply-analysis";
 import { MoveResultIndex } from "../../shared/move-results";
 import { prepareEndgameEstimate } from "../../shared/endgame-estimate";
 import type { SolverMessage, SolverRequest } from "../../src/solver-messages";
@@ -729,10 +730,68 @@ test("calculation timing waits for reply histograms and stays fixed for follow-u
   await user.click(await screen.findByRole("button", { name: /Refine/ }));
   await waitFor(() => expect(detail).toBeDefined());
   act(() => detail!.worker.onmessage?.({
-    data: { id: detail!.request.id, kind: detail!.request.kind, result: distribution },
+    data: {
+      id: detail!.request.id,
+      kind: detail!.request.kind,
+      limit: { reason: "analysis-time", move: request.reference, rack: "AENRST?" },
+    },
   }));
+  const { word, row, col, direction } = request.reference;
+  expect(screen.getByText(
+    `Hit the 25-second analysis time limit after ${word} at ${coordinate(row * 15 + col, 15)} ${direction} with opponent rack AENRST? (? = blank).`,
+  )).toBeTruthy();
   expect(screen.getByRole("button", { name: /^Calculation timing/ }).textContent).toBe(total);
 });
+
+test.each(["reference", "alternatives"] as const)(
+  "reply limits identify the %s moves and sampled racks",
+  async (failed) => {
+    type ReplySummary = Extract<ReplyRequest, { kind: "reply-summary" }>;
+    let replies: { worker: SolverWorker; request: ReplySummary } | undefined;
+    class LimitedReplyWorker extends SolverWorker {
+      postMessage(request: SolverRequest | ReplyRequest) {
+        if (request.kind === "reply-summary") replies = { worker: this, request };
+        else if (request.kind !== "reply-detail" && request.kind !== "reply-line")
+          super.postMessage(request);
+      }
+    }
+    vi.stubGlobal("Worker", LimitedReplyWorker);
+    const user = await start();
+    await typeRack(user, "CATS");
+    await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+    await waitFor(() => expect(replies).toBeDefined());
+    const { worker, request } = replies!;
+    const [first, second] = request.candidates.filter(({ id }) => id !== request.reference.id);
+    const publish = (extra: Partial<ReplyWorkerMessage>) =>
+      worker.onmessage?.({ data: { id: request.id, kind: request.kind, ...extra } });
+    act(() => {
+      if (failed === "reference") {
+        publish({ done: true, limit: { reason: "nodes", move: request.reference, rack: "AENRST?" } });
+      } else {
+        publish({ moveId: first.id, limit: { reason: "moves", move: first, rack: "AENRST?" } });
+        publish({ moveId: second.id, limit: { reason: "rack-time", move: second, rack: "EIINSTU" } });
+        publish({ done: true });
+      }
+    });
+    const moveLabel = ({ word, row, col, direction }: ReplySummary["reference"]) =>
+      `${word} at ${coordinate(row * request.template.size + col, request.template.size)} ${direction}`;
+    if (failed === "reference") {
+      expect(screen.getByText(
+        `Hit the 2,000,000 search node limit after ${moveLabel(request.reference)} with opponent rack AENRST? (? = blank).`,
+      )).toBeTruthy();
+    } else {
+      const summary = screen.getByText("2 opponent reply searches hit a limit");
+      await user.click(summary);
+      expect(summary.closest("details")?.open).toBe(true);
+      expect(screen.getByText(
+        `Hit the 150,000 legal move limit after ${moveLabel(first)} with opponent rack AENRST? (? = blank).`,
+      )).toBeTruthy();
+      expect(screen.getByText(
+        `Hit the 2-second per-rack time limit after ${moveLabel(second)} with opponent rack EIINSTU.`,
+      )).toBeTruthy();
+    }
+  },
+);
 
 test("board check uses the current filtered moves, and cancelled results stay out of the list", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({

@@ -25,6 +25,8 @@ import { choose, unseenTiles } from "./tile-pool";
 export const REPLY_LIMIT = 20;
 export const REPLY_SAMPLES = 500;
 export const REPLY_REFINED_SAMPLES = 5_000;
+export const REPLY_SUMMARY_TIME_MS = 5_000;
+export const REPLY_DETAIL_TIME_MS = 25_000;
 export const REPLY_BUCKETS = [
   "0–19",
   "20–29",
@@ -72,6 +74,18 @@ export interface ExactReply {
 export type ReplyResult = ReplyDistribution | ExactReply;
 type RackSample = { rack: string; weight: number };
 
+export interface ReplySearchLimit {
+  reason: "analysis-time" | "rack-time" | "nodes" | "moves";
+  move: Pick<Move, "word" | "row" | "col" | "direction">;
+  rack: string;
+}
+
+export class ReplySearchLimitError extends Error {
+  constructor(readonly limit: ReplySearchLimit) {
+    super("The reply search reached a limit.");
+  }
+}
+
 export interface ReplyPosition extends Position, EndgameSettings {
   template: BoardTemplate;
   bagSize: number;
@@ -93,6 +107,17 @@ export type ReplyRequest = ReplyPosition & {
     | { kind: "reply-summary"; candidates: Move[]; workerLimit?: number }
     | (ReplyDetailOptions & { candidate: Move })
   );
+
+export type ReplyWorkerMessage = {
+  id: number;
+  kind: ReplyRequest["kind"];
+  moveId?: string;
+  result?: ReplyResult;
+  line?: EndgameLine;
+  done?: boolean;
+  error?: string;
+  limit?: ReplySearchLimit;
+};
 
 export function replyColor(result: ReplyDistribution, index: number) {
   const delta =
@@ -172,6 +197,29 @@ function limit(until: number) {
   return { maxMs };
 }
 
+function searchReplyRack<T>(
+  move: Move,
+  rack: string,
+  deadline: () => number,
+  search: (rack: string, limits: { maxMs: number }) => T,
+) {
+  const remaining = deadline() - performance.now();
+  try {
+    if (remaining <= 0) throw new SearchLimitError("time");
+    return search(rack, { maxMs: Math.min(SEARCH_LIMITS.maxMs, remaining) });
+  } catch (error) {
+    if (!(error instanceof SearchLimitError) || !error.reason) throw error;
+    const { word, row, col, direction } = move;
+    const timeReason =
+      remaining <= SEARCH_LIMITS.maxMs ? "analysis-time" : "rack-time";
+    throw new ReplySearchLimitError({
+      reason: error.reason === "time" ? timeReason : error.reason,
+      move: { word, row, col, direction },
+      rack,
+    });
+  }
+}
+
 export function prepareReplyAnalysis(
   lexicon: Lexicon,
   position: ReplyPosition,
@@ -190,10 +238,9 @@ export function prepareReplyAnalysis(
   const rack = pool.join("");
   const rule = endgameStreaks[template.rules];
   function opponentMoves(candidate: Move) {
-    return prepareSolver(lexicon, placeTiles(board, candidate), template).solve(
-      rack,
-      limit(deadline()),
-      { unsorted: true },
+    const solver = prepareSolver(lexicon, placeTiles(board, candidate), template);
+    return searchReplyRack(candidate, rack, deadline, (letters, budget) =>
+      solver.solve(letters, budget, { unsorted: true }),
     );
   }
   function endgame(candidate: Move): Omit<ExactReply, "difference"> {
@@ -341,7 +388,12 @@ export function summarizeReplyBoard(
   for (const [i, { rack, weight }] of racks.entries()) {
     let score: number;
     if (captureHeatmap) {
-      const summary = solver.summarizeReply(rack, limit(deadline()));
+      const summary = searchReplyRack(
+        candidate,
+        rack,
+        deadline,
+        solver.summarizeReply,
+      );
       score = summary.score;
       for (const play of summary.bigReplies) {
         const key = play.tiles
@@ -365,7 +417,7 @@ export function summarizeReplyBoard(
         }
       }
     } else {
-      score = solver.summarize(rack, limit(deadline())).score;
+      score = searchReplyRack(candidate, rack, deadline, solver.summarize).score;
     }
     const index = bucket(score);
     buckets[index] += weight;
