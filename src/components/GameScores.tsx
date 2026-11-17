@@ -26,12 +26,14 @@ export default function GameScores({
   onToggle,
   onRecord,
   onCorrection,
+  onEditLastOpponentMove,
   onChange,
 }: {
   game: Game;
   onToggle: (enabled: boolean) => void;
   onRecord: () => void;
   onCorrection: () => void;
+  onEditLastOpponentMove?: () => void;
   onChange: (game: Game) => void;
 }) {
   const tracking = tracksScores(game);
@@ -200,13 +202,24 @@ export default function GameScores({
         </p>
       ) : null}
       {!!moves.length && (
-        <button
-          type="button"
-          className="button secondary score-action"
-          onClick={() => setReview(null)}
-        >
-          Review game
-        </button>
+        <div className="score-actions">
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => setReview(null)}
+          >
+            Review game
+          </button>
+          {onEditLastOpponentMove && (
+            <button
+              type="button"
+              className="button secondary"
+              onClick={onEditLastOpponentMove}
+            >
+              Edit last opponent move
+            </button>
+          )}
+        </div>
       )}
       <details className="score-history">
         <summary>

@@ -2,6 +2,7 @@ import {
   applyMove,
   archiveGame,
   bingoPoints,
+  BOARD_EDIT_LABELS,
   coordinate,
   isBingo,
   letterBonuses,
@@ -10,6 +11,7 @@ import {
   restoreArchivedGame,
   trackedMoveHistory,
   tileScore,
+  undo,
   wordBonuses,
   type Board,
   type BoardTemplate,
@@ -681,7 +683,18 @@ function opponentRackOut(game: Game) {
 
 export function recordOpponentRackOut(game: Game) {
   const end = opponentRackOut(game);
-  return end ? recordOpponentPlay(game, end) : game;
+  if (end) return recordOpponentPlay(game, end);
+  // The rack can be refilled after searching. If it now accounts for all
+  // remaining tiles, the opponent's already recorded move ended the game.
+  if (canRecordRackOut(game) && lastSearchRecordedOpponentTurn(game)) {
+    const result = rackOutResult(game, "opponent");
+    if (result)
+      return {
+        ...game,
+        scoring: { ...game.scoring!, end: { ...result, endedOn: localDate() } },
+      };
+  }
+  return game;
 }
 
 function opponentEntryStart(game: Game, base: Board): number | undefined {
@@ -773,6 +786,76 @@ export function recordOpponentPlay(
     second,
     end,
   );
+}
+
+export function recordOpponentPlayForSearch(game: Game): Game {
+  // A search from an undone position must leave Redo available.
+  if (game.archived || game.scoring?.end || game.future.length) return game;
+  const recorded = recordOpponentPlay(game);
+  if (recorded === game || recorded.scoring?.end) return recorded;
+  const past = [...recorded.past];
+  past[past.length - 1] = { ...past.at(-1)!, recordedOnSearch: true };
+  return { ...recorded, past };
+}
+
+export function lastSearchRecordedOpponentTurn(game: Game) {
+  if (
+    !game.scoring ||
+    game.scoring.pendingBase ||
+    game.scoring.end ||
+    game.archived ||
+    !tracksScores(game)
+  )
+    return;
+  const entry = game.past.at(-1);
+  if (!entry?.recordedOnSearch || entry.player !== "opponent" || !entry.review)
+    return;
+  const after = [...entry.review.board];
+  for (const { index, letter } of entry.review.tiles) after[index] = letter;
+  if (game.board.every((tile, i) => tile === after[i]))
+    return { entry, review: entry.review };
+}
+
+export function reopenSearchRecordedOpponentPlay(
+  game: Game,
+  board?: Board,
+): Game {
+  const last = lastSearchRecordedOpponentTurn(game);
+  if (
+    !last ||
+    (board && !last.review.tiles.some(({ index, letter }) => board[index] !== letter))
+  )
+    return game;
+  const previous = undo(game);
+  let past = previous.past;
+  // A folded entry is the undo boundary for the letters too. Restore that
+  // boundary as a regular board edit so the revised turn can fold into it again.
+  if (!previous.scoring?.pendingBase) {
+    const { board, rack, excludedRackSlots, requiredRackSlots, scoring, at } =
+      last.entry;
+    past = [
+      ...past,
+      {
+        board,
+        rack,
+        excludedRackSlots,
+        requiredRackSlots,
+        scoring,
+        at,
+        label: BOARD_EDIT_LABELS.enter,
+      },
+    ];
+  }
+  return {
+    ...game,
+    past,
+    future: [],
+    trackedMoves: previous.trackedMoves,
+    scoring: {
+      ...(previous.scoring ?? emptyScoring()),
+      pendingBase: last.review.board,
+    },
+  };
 }
 
 function recordOpponentTurn(

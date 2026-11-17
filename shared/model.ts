@@ -89,6 +89,7 @@ export interface HistoryEntry extends Position {
   score?: number;
   bingo?: boolean;
   player?: Player;
+  recordedOnSearch?: true;
   trackScores?: boolean;
   scoring?: GameScoring;
   // Only score-log edits need to snapshot the whole log for undo and redo.
@@ -513,6 +514,7 @@ export function undo(game: Game): Game {
         label: step.label,
         score: step.score,
         player: step.player,
+        recordedOnSearch: step.recordedOnSearch,
         trackScores:
           step.trackScores === undefined
             ? undefined
@@ -555,6 +557,7 @@ export function redo(game: Game): Game {
         label: step.label,
         score: step.score,
         player: step.player,
+        recordedOnSearch: step.recordedOnSearch,
         trackScores:
           step.trackScores === undefined
             ? undefined

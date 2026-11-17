@@ -177,6 +177,7 @@ const historySchema = z.object({
   score: z.number().optional(),
   bingo: z.boolean().optional(),
   player: z.enum(["you", "opponent"]).optional(),
+  recordedOnSearch: z.literal(true).optional(),
   trackScores: z.boolean().optional(),
   scoring: scoringSchema.optional(),
   trackedMoves,

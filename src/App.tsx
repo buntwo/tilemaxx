@@ -84,8 +84,11 @@ import GameScores from "./components/GameScores";
 import EndGameDialog from "./components/EndGameDialog";
 import {
   playTrackedMove,
+  lastSearchRecordedOpponentTurn,
   recordOpponentPlay,
+  recordOpponentPlayForSearch,
   recordOpponentRackOut,
+  reopenSearchRecordedOpponentPlay,
   resetGameScoring,
   setScoreTracking,
   summarizeGameScore,
@@ -530,8 +533,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   }
   function solve(reload = false) {
     if (!game || !hasPlayableRack) return;
+    const position = recordOpponentPlayForSearch(game);
+    if (position !== game) update(position);
+    if (position.scoring?.end && !position.archived) return;
     if (phoneLayout) phoneReview.open();
-    if (solver.solve(game, reload)) setPreview(null);
+    if (solver.solve(position, reload)) setPreview(null);
   }
   function editPosition() {
     if (phoneReview.showing) phoneReview.dismiss();
@@ -671,6 +677,15 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       onToggle={(enabled) => update(setScoreTracking(game, enabled))}
       onRecord={() => update(recordOpponentPlay(game))}
       onCorrection={() => update(treatBoardEditAsCorrection(game))}
+      onEditLastOpponentMove={
+        lastSearchRecordedOpponentTurn(game)
+          ? () => {
+              editPosition();
+              update(reopenSearchRecordedOpponentPlay(game));
+              boardPanel.current?.scrollIntoView?.({ block: "nearest" });
+            }
+          : undefined
+      }
       onChange={update}
     />
   );
