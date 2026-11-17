@@ -78,6 +78,7 @@ import {
   readGameDetails,
 } from "./components/GameDetails";
 import ArchivedGames, { type ArchiveSort } from "./components/ArchivedGames";
+import SyncConflictMenu from "./components/SyncConflictMenu";
 import GameScoreBadge from "./components/GameScoreBadge";
 import GameScores from "./components/GameScores";
 import EndGameDialog from "./components/EndGameDialog";
@@ -237,6 +238,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const sidebarOverlay = useMediaQuery("(max-width: 800px)");
   const sidebarOpenButton = useRef<HTMLButtonElement>(null);
   const sidebarCollapseButton = useRef<HTMLButtonElement>(null);
+  const conflictBanner = useRef<HTMLDivElement>(null);
+  const [reviewConflictId, setReviewConflictId] = useState<string>();
   const moveSidebarFocus = useRef(false);
   const boardPanel = useRef<HTMLElement>(null);
   const squareFilterButton = useRef<HTMLButtonElement>(null);
@@ -591,10 +594,16 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const archivedGames = profileGames.filter((g) => g.archived);
   const viewingArchivedGame = workspace === "games" && selectedGame?.archived;
   const pending = state.pending.length > 0,
-    hasConflict = Object.keys(state.conflicts).length > 0,
+
     hasSaveError = Object.keys(state.saveErrors).length > 0,
     conflict = game && state.conflicts[game.id],
     saveError = game && state.saveErrors[game.id];
+  useEffect(() => {
+    if (reviewConflictId && reviewConflictId === game?.id && conflict) {
+      conflictBanner.current?.focus();
+      setReviewConflictId(undefined);
+    }
+  }, [conflict, game?.id, reviewConflictId]);
   const profileLetter =
     [...(profile?.name.trim() ?? "")][0]?.toLocaleUpperCase() || "?";
   if (!data)
@@ -685,12 +694,30 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       </button>
     </div>
   );
-  const syncStatus = (
+  const conflictGames = Object.values(state.conflicts).map((remote) => {
+    const local = state.games[remote.id] ?? remote;
+    return {
+      ...local,
+      profileName: data.profiles.length > 1
+        ? data.profiles.find(({ id }) => id === local.profileId)?.name
+        : undefined,
+    };
+  });
+  const syncStatus = conflictGames.length ? (
+    <SyncConflictMenu
+      games={conflictGames}
+      onOpen={(game) => {
+        setProfileId(game.profileId);
+        chooseGame(game.id);
+        setReviewConflictId(game.id);
+      }}
+    />
+  ) : (
     <span
-      className={`sync-status ${!state.online || hasConflict || hasSaveError ? "offline" : ""}`}
+      className={`sync-status ${!state.online || hasSaveError ? "offline" : ""}`}
       title={saveError || state.error || "Games are saved on your server"}
     >
-      {hasConflict || hasSaveError ? (
+      {hasSaveError ? (
         <Info size={14} />
       ) : !state.online ? (
         <CloudOff size={14} />
@@ -700,15 +727,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         <CheckCheck size={15} />
       )}
       <span>
-        {hasConflict
-          ? "Review changes"
-          : hasSaveError
-            ? "Save rejected"
-            : !state.online
-              ? "Saved on this device"
-              : pending
-                ? "Saving…"
-                : "All changes saved"}
+        {hasSaveError
+          ? "Save rejected"
+          : !state.online
+            ? "Saved on this device"
+            : pending
+              ? "Saving…"
+              : "All changes saved"}
       </span>
     </span>
   );
@@ -909,7 +934,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         </button>
         <div className="sidebar-bottom">
           <div className="workspace-controls">
-            {syncStatus}
+            {sidebarVisible && syncStatus}
             <div className="theme-switch" role="group" aria-label="Color theme">
               {[
                 ["light", Sun],
@@ -1090,7 +1115,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           </div>
         )}
         {conflict && game && (
-          <div className="banner warning">
+          <div className="banner warning" ref={conflictBanner} tabIndex={-1}>
             <span>
               This game changed on another device. Your edits are safe here.
             </span>
