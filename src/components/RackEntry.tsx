@@ -797,7 +797,9 @@ export default function RackEntry({
                 setOptimalOpen(showingOptimal ? undefined : { key: optimalKey });
               }}
             >
-              <Trophy size={13} aria-hidden="true" /> Optimal exchange
+              <span className="rack-optimal-exchange-label">
+                <Trophy size={13} aria-hidden="true" /> Optimal exchange
+              </span>
             </button>
           )}
           {rackTools}
