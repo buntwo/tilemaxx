@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  type CSSProperties,
-} from "react";
+import { useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { Flag, Minus, Trophy } from "lucide-react";
 import type { GameFinish } from "../useGameFinish";
 import MoveWord from "./MoveWord";
@@ -22,7 +17,7 @@ const flecks = Array.from({ length: 16 }, (_, index) => {
 });
 
 const results = {
-  win: { Icon: Trophy, label: "You win", margin: "Won by" },
+  win: { Icon: Trophy, label: "You win!", margin: "Won by" },
   loss: { Icon: Flag, label: "You lose", margin: "Lost by" },
   tie: { Icon: Minus, label: "Tie game", margin: "" },
 };
@@ -95,15 +90,17 @@ export default function BoardFinishOverlay({
             </div>
           )}
         </div>
-        <div className="board-finish-note">
-          {out === "you" ? "You" : opponent} went out
-          {move && (
-            <>
-              {" "}
-              · <MoveWord word={move.word} bingo={move.bingo} /> +{move.score}
-            </>
-          )}
-        </div>
+        {out && (
+          <div className="board-finish-note">
+            {out === "you" ? "You" : opponent} went out
+            {move && (
+              <>
+                {" "}
+                · <MoveWord word={move.word} bingo={move.bingo} /> +{move.score}
+              </>
+            )}
+          </div>
+        )}
         <button
           ref={dismissButton}
           type="button"

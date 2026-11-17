@@ -93,7 +93,6 @@ import {
   reopenSearchRecordedOpponentPlay,
   resetGameScoring,
   setScoreTracking,
-  summarizeGameScore,
   tracksScores,
   treatBoardEditAsCorrection,
 } from "../shared/game-scoring";
@@ -662,7 +661,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   }
   const headlineScore = game && (
     <GameScoreBadge
-      score={summarizeGameScore(game)}
+      score={gameFinish.score}
+      onReplay={gameFinish.replay}
       prominent={compactGame}
       showMargin
       showNoScore={!tracksScores(game)}
@@ -1248,8 +1248,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   displayBoard={activeFlight?.before.board}
                   onChange={updateAfterTurn}
                   overlay={
-                    gameFinish.result && (
-                      <BoardFinishOverlay finish={gameFinish.result} onDismiss={gameFinish.dismiss} />
+                    gameFinish.current && (
+                      <BoardFinishOverlay
+                        key={gameFinish.current.animation}
+                        finish={gameFinish.current.result}
+                        onDismiss={gameFinish.dismiss}
+                      />
                     )
                   }
                   onSelect={editPosition}
