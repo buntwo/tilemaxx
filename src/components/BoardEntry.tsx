@@ -38,6 +38,7 @@ export default function BoardEntry({
   onSolve,
   moveFilter,
   historyControls,
+  overlay,
 }: {
   game: Game;
   hideHelp?: boolean;
@@ -48,6 +49,7 @@ export default function BoardEntry({
   onSolve?: () => void;
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
+  overlay?: ReactNode;
 }) {
   const history = useRef(new BoardEditHistory());
   const wordScores = useCallback(
@@ -66,6 +68,7 @@ export default function BoardEntry({
       onSolve={onSolve}
       moveFilter={moveFilter}
       historyControls={historyControls}
+      overlay={overlay}
       onBreak={() => history.current.reset()}
       onChange={(board, kind) => {
         if (displayBoard) return;
@@ -93,6 +96,7 @@ export function BoardInput({
   wordScores,
   moveFilter,
   historyControls,
+  overlay,
 }: {
   board: BoardState;
   archivedBoard?: BoardState;
@@ -110,6 +114,7 @@ export function BoardInput({
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
+  overlay?: ReactNode;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [focused, setFocused] = useState(false);
@@ -290,6 +295,7 @@ export function BoardInput({
         uncertain={uncertain}
         wordScores={toggleMark ? undefined : wordScores}
         keepInputFocus={!toggleMark}
+        overlay={overlay}
       />
       <input
         ref={input}

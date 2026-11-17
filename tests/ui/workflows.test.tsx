@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { version } from "../../package.json";
 import App from "../../src/App";
 import { GameStore, store } from "../../src/store";
+import { emptyScoring } from "../../shared/game-scoring";
 import { summarizeGame } from "../../shared/game-index";
 import { PRESETS } from "../../shared/presets";
 import { importBoard } from "../../shared/screenshot";
@@ -3207,6 +3208,91 @@ test.each(["phone", "desktop"])("%s square selection filters moves without editi
   await user.keyboard("A");
   expect(current().board[112]).toBe("A");
   expect(document.querySelector(".board-entry .move-filter-square")).toBeNull();
+});
+
+function finishFixture(out: "you" | "opponent") {
+  const initial = game();
+  const { start } = initial.template;
+  const yourFinish = out === "you";
+  initial.board.splice(start, yourFinish ? 3 : 2, ...("CAT".slice(0, yourFinish ? 3 : 2)));
+  initial.rack = yourFinish ? "S" : "Q";
+  initial.scoring = emptyScoring();
+  initial.scoring.you.points = yourFinish ? 10 : 20;
+  initial.scoring.opponent.points = yourFinish ? 25 : 10;
+  initial.template = {
+    ...initial.template,
+    tileCounts: Object.fromEntries(
+      TILE_SYMBOLS.map((tile) => [tile, Number("ACQST".includes(tile))]),
+    ),
+  };
+  return { ...initial, revision: initial.revision + 1 };
+}
+
+test("finish overlay waits for the last tile flight and uses the adjusted win score", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(any-hover: hover)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  remote.games[0] = finishFixture("you");
+  const originalAnimate = Object.getOwnPropertyDescriptor(Element.prototype, "animate");
+  let finish!: () => void;
+  const finished = new Promise<void>((resolve) => { finish = resolve; });
+  Object.defineProperty(Element.prototype, "animate", {
+    configurable: true,
+    value: () => ({ finished, cancel() {} }),
+  });
+  const rect = HTMLElement.prototype.getBoundingClientRect;
+  const geometry = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+    .mockImplementation(function (this: HTMLElement) {
+      return this.matches(".rack-slot, .square")
+        ? new DOMRect(60, 80, 24, 24)
+        : rect.call(this);
+    });
+  try {
+    const user = await start();
+    await screen.findByRole("button", { name: "Rack tile 1: S" });
+    const board = within(screen.getByRole("region", { name: "Game board" }));
+    await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+    const [move] = await screen.findAllByRole("button", { name: /^CATS, / });
+    await user.click(move);
+    expect(document.querySelector(".tile-flight-layer")).toBeTruthy();
+    expect(board.queryByRole("heading", { name: "You win" })).toBeNull();
+    await act(async () => finish());
+    expect(document.querySelector(".tile-flight-layer")).toBeNull();
+    const outcome = await board.findByRole("heading", { name: "You win" });
+    expect(outcome.closest(".board-grid")).toBeTruthy();
+    expect(board.getByText("Won by 11")).toBeTruthy();
+    expect(board.getByText(/You went out/).textContent).toContain("CATS +6");
+    await user.click(board.getByRole("button", { name: "View board" }));
+    expect(board.queryByRole("heading", { name: "You win" })).toBeNull();
+    await user.click(board.getByRole("button", { name: "Undo" }));
+    await user.click(board.getByRole("button", { name: "Redo" }));
+    expect(board.queryByRole("heading", { name: "You win" })).toBeNull();
+  } finally {
+    geometry.mockRestore();
+    if (originalAnimate) Object.defineProperty(Element.prototype, "animate", originalAnimate);
+    else Reflect.deleteProperty(Element.prototype, "animate");
+  }
+});
+
+test("typing the opponent's last tile shows the adjusted loss and releases the board keyboard", async () => {
+  remote.games[0] = finishFixture("opponent");
+  const user = await start();
+  const board = within(screen.getByRole("region", { name: "Game board" }));
+  await board.findByRole("button", { name: /^H8: C/ });
+  await user.click(board.getByRole("button", { name: /^J8:/ }));
+  await user.keyboard("T");
+  expect(board.queryByRole("heading", { name: "You lose" })).toBeNull();
+  expect(document.activeElement).toBe(entry());
+
+  await user.keyboard("S");
+  const outcome = await board.findByRole("heading", { name: "You lose" });
+  expect(within(outcome.closest('[role="status"]') as HTMLElement).getByText("Lost by 16")).toBeTruthy();
+  expect(board.getByText(/First game went out/).textContent).toContain("CATS +6");
+  expect(document.activeElement).not.toBe(entry());
+  await user.keyboard("{Escape}");
+  expect(board.queryByRole("heading", { name: "You lose" })).toBeNull();
 });
 
 test("turning tracking on after a screenshot restores the saved move scores", async () => {

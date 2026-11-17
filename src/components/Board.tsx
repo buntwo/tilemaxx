@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import { ArrowDown, ArrowRight, Star } from "lucide-react";
 import type { boardWordsAt } from "../../shared/game-scoring";
@@ -36,6 +37,7 @@ export default function Board({
   uncertain,
   highlight,
   cellOverlay,
+  overlay,
   wordScores,
 }: {
   template: BoardTemplate;
@@ -56,6 +58,7 @@ export default function Board({
   cellOverlay?: (
     index: number,
   ) => { style: CSSProperties; label: string } | undefined;
+  overlay?: ReactNode;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
 }) {
   const touch = useRef<{
@@ -292,6 +295,7 @@ export default function Board({
             })}
           </Fragment>
         ))}
+        {overlay}
       </div>
     </div>
   );
