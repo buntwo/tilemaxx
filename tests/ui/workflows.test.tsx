@@ -4042,7 +4042,7 @@ test("shuffle moves excluded, required, and exchange marks with their tiles", as
   await user.click(rackTile(1));
   await user.keyboard("{ArrowDown}");
   await user.click(rackTile(2));
-  await user.keyboard("{ArrowDown}{ArrowDown}");
+  await user.keyboard("{ArrowDown}{ArrowDown}{ArrowUp}");
   await user.click(rackTile(3));
   await user.keyboard("{ArrowUp}");
 
@@ -4056,6 +4056,10 @@ test("shuffle moves excluded, required, and exchange marks with their tiles", as
   expect(current().excludedRackSlots).toEqual([3]);
   expect(current().requiredRackSlots).toEqual([0]);
   expect(rackTile(2).getAttribute("aria-label")).toContain("T, marked for exchange");
+  const requiredArrow = rackTile(1).querySelector(".rack-required-stripe .rack-exchange-icon");
+  const exchangeArrow = rackTile(2).querySelector(".rack-slot > .rack-exchange-icon");
+  expect(requiredArrow?.getAttribute("stroke-width")).toBe("3.2");
+  expect(exchangeArrow?.getAttribute("stroke-width")).toBe("3.2");
   await act(() => store.flush());
   expect(remote.games[0].rack).toBe("ATSC");
 });

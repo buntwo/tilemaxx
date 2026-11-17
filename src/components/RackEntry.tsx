@@ -434,6 +434,9 @@ export default function RackEntry({
           !!tile &&
           (flyingRack?.before.requiredRackSlots ?? requiredSlots).includes(i);
         const exchanging = !flyingRack && exchangeSlots.includes(i);
+        const exchangeIcon = exchanging && (
+          <Repeat2 className="rack-exchange-icon" size={12} strokeWidth={3.2} aria-hidden="true" />
+        );
         const previewed = previewSlots?.includes(i);
         const active =
           focused && (selectAll || i === Math.min(position, capacity - 1));
@@ -544,18 +547,12 @@ export default function RackEntry({
                 {tile && <small>{tileScore(tile, game.template.rules)}</small>}
               </span>
               <span className="rack-slot-window" aria-hidden="true" />
-              {exchanging && (
-                <Repeat2
-                  className="rack-exchange-icon"
-                  size={12}
-                  aria-hidden="true"
-                />
-              )}
-              {required && (
+              {required ? (
                 <span className="rack-required-stripe" aria-hidden="true">
                   REQ
+                  {exchangeIcon}
                 </span>
-              )}
+              ) : exchangeIcon}
               {excluded && (
                 <Ban
                   className="rack-excluded-icon"
