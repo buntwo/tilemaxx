@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { ChevronDown, Pencil, Plus } from "lucide-react";
+import { ChevronDown, Pencil, Plus, Trophy } from "lucide-react";
 import {
   isBingo,
   trackedMoveHistory,
@@ -12,14 +12,67 @@ import {
   emptyScoring,
   gameScoreTotals,
   isImportedPosition,
+  nextPlayerToMove,
   pendingOpponentTurns,
   tracksScores,
+  summarizeGameScore,
 } from "../../shared/game-scoring";
 import { scoreTone, signedPoints } from "../score-tone";
 import Modal from "./Modal";
 import MoveWord, { BingoBadge } from "./MoveWord";
 import ScoreBreakdown from "./ScoreBreakdown";
 import TurnReview from "./TurnReview";
+
+const ringDots = Array.from({ length: 8 }, (_, index) => {
+  const angle = (index * Math.PI) / 4;
+  return {
+    left: `${50 + Math.cos(angle) * 42}%`,
+    top: `${50 + Math.sin(angle) * 42}%`,
+  };
+});
+
+function ScorePlayerMarker({
+  player,
+  turn,
+  winner,
+}: {
+  player: Player;
+  turn?: Player;
+  winner?: Player;
+}) {
+  const won = winner === player;
+  const active = turn === player;
+  const label = won
+    ? player === "you"
+      ? "You won"
+      : "Opponent won"
+    : active
+      ? player === "you"
+        ? "Your turn"
+        : "Opponent’s turn"
+      : undefined;
+  return (
+    <span
+      className="score-player-marker"
+      data-status={won ? "winner" : active ? "turn" : "waiting"}
+      role={label ? "img" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+    >
+      {won ? (
+        <span className="bingo-badge score-winner">
+          <Trophy size={10} aria-hidden="true" />
+        </span>
+      ) : (
+        <span className="score-turn-circle">
+          {ringDots.map((style, index) => (
+            <span key={index} style={style} />
+          ))}
+        </span>
+      )}
+    </span>
+  );
+}
 
 export default function GameScores({
   game,
@@ -43,6 +96,10 @@ export default function GameScores({
   const end = scoring.end;
   const rackOut = end && "out" in end ? end : undefined;
   const manual = end && "manual" in end ? end : undefined;
+  const turn = nextPlayerToMove(game);
+  const outcome = manual?.outcome ?? summarizeGameScore(game, scoring)?.outcome;
+  const winner =
+    outcome === "win" ? "you" : outcome === "loss" ? "opponent" : undefined;
   const adjusted = gameScoreTotals(scoring);
   const margin = adjusted.you - adjusted.opponent;
   const tone = scoreTone(margin);
@@ -103,10 +160,15 @@ export default function GameScores({
             {(["you", "opponent"] as const).map((player) => {
               const { points, moves, best, bingos } = scoring[player];
               return (
-                <div key={player}>
+                <div key={player} data-player={player}>
                   <dt>{player === "you" ? "You" : "Opponent"}</dt>
                   <dd className="score-total">
                     {adjusted[player]} <small>pts</small>
+                    <ScorePlayerMarker
+                      player={player}
+                      turn={turn}
+                      winner={winner}
+                    />
                   </dd>
                   <dd className="score-detail">
                     {moves} {moves === 1 ? "move" : "moves"} · Avg{" "}

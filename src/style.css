@@ -1003,7 +1003,7 @@ label + label {
   line-height: 1;
 }
 .game-heading .game-title-score[data-outcome="playing"] .game-score-totals {
-  padding-inline: 3px;
+  padding-inline: 9px;
 }
 .game-score-player { position: relative; }
 .game-title-score[data-turn="you"] .game-score-player:first-child::after,
@@ -1361,10 +1361,11 @@ label + label {
   gap: 14px;
   margin: 12px 0 0;
 }
+.score-players > div:first-child { padding-inline: 24px 0; }
 .score-players > div + div {
   text-align: right;
   border-left: 1px solid var(--line);
-  padding-left: 14px;
+  padding-inline: 0 24px;
 }
 .score-players dt {
   font-size: 12px;
@@ -1374,8 +1375,11 @@ label + label {
   margin: 0;
 }
 .score-total {
+  position: relative;
+  display: inline-block;
   font-size: 25px;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 .score-total small,
 .score-detail,
@@ -1383,6 +1387,59 @@ label + label {
   color: var(--muted);
   font-size: 12px;
 }
+.score-player-marker {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+.score-players [data-player="you"] .score-player-marker {
+  inset-inline-end: calc(100% + 5px);
+}
+.score-players [data-player="opponent"] .score-player-marker {
+  inset-inline-start: calc(100% + 5px);
+}
+.score-turn-circle {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+.score-turn-circle > span {
+  position: absolute;
+  width: 1.7px;
+  height: 1.7px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--muted);
+}
+.score-player-marker[data-status="turn"] .score-turn-circle {
+  width: 12px;
+  height: 12px;
+  background: var(--primary);
+}
+.score-player-marker[data-status="turn"] .score-turn-circle > span { display: none; }
+.score-player-marker .score-winner {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 18px;
+  margin: 0;
+  padding: 3px;
+}
+.score-winner svg {
+  display: block;
+  width: 10px;
+  height: 10px;
+  min-width: 0;
+  min-height: 0;
+  max-width: 10px;
+  max-height: 10px;
+}
+.phone-layout .score-players .score-detail { font-size: 11px; }
 .score-margin {
   margin: 8px 0 0;
   text-align: center;
