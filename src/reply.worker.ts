@@ -2,11 +2,14 @@ import { Lexicon, parseWords } from "../shared/lexicon";
 import {
   compareReplyBoards,
   prepareReplyAnalysis,
+  REPLY_DETAIL_TIME_MS,
   REPLY_SAMPLES,
+  REPLY_SUMMARY_TIME_MS,
   replyEndgameLine,
+  ReplySearchLimitError,
   sampleReplyRacks,
   type ReplyRequest,
-  type ReplyResult,
+  type ReplyWorkerMessage,
 } from "../shared/reply-analysis";
 import type { EndgameLine } from "../shared/endgame";
 import { SearchLimitError } from "../shared/solver";
@@ -19,6 +22,10 @@ let detail: Exclude<ReplyRequest, { kind: "reply-summary" }> | undefined;
 let running = false;
 const yieldToMessages = () =>
   new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+function publish(message: ReplyWorkerMessage) {
+  self.postMessage(message);
+}
 
 self.onmessage = (event: MessageEvent<ReplyRequest>) => {
   if (event.data.kind === "reply-summary") summary = event.data;
@@ -55,7 +62,7 @@ async function run() {
           } else {
             // Empty-bag rows show a single known-rack reply. The separate
             // exact-line precompute uses the candidate workers.
-            let deadline = performance.now() + 5_000;
+            let deadline = performance.now() + REPLY_SUMMARY_TIME_MS;
             const analyze = prepareReplyAnalysis(
               lexicon,
               request,
@@ -64,18 +71,17 @@ async function run() {
               () => deadline,
             );
             for (const move of request.candidates) {
-              deadline = performance.now() + 5_000;
-              let result: ReplyResult | undefined;
+              deadline = performance.now() + REPLY_SUMMARY_TIME_MS;
               try {
-                result = analyze(move);
+                publish({ id, kind, moveId: move.id, result: analyze(move) });
               } catch (error) {
-                if (!(error instanceof SearchLimitError)) throw error;
+                if (!(error instanceof ReplySearchLimitError)) throw error;
+                publish({ id, kind, moveId: move.id, limit: error.limit });
               }
-              self.postMessage({ id, kind, moveId: move.id, result });
               await betweenReplies();
             }
           }
-          self.postMessage({ id, kind, done: true });
+          publish({ id, kind, done: true });
         } else {
           await runDetail(request);
         }
@@ -112,9 +118,10 @@ async function runHistograms(
   } = request;
   if (!candidates.length) return;
   const samples = sampleReplyRacks(position, REPLY_SAMPLES);
-  type Histogram = Extract<CandidateResult, { kind: "histogram" }>["board"];
+  type HistogramResult = Extract<CandidateResult, { kind: "histogram" | "limit" }>;
+  type Histogram = Extract<HistogramResult, { kind: "histogram" }>["board"];
   let baseline: Histogram | undefined;
-  const ready = new Map<string, Histogram | undefined>();
+  const ready = new Map<string, HistogramResult>();
   const publishReference = candidates.some(({ id }) => id === reference.id);
   const moves = [
     reference,
@@ -136,22 +143,27 @@ async function runHistograms(
             : "Unexpected histogram result.",
         );
       if (move.id === reference.id) {
-        if (result.kind === "limit") throw new Error(result.message);
+        if (result.kind === "limit") {
+          if (result.replyLimit)
+            throw new ReplySearchLimitError(result.replyLimit);
+          throw new Error(result.message);
+        }
         baseline = result.board;
         if (publishReference) {
           const result = compareReplyBoards(baseline, baseline, samples);
-          self.postMessage({ id, kind, moveId: move.id, result });
+          publish({ id, kind, moveId: move.id, result });
         }
       } else {
-        ready.set(
-          move.id,
-          result.kind === "histogram" ? result.board : undefined,
-        );
+        ready.set(move.id, result);
       }
       if (baseline) {
-        for (const [moveId, board] of ready) {
-          const result = board && compareReplyBoards(board, baseline, samples);
-          self.postMessage({ id, kind, moveId, result });
+        for (const [moveId, candidate] of ready) {
+          if (candidate.kind === "limit") {
+            publish({ id, kind, moveId, limit: candidate.replyLimit });
+          } else {
+            const result = compareReplyBoards(candidate.board, baseline, samples);
+            publish({ id, kind, moveId, result });
+          }
         }
         ready.clear();
       }
@@ -174,9 +186,9 @@ async function runDetail(
         candidate,
         2_500,
       );
-      self.postMessage({ id, kind, line });
+      publish({ id, kind, line });
     } else {
-      const deadline = performance.now() + 25_000;
+      const deadline = performance.now() + REPLY_DETAIL_TIME_MS;
       const analyze = prepareReplyAnalysis(
         lexicon,
         request,
@@ -185,7 +197,7 @@ async function runDetail(
         () => deadline,
         request.captureHeatmap,
       );
-      self.postMessage({ id, kind, result: analyze(candidate) });
+      publish({ id, kind, result: analyze(candidate) });
     }
   } catch (error) {
     postError(id, kind, error);
@@ -193,7 +205,11 @@ async function runDetail(
 }
 
 function postError(id: number, kind: ReplyRequest["kind"], error: unknown) {
-  self.postMessage({
+  if (error instanceof ReplySearchLimitError) {
+    publish({ id, kind, done: true, limit: error.limit });
+    return;
+  }
+  publish({
     id,
     kind,
     done: true,

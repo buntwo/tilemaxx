@@ -6,13 +6,17 @@ import { placeTiles } from "../../shared/move-analysis";
 import type { MoveDefense } from "../../shared/premium-defense";
 import {
   REPLY_BUCKETS,
+  REPLY_DETAIL_TIME_MS,
   REPLY_REFINED_SAMPLES,
   REPLY_SAMPLES,
+  REPLY_SUMMARY_TIME_MS,
   replyColor,
   type ExactReply,
   type ReplyDistribution,
   type ReplyResult,
+  type ReplySearchLimit,
 } from "../../shared/reply-analysis";
+import { SEARCH_LIMITS } from "../../shared/solver";
 import { scoreTone, signedPoints } from "../score-tone";
 import type { useReplyAnalysis } from "../useReplyAnalysis";
 import Board from "./Board";
@@ -22,6 +26,62 @@ import { PremiumReplyNote } from "./PremiumDefense";
 import ReplyHeatmap from "./ReplyHeatmap";
 
 type Analysis = ReturnType<typeof useReplyAnalysis>;
+
+function replyLimitMessage(
+  limit: ReplySearchLimit,
+  size: number,
+  timeMs: number,
+) {
+  const reasons = {
+    "analysis-time": `${timeMs / 1_000}-second analysis time limit`,
+    "rack-time": `${SEARCH_LIMITS.maxMs / 1_000}-second per-rack time limit`,
+    nodes: `${SEARCH_LIMITS.maxNodes.toLocaleString("en-US")} search node limit`,
+    moves: `${SEARCH_LIMITS.maxMoves.toLocaleString("en-US")} legal move limit`,
+  };
+  const { word, row, col, direction } = limit.move;
+  const square = coordinate(row * size + col, size);
+  const rack = limit.rack
+    ? `opponent rack ${limit.rack}`
+    : "an empty opponent rack";
+  const blanks = limit.rack.includes("?") ? " (? = blank)" : "";
+  return `Hit the ${reasons[limit.reason]} after ${word} at ${square} ${direction} with ${rack}${blanks}.`;
+}
+
+export function ReplyLimitNotice({
+  analysis,
+  size,
+}: {
+  analysis: Analysis;
+  size: number;
+}) {
+  const { limit, skippedLimits } = analysis;
+  if (limit)
+    return (
+      <div className="reply-controls" role="status">
+        {replyLimitMessage(limit, size, REPLY_SUMMARY_TIME_MS)}
+      </div>
+    );
+  const skipped = Object.entries(skippedLimits ?? {});
+  if (!skipped.length) return null;
+  if (skipped.length === 1)
+    return (
+      <div className="reply-controls" role="status">
+        {replyLimitMessage(skipped[0][1], size, REPLY_SUMMARY_TIME_MS)}
+      </div>
+    );
+  return (
+    <div className="reply-controls">
+      <details className="reply-limit-list">
+        <summary>{skipped.length} opponent reply searches hit a limit</summary>
+        <ul>
+          {skipped.map(([id, limit]) => (
+            <li key={id}>{replyLimitMessage(limit, size, REPLY_SUMMARY_TIME_MS)}</li>
+          ))}
+        </ul>
+      </details>
+    </div>
+  );
+}
 
 function endgameScores(
   move: Move,
@@ -515,6 +575,9 @@ export function ReplyPreview({
       : undefined;
   const distribution =
     detail?.result?.kind === "distribution" ? detail.result : result;
+  const warning = detail?.limit
+    ? replyLimitMessage(detail.limit, game.template.size, REPLY_DETAIL_TIME_MS)
+    : detail?.error;
   if (!analysis.reference) return null;
   return (
     <>
@@ -556,7 +619,7 @@ export function ReplyPreview({
           opponentRackSize={analysis.unseen - analysis.bagSize}
         />
       )}
-      {detail?.error && <p role="status">{detail.error}</p>}
+      {warning && <p role="status">{warning}</p>}
     </>
   );
 }
@@ -568,6 +631,7 @@ export default function ReplyHeatmapDialog({
   reference,
   pending,
   error,
+  limit,
   onClose,
   onRetry,
 }: {
@@ -577,9 +641,13 @@ export default function ReplyHeatmapDialog({
   reference: Move;
   pending?: boolean;
   error?: string;
+  limit?: ReplySearchLimit;
   onClose: () => void;
   onRetry: () => void;
 }) {
+  const warning = limit
+    ? replyLimitMessage(limit, game.template.size, REPLY_DETAIL_TIME_MS)
+    : error;
   return (
     <Modal
       title={
@@ -600,7 +668,7 @@ export default function ReplyHeatmapDialog({
         <p role="status">Checking heatmap squares…</p>
       ) : (
         <>
-          {error && <p role="status">{error}</p>}
+          {warning && <p role="status">{warning}</p>}
           <button type="button" className="button secondary" onClick={onRetry}>
             Retry heatmap
           </button>

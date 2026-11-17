@@ -9,6 +9,8 @@ import {
   prepareReplyAnalysis,
   replyColor,
   replyEndgameLine,
+  ReplySearchLimitError,
+  summarizeReplyBoard,
 } from "../shared/reply-analysis";
 import { solve } from "../shared/solver";
 import { TILE_SYMBOLS } from "../shared/tile-pool";
@@ -65,6 +67,39 @@ test("paired histograms weight physical copies and use a fixed reference", () =>
   assert.equal(replyColor(result, 2), "more");
   assert.equal(replyColor(result, 4), "similar");
   assert.equal(check(baseline).difference, 0);
+});
+
+test("reply diagnostics distinguish the analysis deadline from a single rack deadline", (t) => {
+  const { template, board, lexicon } = fixture("TIZQAAB", 2);
+  const candidate = solve(lexicon, board, "IZ", template)[0];
+  const position = { template, board, rack: "IZ", bagSize: 3, scorelessTurns: 0 };
+  const { word, row, col, direction } = candidate;
+  const move = { word, row, col, direction };
+  const samples = {
+    exact: true,
+    racks: [{ rack: "AA", weight: 1 }, { rack: "BQ", weight: 1 }],
+  };
+  let calls = 0;
+  assert.throws(
+    () => summarizeReplyBoard(lexicon, position, candidate, samples, () =>
+      ++calls === 1 ? Infinity : -Infinity
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof ReplySearchLimitError);
+      assert.deepEqual(error.limit, { reason: "analysis-time", move, rack: "BQ" });
+      return true;
+    },
+  );
+  let now = 0;
+  t.mock.method(performance, "now", () => (now += 2_001));
+  assert.throws(
+    () => summarizeReplyBoard(lexicon, position, candidate, samples, () => Infinity),
+    (error: unknown) => {
+      assert.ok(error instanceof ReplySearchLimitError);
+      assert.deepEqual(error.limit, { reason: "rack-time", move, rack: "AA" });
+      return true;
+    },
+  );
 });
 
 test("sampled comparisons widen the gray band for noisy paired buckets", () => {

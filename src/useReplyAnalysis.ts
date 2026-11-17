@@ -5,6 +5,8 @@ import {
   type ReplyPosition,
   type ReplyRequest,
   type ReplyResult,
+  type ReplySearchLimit,
+  type ReplyWorkerMessage,
 } from "../shared/reply-analysis";
 import {
   endgameStreaks,
@@ -18,15 +20,6 @@ import type { RankEndgame } from "./useSolver";
 import { useEndgameLines } from "./useEndgameLines";
 import { computeWorkerLimit } from "./compute-workers";
 
-type WorkerMessage = {
-  id: number;
-  kind: ReplyRequest["kind"];
-  moveId?: string;
-  result?: ReplyResult;
-  line?: EndgameLine;
-  done?: boolean;
-  error?: string;
-};
 type Summary = {
   moveList: Move[];
   runKey: string;
@@ -34,6 +27,8 @@ type Summary = {
   done: boolean;
   elapsed?: number;
   error?: string;
+  limit?: ReplySearchLimit;
+  skippedLimits?: Record<string, ReplySearchLimit>;
 };
 
 type Detail = {
@@ -43,6 +38,7 @@ type Detail = {
   result?: ReplyResult;
   line?: EndgameLine;
   error?: string;
+  limit?: ReplySearchLimit;
 };
 
 export function useReplyAnalysis(
@@ -200,7 +196,7 @@ export function useReplyAnalysis(
     }
     let previous = cache.current.get(moveList);
     if (previous?.runKey !== runKey) previous = undefined;
-    active.onmessage = (event: MessageEvent<WorkerMessage>) => {
+    active.onmessage = (event: MessageEvent<ReplyWorkerMessage>) => {
       if (worker.current !== active) return;
       const message = event.data;
       if (message.kind === "reply-summary") {
@@ -215,6 +211,11 @@ export function useReplyAnalysis(
           done: !!message.done,
           elapsed: message.done ? performance.now() - started : undefined,
           error: message.error,
+          limit: message.moveId ? undefined : message.limit,
+          skippedLimits:
+            message.moveId && message.limit
+              ? { ...previous?.skippedLimits, [message.moveId]: message.limit }
+              : previous?.skippedLimits,
         };
         publish(previous);
       } else if (message.id === activeDetail.current?.id) {
@@ -226,6 +227,7 @@ export function useReplyAnalysis(
           result: message.result,
           line: message.line,
           error: message.error,
+          limit: message.limit,
         };
         const saved = details.current.get(moveList);
         const result =
@@ -234,7 +236,8 @@ export function useReplyAnalysis(
             ? saved.result
             : undefined);
         const resolved = { ...next, result };
-        if (!resolved.error) details.current.set(moveList, resolved);
+        if (!resolved.error && !resolved.limit)
+          details.current.set(moveList, resolved);
         setDetail(resolved);
       }
     };
@@ -250,6 +253,7 @@ export function useReplyAnalysis(
         done: true,
         elapsed: performance.now() - started,
         error,
+        skippedLimits: current?.skippedLimits,
       }));
       setDetail((current) =>
         current?.pending ? { ...current, pending: false, error } : current,
@@ -264,7 +268,7 @@ export function useReplyAnalysis(
       candidates: target,
       workerLimit,
     };
-    if (!previous?.done || previous.error) {
+    if (!previous?.done || previous.error || previous.limit) {
       const remaining = target.filter(
         ({ id }) => !(id in (previous?.results ?? {})),
       );
@@ -365,6 +369,8 @@ export function useReplyAnalysis(
     results: current?.results,
     pending: !!moveList && !invalid && !current?.done,
     error: current?.error,
+    limit: current?.limit,
+    skippedLimits: current?.skippedLimits,
     reference,
     detail:
       currentDetail && backgroundLine

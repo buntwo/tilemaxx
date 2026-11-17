@@ -80,6 +80,7 @@ import {
 } from "../useMoveResults";
 import ReplyHeatmapDialog, {
   ReplyCell,
+  ReplyLimitNotice,
   ReplyPreview,
   ReplySettings,
 } from "./ReplyAnalysis";
@@ -1027,6 +1028,7 @@ export default function Results({
               {replyAnalysis.error ?? "Check tile counts for reply analysis."}
             </div>
           )}
+          {replyEnabled && <ReplyLimitNotice analysis={replyAnalysis} size={size} />}
           {replyEnabled && (estimateNotice || endgameProgress) && (
             <div className="reply-controls">
               {estimateNotice && <span role="status">{estimateNotice}</span>}
@@ -1570,6 +1572,7 @@ export default function Results({
             reference={replyAnalysis.reference}
             pending={heatmapDetail?.pending}
             error={heatmapDetail?.error}
+            limit={heatmapDetail?.limit}
             onClose={() => setHeatmap(undefined)}
             onRetry={() => openHeatmap(heatmapMove)}
           />

@@ -10,10 +10,13 @@ import {
 } from "../shared/opponent-policy";
 import {
   opponentEndgameLine,
+  REPLY_SUMMARY_TIME_MS,
   replyEndgameLine,
-  type OpponentEndgamePosition,
+  ReplySearchLimitError,
   summarizeReplyBoard,
+  type OpponentEndgamePosition,
   type ReplyPosition,
+  type ReplySearchLimit,
   type sampleReplyRacks,
 } from "../shared/reply-analysis";
 import { prepareSolver, SearchLimitError } from "../shared/solver";
@@ -62,7 +65,12 @@ export type CandidateResult =
   | { kind: "board-bingo"; odds?: BoardOdds }
   | { kind: "exchange-racks"; hits: ReturnType<typeof checkExchangeRacks> }
   | { kind: "policy-turn"; policy?: OpponentPolicyResult }
-  | { kind: "limit"; message: string; elapsed: number }
+  | {
+      kind: "limit";
+      message: string;
+      elapsed: number;
+      replyLimit?: ReplySearchLimit;
+    }
   | { kind: "error"; message: string };
 
 export type CandidateRequest = {
@@ -87,7 +95,7 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
               job.position,
               job.move,
               job.samples,
-              () => started + 5_000,
+              () => started + REPLY_SUMMARY_TIME_MS,
             ),
           };
         case "endgame": {
@@ -162,6 +170,14 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
         }
       }
     } catch (error) {
+      const elapsed = performance.now() - started;
+      if (error instanceof ReplySearchLimitError)
+        return {
+          kind: "limit",
+          message: error.message,
+          elapsed,
+          replyLimit: error.limit,
+        };
       const message =
         error instanceof SearchLimitError
           ? "The reply search reached its time or complexity limit."
@@ -172,7 +188,7 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
         error instanceof SearchLimitError ||
         error instanceof EndgameSearchLimitError
       )
-        return { kind: "limit", message, elapsed: performance.now() - started };
+        return { kind: "limit", message, elapsed };
       return { kind: "error", message };
     }
   };
