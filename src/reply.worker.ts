@@ -3,6 +3,7 @@ import {
   compareReplyBoards,
   prepareReplyAnalysis,
   REPLY_DETAIL_TIME_MS,
+  REPLY_REFINED_SAMPLES,
   REPLY_SAMPLES,
   REPLY_SUMMARY_TIME_MS,
   replyEndgameLine,
@@ -208,6 +209,19 @@ async function runDetail(
       publish({ id, kind, result: compareReplyBoards(board, baseline, samples) });
     } else {
       const deadline = performance.now() + REPLY_DETAIL_TIME_MS;
+      const boards = candidate.id === reference.id ? 1 : 2;
+      let checked = 0;
+      let lastUpdate = -Infinity;
+      const onRacksChecked = request.samples === REPLY_REFINED_SAMPLES
+        ? (weight: number) => {
+            checked += weight;
+            const now = performance.now();
+            if (now - lastUpdate < 100) return;
+            lastUpdate = now;
+            // When comparing two boards, each board accounts for half the work.
+            publish({ id, kind, racksChecked: Math.floor(checked / boards) });
+          }
+        : undefined;
       const analyze = prepareReplyAnalysis(
         lexicon,
         request,
@@ -215,6 +229,7 @@ async function runDetail(
         request.samples,
         () => deadline,
         request.captureHeatmap,
+        onRacksChecked,
       );
       publish({ id, kind, result: analyze(candidate) });
     }

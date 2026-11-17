@@ -36,6 +36,7 @@ type Detail = {
   key: string;
   runKey: string;
   pending: boolean;
+  racksChecked?: number;
   result?: ReplyResult;
   line?: EndgameLine;
   error?: string;
@@ -230,6 +231,16 @@ export function useReplyAnalysis(
         publish(previous);
       } else if (message.id === activeDetail.current?.id) {
         const { key, moveId } = activeDetail.current;
+        const { racksChecked } = message;
+        if (racksChecked !== undefined) {
+          setDetail((current) =>
+            current?.pending && current.key === key && current.runKey === runKey
+              ? { ...current, racksChecked }
+              : current,
+          );
+          return;
+        }
+        activeDetail.current = undefined;
         if (message.line) rememberEndgame(moveId, message.line);
         const next = {
           key,
