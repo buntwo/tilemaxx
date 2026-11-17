@@ -14,6 +14,7 @@ import {
   type EndgameSettings,
 } from "../shared/endgame";
 import type { Game, Move } from "../shared/model";
+import type { ReplyCandidate } from "../shared/reply-candidates";
 import { MOVE_CACHE_LIMIT, type EndgameRanking } from "../shared/move-results";
 import { unseenTiles } from "../shared/tile-pool";
 import type { RankEndgame } from "./useSolver";
@@ -48,6 +49,7 @@ export function useReplyAnalysis(
   enabled: boolean,
   endgame?: { searchId: number | undefined; rank: RankEndgame },
   workerLimit = computeWorkerLimit(),
+  extraCandidates?: ReplyCandidate[] | null,
 ) {
   const [settings, setSettings] = useState<
     Record<string, { bagSize: number } & EndgameSettings>
@@ -107,6 +109,8 @@ export function useReplyAnalysis(
       ? estimateResult
       : undefined;
   const ranking = estimateRun?.ranking;
+  const extras = bagSize > 0 ? extraCandidates : undefined;
+  const planning = enabled && extras === null;
   const moveList =
     enabled && moves?.length
       ? ranking?.checked
@@ -148,9 +152,15 @@ export function useReplyAnalysis(
         ...(moves?.slice(0, REPLY_LIMIT).filter(({ id }) => !ids.has(id)) ??
           []),
       );
+    } else if (extras) {
+      head.push(...extras.map(({ move }) => move));
     }
     return head;
-  }, [moveList, moves]);
+  }, [moveList, moves, extras]);
+  const extraReasons = useMemo(
+    () => Object.fromEntries((extras ?? []).map(({ move, reason }) => [move.id, reason])),
+    [extras],
+  );
   const reference = moveList && moves?.[0];
   const opponentRack =
     bagSize === 0 && pool && !invalid
@@ -179,7 +189,7 @@ export function useReplyAnalysis(
   useEffect(() => {
     setSummary(undefined);
     setDetail(undefined);
-    if (!moveList || !reference || !position || !dictionaryId || invalid)
+    if (!moveList || !reference || !position || !dictionaryId || invalid || planning)
       return;
     const active = new Worker(new URL("./reply.worker.ts", import.meta.url), {
       type: "module",
@@ -219,9 +229,10 @@ export function useReplyAnalysis(
         };
         publish(previous);
       } else if (message.id === activeDetail.current?.id) {
-        if (message.line) rememberEndgame(activeDetail.current.moveId, message.line);
+        const { key, moveId } = activeDetail.current;
+        if (message.line) rememberEndgame(moveId, message.line);
         const next = {
-          key: activeDetail.current.key,
+          key,
           runKey,
           pending: false,
           result: message.result,
@@ -236,6 +247,19 @@ export function useReplyAnalysis(
             ? saved.result
             : undefined);
         const resolved = { ...next, result };
+        if (message.kind === "reply-histogram" && message.result?.kind === "distribution") {
+          const skippedLimits = { ...previous?.skippedLimits };
+          delete skippedLimits[moveId];
+          previous = {
+            moveList,
+            runKey,
+            done: false,
+            ...previous,
+            results: { ...previous?.results, [moveId]: message.result },
+            skippedLimits,
+          };
+          publish(previous);
+        }
         if (!resolved.error && !resolved.limit)
           details.current.set(moveList, resolved);
         setDetail(resolved);
@@ -268,10 +292,12 @@ export function useReplyAnalysis(
       candidates: target,
       workerLimit,
     };
-    if (!previous?.done || previous.error || previous.limit) {
-      const remaining = target.filter(
-        ({ id }) => !(id in (previous?.results ?? {})),
-      );
+    const remaining = target.filter(({ id }) => !(id in (previous?.results ?? {})));
+    if (!previous?.done || previous.error || previous.limit || remaining.length) {
+      if (previous?.done && remaining.length) {
+        previous = { ...previous, done: false, elapsed: undefined };
+        publish(previous);
+      }
       active.postMessage({ ...request, candidates: remaining });
     }
     return () => {
@@ -279,7 +305,7 @@ export function useReplyAnalysis(
       active.terminate();
       activeDetail.current = undefined;
     };
-  }, [moveList, runKey, dictionaryId, invalid, workerLimit]);
+  }, [moveList, runKey, dictionaryId, invalid, workerLimit, planning, target]);
 
   function requestDetail(candidate: Move, options: ReplyDetailOptions) {
     const key = `${options.kind}:${candidate.id}`;
@@ -366,6 +392,8 @@ export function useReplyAnalysis(
         ),
       ),
     target,
+    extraReasons,
+    canRequestHistogram: enabled && !!reference && bagSize > 0 && !invalid && !planning,
     results: current?.results,
     pending: !!moveList && !invalid && !current?.done,
     error: current?.error,

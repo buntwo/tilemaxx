@@ -38,6 +38,7 @@ export function checkPremiumDefense(
   moves: readonly Move[],
   onQuick?: (results: DefenseResults) => void,
   onProgress?: (checked: number) => void,
+  onBaseline?: (replies: ReadonlyMap<number, PremiumReply>) => void,
 ): DefenseResults {
   const { size, rackSize, premiums, rules } = template;
   const board = [...position.board];
@@ -193,6 +194,7 @@ export function checkPremiumDefense(
     if (error instanceof SearchLimitError) return results;
     throw error;
   }
+  onBaseline?.(previous);
   let checked = 0;
   for (const move of moves.slice(0, DEFENSE_LIMIT)) {
     if (performance.now() >= deadline) break;

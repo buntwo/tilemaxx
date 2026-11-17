@@ -83,6 +83,14 @@ export function ReplyLimitNotice({
   );
 }
 
+export function ReplyHistogramStatus({ detail, size }: { detail: Analysis["detail"]; size: number }) {
+  if (detail?.pending) return <p role="status">Checking reply histogram…</p>;
+  const warning = detail?.limit
+    ? replyLimitMessage(detail.limit, size, REPLY_DETAIL_TIME_MS)
+    : detail?.error;
+  return warning ? <p role="status">{warning}</p> : null;
+}
+
 function endgameScores(
   move: Move,
   result: ExactReply,

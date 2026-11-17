@@ -12,6 +12,7 @@ import type { DefenseResults } from "../shared/premium-defense";
 import type { ExchangeAdviceRequest } from "../shared/exchange-advice";
 import type { EndgameSettings } from "../shared/endgame";
 import type { SolverStages } from "./move-timing";
+import type { ReplyCandidate } from "../shared/reply-candidates";
 
 type PositionRequest = Position & {
   id: number;
@@ -48,10 +49,16 @@ type SolverUpdate =
       warnings: string[];
       stages: Pick<SolverStages, "dictionary" | "moves" | "indexing">;
       exchange?: ExchangeAdviceRequest & { dictionaryId: string };
+      replyCandidatesPending?: boolean;
     }
   | { kind: "solve-status"; status: string }
   | { kind: "solve-error"; error: string }
-  | { kind: "defense"; defense?: DefenseResults; elapsed?: number }
+  | {
+      kind: "defense";
+      defense?: DefenseResults;
+      elapsed?: number;
+      replyCandidates?: ReplyCandidate[];
+    }
   | { kind: "defense-progress"; checked: number }
   | { kind: "rack-odds"; odds: RackOdds; elapsed: number }
   | {

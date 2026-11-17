@@ -3,6 +3,7 @@ import {
   solvePositionWithBaseline,
   inspectBoard,
   SearchLimitError,
+  type PremiumReply,
 } from "../shared/solver";
 import {
   BOARD_BINGO_BUDGET_MS,
@@ -15,6 +16,8 @@ import {
 import { runCandidateJobs } from "./candidate-analysis-pool";
 import { computeWorkerLimit } from "./compute-workers";
 import { checkPremiumDefense } from "../shared/premium-defense";
+import { extraReplyCandidates } from "../shared/reply-candidates";
+import { REPLY_LIMIT } from "../shared/reply-analysis";
 import { MOVE_CACHE_LIMIT, MoveResultIndex } from "../shared/move-results";
 import { exchangeAdvicePlays } from "../shared/exchange-advice";
 import {
@@ -197,6 +200,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     const exchangePlays = warnings.length
       ? undefined
       : exchangeAdvicePlays(request, template, moves);
+    const replyCandidatesPending = moves.length > REPLY_LIMIT;
     results.set(id, result);
     if (results.size > MOVE_CACHE_LIMIT + 1)
       results.delete(results.keys().next().value!);
@@ -205,6 +209,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       kind: "moves",
       results: result.summary(id, topScore),
       warnings,
+      replyCandidatesPending,
       stages: {
         dictionary: dictionaryElapsed,
         moves: movesElapsed,
@@ -223,6 +228,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     await yieldToQueries();
     if (abort?.signal.aborted) return;
     const defenseStart = performance.now();
+    let baseline: ReadonlyMap<number, PremiumReply> | undefined;
     try {
       const defense = checkPremiumDefense(
         lexicon,
@@ -231,10 +237,24 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
         moves,
         (defense) => post({ id, kind: "defense", defense }),
         (checked) => post({ id, kind: "defense-progress", checked }),
+        (replies) => { baseline = replies; },
       );
-      post({ id, kind: "defense", defense, elapsed: performance.now() - defenseStart });
+      post({
+        id,
+        kind: "defense",
+        defense,
+        replyCandidates: replyCandidatesPending
+          ? extraReplyCandidates(request, moves, defense, baseline)
+          : undefined,
+        elapsed: performance.now() - defenseStart,
+      });
     } catch {
-      post({ id, kind: "defense", elapsed: performance.now() - defenseStart });
+      post({
+        id,
+        kind: "defense",
+        replyCandidates: replyCandidatesPending ? [] : undefined,
+        elapsed: performance.now() - defenseStart,
+      });
     }
     await yieldToQueries();
     if (abort?.signal.aborted) return;

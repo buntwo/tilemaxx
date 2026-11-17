@@ -27,7 +27,7 @@ import {
 import { Lexicon } from "../../shared/lexicon";
 import { solve, solvePositionWithBaseline } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
-import { replyEndgameLine, type ReplyDistribution, type ReplyRequest, type ReplyWorkerMessage } from "../../shared/reply-analysis";
+import { REPLY_LIMIT, REPLY_SAMPLES, replyEndgameLine, type ReplyDistribution, type ReplyRequest, type ReplyWorkerMessage } from "../../shared/reply-analysis";
 import { MoveResultIndex } from "../../shared/move-results";
 import { prepareEndgameEstimate } from "../../shared/endgame-estimate";
 import type { SolverMessage, SolverRequest } from "../../src/solver-messages";
@@ -417,7 +417,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
         queueMicrotask(() => this.onmessage?.({
           data: { id: request.id, kind: request.kind, done: true },
         }));
-      } else if (request.kind === "reply-line" || request.kind === "reply-detail") {
+      } else if (request.kind === "reply-line" || request.kind === "reply-detail" || request.kind === "reply-histogram") {
         return;
       } else if (request.kind === "precompute-endgames") {
         background = { worker: this, request };
@@ -669,7 +669,7 @@ test("calculation timing waits for reply histograms and stays fixed for follow-u
       else if (request.kind === "board-odds") boardOdds = { worker: this, request };
       else if (request.kind === "reply-detail" || request.kind === "reply-line")
         detail = { worker: this, request };
-      else super.postMessage(request);
+      else if (request.kind !== "reply-histogram") super.postMessage(request);
     }
   }
   vi.stubGlobal("Worker", DeferredReplyWorker);
@@ -751,7 +751,7 @@ test.each(["reference", "alternatives"] as const)(
     class LimitedReplyWorker extends SolverWorker {
       postMessage(request: SolverRequest | ReplyRequest) {
         if (request.kind === "reply-summary") replies = { worker: this, request };
-        else if (request.kind !== "reply-detail" && request.kind !== "reply-line")
+        else if (request.kind !== "reply-detail" && request.kind !== "reply-line" && request.kind !== "reply-histogram")
           super.postMessage(request);
       }
     }
@@ -792,6 +792,95 @@ test.each(["reference", "alternatives"] as const)(
     }
   },
 );
+
+test("reply histograms keep the score leaders, add extra candidates, and check another move on demand", async () => {
+  type MovesMessage = Extract<SolverMessage, { kind: "moves" }>;
+  type SummaryRequest = Extract<ReplyRequest, { kind: "reply-summary" }>;
+  type HistogramRequest = Extract<ReplyRequest, { kind: "reply-histogram" }>;
+  type DetailRequest = Extract<ReplyRequest, { kind: "reply-detail" }>;
+  let solved: { send: (data: SolverMessage) => void; message: MovesMessage } | undefined;
+  let automatic: { worker: SolverWorker; request: SummaryRequest } | undefined;
+  let manual: { worker: SolverWorker; request: HistogramRequest } | undefined;
+  let detail: DetailRequest | undefined;
+  class HistogramWorker extends SolverWorker {
+    postMessage(request: SolverRequest | ReplyRequest) {
+      if (request.kind === "reply-summary") {
+        automatic = { worker: this, request };
+      } else if (request.kind === "reply-histogram") {
+        manual = { worker: this, request };
+      } else if (request.kind === "reply-detail") {
+        detail = request;
+      } else if (request.kind === "solve") {
+        const original = this.onmessage;
+        const send = (data: SolverMessage) => original?.({ data });
+        this.onmessage = (event) => {
+          const message = event.data as SolverMessage;
+          if (message.kind === "moves") {
+            solved = { send, message };
+            send({ ...message, replyCandidatesPending: true });
+          } else if (message.kind !== "defense" && message.kind !== "rack-odds") {
+            original?.(event);
+          }
+        };
+        super.postMessage(request);
+      } else if (request.kind !== "reply-line") {
+        super.postMessage(request);
+      }
+    }
+  }
+  vi.stubGlobal("Worker", HistogramWorker);
+  const user = await start();
+  await typeRack(user, "CATS");
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  await waitFor(() => expect(solved).toBeDefined());
+  expect(await screen.findAllByRole("button", { name: /^CATS, / })).not.toHaveLength(0);
+  expect(automatic).toBeUndefined();
+  const { send, message } = solved!;
+  const { head } = message.results;
+  const [block, leave, requested] = head.slice(REPLY_LIMIT);
+  act(() => send({
+    id: message.id,
+    kind: "defense",
+    elapsed: 2,
+    replyCandidates: [{ move: block, reason: "block" }, { move: leave, reason: "leave" }],
+  }));
+  await waitFor(() => expect(automatic).toBeDefined());
+  const { worker, request } = automatic!;
+  expect(request.candidates.map(({ id }) => id)).toEqual(head.slice(0, REPLY_LIMIT + 2).map(({ id }) => id));
+  expect(request.reference.id).toBe(head[0].id);
+  const distribution: ReplyDistribution = {
+    kind: "distribution",
+    count: REPLY_SAMPLES,
+    outscored: 0,
+    mean: 20,
+    difference: 0,
+    exact: false,
+    buckets: [0, REPLY_SAMPLES, 0, 0, 0],
+    discordant: [0, 0, 0, 0, 0],
+    reference: { mean: 20, buckets: [0, REPLY_SAMPLES, 0, 0, 0] },
+  };
+  act(() => worker.onmessage?.({
+    data: { id: request.id, kind: request.kind, done: true },
+  }));
+  await user.click(screen.getByRole("button", { name: "Search possible moves" }));
+  await user.type(screen.getByRole("textbox", { name: "Filter moves" }), "AT");
+  expect(await screen.findByText("Premium block")).toBeTruthy();
+  expect(screen.getByText("Better leave")).toBeTruthy();
+  const at = coordinate(requested.row * 15 + requested.col, 15);
+  const label = `Check reply histogram for ${requested.word} at ${at} ${requested.direction}`;
+  await user.click(screen.getByRole("button", { name: label }));
+  expect(manual?.request.candidate.id).toBe(requested.id);
+  expect(manual?.request.reference.id).toBe(request.reference.id);
+  expect(screen.getByText("Checking reply histogram…")).toBeTruthy();
+  act(() => manual!.worker.onmessage?.({
+    data: { id: manual!.request.id, kind: "reply-histogram", result: distribution },
+  }));
+  expect(screen.queryByRole("button", { name: label })).toBeNull();
+  const preview = screen.getByRole("region", { name: `Reply after ${requested.word}` });
+  await user.click(within(preview).getByRole("button", { name: "Heatmap" }));
+  expect(detail?.candidate.id).toBe(requested.id);
+  expect(detail?.samples).toBe(REPLY_SAMPLES);
+});
 
 test("board check uses the current filtered moves, and cancelled results stay out of the list", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
@@ -902,7 +991,8 @@ test.each(["narrow", "wide"])("%s results stream bingo odds after replies finish
           checks.push({ worker: this, request });
         } else if (
           request.kind !== "reply-detail" &&
-          request.kind !== "reply-line"
+          request.kind !== "reply-line" &&
+          request.kind !== "reply-histogram"
         ) {
           super.postMessage(request);
         }
@@ -1470,7 +1560,7 @@ test("rack → real solver → hover preview → play → undo/redo → save", a
         });
         return;
       }
-      if (request.kind === "reply-detail" || request.kind === "reply-line")
+      if (request.kind === "reply-detail" || request.kind === "reply-line" || request.kind === "reply-histogram")
         return;
       super.postMessage(request);
       if (request.kind === "solve") solves++;
