@@ -242,6 +242,35 @@ test("legacy rack-outs can be recovered from a recorded final play and a matchin
   );
 });
 
+test("correcting a finished rack-out transfers the corrected opponent rack value", () => {
+  const game = fixture();
+  game.rack = "AT";
+  game.template = {
+    ...game.template,
+    tileCounts: Object.fromEntries(
+      TILE_SYMBOLS.map((tile) => [tile, Number("AT?".includes(tile))]),
+    ),
+  };
+  const opening = solve(new Lexicon(["AT"]), game.board, game.rack, game.template)[0];
+  const finished = playTrackedMove(game, opening, 0);
+  const end = { out: "you", rackPoints: 0, endedOn: localDate() };
+  assert.deepEqual(finished.scoring?.end, end);
+  const board = [...finished.board];
+  board[opening.tiles.find(({ letter }) => letter === "A")!.index] = "a";
+  const corrected = new BoardEditHistory().apply(finished, board, "blank");
+  assert.deepEqual(corrected.scoring?.end, { ...end, rackPoints: 1 });
+  assert.deepEqual(gameScoreTotals(corrected.scoring), {
+    you: opening.score - 1,
+    opponent: -1,
+  });
+  assert.deepEqual(undo(corrected).scoring, finished.scoring);
+  assert.deepEqual(redo(undo(corrected)).scoring, corrected.scoring);
+
+  const archived = archiveGame(finished);
+  const sandbox = new BoardEditHistory().apply(archived, board, "blank");
+  assert.deepEqual(displayedGameScoring(sandbox), archived.archivedState?.scoring);
+});
+
 function rackOutFixture(rack: string): Game {
   const game = fixture();
   const { start } = game.template;

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { OpponentPolicyUpdate, PracticeRequest } from "../src/practice.worker";
 import { test } from "node:test";
 import { Lexicon } from "../shared/lexicon";
 import { emptyBoard, type BoardTemplate } from "../shared/model";
@@ -408,4 +409,69 @@ test("adaptive analysis uses the final checkpoint for an unresolved threshold", 
   assert.equal(shorter.kind, "sampled");
   assert.equal(shorter.confidence, undefined);
   assert.equal(opponentShortlistStatus(shorter), "borderline");
+});
+
+test("policy timeline loads each historical word list once and continues past a missing list", async (t) => {
+  const dictionaryFetches: string[] = [];
+  const dictionaries: Record<string, string> = { first: "AT", second: "OX" };
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    const id = url.slice(url.lastIndexOf("/") + 1);
+    dictionaryFetches.push(id);
+    return dictionaries[id]
+      ? new Response(dictionaries[id])
+      : new Response(null, { status: 404 });
+  });
+  const updates: OpponentPolicyUpdate[] = [];
+  const progress: number[] = [];
+  let finished: { reachedTimeLimit: boolean } | undefined;
+  const scope = {
+    onmessage: undefined as
+      | ((message: { data: PracticeRequest }) => Promise<void>)
+      | undefined,
+    postMessage(message:
+      | { update: OpponentPolicyUpdate; progress: { completed: number } }
+      | { result: { reachedTimeLimit: boolean } }
+    ) {
+      if ("update" in message) {
+        updates.push(message.update);
+        progress.push(message.progress.completed);
+      } else finished = message.result;
+    },
+  };
+  const original = Object.getOwnPropertyDescriptor(globalThis, "self");
+  Object.defineProperty(globalThis, "self", { configurable: true, value: scope });
+  t.after(() => {
+    if (original) Object.defineProperty(globalThis, "self", original);
+    else Reflect.deleteProperty(globalThis, "self");
+  });
+  await import("../src/practice.worker");
+
+  const rules = template("ATOX", 2);
+  const input = (word: string) => ({
+    position: {
+      board: emptyBoard(rules.size),
+      tiles: [...word].map((letter, offset) => ({ index: rules.start + offset, letter })),
+    },
+    template: rules,
+    word,
+  });
+  await scope.onmessage!({
+    data: {
+      kind: "opponent-policy-timeline",
+      turns: [
+        { key: "a", dictionaryId: "first", input: input("AT") },
+        { key: "b", dictionaryId: "missing", input: input("AT") },
+        { key: "c", dictionaryId: "second", input: input("OX") },
+        { key: "d", dictionaryId: "first", input: input("AT") },
+      ],
+      workerLimit: 1,
+    },
+  });
+  assert.deepEqual(dictionaryFetches, ["first", "missing", "second"]);
+  assert.deepEqual(
+    Object.fromEntries(updates.map(({ key, result }) => [key, result.kind])),
+    { a: "exact", b: "unavailable", c: "exact", d: "exact" },
+  );
+  assert.deepEqual(progress, [1, 2, 3, 4]);
+  assert.deepEqual(finished, { reachedTimeLimit: false });
 });

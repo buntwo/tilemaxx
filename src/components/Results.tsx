@@ -823,10 +823,7 @@ export default function Results({
             active={
               calculating ||
               localCalculation ||
-              waitingForEndgame ||
-              !!endgameProgress?.pending ||
-              replyAnalysis.pending ||
-              !!replyAnalysis.detail?.pending
+              replyAnalysis.calculating
             }
             onQuiet={
               onTimingComplete && searchId !== undefined

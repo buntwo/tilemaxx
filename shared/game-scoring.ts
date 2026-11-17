@@ -169,9 +169,17 @@ export function trackBoardEdit(
     )
       ? correctedBase
       : undefined;
-  const scoring = corrections
+  let scoring = corrections
     ? updateScoreTotals(game, corrections.history, corrections.moves)
     : game.scoring;
+  const end = scoring?.end;
+  if (scoring && end && "out" in end && !game.archived) {
+    const adjusted = rackOutResult({ ...game, board }, end.out);
+    // Keep the recorded adjustment if an intermediate edit leaves the
+    // inventory inconsistent. Once it balances, use the corrected rack.
+    if (adjusted && "out" in adjusted && adjusted.rackPoints !== end.rackPoints)
+      scoring = { ...scoring, end: { ...end, rackPoints: adjusted.rackPoints } };
+  }
   return {
     scoring:
       scoring || pendingBase

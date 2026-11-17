@@ -60,8 +60,8 @@ export default function TurnReview({
     position?.rack && move.player === "you" ? [{ position, move, index }] : [],
   );
   const timelines = {
-    you: usePolicyTimeline(game, turns, "you"),
-    opponent: usePolicyTimeline(game, turns, "opponent"),
+    you: usePolicyTimeline(game.template, turns, "you"),
+    opponent: usePolicyTimeline(game.template, turns, "opponent"),
   };
   const timeline = timelines[turn?.move.player ?? policyPlayer];
   const policyTurn = timeline.turns.find(({ index }) => index === selected);
@@ -140,9 +140,9 @@ export default function TurnReview({
                 key={policyTurn.key}
                 player={timeline.player}
                 analysisKey={policyTurn.key}
-                dictionaryId={game.dictionaryId}
+                dictionaryId={policyTurn.dictionaryId}
                 input={policyTurn.input}
-                savedResult={timeline.results[policyTurn.key]}
+                saved={timeline.results[policyTurn.key]}
                 saveResult={timeline.saveResult}
                 queued={!!timeline.progress}
               />

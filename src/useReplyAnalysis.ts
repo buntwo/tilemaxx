@@ -179,8 +179,9 @@ export function useReplyAnalysis(
     [game?.board, game?.rack, game?.template, bagSize, scorelessTurns, opponentHasFinalTurn],
   );
   const dictionaryId = game?.dictionaryId;
+  const endgameMoves = estimateRun ? moveList : undefined;
   const { cachedEndgame, exactEndgameSpreads, rememberEndgame, endgameProgress } = useEndgameLines(
-    estimateRun ? moveList : undefined,
+    endgameMoves,
     position,
     dictionaryId,
     runKey,
@@ -361,8 +362,18 @@ export function useReplyAnalysis(
     ? cachedEndgame(currentDetail.key.slice(linePrefix.length))
     : undefined;
 
+  const pending = !!moveList && !invalid && !current?.done;
+  const estimatingEndgame = !!estimateKey && !estimateRun;
+  const detailResult = currentDetail && backgroundLine
+    ? { ...currentDetail, pending: false, error: undefined, line: backgroundLine }
+    : currentDetail;
+  const calculatingEndgameLines =
+    !!endgameMoves && !!dictionaryId && (endgameProgress?.pending ?? true);
+
   return {
     enabled,
+    calculating:
+      pending || estimatingEndgame || calculatingEndgameLines || !!detailResult?.pending,
     bagSize,
     minimumBag,
     unseen: pool?.total ?? 0,
@@ -382,7 +393,7 @@ export function useReplyAnalysis(
     repliesElapsed: current?.elapsed,
     estimatesElapsed: estimateRun?.elapsed,
     ranking,
-    estimatingEndgame: !!estimateKey && !estimateRun,
+    estimatingEndgame,
     skipEndgameEstimate: () => setSkippedEstimate(estimateKey),
     endgameEstimateUnavailable: !!estimateRun && !ranking?.checked,
     setOptions: (
@@ -407,15 +418,12 @@ export function useReplyAnalysis(
     extraReasons,
     canRequestHistogram: enabled && !!reference && bagSize > 0 && !invalid && !planning,
     results: current?.results,
-    pending: !!moveList && !invalid && !current?.done,
+    pending,
     error: current?.error,
     limit: current?.limit,
     skippedLimits: current?.skippedLimits,
     reference,
-    detail:
-      currentDetail && backgroundLine
-        ? { ...currentDetail, pending: false, error: undefined, line: backgroundLine }
-        : currentDetail,
+    detail: detailResult,
     requestDetail,
   };
 }

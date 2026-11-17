@@ -4238,6 +4238,89 @@ test("the version shows an available update when automatic updates are off", asy
   expect(document.querySelector(".app-update-icon")).toBeNull();
 });
 
+test.each(["board odds", "reply histogram"] as const)(
+  "automatic updates wait for a pending %s",
+  async (last) => {
+    type Summary = Extract<ReplyRequest, { kind: "reply-summary" }>;
+    type BoardOdds = Extract<SolverRequest, { kind: "board-odds" }>;
+    type Histogram = Extract<ReplyRequest, { kind: "reply-histogram" }>;
+    let summary: { worker: SolverWorker; request: Summary } | undefined;
+    let boardOdds: { worker: SolverWorker; request: BoardOdds } | undefined;
+    let histogram: { worker: SolverWorker; request: Histogram } | undefined;
+    class DeferredAnalysisWorker extends SolverWorker {
+      postMessage(request: SolverRequest | ReplyRequest) {
+        if (request.kind === "reply-summary") summary = { worker: this, request };
+        else if (request.kind === "board-odds") boardOdds = { worker: this, request };
+        else if (request.kind === "reply-histogram") histogram = { worker: this, request };
+        else if (request.kind !== "reply-detail" && request.kind !== "reply-line")
+          super.postMessage(request);
+      }
+    }
+    vi.stubGlobal("Worker", DeferredAnalysisWorker);
+    const visibility = vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+    const reloadAttempt = vi.fn();
+    const setItem = Storage.prototype.setItem;
+    const storage = vi.spyOn(Storage.prototype, "setItem").mockImplementation(
+      function (this: Storage, key, value) {
+        if (this === sessionStorage && key === "tilemaxx:automatic-update-attempt") {
+          reloadAttempt(value);
+          // JSDOM cannot navigate. Intercept the marker written just before reload.
+          throw new Error("Navigation blocked by test");
+        }
+        setItem.call(this, key, value);
+      },
+    );
+    try {
+      const user = await start();
+      await typeRack(user, "CATS");
+      await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+      await waitFor(() => expect(summary).toBeDefined());
+      act(() => summary!.worker.onmessage?.({
+        data: { id: summary!.request.id, kind: "reply-summary", done: true },
+      }));
+      await waitFor(() => expect(boardOdds).toBeDefined());
+      const [check] = await screen.findAllByRole("button", { name: /^Check reply histogram for/ });
+      await user.click(check);
+      await waitFor(() => expect(histogram).toBeDefined());
+      const finishHistogram = () => act(() => histogram!.worker.onmessage?.({
+        data: { id: histogram!.request.id, kind: "reply-histogram" },
+      }));
+      const finishBoardOdds = () => {
+        const { worker, request } = boardOdds!;
+        act(() => worker.onmessage?.({
+          data: {
+            id: request.id,
+            kind: request.kind,
+            odds: {
+              byMove: {},
+              checked: request.candidates.length,
+              total: request.candidates.length,
+              bagSize: request.bagSize,
+            },
+          },
+        }));
+      };
+      const [major, minor, patch] = version.split(".").map(Number);
+      remote.version = `${major}.${minor}.${patch + 1}`;
+      (document.activeElement as HTMLElement | null)?.blur();
+      await act(() => store.refresh());
+      expect(reloadAttempt).not.toHaveBeenCalled();
+      if (last === "board odds") finishHistogram();
+      else finishBoardOdds();
+      expect(reloadAttempt).not.toHaveBeenCalled();
+
+      if (last === "board odds") finishBoardOdds();
+      else finishHistogram();
+      await waitFor(() =>
+        expect(reloadAttempt).toHaveBeenCalledWith(`${version} → ${remote.version}`),
+      );
+    } finally {
+      visibility.mockRestore();
+      storage.mockRestore();
+    }
+  },
+);
+
 test("workspace shortcuts focus the rack and game filter, and the guide leaves rack blanks intact", async () => {
   remote.games.push({ ...game(), id: "second", name: "Jo Smith" });
   const user = await start();

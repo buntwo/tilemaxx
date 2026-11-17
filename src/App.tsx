@@ -382,7 +382,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     state.pending.length > 0 ||
       !!dialog ||
       formBusy ||
-      !!busy ||
+      solver.calculating ||
+      replyAnalysis.calculating ||
       calculating ||
       !!activeFlight,
   );
