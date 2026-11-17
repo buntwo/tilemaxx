@@ -1202,3 +1202,18 @@ test("shortlist bingo check keeps the lower-scoring recommendation and respects 
   await user.click(check);
   expect(onBoardOdds).toHaveBeenLastCalledWith([moves[0]], 89);
 });
+
+test("a fresh move search opens All moves even after viewing the Shortlist", async () => {
+  const { user, rerun } = setup(false, {
+    analysisGame: bingoCheckGame,
+    replyEnabled: false,
+  });
+  const shortlist = () => screen.getByRole("button", { name: /^Shortlist/ });
+  const allMoves = () => screen.getByRole("button", { name: "All moves" });
+  await user.click(shortlist());
+  expect(shortlist().getAttribute("aria-pressed")).toBe("true");
+  rerun();
+  expect(allMoves().getAttribute("aria-pressed")).toBe("true");
+  expect(shortlist().getAttribute("aria-pressed")).toBe("false");
+  await waitFor(() => expect(rows()).toHaveLength(moves.length));
+});

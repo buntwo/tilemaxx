@@ -37,6 +37,7 @@ import OpponentRack from "./OpponentRack";
 
 const SENTINEL = "\u200b";
 const EXCHANGE_CACHE_LIMIT = 16;
+const TILE_HOLD_MS = 450;
 export type RackEntryHandle = {
   openSuggestedExchange: (reveal: boolean) => void;
 };
@@ -98,6 +99,10 @@ export default function RackEntry({
   const tools = useRef<HTMLDetailsElement>(null);
   const openExchange = useRef<{ reveal: boolean }>(null);
   const exchangeButton = useRef<HTMLButtonElement>(null);
+  const optimalButton = useRef<HTMLButtonElement>(null);
+  const tileHold = useRef<{ pointerId: number; x: number; y: number }>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const suppressTap = useRef(false);
   const [exchangeMarks, setExchangeMarks] = useState<Record<number, string>>(
     {},
   );
@@ -127,9 +132,12 @@ export default function RackEntry({
   const optimalKey = JSON.stringify([positionKey, exchangeBag]);
   const activeSimulation =
     simulation?.key === exchangeKey ? simulation : undefined;
+  const canOpenOptimal = !opponentRack && exchangeBag > 0;
+  const showingOptimal = canOpenOptimal && optimalOpen?.key === optimalKey;
   useEffect(() => {
     setExchangeResults(undefined);
   }, [optimalKey]);
+  useEffect(() => () => clearTimeout(holdTimer.current), [positionKey]);
   const cacheExchangeResult = useCallback(
     (result: ExchangeResult) => {
       setExchangeResults((previous) => {
@@ -415,8 +423,54 @@ export default function RackEntry({
             aria-disabled={
               !onReviewEdit && mode !== "entry" && !tile ? true : undefined
             }
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() =>
+            onPointerDown={(event) => {
+              if (event.isPrimary === false) return;
+              event.preventDefault();
+              clearTimeout(holdTimer.current);
+              tileHold.current = null;
+              suppressTap.current = false;
+              if (event.pointerType !== "touch" || !tile || flyingRack) return;
+              tileHold.current = {
+                pointerId: event.pointerId,
+                x: event.clientX,
+                y: event.clientY,
+              };
+              holdTimer.current = setTimeout(() => {
+                suppressTap.current = true;
+                onReviewEdit?.();
+                cycleTileMark(i);
+              }, TILE_HOLD_MS);
+            }}
+            onPointerMove={(event) => {
+              const hold = tileHold.current;
+              if (
+                hold && hold.pointerId === event.pointerId &&
+                Math.hypot(event.clientX - hold.x, event.clientY - hold.y) > 10
+              ) {
+                clearTimeout(holdTimer.current);
+                suppressTap.current = true;
+              }
+            }}
+            onPointerUp={(event) => {
+              if (tileHold.current?.pointerId === event.pointerId)
+                clearTimeout(holdTimer.current);
+            }}
+            onPointerCancel={(event) => {
+              if (tileHold.current?.pointerId !== event.pointerId) return;
+              clearTimeout(holdTimer.current);
+              tileHold.current = null;
+              suppressTap.current = true;
+            }}
+            onContextMenu={(event) => {
+              if (tileHold.current) event.preventDefault();
+            }}
+            onClick={(event) => {
+              const wasTouch = tileHold.current !== null || event.detail !== 0;
+              tileHold.current = null;
+              if (suppressTap.current && wasTouch) {
+                suppressTap.current = false;
+                return;
+              }
               onReviewEdit
                 ? editFromReview(i)
                 : exchangeMode
@@ -425,8 +479,8 @@ export default function RackEntry({
                     ? markTile(i, excluded ? undefined : "excluded")
                     : requireMode
                       ? markTile(i, required ? undefined : "required")
-                      : focus(i)
-            }
+                      : focus(i);
+            }}
           >
             <span className="rack-slot">
               <span
@@ -463,6 +517,54 @@ export default function RackEntry({
       })}
     </div>
   );
+  const rackTools = (
+    <div className="rack-lane-tools">
+      {mode === "entry" ? (
+        <details
+          ref={tools}
+          className="rack-tools"
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && tools.current?.open) {
+              tools.current.open = false;
+              tools.current.querySelector("summary")?.focus();
+            }
+          }}
+        >
+          <summary className="text-button">
+            <SlidersHorizontal size={13} /> Rack tools
+          </summary>
+          <div className="rack-tools-menu">
+            <button
+              type="button"
+              onClick={() => {
+                chooseMode("entry");
+                onChange({ ...game, ...sortRack(game) });
+              }}
+            >
+              <Shuffle size={14} /> Sort rack
+            </button>
+            <button type="button" onClick={() => chooseMode("exclude")}>
+              <Ban size={14} /> Exclude tiles
+            </button>
+            <button type="button" onClick={() => chooseMode("require")}>
+              <CircleCheck size={14} /> Require tiles
+            </button>
+            <button type="button" onClick={() => chooseMode("exchange")}>
+              <Repeat2 size={14} /> Mark exchange
+            </button>
+          </div>
+        </details>
+      ) : (
+        <button
+          type="button"
+          className="text-button"
+          onClick={() => chooseMode("entry")}
+        >
+          Done
+        </button>
+      )}
+    </div>
+  );
   return (
     <div
       className="rack-entry"
@@ -481,13 +583,15 @@ export default function RackEntry({
         )}
         {playerTiles}
       </div>
-      <OpponentRack rack={opponentRack} />
+      {opponentRack && (
+        <OpponentRack rack={opponentRack}>{rackTools}</OpponentRack>
+      )}
       <input
         className="rack-keyboard-input"
         ref={input}
         tabIndex={onReviewEdit ? -1 : undefined}
         aria-label="Rack letters"
-        aria-describedby={helpId}
+        aria-describedby={opponentRack ? undefined : helpId}
         value={SENTINEL}
         autoCapitalize="characters"
         enterKeyHint="search"
@@ -592,83 +696,48 @@ export default function RackEntry({
           }
         }}
       />
-      <div className="rack-entry-actions">
-        <p id={helpId} className="rack-entry-help" hidden={!!advice}>
-          {exchangeMode
-            ? "Tap tiles to mark for exchange"
-            : excludeMode
-              ? "Tap tiles to hold or release them"
-              : requireMode
-                ? "Tap tiles that every move must use"
-                : focused && selectAll
-                  ? "All tiles selected · type to replace"
-                  : phoneLayout
-                    ? "Tap a tile to type"
-                    : "Space = blank · ↓ Hold / Require · ↑ Exchange · Enter = find moves"}
-        </p>
-        {advice && (
-          <ExchangeSuggestion
-            advice={advice}
-            rack={game.rack}
-            onOpen={() => openSuggestedExchange(false)}
-          />
-        )}
-        {mode === "entry" ? (
-          <details
-            ref={tools}
-            className="rack-tools"
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && tools.current?.open) {
-                tools.current.open = false;
-                tools.current.querySelector("summary")?.focus();
-              }
-            }}
-          >
-            <summary className="text-button">
-              <SlidersHorizontal size={13} /> Rack tools
-            </summary>
-            <div className="rack-tools-menu">
-              <button
-                type="button"
-                onClick={() => {
-                  chooseMode("entry");
-                  onChange({ ...game, ...sortRack(game) });
-                }}
-              >
-                <Shuffle size={14} /> Sort rack
-              </button>
-              <button type="button" onClick={() => chooseMode("exclude")}>
-                <Ban size={14} /> Exclude tiles
-              </button>
-              <button type="button" onClick={() => chooseMode("require")}>
-                <CircleCheck size={14} /> Require tiles
-              </button>
-              <button type="button" onClick={() => chooseMode("exchange")}>
-                <Repeat2 size={14} /> Mark exchange
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  chooseMode("entry");
-                  setSimulation(undefined);
-                  setOptimalOpen({ key: optimalKey });
-                  tools.current?.querySelector("summary")?.focus();
-                }}
-              >
-                <Trophy size={14} /> Optimal Exchange
-              </button>
-            </div>
-          </details>
-        ) : (
-          <button
-            type="button"
-            className="text-button"
-            onClick={() => chooseMode("entry")}
-          >
-            Done
-          </button>
-        )}
-      </div>
+      {!opponentRack && (
+        <div className="rack-entry-actions">
+          <div className="rack-lane-hint">
+            <p id={helpId} className="rack-entry-help" hidden={!!advice}>
+              {exchangeMode
+                ? "Tap tiles to mark for exchange"
+                : excludeMode
+                  ? "Tap tiles to hold or release them"
+                  : requireMode
+                    ? "Tap tiles that every move must use"
+                    : focused && selectAll
+                      ? "All tiles selected · type to replace"
+                      : phoneLayout
+                        ? "Tap to type · hold to mark"
+                        : "Space = blank · ↓ Hold / Require · ↑ Exchange · Enter = find moves"}
+            </p>
+            {advice && (
+              <ExchangeSuggestion
+                advice={advice}
+                rack={game.rack}
+                onOpen={() => openSuggestedExchange(false)}
+              />
+            )}
+          </div>
+          {canOpenOptimal && (
+            <button
+              ref={optimalButton}
+              type="button"
+              className="text-button rack-optimal-exchange"
+              aria-expanded={showingOptimal}
+              onClick={() => {
+                chooseMode("entry");
+                setSimulation(undefined);
+                setOptimalOpen(showingOptimal ? undefined : { key: optimalKey });
+              }}
+            >
+              <Trophy size={13} aria-hidden="true" /> Optimal exchange
+            </button>
+          )}
+          {rackTools}
+        </div>
+      )}
       {!!exchangeSlots.length && (
         <div className="rack-exchange-actions">
           <button
@@ -694,7 +763,7 @@ export default function RackEntry({
           </button>
         </div>
       )}
-      {optimalOpen?.key === optimalKey && !flyingRack && (
+      {showingOptimal && optimalOpen && !flyingRack && (
         <OptimalExchange
           key={optimalKey}
           game={game}
@@ -703,7 +772,7 @@ export default function RackEntry({
           restoredResult={optimalOpen.result}
           onClose={() => {
             setOptimalOpen(undefined);
-            tools.current?.querySelector("summary")?.focus();
+            optimalButton.current?.focus({ preventScroll: true });
           }}
           onUse={({ slots, chance }, result) => {
             setExchangeMarks(

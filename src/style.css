@@ -1851,7 +1851,11 @@ label + label {
 }
 .results-title h2 {
   font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.results-title .heading-with-icon { min-width: 0; }
 .result-counts {
   display: flex;
   align-items: center;
@@ -4406,20 +4410,26 @@ label + label {
   pointer-events: none;
 }
 .rack-entry-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
-.rack-entry-actions > :last-child {
-  margin-left: auto;
+.rack-lane-tools {
+  grid-column: 3;
+  justify-self: end;
+  white-space: nowrap;
+}
+.rack-optimal-exchange {
+  grid-column: 2;
+  color: var(--primary);
+  white-space: nowrap;
 }
 .rack-entry-actions .rack-exchange-advice {
   min-height: 32px;
   color: var(--primary);
   font-size: 11px;
   font-weight: 650;
-  white-space: nowrap;
 }
 .rack-exchange-advice:hover span { text-decoration: underline; }
 .rack-tools { position: relative; flex: none; }
@@ -4534,7 +4544,15 @@ label + label {
 .rack-entry .rack-tile {
   touch-action: manipulation;
 }
+.rack-entry .rack-tile {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
 
+.rack-lane.opponent-rack-lane {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
 .opponent-rack-tiles {
   display: flex;
   align-items: center;
@@ -4708,28 +4726,15 @@ label + label {
 
 .analysis-toggle {
   font-size: 11px;
-  padding: 6px 8px;
-  min-height: 30px;
+  padding: 3px 8px;
+  min-height: 24px;
 }
-.results-title:has(.analysis-toggle) {
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.results-title:has(.analysis-toggle) .result-counts {
-  margin-left: auto;
-}
-.results-title.has-exchange-advice {
-  container-type: inline-size;
-  flex-wrap: nowrap;
-  gap: 6px;
-}
-.has-exchange-advice .heading-with-icon { white-space: nowrap; }
 .results-exchange-advice {
-  min-height: 30px;
+  min-height: 24px;
   min-width: 0;
   margin-left: auto;
   gap: 4px;
-  padding: 6px 8px;
+  padding: 3px 8px;
   font-size: 11px;
   font-weight: 700;
   background: #ffd783;
@@ -4761,6 +4766,17 @@ label + label {
   .has-exchange-advice .calculation-indicator { --calculation-icon-size: 14px; }
   .has-exchange-advice .analysis-toggle { gap: 0; }
   .has-exchange-advice .analysis-toggle span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+@container (max-width: 290px) {
+  .results-title .analysis-toggle { gap: 0; }
+  .results-title .analysis-toggle span {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -5068,7 +5084,6 @@ label + label {
 .turn-review-board { width: min(100%, 450px); }
 .score-review-link { color: var(--primary); background: none; border: 0; padding: 0; font: inherit; font-weight: 700; text-align: inherit; overflow-wrap: anywhere; min-width: 0; }
 .score-review-link:hover { text-decoration: underline; }
-.rack-entry-actions { flex-wrap: wrap; }
 .rack-exchange-actions { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
 .rack-exchange-actions .button { font-size: 11px; min-height: 32px; }
 .rack-tile.exchange-mark .rack-slot {
@@ -5079,7 +5094,13 @@ label + label {
 .rack-exchange-icon { position: absolute; top: 3px; right: 3px; color: #9a5619; }
 
 
-.results-panel .results-title { padding: 12px 12px 7px; }
+.results-panel .results-title {
+  container-type: inline-size;
+  gap: 6px;
+  min-height: 43px;
+  padding: 12px 12px 7px;
+}
+.results-title .result-counts { margin-left: auto; }
 .results-panel .result-filters {
   display: flex;
   flex-wrap: wrap;
@@ -5374,10 +5395,11 @@ label + label {
 .phone-layout .rack-panel { margin-top: 8px; padding: 6px 10px 5px; }
 .phone-layout .rack-panel .rack-tiles { margin: 4px auto 3px; }
 .phone-layout .rack-entry-actions .text-button { min-height: 40px; }
-.phone-layout .rack-entry-actions :is(.rack-entry-help, .rack-exchange-advice) {
-  flex: 1 1 0;
-  min-width: 0;
-  white-space: normal;
+.phone-layout .opponent-rack-lane .text-button { min-height: 32px; }
+.phone-layout .rack-optimal-exchange { gap: 4px; }
+.phone-layout .opponent-rack-tiles { gap: 3px; }
+@media (max-width: 350px) {
+  .phone-layout .rack-optimal-exchange svg { display: none; }
 }
 .phone-layout .rack-panel .tile-pool { margin-top: 4px; }
 .phone-layout .rack-panel .tile-pool summary { padding-top: 2px; }
@@ -5476,7 +5498,7 @@ label + label {
 .phone-move-review .rack-face { font-size: min(20px, 54cqi); }
 .phone-move-review .rack-face small { right: 2px; bottom: 1px; }
 .phone-move-review :is(
-  .direct-entry-tools, .rack-entry-actions, .rack-exchange-actions,
+  .direct-entry-tools, .rack-entry-actions, .rack-lane-tools, .rack-exchange-actions,
   .rack-simulation, .tile-pool
 ) {
   display: none;
@@ -5525,7 +5547,6 @@ label + label {
   .phone-layout .results-title .calculation-indicator { --calculation-icon-size: 14px; }
   .phone-layout .results-title .count-badge { padding-inline: 5px; }
   .phone-layout .results-title .analysis-toggle { gap: 4px; padding-inline: 6px; }
-  .phone-layout .results-title:not(.has-exchange-advice) .analysis-toggle svg { display: none; }
   .phone-layout .bingo-odds-controls { margin-inline: 8px; }
   .phone-layout .bingo-odds-actions .result-view-picker button {
     padding-inline: 6px;

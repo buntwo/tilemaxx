@@ -3589,6 +3589,52 @@ test("Down cycles rack marks, Require tiles filters moves, and Undo restores bot
   expect(current().excludedRackSlots).toBeUndefined();
 });
 
+test("a phone rack hold cycles marks without opening the keyboard or marking during a scroll", async () => {
+  const user = await start(390);
+  await typeRack(user, "CAT");
+  await user.keyboard("{Escape}");
+  const input = screen.getByRole("textbox", { name: "Rack letters" });
+  const tile = rackTile(1);
+  vi.useFakeTimers();
+  try {
+    const hold = () => act(() => vi.advanceTimersByTime(500));
+    const tapEnds = () => {
+      touch(tile, "pointerup");
+      fireEvent.click(tile, { detail: 1 });
+    };
+    touch(tile, "pointerdown");
+    touch(tile, "pointermove", { clientY: 65 });
+    hold();
+    tapEnds();
+    expect(current().excludedRackSlots).toBeUndefined();
+    expect(document.activeElement).not.toBe(input);
+
+    touch(tile, "pointerdown");
+    touch(tile, "pointercancel");
+    hold();
+    expect(current().excludedRackSlots).toBeUndefined();
+
+    for (const [excluded, required] of [[[0], undefined], [undefined, [0]], [undefined, undefined]]) {
+      touch(tile, "pointerdown");
+      expect(fireEvent.contextMenu(tile)).toBe(false);
+      hold();
+      tapEnds();
+      expect(current().excludedRackSlots).toEqual(excluded);
+      expect(current().requiredRackSlots).toEqual(required);
+      expect(document.activeElement).not.toBe(input);
+    }
+
+    touch(tile, "pointerdown");
+    tapEnds();
+    hold();
+    expect(document.activeElement).toBe(input);
+    expect(current().rack).toBe("CAT");
+    expect(current().excludedRackSlots).toBeUndefined();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 test("hovering a move highlights the first available copy of each rack tile it uses", async () => {
   const user = await start();
   await typeRack(user, "CAAAT?");
@@ -3821,6 +3867,10 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
   };
   await panel.findByRole("img", { name: "Opponent rack: J, J, blank" });
   expectLabeledRacks();
+  expect(panel.getByText("Rack tools").closest(".rack-lane")).toBe(opponentRack()?.parentElement);
+  expect(panel.queryByRole("button", { name: "Optimal exchange" })).toBeNull();
+  expect(panel.queryByText(/tap.*to type/i)).toBeNull();
+  expect(yourRack.closest(".rack-entry")?.querySelector(".rack-entry-actions")).toBeNull();
   expect(screen.getByRole("heading", { name: "Possible moves - Endgame" })).toBeTruthy();
 
   await user.click(panel.getByText("Rack tools"));
@@ -3921,7 +3971,7 @@ test("the points value opens an anchored score breakdown without playing the mov
   expect(current().board.some(Boolean)).toBe(false);
 });
 
-test("Optimal Exchange restores the rankings and caches each completed simulation", async () => {
+test("Optimal exchange restores the rankings and caches each completed simulation", async () => {
   const searches: Extract<PracticeRequest, { kind: "optimal-exchange" }>[] = [];
   const simulations: Extract<PracticeRequest, { kind: "exchange" }>[] = [];
   let pendingSimulation: SolverWorker | undefined;
@@ -3978,10 +4028,12 @@ test("Optimal Exchange restores the rankings and caches each completed simulatio
   }
   const user = await start();
   await typeRack(user, "CAT");
-  await user.click(screen.getByText("Rack tools"));
-  await user.click(screen.getByRole("button", { name: "Optimal Exchange" }));
+  const openOptimal = screen.getByRole("button", { name: "Optimal exchange" });
+  expect(openOptimal.closest(".rack-entry-actions")).toBeTruthy();
+  expect(openOptimal.closest(".rack-tools")).toBeNull();
+  await user.click(openOptimal);
   const optimal = within(
-    screen.getByRole("region", { name: "Optimal Exchange" }),
+    screen.getByRole("region", { name: "Optimal exchange" }),
   );
   expect(await optimal.findByText("≈35%")).toBeTruthy();
   const [head, baseline, first, second, third, all] =
@@ -4007,37 +4059,37 @@ test("Optimal Exchange restores the rankings and caches each completed simulatio
   await user.click(
     within(second).getByRole("button", { name: "Simulate exchanging A, T" }),
   );
-  expect(screen.queryByRole("region", { name: "Optimal Exchange" })).toBeNull();
+  expect(screen.queryByRole("region", { name: "Optimal exchange" })).toBeNull();
   const simulator = within(
     screen.getByRole("region", { name: "Simulate exchange" }),
   );
   expect(simulations[0].exchange.slots).toEqual([1, 2]);
   expect(simulations[0].exchange.bag).toBe(searches[0].exchange.bag);
   expect(
-    simulator.getByText("Bingo chance · ≈35% from Optimal Exchange"),
+    simulator.getByText("Bingo chance · ≈35% from Optimal exchange"),
   ).toBeTruthy();
   finishSimulation(24, 0.27);
   expect(simulator.getByText("24.0 pts")).toBeTruthy();
   expect(simulator.getByText("27%")).toBeTruthy();
-  expect(simulator.queryByText(/from Optimal Exchange/)).toBeNull();
+  expect(simulator.queryByText(/from Optimal exchange/)).toBeNull();
   expect(
     screen.getByLabelText("Rack tile 2: A, marked for exchange"),
   ).toBeTruthy();
   expect(current().rack).toBe("CAT");
   await user.click(
-    simulator.getByRole("button", { name: "Back to Optimal Exchange" }),
+    simulator.getByRole("button", { name: "Back to Optimal exchange" }),
   );
   expect(
     screen.queryByRole("region", { name: "Simulate exchange" }),
   ).toBeNull();
   const restored = within(
-    screen.getByRole("region", { name: "Optimal Exchange" }),
+    screen.getByRole("region", { name: "Optimal exchange" }),
   );
   expect(restored.getAllByRole("row").map((row) => row.textContent)).toEqual(
     optimal.getAllByRole("row").map((row) => row.textContent),
   );
   expect(document.activeElement).toBe(
-    restored.getByRole("heading", { name: "Optimal Exchange" }),
+    restored.getByRole("heading", { name: "Optimal exchange" }),
   );
   await user.click(
     restored.getByRole("button", { name: "Simulate exchanging C, T" }),
@@ -4047,12 +4099,12 @@ test("Optimal Exchange restores the rankings and caches each completed simulatio
     screen.getByRole("region", { name: "Simulate exchange" }),
   );
   expect(
-    other.getByText("Bingo chance · ≈42% from Optimal Exchange"),
+    other.getByText("Bingo chance · ≈42% from Optimal exchange"),
   ).toBeTruthy();
   finishSimulation(31, 0.44);
   expect(other.getByText("31.0 pts")).toBeTruthy();
   await user.click(
-    other.getByRole("button", { name: "Back to Optimal Exchange" }),
+    other.getByRole("button", { name: "Back to Optimal exchange" }),
   );
   await user.click(
     screen.getByRole("button", { name: "Simulate exchanging A, T" }),
@@ -4068,7 +4120,7 @@ test("Optimal Exchange restores the rankings and caches each completed simulatio
   expect(simulations).toHaveLength(3);
   finishSimulation(28, 0.31);
   await user.click(
-    cached.getByRole("button", { name: "Back to Optimal Exchange" }),
+    cached.getByRole("button", { name: "Back to Optimal exchange" }),
   );
   await user.click(
     screen.getByRole("button", { name: "Simulate exchanging A, T" }),
@@ -4078,12 +4130,11 @@ test("Optimal Exchange restores the rankings and caches each completed simulatio
   await user.click(rackTile(1));
   await user.keyboard("B");
   expect(current().rack).toBe("BAT");
-  expect(screen.queryByRole("region", { name: "Optimal Exchange" })).toBeNull();
+  expect(screen.queryByRole("region", { name: "Optimal exchange" })).toBeNull();
   expect(
-    screen.queryByRole("button", { name: "Back to Optimal Exchange" }),
+    screen.queryByRole("button", { name: "Back to Optimal exchange" }),
   ).toBeNull();
-  await user.click(screen.getByText("Rack tools"));
-  await user.click(screen.getByRole("button", { name: "Optimal Exchange" }));
+  await user.click(screen.getByRole("button", { name: "Optimal exchange" }));
   expect(searches.map(({ exchange }) => exchange.rack)).toEqual(["CAT", "BAT"]);
   await user.click(
     await screen.findByRole("button", { name: "Simulate exchanging A, T" }),
@@ -4121,7 +4172,7 @@ test("exchange simulation starts on open, shows draw scores, and closes when mar
   expect(screen.queryByRole("dialog")).toBeNull();
   const section = screen.getByRole("region", { name: "Simulate exchange" });
   expect(
-    within(section).queryByRole("button", { name: "Back to Optimal Exchange" }),
+    within(section).queryByRole("button", { name: "Back to Optimal exchange" }),
   ).toBeNull();
   expect(section.closest(".rack-panel")).toBeTruthy();
   const cat = await within(section).findByText("CAT");

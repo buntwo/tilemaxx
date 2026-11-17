@@ -121,7 +121,7 @@ export default function WorkspaceSettings({
           </label>
           <p className="workspace-hardware-scope" id="compute-worker-scope">
             Applies to reply histograms, exact endgame lines, board-based bingo
-            odds, Optimal Exchange, and policy timelines.
+            odds, Optimal exchange, and policy timelines.
           </p>
         </fieldset>
       </div>
