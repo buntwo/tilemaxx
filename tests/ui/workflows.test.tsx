@@ -3341,7 +3341,14 @@ test("typing the opponent's last tile shows the adjusted loss and releases the b
 
   await user.keyboard("S");
   const outcome = await board.findByRole("heading", { name: "You lose" });
-  expect(within(outcome.closest('[role="status"]') as HTMLElement).getByText("Lost by 16")).toBeTruthy();
+  const result = within(outcome.closest('[role="status"]') as HTMLElement);
+  expect(result.getByText("Lost by 16")).toBeTruthy();
+  expect(result.getByText("10", { selector: ".board-finish-your-total" })).toBeTruthy();
+  expect(result.getByText("26").classList.contains("board-finish-your-total")).toBe(false);
+  const badge = screen.getByRole("button", { name: "Replay finish animation" });
+  expect(badge.querySelector("svg")).toBeNull();
+  expect(result.getByText("–", { selector: ".game-score-separator" }).textContent)
+    .toBe(badge.querySelector(".game-score-separator")?.textContent);
   expect(board.getByText(/First game went out/).textContent).toContain("CATS +6");
   expect(document.activeElement).not.toBe(entry());
   await user.keyboard("{Escape}");
