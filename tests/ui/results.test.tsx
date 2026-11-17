@@ -771,9 +771,9 @@ test.each(["scrabble", "crossplay"] as const)(
       opponentRack="?"
       line={{ line: [move], points: { you: move.score, opponent: 0 }, spread: move.score }}
     />);
-    const adjustment = screen.queryByRole("button", { name: /^Rack adjustment/ });
+    const adjustment = screen.queryByText("Rack adjustment");
     if (rules === "scrabble")
-      expect(adjustment?.closest("li")?.classList.contains("optimal-reply-adjustment-row")).toBe(true);
+      expect(adjustment?.closest("tr")?.classList.contains("optimal-reply-adjustment-row")).toBe(true);
     else expect(adjustment).toBeNull();
   },
 );
@@ -957,44 +957,44 @@ test("a completed reply line replaces the immediate warning and replays each tur
   expect(final.querySelector("small.value-good")?.textContent).toBe("+4");
   expect(final.textContent).not.toMatch(/You|Opponent|Win by|Lose by/);
   const openingTurn = details.getByRole("button", { name: /^CATS You/ });
-  const playerLeave = within(openingTurn).getByRole("img", { name: "Leave: T" });
+  const playerLeave = within(openingTurn.closest("tr")!).getByRole("img", { name: "Leave: T" });
   expect(playerLeave.textContent).toBe("T");
   expect(playerLeave.querySelector(".mini-tiles.opponent")).toBeNull();
   expect(openingTurn.querySelector(".result-letter.played:not(.assigned-blank)")?.textContent).toBe("C");
   expect(openingTurn.querySelector(".result-letter.assigned-blank")?.textContent).toBe("S");
   const replyTurn = details.getByRole("button", { name: /^ZA Opponent/ });
-  const replyScore = replyTurn.querySelector(".optimal-reply-step-score")!;
+  const replyScore = replyTurn.closest("tr")!.querySelector(".optimal-reply-step-score")!;
   expect(replyScore.querySelector("strong")?.textContent).toBe("120–141");
   expect(replyScore.querySelector("small.value-bad")?.textContent).toBe("−21");
   expect(replyTurn.querySelector(".result-letter.played")?.textContent).toBe("Z");
   expect(replyTurn.querySelector(".result-letter.existing")?.textContent).toBe("A");
   expect(replyTurn.getAttribute("aria-pressed")).toBe("true");
-  const leave = within(replyTurn).getByRole("img", { name: "Leave: T, T, blank" });
+  const leave = within(replyTurn.closest("tr")!).getByRole("img", { name: "Leave: T, T, blank" });
   const tiles = [...leave.querySelectorAll(".mini-tiles.opponent > span")];
   expect(tiles.map((tile) => tile.textContent)).toEqual(["T", "T", ""]);
   expect(tiles[2].classList.contains("blank")).toBe(true);
   expect(details.getByRole("button", { name: /^H7: Z/ }).classList.contains("ghost")).toBe(true);
 
   const pass = details.getByRole("button", { name: /^Pass You/ });
-  expect(within(pass).getByRole("img", { name: "Leave: T" })).toBeTruthy();
+  expect(within(pass.closest("tr")!).getByRole("img", { name: "Leave: T" })).toBeTruthy();
   const opponentPass = details.getByRole("button", { name: /^Pass Opponent/ });
-  expect(within(opponentPass).getByRole("img", { name: "Leave: T, T, blank" })).toBeTruthy();
+  expect(within(opponentPass.closest("tr")!).getByRole("img", { name: "Leave: T, T, blank" })).toBeTruthy();
   await user.click(pass);
   expect(details.getByText("Board after your pass")).toBeTruthy();
   expect(details.getByRole("button", { name: /^H7: Z/ }).classList.contains("ghost")).toBe(false);
   const lastPlay = details.getByRole("button", { name: /^TA You/ });
-  expect(within(lastPlay).getByRole("img", { name: "Empty rack" }).textContent).toBe("—");
-  expect(lastPlay.querySelector(".optimal-reply-step-score small")?.textContent).toBe("0");
+  expect(within(lastPlay.closest("tr")!).getByRole("img", { name: "Goes out" }).textContent).toBe("(Goes out)");
+  expect(lastPlay.closest("tr")!.querySelector(".optimal-reply-step-score small")?.textContent).toBe("0");
   await user.click(lastPlay);
   expect(details.getByText("Board after TA")).toBeTruthy();
   expect(details.getByRole("button", { name: /^G8: T/ }).classList.contains("ghost")).toBe(true);
-  const adjustment = details.getByRole("button", { name: /^Rack adjustment/ });
-  expect(adjustment.closest("li")?.classList.contains("optimal-reply-adjustment-row")).toBe(true);
+  const adjustment = details.getByRole("button", { name: "Final score" });
+  expect(adjustment.closest("tr")?.classList.contains("optimal-reply-adjustment-row")).toBe(true);
   expect(within(adjustment).queryByRole("img")).toBeNull();
   await user.click(adjustment);
   expect(details.getByText("Final board")).toBeTruthy();
-  expect(adjustment.querySelector(".optimal-reply-step-score strong")?.textContent).toBe("143–139");
-  expect(adjustment.querySelector(".optimal-reply-step-score .value-good")?.textContent).toBe("+4");
+  expect(adjustment.closest("tr")!.querySelector(".optimal-reply-step-score strong")?.textContent).toBe("143–139");
+  expect(adjustment.closest("tr")!.querySelector(".optimal-reply-step-score .value-good")?.textContent).toBe("+4");
 
   await user.click(rows()[1]);
   await user.click(rows()[0]);
@@ -1507,4 +1507,45 @@ test("a fresh move search opens All moves even after viewing the Shortlist", asy
   expect(allMoves().getAttribute("aria-pressed")).toBe("true");
   expect(shortlist().getAttribute("aria-pressed")).toBe("false");
   await waitFor(() => expect(rows()).toHaveLength(moves.length));
+});
+
+test("endgame table labels its columns, opening margin, opponent and final adjustment", async () => {
+  const user = userEvent.setup();
+  const score = { points: 100, moves: 0, best: 0, bingos: 0 };
+  const opening = { ...moves[0], leave: "T" };
+  const reply = { ...moves[1], id: "reply", leave: "" };
+  render(<OptimalReplyDetails
+    game={{ ...endgame, scoring: { you: score, opponent: { ...score, points: 110 } } }}
+    opponentRack="CAT"
+    line={{ line: [opening, reply], points: { you: 18, opponent: 12 }, spread: 6 }}
+  />);
+  const table = screen.getByRole("table", { name: "Optimal endgame line" });
+  expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent))
+    .toEqual(["Move", "Leave", "Pts", "Score"]);
+  const before = within(table).getByText("Before CATS").closest("tr")!;
+  expect(before.querySelector(".optimal-reply-score strong")?.textContent).toBe("100–110");
+  expect(before.querySelector(".value-bad")?.textContent).toBe("−10");
+  const opponent = within(table).getByRole("button", { name: /^CAT Opponent/ }).closest("tr")!;
+  expect(opponent.classList.contains("optimal-reply-opponent-row")).toBe(true);
+  expect(within(opponent).getByRole("img", { name: "Goes out" }).textContent).toBe("(Goes out)");
+  const final = within(table).getByRole("button", { name: "Final score" }).closest("tr")!;
+  expect(final.cells[0].textContent).toBe("Final score");
+  expect(final.cells[1].colSpan).toBe(2);
+  expect(final.cells[1].textContent).toBe("Rack adjustmentYou −2 · Opp. +2");
+  expect(final.cells[2].querySelector("strong")?.textContent).toBe("118–122");
+  await user.click(within(opponent).getByRole("img", { name: "Goes out" }));
+  expect(within(opponent).getByRole("button").getAttribute("aria-pressed")).toBe("true");
+  within(opponent).getByRole("button").focus();
+  await user.keyboard("{Tab}{Enter}");
+  expect(within(final).getByRole("button").getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByText("Final board")).toBeTruthy();
+});
+
+test("endgame table includes a final row without adjustments and does not call a pass going out", () => {
+  render(<OptimalReplyDetails game={endgame} opponentRack="Z"
+    line={{ line: [null, null], points: { you: 0, opponent: 0 }, spread: 0 }} />);
+  const table = screen.getByRole("table", { name: "Optimal endgame line" });
+  expect(within(table).getByRole("button", { name: "Final score" })).toBeTruthy();
+  expect(within(table).queryByText("Rack adjustment")).toBeNull();
+  expect(within(table).queryByRole("img", { name: "Goes out" })).toBeNull();
 });

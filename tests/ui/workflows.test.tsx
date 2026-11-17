@@ -5338,10 +5338,10 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   const firstTurn = preview.getAllByRole("button", { pressed: true })[0];
   expect(firstTurn.textContent).toContain("Opponent");
   expect(within(firstTurn).getByRole("img", { name: "Bingo" })).toBeTruthy();
-  expect(firstTurn.querySelector(".optimal-reply-step-score small.value-bad")?.textContent)
+  expect(firstTurn.closest("tr")!.querySelector(".optimal-reply-step-score small.value-bad")?.textContent)
     .toMatch(/^−\d+$/);
-  expect(firstTurn.closest("ol")?.firstElementChild?.firstElementChild).toBe(firstTurn);
-  const secondTurn = firstTurn.closest("li")?.nextElementSibling?.querySelector("button");
+  expect(firstTurn.closest("tbody")?.firstElementChild).toBe(firstTurn.closest("tr"));
+  const secondTurn = firstTurn.closest("tr")?.nextElementSibling?.querySelector("button");
   if (secondTurn) {
     await user.click(secondTurn);
     expect(secondTurn.getAttribute("aria-pressed")).toBe("true");
