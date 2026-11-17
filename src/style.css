@@ -2544,8 +2544,18 @@ label + label {
   font-weight: 750;
   font-variant-numeric: tabular-nums;
 }
+.result-reply-actions .defense-risk { width: 100%; }
+.defense-risk .result-defense-badge {
+  padding-inline: 2px;
+  white-space: nowrap;
+}
+.result-defense-chance { font-size: 9px; font-weight: 600; }
+.result-reply-actions .defense-risk[data-risk="muted"] { color: var(--muted); }
+.result-reply-actions .defense-risk[data-risk="caution"] {
+  color: light-dark(#825b2a, #d8b47b);
+}
 .defense-warning,
-.result-reply-actions .defense-warning:hover {
+.result-reply-actions .defense-risk[data-risk="high"] {
   color: var(--value-bad);
 }
 .defense-covered {

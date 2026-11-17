@@ -54,8 +54,8 @@ import { useOpponentEndgame } from "../useOpponentEndgame";
 import { useGameCalculating } from "./GameCalculations";
 import { useMoveScoreTooltip } from "./MoveScoreTooltip";
 import PremiumDefense, {
-  blockedReplyPoints,
-  defenseLabel,
+  createPremiumReplyChance,
+  PremiumRiskButton,
 } from "./PremiumDefense";
 import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
 import type { useReplyAnalysis } from "../useReplyAnalysis";
@@ -259,6 +259,11 @@ export default function Results({
   const workerLimit = useContext(ComputeWorkerLimit) ?? computeWorkerLimit();
   const { bagSize, bagConfirmed, invalid, opponentRack, scorelessTurns } =
     replyAnalysis;
+  const opponentRackSize = replyAnalysis.unseen - bagSize;
+  const premiumReplyChance = useMemo(
+    () => createPremiumReplyChance(replyAnalysis.unseenPool, opponentRackSize),
+    [replyAnalysis.unseenPool, opponentRackSize],
+  );
   const opponentPosition = useMemo(() => {
     if (!analysisGame || busy || bagSize !== 0 || invalid) return;
     // A recorded refill can establish a prior scoreless play when settings are unset.
@@ -337,6 +342,7 @@ export default function Results({
     move: Move;
     searchId: number;
   }>();
+  const [followHistogram, setFollowHistogram] = useState<{ moveId: string; searchId: number }>();
   const [heatmap, setHeatmap] = useState<{ move: Move; searchId: number }>();
   const replyMove =
     (analyzing ? null : preview) ??
@@ -435,6 +441,9 @@ export default function Results({
     if (!resultSet || !replyAnalysis.canRequestHistogram) return;
     // A histogram can make adjusted sorting available for the first time.
     if (!activeOrder && !shortlistActive) setSort(sort, reversed);
+    setFollowHistogram(!shortlistActive && (sort === "reply-adjusted" || sort === "reply")
+      ? { moveId: move.id, searchId: resultSet.searchId }
+      : undefined);
     setLocked(null);
     onPreview(null);
     setInspectedReply({ move, searchId: resultSet.searchId });
@@ -522,6 +531,15 @@ export default function Results({
       moveComparator({ sort, reversed, rackOdds, boardOdds, replyDeltas }) ??
         (() => 0),
     );
+  const locateMoveId =
+    followHistogram &&
+    followHistogram.searchId === searchId &&
+    !replyAnalysis.pending &&
+    replyAnalysis.detail?.key === `reply-histogram:${followHistogram.moveId}` &&
+    !replyAnalysis.detail.pending &&
+    replyAnalysis.detail.result?.kind === "distribution"
+      ? followHistogram.moveId
+      : undefined;
   const page = useMoveResults(
     resultSet,
     {
@@ -532,6 +550,7 @@ export default function Results({
       offset: shortlistActive
         ? 0
         : Math.max(0, Math.floor(scroll / moveRowHeight) - 5),
+      locateMoveId,
       rackOdds: sort === "bingo-draw" ? rackOdds : undefined,
       boardOdds: sort === "board-bingo" ? boardOdds : undefined,
       replyDeltas:
@@ -574,8 +593,27 @@ export default function Results({
     setScroll(0);
     if (scroller.current) scroller.current.scrollTop = 0;
     setLocked(null);
+    setFollowHistogram(undefined);
     scoreTooltip.close();
   }, [resultSet, filter, requiredSquares, sort, reversed, shortlistActive]);
+  useEffect(() => {
+    const index = page.locatedIndex;
+    const list = scroller.current;
+    if (index === undefined || !list) return;
+    setFollowHistogram(undefined);
+    if (index < 0) return;
+    const rowTop = index * moveRowHeight;
+    if (
+      rowTop >= list.scrollTop &&
+      rowTop + moveRowHeight <= list.scrollTop + list.clientHeight
+    ) return;
+    list.scrollTo({
+      top: Math.max(0, rowTop - (list.clientHeight - moveRowHeight) / 2),
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+    });
+  }, [page.locatedIndex]);
   useEffect(() => {
     setInspectedReply(undefined);
     if (requiredSquares)
@@ -1157,10 +1195,6 @@ export default function Results({
                   formatOdds(boardChance.chance, boardChance.exact);
                 const placed = new Map(m.tiles.map((t) => [t.index, t.letter]));
                 const risk = analysisGame && defense?.[m.id];
-                const riskScore = risk?.opened?.after?.score;
-                const blockedPoints = risk?.closed
-                  ? blockedReplyPoints(risk.closed)
-                  : undefined;
                 const reply = replyAnalysis.results?.[m.id];
                 const extraReason = replyAnalysis.extraReasons[m.id];
                 const extraLabel = extraReason === "block" ? "Premium block" :
@@ -1481,19 +1515,15 @@ export default function Results({
                     {!showEndgameSwing && !reply && !replyPending && (risk || checkHistogram) && (
                       <div className="result-defense-action result-reply-actions">
                         {risk && (
-                          <button
-                            type="button"
-                            className={`icon-button ${risk.opened ? "defense-warning" : "defense-covered"}`}
-                            aria-label={`Reply risk for ${m.word} at ${movePosition} ${m.direction}. ${defenseLabel(risk, size)}`}
-                            title={defenseLabel(risk, size)}
+                          <PremiumRiskButton
+                            defense={risk}
+                            size={size}
+                            moveLabel={`${m.word} at ${movePosition} ${m.direction}`}
+                            chanceFor={premiumReplyChance}
                             onClick={() =>
                               setInspectedDefense({ move: m, risk, key: analysisKey })
                             }
-                          >
-                            <span className="result-defense-badge" aria-hidden="true">
-                              {riskScore === undefined ? `−${blockedPoints}` : `↑${riskScore}`}
-                            </span>
-                          </button>
+                          />
                         )}
                         {checkHistogram && (
                           <button
@@ -1585,6 +1615,7 @@ export default function Results({
           game={analysisGame}
           move={defenseDetail.move}
           defense={defense?.[defenseDetail.move.id] ?? defenseDetail.risk}
+          opponentRackSize={opponentRackSize}
           onClose={() => setInspectedDefense(undefined)}
         />
       )}

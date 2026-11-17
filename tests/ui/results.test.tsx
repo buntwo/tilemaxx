@@ -14,7 +14,7 @@ import Results from "../../src/components/Results";
 import { emptyBoard, type Game, type Move } from "../../shared/model";
 import { TILE_SYMBOLS } from "../../shared/tile-pool";
 import { PRESETS } from "../../shared/presets";
-import type { DefenseResults } from "../../shared/premium-defense";
+import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
 import type {
   ReplyRequest,
   ReplyDistribution,
@@ -264,7 +264,7 @@ test("scrolling and filtering use worker pages and ignore out-of-order results",
   expect(screen.queryByRole("button", { name: /^QUICK,/ })).toBeNull();
 });
 
-test.each([true, false])("an on-demand histogram keeps the scrolled list visible (automatic histogram available: %s)", async (automatic) => {
+test.each([true, false])("an on-demand histogram keeps the scroller mounted and follows changed ranks (automatic histogram: %s)", async (automatic) => {
   let worker: ReplyWorker | undefined;
   class ReplyWorker {
     onmessage?: (message: { data: unknown }) => void;
@@ -300,10 +300,11 @@ test.each([true, false])("an on-demand histogram keeps the scrolled list visible
     score: 400 - i,
   }));
   const index = new MoveResultIndex(longList, game.template);
-  const pending: Array<{ offset: number; complete: () => void }> = [];
+  const pending: Array<{ offset: number; locateMoveId?: string; complete: () => void }> = [];
   const fetchPage: FetchMovePage = (_id, query) =>
     new Promise((resolve) => pending.push({
       offset: query.offset,
+      locateMoveId: query.locateMoveId,
       complete: () => resolve(index.page(query)),
     }));
   const { user } = setup(false, {
@@ -321,6 +322,9 @@ test.each([true, false])("an on-demand histogram keeps the scrolled list visible
       },
     },
   });
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(any-hover: hover)",
+  }));
   const summary = worker!.request!;
   const distribution: ReplyDistribution = {
     kind: "distribution",
@@ -340,6 +344,11 @@ test.each([true, false])("an on-demand histogram keeps the scrolled list visible
     },
   }));
   const scroller = screen.getByLabelText("Suggested moves");
+  const followScroll = vi.fn();
+  Object.defineProperties(scroller, {
+    scrollTo: { value: followScroll },
+    clientHeight: { value: 6 * moveRowHeight },
+  });
   const scrollTop = (lower - 1) * moveRowHeight;
   scroller.scrollTop = scrollTop;
   fireEvent.scroll(scroller);
@@ -350,6 +359,8 @@ test.each([true, false])("an on-demand histogram keeps the scrolled list visible
   const risk = screen.getByRole("button", { name: /^Reply risk for ZEBRA/ });
   expect(risk.parentElement).toBe(chart.parentElement);
   expect(risk.nextElementSibling).toBe(chart);
+  expect(risk.dataset.risk).toBe("muted");
+  expect(risk.querySelector(".result-defense-chance")?.textContent).toBe("7%");
   await user.click(chart);
   const manual = worker!.request!;
   expect(manual.kind).toBe("reply-histogram");
@@ -361,6 +372,7 @@ test.each([true, false])("an on-demand histogram keeps the scrolled list visible
   expect(screen.queryByText("Loading move list…")).toBeNull();
   expect(screen.queryByRole("button", { name: /^Reply risk for ZEBRA/ })).toBeNull();
   expect(screen.getByRole("region", { name: "Reply after ZEBRA" })).toBeTruthy();
+  expect(followScroll).not.toHaveBeenCalled();
   if (!automatic) {
     expect(pending).toHaveLength(1);
     expect(screen.getByRole("button", { name: /^ZEBRA,/ }).querySelector(".reply-mini")).toBeTruthy();
@@ -368,9 +380,11 @@ test.each([true, false])("an on-demand histogram keeps the scrolled list visible
   }
   await waitFor(() => expect(pending).toHaveLength(2));
   expect(pending[1].offset).toBe(pending[0].offset);
+  expect(pending[1].locateMoveId).toBe(String(lower));
   await act(async () => pending[1].complete());
   expect(screen.getByLabelText("Suggested moves")).toBe(scroller);
   expect(scroller.scrollTop).toBe(scrollTop);
+  expect(followScroll).toHaveBeenCalledExactlyOnceWith({ top: 0, behavior: "smooth" });
 
   scroller.scrollTop = 0;
   fireEvent.scroll(scroller);
@@ -378,6 +392,47 @@ test.each([true, false])("an on-demand histogram keeps the scrolled list visible
   await act(async () => pending[2].complete());
   expect(screen.getByRole("button", { name: /^ZEBRA,/ }).querySelector(".reply-mini")).toBeTruthy();
   expect(screen.queryByRole("button", { name: /^Reply risk for ZEBRA/ })).toBeNull();
+});
+
+test("reply risk badges distinguish rare, likely low-impact, and likely costly replies", () => {
+  const game: Game = {
+    id: "risk-game",
+    name: "Test",
+    profileId: "p",
+    board: emptyBoard(15),
+    rack: "CATS",
+    template: PRESETS[0],
+    dictionaryId: "test",
+    past: [],
+    future: [],
+    revision: 0,
+    updatedAt: "",
+    archived: false,
+  };
+  function opens(word: string, letter: string, score: number): MoveDefense {
+    return {
+      depth: 1,
+      opened: {
+        square: 0,
+        premium: "TW",
+        after: { word, score, tiles: [{ index: 0, letter }] },
+      },
+    };
+  }
+  setup(false, {
+    analysisGame: game,
+    replyEnabled: false,
+    defense: {
+      a: opens("QI", "Q", 60),
+      b: opens("ET", "E", 27),
+      c: opens("ET", "E", 50),
+    },
+  });
+  const badges = screen.getAllByRole("button", { name: /^Reply risk for/ });
+  expect(badges.map((badge) => badge.dataset.risk)).toEqual(["muted", "caution", "high"]);
+  expect(badges[0].getAttribute("aria-label")).toContain("7.3% chance");
+  expect(badges[1].querySelector(".result-defense-chance")?.textContent)
+    .toBe(badges[2].querySelector(".result-defense-chance")?.textContent);
 });
 
 test("reply rows resolve individually and compare against the highest score after sorting", async () => {

@@ -42,7 +42,7 @@
 | **Reply details** | The box at the bottom of Possible moves headed **Reply after [move]**. With tiles in the bag, Tilemaxx automatically checks the top 20 moves by score plus up to two **Premium block** and two **Better leave** candidates. Use the chart icon in the reply column to **Check reply histogram** for another move. The details show the distribution, comparison, chance the reply outscores your play, and **Heatmap**. With an empty bag they show the opponent rack, immediate reply, score checkpoints, and the option to calculate the optimal endgame line when applicable. |
 | **Reply settings** | The expandable bag count and endgame controls. It shows **Prior scoreless turns** for Scrabble and Words With Friends, **Prior consecutive passes** for Wordfeud and Lexulous, and **Opponent has a final turn** for Crossplay. |
 | **Reply heatmap** | The board view of where strong replies land. Select a **hotspot** to see its change and sample replies. |
-| **Reply risk** | Details for a premium square the move opens up or blocks. |
+| **Reply risk** | The quick badge shows the score of an opened premium reply and the chance the opponent holds its tiles. Rare examples are muted. Strong red marks replies that are both likely and costly. Tap the badge for the example and its before-and-after scores. |
 | **Bingo odds** | The draw and board-based odds in the move list, with controls to calculate the board-based chances. |
 | **Move analysis** | The panel opened by **Analyze**. Pick **analysis candidates** and choose **Run analysis**. With an empty bag, adjust the **Endgame budget** to give each exact search more work. |
 | **Move comparison** | The metric table in Move analysis. The first candidate is the **reference move** for relative comparisons. |
