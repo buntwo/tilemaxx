@@ -80,13 +80,12 @@ export default function OptimalReplyDetails({
   const lastMove = line.line.at(-1);
   const wentOut =
     game.template.rules !== "crossplay" && lastMove && !lastMove.leave;
-  if (wentOut || adjustment.you || adjustment.opponent)
-    steps.push({
-      kind: "adjustment",
-      points: adjustment,
-      board,
-      scores: final,
-    });
+  steps.push({
+    kind: "adjustment",
+    points: adjustment,
+    board,
+    scores: final,
+  });
 
   const [selection, setSelection] = useState<{
     line: EndgameLine;
@@ -95,7 +94,9 @@ export default function OptimalReplyDetails({
   const selected =
     selection?.line === line
       ? selection.index
-      : firstPlayer === "you" && line.line.length > 1 ? 1 : 0;
+      : firstPlayer === "you" && line.line.length > 1
+        ? 1
+        : 0;
   const step = steps[selected];
   const candidate = line.line[0];
   const { size } = game.template;
@@ -121,110 +122,151 @@ export default function OptimalReplyDetails({
       <div className="optimal-reply-layout">
         <div>
           <h4>Optimal endgame line</h4>
-          {totals && (
-            <div className="optimal-reply-start">
-              <span>
-                Before{" "}
-                {candidate ? (
-                  <MoveWord move={candidate} rules={game.template} />
-                ) : (
-                  "the pass"
-                )}
-              </span>
-              <strong>{scorePair(totals)}</strong>
-            </div>
-          )}
-          <ol className="optimal-reply-turns">
-            {steps.map((entry, index) => {
-              return (
-                <li
+          <table
+            className="optimal-reply-turns"
+            aria-label="Optimal endgame line"
+          >
+            <thead>
+              {totals && (
+                <tr className="optimal-reply-start">
+                  <td colSpan={3}>
+                    Before{" "}
+                    {candidate ? (
+                      <MoveWord move={candidate} rules={game.template} />
+                    ) : (
+                      "the pass"
+                    )}
+                  </td>
+                  <td>
+                    <ScoreWithMargin scores={totals} />
+                  </td>
+                </tr>
+              )}
+              <tr className="optimal-reply-headings">
+                <th scope="col">Move</th>
+                <th scope="col">Leave</th>
+                <th scope="col">Pts</th>
+                <th scope="col">Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {steps.map((entry, index) => (
+                <tr
                   key={index}
                   className={
-                    entry.kind === "adjustment" ? "optimal-reply-adjustment-row" : undefined
+                    entry.kind === "adjustment"
+                      ? "optimal-reply-adjustment-row"
+                      : entry.player === "opponent"
+                        ? "optimal-reply-opponent-row"
+                        : undefined
                   }
+                  data-selected={index === selected || undefined}
+                  onClick={() => setSelection({ line, index })}
                 >
-                  <button
-                    type="button"
-                    className="optimal-reply-turn"
-                    aria-pressed={index === selected}
-                    onClick={() => setSelection({ line, index })}
-                  >
-                    {entry.kind === "turn" ? (
-                      <>
-                        <strong className="optimal-reply-turn-word">
-                          {entry.move ? (
-                            <>
-                              <span role="img" aria-label={entry.move.word}>
-                                <MoveLetters move={entry.move} size={size} />
-                              </span>
-                              {isBingo(game.template, entry.move.tiles.length) && (
-                                <>
-                                  {" "}
-                                  <BingoBadge />
-                                </>
-                              )}
-                            </>
-                          ) : (
-                            "Pass"
-                          )}
+                  <td>
+                    <button
+                      type="button"
+                      className="optimal-reply-turn"
+                      aria-pressed={index === selected}
+                    >
+                      {entry.kind === "turn" ? (
+                        <>
+                          <strong className="optimal-reply-turn-word">
+                            {entry.move ? (
+                              <>
+                                <span role="img" aria-label={entry.move.word}>
+                                  <MoveLetters move={entry.move} size={size} />
+                                </span>
+                                {isBingo(
+                                  game.template,
+                                  entry.move.tiles.length,
+                                ) && <BingoBadge />}
+                              </>
+                            ) : (
+                              "Pass"
+                            )}
+                          </strong>
+                          <small className="optimal-reply-turn-note">
+                            {entry.player === "you" ? "You" : "Opponent"}
+                            {entry.move &&
+                              ` · ${coordinate(entry.move.row * size + entry.move.col, size)}${entry.move.direction === "across" ? "→" : "↓"}`}
+                          </small>
+                        </>
+                      ) : (
+                        <strong className="optimal-reply-final-label">
+                          Final score
                         </strong>
-                        <small className="optimal-reply-turn-note">
-                          {entry.player === "you" ? "You" : "Opponent"}
-                          {entry.move &&
-                            ` · ${coordinate(entry.move.row * size + entry.move.col, size)} ${entry.move.direction}`}
-                        </small>
+                      )}
+                    </button>
+                  </td>
+                  {entry.kind === "turn" ? (
+                    <>
+                      <td>
                         <span
                           className="optimal-reply-leave"
                           role="img"
                           aria-label={
                             entry.leave
-                              ? `Leave: ${[...entry.leave]
-                                  .map((tile) => (tile === "?" ? "blank" : tile))
-                                  .join(", ")}`
-                              : "Empty rack"
+                              ? `Leave: ${[...entry.leave].map((tile) => (tile === "?" ? "blank" : tile)).join(", ")}`
+                              : entry.move
+                                ? "Goes out"
+                                : "Empty rack"
                           }
-                          title={entry.leave ? "Rack leave" : "Empty rack"}
                         >
                           {entry.leave ? (
                             <MiniTiles
                               tiles={entry.leave}
                               opponent={entry.player === "opponent"}
                             />
+                          ) : entry.move ? (
+                            <span className="optimal-reply-goes-out">
+                              (Goes out)
+                            </span>
                           ) : (
                             "—"
                           )}
                         </span>
+                      </td>
+                      <td>
                         <span
                           className={`optimal-reply-points ${scoreTone((entry.move?.score ?? 0) * (entry.player === "you" ? 1 : -1)) ?? ""}`}
                         >
                           {signedPoints(entry.move?.score ?? 0)}
                         </span>
-                      </>
+                      </td>
+                    </>
+                  ) : (
+                    <td colSpan={2}>
+                      {(wentOut ||
+                        entry.points.you !== 0 ||
+                        entry.points.opponent !== 0) && (
+                        <span className="optimal-reply-adjustment">
+                          <strong>Rack adjustment</strong>
+                          <small>
+                            You{" "}
+                            <span className={scoreTone(entry.points.you)}>
+                              {signedPoints(entry.points.you)}
+                            </span>
+                            {" · "}Opp.{" "}
+                            <span className={scoreTone(-entry.points.opponent)}>
+                              {signedPoints(entry.points.opponent)}
+                            </span>
+                          </small>
+                        </span>
+                      )}
+                    </td>
+                  )}
+                  <td className="optimal-reply-step-score">
+                    {entry.scores ? (
+                      <ScoreWithMargin scores={entry.scores} />
                     ) : (
-                      <span className="optimal-reply-adjustment">
-                        <strong>Rack adjustment</strong>
-                        <small>
-                          You{" "}
-                          <span className={scoreTone(entry.points.you)}>
-                            {signedPoints(entry.points.you)}
-                          </span>
-                          {" · "}Opponent{" "}
-                          <span className={scoreTone(-entry.points.opponent)}>
-                            {signedPoints(entry.points.opponent)}
-                          </span>
-                        </small>
-                      </span>
+                      <span title="Scores are not tracked">—</span>
                     )}
-                    {entry.scores && (
-                      <span className="optimal-reply-step-score">
-                        <ScoreWithMargin scores={entry.scores} />
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         <figure className="optimal-reply-board">
           <figcaption aria-live="polite">

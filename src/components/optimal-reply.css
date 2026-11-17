@@ -79,135 +79,109 @@
   margin: 0 0 5px;
   font-size: 13px;
 }
-.optimal-reply-start {
-  display: flex;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 0 7px 5px;
-  color: var(--muted);
-  font-size: 11px;
+.optimal-reply-turns {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
   font-variant-numeric: tabular-nums;
 }
-.optimal-reply-turns {
-  display: grid;
-  grid-template-columns:
-    [play] fit-content(45%) [leave] fit-content(44%) minmax(0, 1fr)
-    [points] max-content [score] max-content;
-  column-gap: 6px;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  list-style: none;
+.optimal-reply-turns th,
+.optimal-reply-turns td {
+  padding: 8px 6px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
 }
-.optimal-reply-turns li,
+.optimal-reply-turns th {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+.optimal-reply-turns th:nth-child(n + 3),
+.optimal-reply-turns td:nth-child(3),
+.optimal-reply-turns .optimal-reply-step-score,
+.optimal-reply-start td:last-child {
+  text-align: center;
+}
+.optimal-reply-start td {
+  border-bottom: 0;
+  padding-top: 0;
+  color: var(--muted);
+  font-size: 11px;
+  vertical-align: middle;
+}
+.optimal-reply-opponent-row {
+  background: color-mix(in srgb, var(--blank-tile) 12%, var(--surface));
+}
+.optimal-reply-turns tbody tr:is(:hover, [data-selected]) {
+  background: var(--soft);
+}
+.optimal-reply-opponent-row:is(:hover, [data-selected]) {
+  background: color-mix(in srgb, var(--blank-tile) 18%, var(--soft));
+}
+.optimal-reply-turns tbody tr[data-selected] td:first-child {
+  box-shadow: inset 2px 0 var(--primary);
+}
+.optimal-reply-adjustment-row td {
+  border-top: 2px solid color-mix(in srgb, var(--primary) 42%, var(--line));
+  border-bottom: 0;
+  vertical-align: middle;
+}
 .optimal-reply-turn {
   display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 1 / -1;
-}
-.optimal-reply-turns li + li:not(.optimal-reply-adjustment-row) {
-  border-top: 1px solid var(--line);
-}
-.optimal-reply-adjustment-row {
-  position: relative;
-}
-.optimal-reply-adjustment-row::before {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  inset-block-start: -1px;
-  inset-inline: 0;
-  height: 2px;
-  background: color-mix(in srgb, var(--primary) 42%, var(--line));
-  pointer-events: none;
-}
-.optimal-reply-turn {
-  grid-template-rows: auto auto;
-  align-items: center;
   align-content: center;
   width: 100%;
-  min-height: 48px;
-  padding: 6px 7px;
+  min-height: 32px;
+  padding: 0;
   border: 0;
   background: transparent;
   color: var(--text);
   text-align: left;
   font-size: 12px;
-  font-variant-numeric: tabular-nums;
 }
-.optimal-reply-turns li:first-child .optimal-reply-turn {
-  border-radius: 6px 6px 0 0;
-}
-.optimal-reply-turns li:last-child .optimal-reply-turn {
-  border-radius: 0 0 6px 6px;
-}
-.optimal-reply-turn:is(:hover, [aria-pressed="true"]) {
-  background: var(--soft);
-}
-.optimal-reply-turn[aria-pressed="true"] {
-  box-shadow: inset 2px 0 var(--primary);
-}
-.optimal-reply-turn:focus-visible {
-  outline-offset: -2px;
-}
+.optimal-reply-turn:focus-visible { outline-offset: 3px; }
 .optimal-reply-turn-note,
 .optimal-reply-adjustment small {
   display: block;
-  margin-top: 2px;
+  margin-top: 3px;
   color: var(--muted);
   font-size: 10px;
 }
-.optimal-reply-turn-word .bingo-badge {
-  margin-inline-end: 2px;
-}
-.optimal-reply-turn-word,
-.optimal-reply-turn-note {
-  grid-column: play;
+.optimal-reply-turn-word {
+  font-size: var(--move-word-size, 17px);
+  line-height: 20px;
+  letter-spacing: .2px;
+  font-weight: 650;
   overflow-wrap: anywhere;
 }
-.optimal-reply-turn-word,
+.optimal-reply-turn-word .bingo-badge { margin-inline-start: 3px; }
+.optimal-reply-turn-note { white-space: nowrap; }
+.optimal-reply-final-label { font-size: 15px; }
+.optimal-reply-adjustment { font-size: 11px; }
+.optimal-reply-adjustment strong { font-weight: 500; color: var(--muted); }
+.optimal-reply-adjustment small { white-space: nowrap; }
 .optimal-reply-leave {
-  grid-row: 1;
-  align-self: start;
-  line-height: 16px;
-}
-.optimal-reply-turn-note {
-  grid-row: 2;
-}
-.optimal-reply-adjustment,
-.optimal-reply-step-score,
-.optimal-reply-points {
-  grid-row: 1 / -1;
-}
-.optimal-reply-adjustment {
-  grid-column: play / score;
-  overflow-wrap: anywhere;
-}
-.optimal-reply-leave {
-  grid-column: leave;
+  display: block;
+  padding-top: 1px;
   color: var(--muted);
   font-size: 11px;
+  min-width: 36px;
 }
 .optimal-reply-leave .mini-tiles {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
+  opacity: .78;
 }
 .optimal-reply-leave .mini-tiles span {
   min-width: 16px;
-  height: 16px;
+  height: 17px;
   padding: 0 2px;
   border-radius: 3px;
 }
-.optimal-reply-step-score {
-  grid-column: score;
-  text-align: end;
-}
-.optimal-reply-points {
-  grid-column: points;
-  font-size: 11px;
-}
+.optimal-reply-goes-out { white-space: nowrap; color: var(--primary); }
+.optimal-reply-step-score { white-space: nowrap; font-size: 12px; }
+.optimal-reply-points { display: block; text-align: center; font-size: 12px; }
 .optimal-reply-board {
   width: min(100%, 340px);
   min-width: 0;
@@ -228,9 +202,9 @@
 .optimal-reply-board .ghost::before {
   animation: none;
 }
-@container optimal-reply (min-width: 440px) {
+@container optimal-reply (min-width: 600px) {
   .optimal-reply-layout {
-    grid-template-columns: minmax(0, 1.16fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   }
   .optimal-reply-board .board-grid {
     --axis-width: 13px;
