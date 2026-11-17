@@ -1,8 +1,8 @@
-import { Fragment, useState } from "react";
+import { recordedMoveNotation, wordNotation } from "../../shared/notation";
+import { Fragment, useMemo, useState } from "react";
 import { ChevronDown, Pencil, Plus, Trophy } from "lucide-react";
 import {
   isBingo,
-  trackedMoveHistory,
   type Game,
   type Player,
 } from "../../shared/model";
@@ -14,6 +14,7 @@ import {
   isImportedPosition,
   nextPlayerToMove,
   pendingOpponentTurns,
+  reviewTurns,
   tracksScores,
   summarizeGameScore,
 } from "../../shared/game-scoring";
@@ -104,7 +105,8 @@ export default function GameScores({
   const margin = adjusted.you - adjusted.opponent;
   const tone = scoreTone(margin);
   const totals = { you: 0, opponent: 0 };
-  const history = trackedMoveHistory(game);
+  const turns = useMemo(() => reviewTurns(game), [game]);
+  const history = turns.map(turn => turn.move);
   const historyKey = JSON.stringify(history);
   const [editor, setEditor] = useState<{
     insert: boolean;
@@ -133,6 +135,7 @@ export default function GameScores({
   const moves = history
     .map((move, index) => ({
       ...move,
+      notation: recordedMoveNotation(move, turns[index].position, game.template.size),
       bingo:
         move.bingo ??
         (move.review !== undefined &&
@@ -217,7 +220,7 @@ export default function GameScores({
                     <p>
                       Opponent move{multiplePending ? ` ${index + 1}` : ""} ·{" "}
                       <strong>
-                        <MoveWord word={play.word} bingo={play.bingo} /> ·{" "}
+                        <MoveWord word={wordNotation(play.words[0].tiles)} bingo={play.bingo} /> ·{" "}
                         {play.score} pts
                       </strong>
                     </p>
@@ -319,7 +322,7 @@ export default function GameScores({
                               move.bingo ? "bingo-move-word" : undefined
                             }
                           >
-                            {move.word}
+                            {move.notation}
                           </span>
                         </button>{" "}
                         <small className="score-move-total">
@@ -351,7 +354,7 @@ export default function GameScores({
                               move.bingo ? "bingo-move-word" : undefined
                             }
                           >
-                            {move.word}
+                            {move.notation}
                           </span>
                         </button>
                       </div>
@@ -428,7 +431,7 @@ export default function GameScores({
                   <option value={history.length}>After the latest move</option>
                   {moves.map((move) => (
                     <option key={move.number} value={move.number - 1}>
-                      Before #{move.number} {move.word}
+                      Before #{move.number} {move.notation}
                       {move.bingo ? " · 🏆 Bingo" : ""}
                     </option>
                   ))}

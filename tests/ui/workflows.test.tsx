@@ -1,3 +1,4 @@
+import { moveLocation } from "../../shared/notation";
 import { beforeEach, afterEach, expect, test, vi } from "vitest";
 import {
   render,
@@ -975,7 +976,7 @@ test("calculation timing waits for reply histograms and stays fixed for follow-u
   }));
   const { word, row, col, direction } = request.reference;
   expect(screen.getByText(
-    `Hit the 25-second analysis time limit after ${word} at ${coordinate(row * 15 + col, 15)} ${direction} with opponent rack AENRST? (? = blank).`,
+    `Hit the 25-second analysis time limit after ${word} at ${moveLocation({ row, col, direction })} ${direction} with opponent rack AENRST? (? = blank).`,
   )).toBeTruthy();
   expect(screen.getByRole("button", { name: /^Calculation timing/ }).textContent).toBe(total);
 
@@ -1027,7 +1028,7 @@ test.each(["reference", "alternatives"] as const)(
       }
     });
     const moveLabel = ({ word, row, col, direction }: ReplySummary["reference"]) =>
-      `${word} at ${coordinate(row * request.template.size + col, request.template.size)} ${direction}`;
+      `${word} at ${moveLocation({ row, col, direction })} ${direction}`;
     if (failed === "reference") {
       expect(screen.getByText(
         `Hit the 2,000,000 search node limit after ${moveLabel(request.reference)} with opponent rack AENRST? (? = blank).`,
@@ -1119,7 +1120,7 @@ test("reply histograms keep the score leaders, add extra candidates, and check a
   await user.type(screen.getByRole("textbox", { name: "Filter moves" }), "AT");
   expect(await screen.findByText("Premium block")).toBeTruthy();
   expect(screen.getByText("Better leave")).toBeTruthy();
-  const at = coordinate(requested.row * 15 + requested.col, 15);
+  const at = moveLocation(requested);
   const label = `Check reply histogram for ${requested.word} at ${at} ${requested.direction}`;
   await user.click(screen.getByRole("button", { name: label }));
   expect(manual?.request.candidate.id).toBe(requested.id);
@@ -3721,7 +3722,7 @@ test("finish overlay waits for the last tile, dismisses outside the card, and ar
       const outcome = board.getByRole("heading", { name: "You win!" });
       expect(outcome.closest(".board-grid")).toBeTruthy();
       expect(board.getByText("Won by 11")).toBeTruthy();
-      expect(board.getByText(/You went out/).textContent).toContain("CATS +6");
+      expect(board.getByText(/You went out/).textContent).toContain("(CAT)S +6");
       await act(async () => vi.advanceTimersByTimeAsync(10_000));
       expect(board.getByRole("heading", { name: "You win!" })).toBe(outcome);
     } finally {
@@ -3783,7 +3784,7 @@ test("typing the opponent's last tile shows the adjusted loss and locks the boar
   expect(badge.querySelector("svg")).toBeNull();
   expect(result.getByText("–", { selector: ".game-score-separator" }).textContent)
     .toBe(badge.querySelector(".game-score-separator")?.textContent);
-  expect(board.getByText(/First game went out/).textContent).toContain("CATS +6");
+  expect(board.getByText(/First game went out/).textContent).toContain("(CA)TS +6");
   expect(document.activeElement).not.toBe(entry());
 
   const square = board.getByRole("button", { name: /^H8: C/ });
@@ -3937,7 +3938,7 @@ test("score tracking records typed opponent moves and solver plays across undo, 
           .map((cell) => cell.textContent),
       ),
   ).toEqual([
-    ["2", "CATS (6)", "6", ""],
+    ["2", "(CAT)S (6)", "6", ""],
     ["1", "", "10", "(10) CAT"],
   ]);
   await user.click(cell("Undo"));
@@ -4384,7 +4385,7 @@ test("hovering a move highlights the first available copy of each rack tile it u
   const blankMove = (
     await screen.findAllByRole("button", { name: /^CAT, / })
   )[0];
-  expect(blankMove.querySelector(".assigned-blank")?.textContent).toBe("A");
+  expect(blankMove.querySelector(".assigned-blank")?.textContent).toBe("a");
   await user.hover(blankMove);
   expect(highlighted()).toEqual([1, 2, 3]);
 });

@@ -123,7 +123,7 @@ export default function BoardFinishOverlay({
             {move && (
               <>
                 {" "}
-                · <MoveWord word={move.word} bingo={move.bingo} /> +{move.score}
+                · <MoveWord word={move.word} bingo={move.bingo} position={move.review} size={size} /> +{move.score}
               </>
             )}
           </div>

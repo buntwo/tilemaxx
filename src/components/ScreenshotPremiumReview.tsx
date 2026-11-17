@@ -1,10 +1,10 @@
+import { moveLocation, moveNotation } from "../../shared/notation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   openingSequences,
   type PremiumInference,
 } from "../../shared/infer-premiums";
 import {
-  coordinate,
   isBingo,
   type Board as BoardState,
   type BoardTemplate,
@@ -185,8 +185,8 @@ export default function ScreenshotPremiumReview({
                   <option key={i} value={i}>
                     {history
                       .map(
-                        ({ word, direction, start, tiles }) =>
-                          `${word} (${coordinate(start, template.size)} ${direction})${isBingo(template, tiles.length) ? " 🏆" : ""}`,
+                        (turn) =>
+                          `${moveNotation({ ...turn, tiles: turn.tiles.map((index) => ({ index, letter: turn.after[index] })) }, template.size, turn.before)} (${moveLocation({ row: Math.floor(turn.start / template.size), col: turn.start % template.size, direction: turn.direction })})${isBingo(template, turn.tiles.length) ? " 🏆" : ""}`,
                       )
                       .join(" → ")}
                   </option>
@@ -197,7 +197,17 @@ export default function ScreenshotPremiumReview({
           {turns.map((turn, i) => (
             <label key={i}>
               {i === 0 ? "First" : "Second"} play points ·{" "}
-              <MoveWord move={turn} rules={template} />
+              <MoveWord
+                move={{
+                  ...turn,
+                  tiles: turn.tiles.map((index) => ({
+                    index,
+                    letter: turn.after[index],
+                  })),
+                }}
+                rules={template}
+                board={turn.before}
+              />
               <input
                 type="number"
                 min={0}

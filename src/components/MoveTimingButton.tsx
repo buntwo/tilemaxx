@@ -1,5 +1,6 @@
+import type { Board } from "../../shared/model";
+import { moveLocation, moveNotation } from "../../shared/notation";
 import { useState, type CSSProperties } from "react";
-import { coordinate } from "../../shared/model";
 import type { MoveTiming, OpponentEndgameTiming } from "../move-timing";
 import Modal from "./Modal";
 
@@ -17,7 +18,12 @@ function TimingValue({ elapsed, total }: { elapsed: number; total: number }) {
   );
 }
 
-function moveStages({ solver, replies, estimates, exactLines }: MoveTiming): [string, number | undefined][] {
+function moveStages({
+  solver,
+  replies,
+  estimates,
+  exactLines,
+}: MoveTiming): [string, number | undefined][] {
   return [
     ["Dictionary loading and indexing", solver.dictionary],
     ["Board check and legal moves", solver.moves],
@@ -26,7 +32,10 @@ function moveStages({ solver, replies, estimates, exactLines }: MoveTiming): [st
     ["Bingo draw odds", solver.bingoDraws],
     ["Bingo after your play", solver.boardBingo],
     ["Exchange advice", solver.exchangeAdvice],
-    [replies?.endgame ? "Opponent replies" : "Reply histograms", replies?.elapsed],
+    [
+      replies?.endgame ? "Opponent replies" : "Reply histograms",
+      replies?.elapsed,
+    ],
     ["Endgame estimates", estimates],
     ["Exact endgame lines", exactLines?.elapsed],
   ];
@@ -35,22 +44,29 @@ function moveStages({ solver, replies, estimates, exactLines }: MoveTiming): [st
 export default function MoveTimingButton({
   timing,
   size,
+  board,
 }: {
   timing: MoveTiming | OpponentEndgameTiming;
   size: number;
+  board?: Board;
 }) {
   const [open, setOpen] = useState(false);
   const { total } = timing;
   const formatted = duration(total);
-  const stages: [string, number | undefined][] = "batches" in timing
-    ? timing.batches.map(({ checked, elapsed }, index, batches) => {
-        const first = (batches[index - 1]?.checked ?? 0) + 1;
-        const from = first.toLocaleString();
-        const to = checked.toLocaleString();
-        return [first === checked ? `Option ${to}` : `Options ${from}–${to}`, elapsed];
-      })
-    : moveStages(timing);
-  const attempts = "exactLines" in timing ? timing.exactLines?.attempts : undefined;
+  const stages: [string, number | undefined][] =
+    "batches" in timing
+      ? timing.batches.map(({ checked, elapsed }, index, batches) => {
+          const first = (batches[index - 1]?.checked ?? 0) + 1;
+          const from = first.toLocaleString();
+          const to = checked.toLocaleString();
+          return [
+            first === checked ? `Option ${to}` : `Options ${from}–${to}`,
+            elapsed,
+          ];
+        })
+      : moveStages(timing);
+  const attempts =
+    "exactLines" in timing ? timing.exactLines?.attempts : undefined;
   return (
     <>
       <button
@@ -89,11 +105,16 @@ export default function MoveTimingButton({
                 {attempts.map(({ move, elapsed, limit }) => (
                   <div key={move.id}>
                     <dt>
-                      <strong>{move.word}</strong>{" "}
-                      {coordinate(move.row * size + move.col, size)}
-                      <span role="img" aria-label={move.direction}>
-                        {move.direction === "across" ? "→" : "↓"}
-                      </span>
+                      <strong>
+                        {move.tiles
+                          ? moveNotation(
+                              { ...move, tiles: move.tiles },
+                              size,
+                              board,
+                            )
+                          : move.word}
+                      </strong>{" "}
+                      {moveLocation(move)}
                       {limit && <small title={limit}> · Limit reached</small>}
                     </dt>
                     <TimingValue elapsed={elapsed} total={total} />

@@ -1371,7 +1371,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     <span aria-live="polite">
                       {preview ? (
                         <>
-                          <strong><MoveWord move={preview} rules={game.template} /></strong> · {preview.score} pts
+                          <strong><MoveWord move={preview} rules={game.template} board={game.board} /></strong> · {preview.score} pts
                         </>
                       ) : (
                         "Choose a move to preview"
