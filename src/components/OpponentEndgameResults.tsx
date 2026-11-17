@@ -54,7 +54,7 @@ export default function OpponentEndgameResults({
           )}
         </div>
         <button
-          className="icon-button opponent-endgame-close"
+          className="icon-button results-close opponent-endgame-close"
           type="button"
           aria-label="Close opponent endgame"
           onClick={onClose}
