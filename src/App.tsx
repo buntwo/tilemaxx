@@ -16,6 +16,7 @@ import {
   History,
   Home,
   Info,
+  Keyboard,
   LoaderCircle,
   Map,
   Menu,
@@ -72,7 +73,9 @@ import WorkspaceSettings, {
 import { browserConcurrency, computeWorkerLimit } from "./compute-workers";
 import { ComputeWorkerLimit } from "./components/ComputeWorkerLimit";
 import Results from "./components/Results";
-import GamePicker from "./components/GamePicker";
+import GamePicker, { type GamePickerHandle } from "./components/GamePicker";
+import KeyboardShortcuts from "./components/KeyboardShortcuts";
+import useKeyboardShortcuts from "./useKeyboardShortcuts";
 import {
   GameDetailFields,
   FullMoveHistoryIcon,
@@ -132,6 +135,7 @@ type Dialog =
   | "board-help"
   | "help"
   | "ui-guide"
+  | "keyboard-shortcuts"
   | "workspace-settings"
   | "rename"
   | "delete"
@@ -255,6 +259,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const squareFilterButton = useRef<HTMLButtonElement>(null);
   const rackPanel = useRef<HTMLElement>(null);
   const rackEntry = useRef<RackEntryHandle>(null);
+  const gamePicker = useRef<GamePickerHandle>(null);
+  const archiveFilter = useRef<HTMLInputElement>(null);
+  const pendingGameSearch = useRef<Workspace>(undefined);
   const [flight, setFlight] = useState<TileFlight>();
   const state = useStore(),
     data = state.data;
@@ -289,6 +296,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const templateChosen = useRef(false);
   const [editProfileId, setEditProfileId] = useState("");
   const [workspace, setWorkspace] = useState(currentWorkspace);
+  useLayoutEffect(() => {
+    if (pendingGameSearch.current !== workspace) return;
+    pendingGameSearch.current = undefined;
+    if (workspace === "archive") archiveFilter.current?.focus();
+    else gamePicker.current?.focusSearch();
+  }, [workspace]);
   const [archiveSort, setArchiveSort] = useState<ArchiveSort>("date");
   const [archiveEditId, setArchiveEditId] = useState<string>();
   const importBase = useRef<Game | null>(null);
@@ -332,6 +345,34 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       : undefined;
   const gameFinish = useGameFinish(workspace === "games" ? game : undefined, !!activeFlight);
   const boardLocked = !!gameFinish.current;
+  useKeyboardShortcuts({
+    enabled: !!data && !dialog && !boardLocked,
+    focusRack() {
+      if (!rackEntry.current) return false;
+      setSidebarDrawerOpen(false);
+      editPosition();
+      rackEntry.current.focusEntry();
+      return true;
+    },
+    searchGames() {
+      setSidebarDrawerOpen(false);
+      if (workspace === "archive") {
+        archiveFilter.current?.focus();
+        return !!archiveFilter.current;
+      }
+      if (workspace === "games" && !selectedGame?.archived)
+        return gamePicker.current?.focusSearch() ?? false;
+      if (workspace === "games") {
+        pendingGameSearch.current = "archive";
+        showWorkspace("archive");
+      } else {
+        pendingGameSearch.current = "games";
+        openMyGames();
+      }
+      return true;
+    },
+    showGuide: () => openDialog("keyboard-shortcuts"),
+  });
   const availableUpdate = useAutoUpdate(
     state.online ? state.serverVersion : undefined,
     preferences.autoUpdate,
@@ -969,6 +1010,14 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           <Map size={18} aria-hidden="true" />
           UI guide
         </button>
+        <button
+          className="nav-link"
+          aria-keyshortcuts="?"
+          onClick={() => openDialog("keyboard-shortcuts")}
+        >
+          <Keyboard size={18} aria-hidden="true" />
+          Keyboard shortcuts
+        </button>
         <button className="nav-link" onClick={() => openDialog("help")}>
           <Smartphone size={18} />
           Use on another device
@@ -1087,6 +1136,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   <h1>{selectedGame.name}</h1>
                 ) : (
                   <GamePicker
+                    ref={gamePicker}
                     key={profileId}
                     game={selectedGame}
                     games={activeGames}
@@ -1223,6 +1273,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           />
         ) : workspace === "archive" ? (
           <ArchivedGames
+            filterRef={archiveFilter}
             headerControl={sidebarButton}
             games={archivedGames}
             sort={archiveSort}
@@ -1881,6 +1932,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       )}
       {dialog === "ui-guide" && (
         <UiGuide phoneLayout={phoneLayout} onClose={() => setDialog(null)} />
+      )}
+      {dialog === "keyboard-shortcuts" && (
+        <KeyboardShortcuts onClose={() => setDialog(null)} />
       )}
       {dialog === "workspace-settings" && (
         <WorkspaceSettings

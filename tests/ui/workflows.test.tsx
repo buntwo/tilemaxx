@@ -4061,6 +4061,51 @@ test("the version shows an available update when automatic updates are off", asy
   expect(document.querySelector(".app-update-icon")).toBeNull();
 });
 
+test("workspace shortcuts focus the rack and game filter, and the guide leaves rack blanks intact", async () => {
+  remote.games.push({ ...game(), id: "second", name: "Jo Smith" });
+  const user = await start();
+  await act(() => store.refresh());
+  const guide = () => screen.queryByRole("dialog", { name: "Keyboard shortcuts" });
+  await user.click(cell("H8: DW, start"));
+  fireEvent.keyDown(entry(), { key: "®", code: "KeyR", altKey: true });
+  const rack = screen.getByRole("textbox", { name: "Rack letters" });
+  expect(document.activeElement).toBe(rack);
+  await user.keyboard("CA?");
+  expect(current().rack).toBe("CA?");
+  expect(guide()).toBeNull();
+
+  fireEvent.keyDown(rack, { key: "©", code: "KeyG", altKey: true });
+  const search = screen.getByRole("searchbox", { name: "Filter by opponent" });
+  expect(document.activeElement).toBe(search);
+  await user.keyboard("Smith{Enter}");
+  expect(screen.getByRole("heading", { name: "Jo Smith" })).toBeTruthy();
+
+  await user.keyboard("?");
+  expect(guide()).toBeTruthy();
+  expect(within(guide()!).getByText("Alt / Option + R")).toBeTruthy();
+  expect(within(guide()!).getByText("Alt / Option + G")).toBeTruthy();
+  fireEvent.keyDown(document.activeElement!, { key: "g", code: "KeyG", altKey: true });
+  expect(screen.queryByRole("searchbox", { name: "Filter by opponent" })).toBeNull();
+  await user.click(within(guide()!).getByRole("button", { name: "Close dialog" }));
+  await user.click(cell("Keyboard shortcuts"));
+  expect(guide()).toBeTruthy();
+});
+
+test("search games focuses the archived filter and can return there from an archived game", async () => {
+  remote.games.push({ ...game(), id: "finished", name: "Jo Smith", archived: true });
+  const user = await start();
+  await act(() => store.refresh());
+  await user.click(cell("Archived games"));
+  const search = () => screen.getByRole("searchbox", { name: "Filter by opponent" });
+  await user.keyboard("{Alt>}g{/Alt}");
+  expect(document.activeElement).toBe(search());
+  await user.keyboard("Smith");
+  await user.click(screen.getByRole("button", { name: /^Jo Smith/ }));
+  expect(await screen.findByRole("heading", { name: "Jo Smith" })).toBeTruthy();
+  await user.keyboard("{Alt>}g{/Alt}");
+  expect(document.activeElement).toBe(search());
+});
+
 test("typing in the game picker filters active games by opponent name", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === "(min-width: 1000px)",
