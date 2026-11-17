@@ -23,6 +23,8 @@ test.each(["mouse", "touch"])("%s rotates the same physical tiles in both direct
   expect(root.textContent).toBe("R1A1D2");
   pointer(root, "pointerdown", type, 100);
   pointer(root, "pointermove", type, 60);
+  expect([...root.children]).toEqual(tiles);
+  expect(tiles.every((tile) => !(tile as HTMLElement).style.transform)).toBe(true);
   pointer(root, "pointerup", type, 60);
   expect([...root.children]).toEqual([tiles[1], tiles[2], tiles[0]]);
   expect(root.textContent).toBe("A1D2R1");
@@ -64,11 +66,16 @@ test("the 465 ms depth loop blocks overlapping gestures and cleans up on complet
   Object.defineProperty(Element.prototype, "animate", { configurable: true, value: animate });
   try {
     const { root, tiles } = setup(false);
-    fireEvent.keyDown(root, { key: "ArrowLeft" });
+    pointer(root, "pointerdown", "touch", 100);
+    pointer(root, "pointermove", "touch", 60);
+    expect(animate).not.toHaveBeenCalled();
+    expect(tiles.every((tile) => !(tile as HTMLElement).style.transform)).toBe(true);
+    pointer(root, "pointerup", "touch", 60);
     fireEvent.keyDown(root, { key: "ArrowRight" });
     expect(animate).toHaveBeenCalledTimes(3);
     expect([...root.children]).toEqual(tiles);
     const [frames, timing] = (animate.mock.calls[0] as unknown) as [Keyframe[], KeyframeAnimationOptions];
+    expect(frames[0].transform).toBe("translate(0px, 0px) rotate(-10deg) scale(1)");
     expect(Number(frames[24].opacity)).toBeCloseTo(.68);
     expect(timing).toEqual({ duration: 465, easing: "cubic-bezier(.42,0,.22,1)", fill: "both" });
     await act(async () => finish());

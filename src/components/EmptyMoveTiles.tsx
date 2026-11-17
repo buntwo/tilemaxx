@@ -12,7 +12,7 @@ const heights = [0, -9, 0];
 const transform = (x: number, y: number, angle: number, scale = 1) =>
   `translate(${x}px, ${y}px) rotate(${angle}deg) scale(${scale})`;
 
-type Gesture = { id: number; x: number; y: number; offset: number };
+type Gesture = { id: number; x: number; y: number };
 
 export default function EmptyMoveTiles({ rules }: { rules: Rules }) {
   const [tiles, setTiles] = useState(() => {
@@ -37,9 +37,8 @@ export default function EmptyMoveTiles({ rules }: { rules: Rules }) {
     clearMotion();
   }, []);
 
-  function moveTiles(direction: -1 | 0 | 1) {
+  function moveTiles(direction: -1 | 1) {
     if (rotating.current) return;
-    const drag = gesture.current?.offset ?? 0;
     gesture.current = null;
     root.current?.removeAttribute("data-dragging");
     const elements = [...(root.current?.children ?? [])] as HTMLElement[];
@@ -47,8 +46,7 @@ export default function EmptyMoveTiles({ rules }: { rules: Rules }) {
       ? [...tiles.slice(1), tiles[0]]
       : [tiles[2], ...tiles.slice(0, 2)];
     if (!canAnimateTiles()) {
-      for (const element of elements) element.style.removeProperty("transform");
-      if (direction) setTiles(next);
+      setTiles(next);
       return;
     }
     rotating.current = true;
@@ -60,7 +58,7 @@ export default function EmptyMoveTiles({ rules }: { rules: Rules }) {
         const arc = wrap ? Math.sin(Math.PI * t) : 0;
         return {
           transform: transform(
-            (target - index) * 52 * t + drag * (1 - t),
+            (target - index) * 52 * t,
             heights[index] + (heights[target] - heights[index]) * t - 48 * .56 * arc,
             angles[index] + (angles[target] - angles[index]) * t,
             1 - .32 * arc,
@@ -69,9 +67,8 @@ export default function EmptyMoveTiles({ rules }: { rules: Rules }) {
         };
       });
       element.style.zIndex = wrap ? "0" : "1";
-      element.style.removeProperty("transform");
       return element.animate(frames, {
-        duration: direction ? 465 : 150,
+        duration: 465,
         easing: "cubic-bezier(.42,0,.22,1)",
         fill: "both",
       });
@@ -79,8 +76,7 @@ export default function EmptyMoveTiles({ rules }: { rules: Rules }) {
     motion.current = animations;
     void Promise.allSettled(animations.map((animation) => animation.finished)).then(() => {
       if (motion.current !== animations) return;
-      if (direction) setTiles(next);
-      else clearMotion();
+      setTiles(next);
     });
   }
 
@@ -90,7 +86,9 @@ export default function EmptyMoveTiles({ rules }: { rules: Rules }) {
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
     const horizontal = !cancelled && Math.abs(dx) >= 18 && Math.abs(dx) > Math.abs(dy);
-    moveTiles(horizontal ? (dx < 0 ? -1 : 1) : 0);
+    gesture.current = null;
+    event.currentTarget.removeAttribute("data-dragging");
+    if (horizontal) moveTiles(dx < 0 ? -1 : 1);
   }
 
   return (
@@ -108,7 +106,7 @@ export default function EmptyMoveTiles({ rules }: { rules: Rules }) {
       }}
       onPointerDown={(event) => {
         if (rotating.current || gesture.current || event.button !== 0) return;
-        gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, offset: 0 };
+        gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
         event.currentTarget.setPointerCapture?.(event.pointerId);
       }}
       onPointerMove={(event) => {
@@ -117,14 +115,11 @@ export default function EmptyMoveTiles({ rules }: { rules: Rules }) {
         const dx = event.clientX - drag.x;
         const dy = event.clientY - drag.y;
         if (Math.abs(dy) > 24 && Math.abs(dx) < Math.abs(dy)) {
-          moveTiles(0);
+          gesture.current = null;
+          event.currentTarget.removeAttribute("data-dragging");
           return;
         }
-        if (Math.abs(dx) < 7 && !drag.offset) return;
-        event.currentTarget.dataset.dragging = "";
-        drag.offset = Math.max(-24, Math.min(24, dx * .4));
-        for (const [index, child] of [...event.currentTarget.children].entries())
-          (child as HTMLElement).style.transform = transform(drag.offset, heights[index], angles[index]);
+        if (Math.abs(dx) >= 7) event.currentTarget.dataset.dragging = "";
       }}
       onPointerUp={finish}
       onPointerCancel={(event) => finish(event, true)}
