@@ -96,13 +96,14 @@ const emptyMoveWords = [
 ];
 
 function EmptyMoveTiles({ rules }: { rules: Rules }) {
-  const [word] = useState(
-    () => emptyMoveWords[Math.floor(Math.random() * emptyMoveWords.length)],
-  );
+  const [tiles] = useState(() => {
+    const word = emptyMoveWords[Math.floor(Math.random() * emptyMoveWords.length)];
+    return [...word].map((letter) => ({ letter, green: Math.random() < 0.5 }));
+  });
   return (
     <div className="illustrated-tiles" aria-hidden="true">
-      {[...word].map((letter, index) => (
-        <span key={index}>
+      {tiles.map(({ letter, green }, index) => (
+        <span key={index} className={green ? "illustrated-tile-green" : undefined}>
           {letter}<small>{tileScore(letter, rules)}</small>
         </span>
       ))}

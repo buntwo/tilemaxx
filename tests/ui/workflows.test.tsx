@@ -5068,22 +5068,28 @@ test("a new search after playing starts with highest points", async () => {
 });
 
 
-test("the empty Possible moves tiles keep their word until the panel reopens", async () => {
+test("the empty Possible moves tiles keep their word and colors until the panel reopens", async () => {
   const random = vi.spyOn(Math, "random").mockReturnValue(0.999);
   try {
     const user = await start();
     const panel = screen.getByRole("region", { name: "Possible moves" });
-    const tiles = () =>
-      [...panel.querySelectorAll(".illustrated-tiles > span")].map((tile) => tile.textContent);
-    expect(tiles()).toEqual(["O1", "H4", "O1"]);
+    const tiles = () => [...panel.querySelectorAll(".illustrated-tiles > span")];
+    const word = () => tiles().map((tile) => tile.textContent);
+    const colors = () => tiles().map((tile) => tile.classList.contains("illustrated-tile-green"));
+    expect(word()).toEqual(["O1", "H4", "O1"]);
+    expect(colors()).toEqual([false, false, false]);
 
     random.mockReturnValue(0);
     await typeRack(user, "CATS");
-    expect(tiles()).toEqual(["O1", "H4", "O1"]);
+    expect(word()).toEqual(["O1", "H4", "O1"]);
+    expect(colors()).toEqual([false, false, false]);
 
     await user.click(within(panel).getByRole("button", { name: "Find moves" }));
-    await user.click(await within(panel).findByRole("button", { name: "Close possible moves" }));
-    expect(tiles()).toEqual(["A1", "H4", "A1"]);
+    const close = await within(panel).findByRole("button", { name: "Close possible moves" });
+    random.mockReturnValueOnce(0).mockReturnValueOnce(0.1).mockReturnValueOnce(0.2).mockReturnValueOnce(0.8);
+    fireEvent.click(close);
+    expect(word()).toEqual(["A1", "H4", "A1"]);
+    expect(colors()).toEqual([true, true, false]);
   } finally {
     random.mockRestore();
   }
