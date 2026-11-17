@@ -4577,3 +4577,43 @@ test("an archived game can solve an edited empty-bag position before and after F
   await user.click(screen.getByRole("button", { name: "Close opponent endgame" }));
   expect(screen.getByRole("button", { name: "Analyze" })).toBeTruthy();
 });
+
+test("an active empty-bag game can solve with two partial racks and no refill history", async () => {
+  const { board, template } = playBeforeRefill();
+  remote.games[0] = {
+    ...game(),
+    board,
+    template: { ...template, rackSize: 4 },
+    rack: "DSD",
+    revision: 1,
+  };
+  const requests: OpponentEndgameRequest[] = [];
+  class PartialRackEndgameWorker extends SolverWorker {
+    postMessage(request: SolverRequest | OpponentEndgameRequest) {
+      if (request.kind !== "solve-opponent-endgame")
+        return super.postMessage(request);
+      requests.push(request);
+      void parallelOpponentEndgame(
+        new Lexicon(opponentEndgameWords), request, 1, () => undefined,
+      ).then((result) => this.onmessage?.({ data: { result } }));
+    }
+  }
+  vi.stubGlobal("Worker", PartialRackEndgameWorker);
+  const user = await start();
+  const solveEndgame = () => screen.getByRole("button", { name: "Solve endgame" });
+  await user.click(await screen.findByRole("button", { name: "Solve endgame" }));
+
+  const results = within(await screen.findByRole("region", { name: "Opponent endgame" }));
+  expect(requests[0]).toMatchObject({ rack: "DSD", opponentRack: "AOT" });
+  const list = results.getByRole("list", { name: /sorted by swing for you/ });
+  await user.click(within(list).getAllByRole("button")[0]);
+  expect(results.getByRole("button", { pressed: true }).textContent).toContain("Opponent");
+  expect(current().board).toEqual(board);
+  expect(current().rack).toBe("DSD");
+  await user.click(results.getByRole("button", { name: "Close opponent endgame" }));
+
+  await user.click(within(screen.getByRole("region", { name: "Possible moves" }))
+    .getByRole("button", { name: "Find moves" }));
+  await screen.findByRole("button", { name: "Analyze" });
+  expect(solveEndgame()).toBeTruthy();
+});
