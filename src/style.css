@@ -1851,7 +1851,22 @@ label + label {
   width: 100%;
   height: 100%;
 }
+.calculation-find-moves {
+  position: absolute;
+  inset: -7px;
+  display: grid;
+  place-items: center;
+  padding: 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.calculation-find-moves:hover {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
 .calculation-spinner {
+  pointer-events: none;
   opacity: 0;
   transform: translateY(4px) scale(.76);
 }
