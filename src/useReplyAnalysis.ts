@@ -355,6 +355,7 @@ export function useReplyAnalysis(
     bagSize,
     minimumBag,
     unseen: pool?.total ?? 0,
+    unseenPool: pool,
     invalid,
     bagConfirmed: confirmed,
     opponentRack,

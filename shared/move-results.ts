@@ -43,6 +43,7 @@ export interface MoveQuery {
   sort: MoveSort;
   reversed?: boolean;
   offset: number;
+  locateMoveId?: string;
   rackOdds?: RackOdds;
   boardOdds?: BoardOddsResult;
   replyDeltas?: Record<string, number>;
@@ -65,6 +66,7 @@ export interface MovePage {
   scoreRanks: Record<string, number>;
   endgame?: Record<string, EndgameEstimate>;
   exactEndgameCount?: number;
+  locatedIndex?: number;
 }
 
 export function coversRequiredSquares(
@@ -251,6 +253,7 @@ export class MoveResultIndex {
     filter,
     requiredSquares,
     offset,
+    locateMoveId,
     endgameId,
     ...order
   }: MoveQuery): MovePage {
@@ -300,6 +303,9 @@ export class MoveResultIndex {
         rows.map(({ id }) => [id, this.scoreRanks.get(id)!]),
       ),
       exactEndgameCount,
+      ...(locateMoveId !== undefined && {
+        locatedIndex: moves.findIndex(({ id }) => id === locateMoveId),
+      }),
       endgame:
         estimates &&
         Object.fromEntries(

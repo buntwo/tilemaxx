@@ -26,6 +26,7 @@ export function useMoveResults(
     sort,
     reversed,
     offset,
+    locateMoveId,
     rackOdds,
     boardOdds,
     replyDeltas,
@@ -53,6 +54,7 @@ export function useMoveResults(
     key: string;
     page?: MovePage;
     orderData: typeof orderData;
+    locateMoveId?: string;
   }>();
   const response = received?.key === key ? received : undefined;
   const page = response?.page;
@@ -84,9 +86,10 @@ export function useMoveResults(
     Math.min(total, start + visibleMoveRows) <=
       slice.offset + slice.rows.length;
   const orderChanged = !!response && response.orderData !== orderData;
-  const unavailable = !!response && !page && !orderChanged;
+  const locateChanged = !!locateMoveId && response?.locateMoveId !== locateMoveId;
+  const unavailable = !!response && !page && !orderChanged && !locateChanged;
   const needsPage =
-    enabled && !!results && (orderChanged || (!unavailable && !hasWindow));
+    enabled && !!results && (locateChanged || orderChanged || (!unavailable && !hasWindow));
   // New analysis can reorder moves while the user is scrolled into this page.
   const previousOrder = orderChanged && hasWindow ? page : undefined;
   // Keep a window wider than the rendered rows. A small overlapping scroll
@@ -98,7 +101,7 @@ export function useMoveResults(
     let current = true;
     const settle = (next?: MovePage) => {
       if (current)
-        setReceived({ key, page: next ?? previousOrder, orderData });
+        setReceived({ key, page: next ?? previousOrder, orderData, locateMoveId });
     };
     void fetchPage(searchId, {
       filter,
@@ -106,6 +109,7 @@ export function useMoveResults(
       sort,
       reversed,
       offset: target,
+      locateMoveId,
       endgameId,
       ...orderData,
     }).then(settle, () => settle());
@@ -122,6 +126,7 @@ export function useMoveResults(
     requiredSquares,
     sort,
     reversed,
+    locateMoveId,
     endgameId,
     orderData,
     previousOrder,
@@ -136,6 +141,9 @@ export function useMoveResults(
     scoreRanks: page?.scoreRanks,
     endgame: page?.endgame,
     exactEndgameCount: page?.exactEndgameCount,
+    locatedIndex: locateMoveId && !locateChanged && !orderChanged
+      ? page?.locatedIndex
+      : undefined,
     pending: needsPage && !page && !initialHead,
     unavailable,
   };
