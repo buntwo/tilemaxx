@@ -123,6 +123,7 @@ import {
   tileScore,
   undo,
 } from "../shared/model";
+import { recentOpponentNames } from "../shared/game-index";
 
 type Dialog =
   | "screenshot"
@@ -1644,6 +1645,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             }}
           >
             <GameDetailFields
+              opponentSuggestions={recentOpponentNames(data.games, profileId)}
               onPlatformChange={(platform) => {
                 const board = defaultPlatformBoard(platform);
                 if (

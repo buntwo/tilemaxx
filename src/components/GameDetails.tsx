@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { History } from "lucide-react";
+import { opponentNameMatches } from "../../shared/game-index";
 import { localDate, MAX_GAME_NOTES, type Game } from "../../shared/model";
 import { gamePlatforms } from "../premium-palettes";
 
@@ -48,11 +49,109 @@ export function GameMetadata({
 
 const platforms: string[] = gamePlatforms.map(({ name }) => name);
 
+function OpponentField({ suggestions }: { suggestions: readonly string[] }) {
+  const listId = useId();
+  const [name, setName] = useState("");
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(-1);
+  const matches = suggestions.filter((option) => opponentNameMatches(option, name));
+  const expanded = open && matches.length > 0;
+  const active = expanded ? matches[highlight] : undefined;
+  const activeId = active ? `${listId}-${highlight}` : undefined;
+
+  useEffect(() => {
+    if (activeId)
+      document.getElementById(activeId)?.scrollIntoView?.({ block: "nearest" });
+  }, [activeId]);
+
+  function dismiss() {
+    setOpen(false);
+    setHighlight(-1);
+  }
+
+  function choose(option: string) {
+    setName(option);
+    dismiss();
+  }
+
+  return (
+    <div className="opponent-field">
+      <label>
+        Opponent
+        <input
+          name="opponent"
+          autoFocus
+          maxLength={80}
+          value={name}
+          placeholder="Opponent name"
+          autoComplete="off"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={expanded}
+          aria-controls={expanded ? listId : undefined}
+          aria-activedescendant={activeId}
+          onChange={(event) => {
+            setName(event.currentTarget.value);
+            setHighlight(-1);
+            setOpen(true);
+          }}
+          onClick={() => setOpen(true)}
+          onBlur={dismiss}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
+            if (event.key === "Escape" && expanded) {
+              event.preventDefault();
+              dismiss();
+            } else if (event.key === "Enter" && active) {
+              event.preventDefault();
+              choose(active);
+            } else if (
+              matches.length &&
+              (event.key === "ArrowDown" || event.key === "ArrowUp")
+            ) {
+              event.preventDefault();
+              setOpen(true);
+              setHighlight(
+                event.key === "ArrowDown"
+                  ? (highlight + 1) % matches.length
+                  : (highlight > 0 ? highlight : matches.length) - 1,
+              );
+            }
+          }}
+        />
+      </label>
+      {expanded && (
+        <div
+          className="opponent-suggestions"
+          id={listId}
+          role="listbox"
+          aria-label="Recent opponents"
+        >
+          {matches.map((option, index) => (
+            <div
+              key={option}
+              id={`${listId}-${index}`}
+              role="option"
+              aria-selected={index === highlight}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={() => choose(option)}
+            >
+              {option}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function GameDetailFields({
   game,
+  opponentSuggestions,
   onPlatformChange,
 }: {
   game?: Game;
+  opponentSuggestions?: readonly string[];
   onPlatformChange?: (platform: string) => void;
 }) {
   const savedPlatform = game?.platform ?? "";
@@ -67,16 +166,20 @@ export function GameDetailFields({
   const isOther = platform === "other";
   return (
     <>
-      <label>
-        Opponent
-        <input
-          name="opponent"
-          autoFocus
-          maxLength={80}
-          defaultValue={game?.name}
-          placeholder="Opponent name"
-        />
-      </label>
+      {opponentSuggestions ? (
+        <OpponentField suggestions={opponentSuggestions} />
+      ) : (
+        <label>
+          Opponent
+          <input
+            name="opponent"
+            autoFocus
+            maxLength={80}
+            defaultValue={game?.name}
+            placeholder="Opponent name"
+          />
+        </label>
+      )}
       <label>
         Platform
         <select

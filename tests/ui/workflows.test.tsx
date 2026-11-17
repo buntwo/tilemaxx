@@ -638,6 +638,63 @@ test("a new game defaults to imported WOW24 even from another dictionary", async
   expect(current().dictionaryId).toBe("test");
 });
 
+test("new game suggests distinct opponents by the end date or start date within two weeks", async () => {
+  function daysAgo(days: number) {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return localDate(date);
+  }
+  remote.profiles.push({ id: "other", name: "Other profile" });
+  remote.games.push(
+    { ...game(), id: "active", name: "Casey", startedOn: daysAgo(14) },
+    {
+      ...game(),
+      id: "finished",
+      name: "Morgan",
+      startedOn: daysAgo(60),
+      archived: true,
+      scoring: {
+        ...emptyScoring(),
+        end: { manual: true, endedOn: daysAgo(8) },
+      },
+    },
+    { ...game(), id: "duplicate", name: "morgan", startedOn: daysAgo(9) },
+    { ...game(), id: "stale", name: "Taylor", startedOn: daysAgo(15) },
+    { ...game(), id: "future", name: "Sky", startedOn: daysAgo(-1) },
+    {
+      ...game(),
+      id: "other-profile",
+      profileId: "other",
+      name: "Sam",
+      startedOn: daysAgo(0),
+    },
+  );
+  const user = await start();
+  await act(() => store.refresh());
+  await user.click(screen.getByRole("button", { name: "New game" }));
+  const setup = within(screen.getByRole("dialog", { name: "New game" }));
+  const opponent = setup.getByRole<HTMLInputElement>("combobox", {
+    name: "Opponent",
+  });
+  await user.click(opponent);
+  const list = () => within(setup.getByRole("listbox", { name: "Recent opponents" }));
+  expect(list().getAllByRole("option").map(({ textContent }) => textContent))
+    .toEqual(["Morgan", "Casey"]);
+
+  await user.type(opponent, "ORG");
+  expect(list().getAllByRole("option")).toHaveLength(1);
+  expect(list().getByRole("option", { name: "Morgan" })).toBeTruthy();
+  await user.keyboard("{ArrowDown}{Enter}");
+  expect(opponent.value).toBe("Morgan");
+  expect(setup.queryByRole("listbox")).toBeNull();
+
+  await user.clear(opponent);
+  await user.type(opponent, "A new opponent");
+  expect(setup.queryByRole("listbox")).toBeNull();
+  await user.click(setup.getByRole("button", { name: "Create game" }));
+  await screen.findByRole("heading", { name: "A new opponent" });
+});
+
 test("new game board follows the platform until the board is picked manually", async () => {
   const user = await start();
   const openSetup = async () => {
@@ -654,7 +711,7 @@ test("new game board follows the platform until the board is picked manually", a
   await user.selectOptions(board, "super");
   await user.selectOptions(platform, "In person");
   expect(board).toHaveProperty("value", "super");
-  await user.type(setup.getByRole("textbox", { name: "Opponent" }), "Preset check");
+  await user.type(setup.getByLabelText("Opponent"), "Preset check");
   await user.click(setup.getByRole("button", { name: "Create game" }));
   await screen.findByRole("heading", { name: "Preset check" });
   expect(remote.games.find(({ name }) => name === "Preset check")?.template.id).toBe("super");
@@ -1548,7 +1605,7 @@ test("board edits stop a running solver and game switching clears the entry curs
   await user.keyboard("A");
   expect(running!.terminate).toHaveBeenCalledOnce();
   await user.click(cell("New game"));
-  await user.type(screen.getByRole("textbox", { name: "Opponent" }), "Another");
+  await user.type(screen.getByLabelText("Opponent"), "Another");
   await user.click(cell("Create game"));
   await screen.findByRole("heading", { name: /Another/ });
   expect(selectedCell()).toBeUndefined();
@@ -2286,7 +2343,7 @@ test("new games start with score tracking on even after an earlier opt-out", asy
     const tracking = setup.getByRole("checkbox", { name: "Track scores" });
     expect(tracking).toHaveProperty("checked", true);
     if (!trackScores) await user.click(tracking);
-    await user.type(setup.getByRole("textbox", { name: "Opponent" }), name);
+    await user.type(setup.getByLabelText("Opponent"), name);
     await user.click(setup.getByRole("button", { name: "Create game" }));
     await screen.findByRole("heading", { name });
     const scores = within(screen.getByRole("region", { name: "Game scores" }));
@@ -2375,10 +2432,7 @@ test("multiple games retain separate racks and word lists", async () => {
   const user = await start();
   await typeRack(user, "CAT");
   await user.click(screen.getByRole("button", { name: "New game" }));
-  await user.type(
-    screen.getByRole("textbox", { name: "Opponent" }),
-    "Second game",
-  );
+  await user.type(screen.getByLabelText("Opponent"), "Second game");
   await user.selectOptions(
     screen.getByRole("combobox", { name: "Platform" }),
     "Scrabble GO",
