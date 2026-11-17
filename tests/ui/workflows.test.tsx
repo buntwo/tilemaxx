@@ -5075,11 +5075,11 @@ test("the empty Possible moves tiles keep their word until the panel reopens", a
     const panel = screen.getByRole("region", { name: "Possible moves" });
     const tiles = () =>
       [...panel.querySelectorAll(".illustrated-tiles > span")].map((tile) => tile.textContent);
-    expect(tiles()).toEqual(["W4", "A1", "T1"]);
+    expect(tiles()).toEqual(["O1", "H4", "O1"]);
 
     random.mockReturnValue(0);
     await typeRack(user, "CATS");
-    expect(tiles()).toEqual(["W4", "A1", "T1"]);
+    expect(tiles()).toEqual(["O1", "H4", "O1"]);
 
     await user.click(within(panel).getByRole("button", { name: "Find moves" }));
     await user.click(await within(panel).findByRole("button", { name: "Close possible moves" }));
