@@ -34,11 +34,16 @@ export default function BoardFinishOverlay({
   const overlay = useRef<HTMLDivElement>(null);
   const dismissButton = useRef<HTMLButtonElement>(null);
   const dismiss = useCallback(() => {
-    if (document.activeElement === dismissButton.current)
-      overlay.current?.parentElement
-        ?.querySelector<HTMLButtonElement>(`[data-cell="${square}"]`)
-        ?.focus({ preventScroll: true });
+    const focusedSquare =
+      document.activeElement === dismissButton.current
+        ? overlay.current?.parentElement?.querySelector<HTMLButtonElement>(
+            `[data-cell="${square}"]`,
+          )
+        : undefined;
     onDismiss();
+    // The square becomes focusable after the overlay closes.
+    if (focusedSquare)
+      requestAnimationFrame(() => focusedSquare.focus({ preventScroll: true }));
   }, [onDismiss, square]);
   useEffect(() => {
     function escape(event: KeyboardEvent) {

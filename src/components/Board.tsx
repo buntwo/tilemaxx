@@ -28,6 +28,7 @@ export default function Board({
   selected,
   markedSquares,
   selectingSquares = false,
+  disabled = false,
   onSelect,
   paint,
   compact = false,
@@ -47,6 +48,7 @@ export default function Board({
   selected?: number | null;
   markedSquares?: ReadonlySet<number>;
   selectingSquares?: boolean;
+  disabled?: boolean;
   onSelect?: (index: number, repeatTap?: boolean) => void;
   paint?: boolean;
   compact?: boolean;
@@ -141,6 +143,7 @@ export default function Board({
                   type="button"
                   key={i}
                   data-cell={i}
+                  disabled={disabled}
                   tabIndex={compact && !overlay ? -1 : undefined}
                   className={`square ${bonus.toLowerCase()} ${tile ? "occupied" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}${wordTiles.has(i) ? " word-hover" : ""}${marked ? " move-filter-square" : ""}`}
                   aria-label={`${coordinate(i, n)}${tile ? `: ${tile.toUpperCase()}${tile === tile.toLowerCase() ? " blank" : ""}` : bonus ? `: ${bonus}` : ": empty"}${i === template.start ? ", start" : ""}${archiveEdit ? ", edited after archiving" : ""}${overlay ? `, ${overlay.label}` : ""}${marked && !selectingSquares ? ", required for move filter" : ""}`}

@@ -330,6 +330,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       ? flight
       : undefined;
   const gameFinish = useGameFinish(workspace === "games" ? game : undefined, !!activeFlight);
+  const boardLocked = !!gameFinish.current;
   const availableUpdate = useAutoUpdate(
     state.online ? state.serverVersion : undefined,
     preferences.autoUpdate,
@@ -478,7 +479,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       active.blur();
   }
   function undoGame() {
-    if (!game?.past.length) return;
+    if (boardLocked || !game?.past.length) return;
     const previous = undo(game);
     const previousSignature = positionSignature(previous);
     if (previousSignature !== signature)
@@ -589,7 +590,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     setPreview(move ? { move, analysis, player } : null);
   }
   function play(move: Move) {
-    if (!game || activeFlight) return;
+    if (!game || activeFlight || boardLocked) return;
     try {
       const next = playTrackedMove(game, move, replyAnalysis.bagSize);
       const motion = preferences.animatePlayedTiles
@@ -810,7 +811,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     <>
       <button
         className="icon-button board-undo"
-        disabled={!game.past.length}
+        disabled={boardLocked || !game.past.length}
         aria-label="Undo"
         title="Undo"
         onClick={undoGame}
@@ -819,7 +820,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       </button>
       <button
         className="icon-button board-redo"
-        disabled={!game.future.length}
+        disabled={boardLocked || !game.future.length}
         aria-label="Redo"
         title="Redo"
         onClick={() => update(redo(game))}
@@ -866,6 +867,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           className="icon-button"
           aria-label="Import screenshot"
           title="Import screenshot"
+          disabled={boardLocked}
           onClick={() => openDialog("screenshot")}
         >
           <ImagePlus size={17} />
@@ -1119,7 +1121,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     className="button secondary restore-game"
                     aria-label="Restore game"
                     title="Restore game"
-                    disabled={!game.archivedBoard}
+                    disabled={boardLocked || !game.archivedBoard}
                     onClick={() => {
                       update(restoreArchivedGame(game));
                       notify(
@@ -1238,7 +1240,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 aria-label="Game board"
                 className="board-panel panel"
                 onKeyDown={(event) => {
-                  if (squareFilter.selecting && event.key === "Escape") {
+                  if (
+                    !boardLocked &&
+                    squareFilter.selecting &&
+                    event.key === "Escape"
+                  ) {
                     event.preventDefault();
                     finishSquareSelection();
                   }
@@ -1248,7 +1254,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   key={game.id}
                   game={game}
                   hideHelp
-                  preview={activeFlight?.move ?? preview}
+                  preview={boardLocked ? null : activeFlight?.move ?? preview}
+                  readOnly={boardLocked}
                   displayBoard={activeFlight?.before.board}
                   onChange={updateAfterTurn}
                   overlay={
@@ -1302,7 +1309,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                         className="board-review-play"
                         data-move-preview-action
                         type="button"
-                        disabled={!preview || !!activeFlight}
+                        disabled={boardLocked || !preview || !!activeFlight}
                         onClick={() => preview && play(preview)}
                       >
                         <span className="button primary">Play</span>
@@ -1388,6 +1395,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                       ref={squareFilterButton}
                       className={`icon-button move-square-toggle${squareFilter.marks.size ? " has-required-squares" : ""}`}
                       type="button"
+                      disabled={boardLocked}
                       aria-label="Filter moves by squares"
                       aria-pressed={squareFilter.selecting}
                       title={squareFilter.marks.size ? `Filter moves by squares (${squareFilter.marks.size} selected)` : "Filter moves by squares"}
@@ -1844,7 +1852,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           <footer className="modal-footer">
             <button
               className="button secondary"
-              disabled={!game.future.length}
+              disabled={boardLocked || !game.future.length}
               onClick={() => update(redo(game))}
             >
               <Redo2 size={16} />
@@ -1852,7 +1860,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             </button>
             <button
               className="button primary"
-              disabled={!game.past.length}
+              disabled={boardLocked || !game.past.length}
               onClick={undoGame}
             >
               <Undo2 size={16} />
@@ -2012,7 +2020,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           <div className="game-option-list" aria-busy={formBusy}>
             {!compactGame && (
               <>
-                <button disabled={formBusy} onClick={() => openDialog("screenshot")}>
+                <button disabled={formBusy || boardLocked} onClick={() => openDialog("screenshot")}>
                   <ImagePlus size={19} />
                   <span><strong>Import screenshot</strong></span>
                   <ArrowUpRight size={16} />
@@ -2126,7 +2134,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               </button>
             )}
             <button
-              disabled={formBusy}
+              disabled={formBusy || boardLocked}
               onClick={() => {
                 update({
                   ...game,
