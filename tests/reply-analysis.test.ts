@@ -43,14 +43,19 @@ test("paired histograms weight physical copies and use a fixed reference", () =>
   const moves = solve(lexicon, board, "IZ", template);
   const opens = moves.find((move) => move.tiles[0].index === 7)!;
   const baseline = moves.find((move) => move.tiles[0].index === 9)!;
+  const checked: number[] = [];
   const check = prepareReplyAnalysis(
     lexicon,
     { template, board, rack: "IZ", bagSize: 3, scorelessTurns: 0 },
     baseline,
     500,
     budget,
+    false,
+    (weight) => checked.push(weight),
   );
+  assert.deepEqual(checked, [2, 1, 1]);
   const result = check(opens);
+  assert.deepEqual(checked, [2, 1, 1, 2, 1, 1]);
   assert.equal(result.kind, "distribution");
   assert.equal(result.count, 4);
   assert.equal(result.exact, true);
@@ -66,7 +71,9 @@ test("paired histograms weight physical copies and use a fixed reference", () =>
   assert.equal(replyColor(result, 0), "less");
   assert.equal(replyColor(result, 2), "more");
   assert.equal(replyColor(result, 4), "similar");
+  const checksBeforeReference = checked.length;
   assert.equal(check(baseline).difference, 0);
+  assert.equal(checked.length, checksBeforeReference);
 });
 
 test("reply diagnostics distinguish the analysis deadline from a single rack deadline", (t) => {

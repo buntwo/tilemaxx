@@ -682,13 +682,45 @@ test("reply rows resolve individually and compare against the highest score afte
   await user.click(
     within(inline).getByRole("button", { name: "Refine to 5,000 racks" }),
   );
-  expect(worker!.request).toMatchObject({
+  const refinement = worker!.request!;
+  expect(refinement).toMatchObject({
     kind: "reply-detail",
     reference: { id: "a" },
     samples: 5_000,
     captureHeatmap: true,
   });
+  const refining = (count: number) =>
+    within(inline).getByRole("button", { name: `Refining replies… ${count}/5000` });
+  expect(refining(0)).toHaveProperty("disabled", true);
+  act(() => worker!.onmessage?.({
+    data: { kind: "reply-detail", id: refinement.id, racksChecked: 124 },
+  }));
+  expect(refining(124)).toBeTruthy();
+  act(() => worker!.onmessage?.({
+    data: { kind: "reply-detail", id: heatmapRequest.id, racksChecked: 200 },
+  }));
+  expect(refining(124)).toBeTruthy();
+  act(() => worker!.onmessage?.({
+    data: { kind: "reply-detail", id: refinement.id, racksChecked: 3_650 },
+  }));
+  expect(refining(3650)).toBeTruthy();
   expect(within(inline).getByText("31.0").parentElement?.textContent).toBe("35.0 → 31.0 pts");
+  act(() => worker!.onmessage?.({
+    data: {
+      kind: "reply-detail",
+      id: refinement.id,
+      result: {
+        ...reply,
+        count: 5_000,
+        buckets: reply.buckets.map((count) => count * 10),
+        outscored: reply.outscored * 10,
+        discordant: reply.discordant.map((count) => count * 10),
+        reference: { ...reply.reference, buckets: reply.reference.buckets.map((count) => count * 10) },
+      },
+    },
+  }));
+  expect(within(inline).queryByRole("button", { name: /Refining replies/ })).toBeNull();
+  expect(within(inline).getByText("5,000 sampled racks")).toBeTruthy();
   expect(onPlay).not.toHaveBeenCalled();
   await user.click(mini);
   expect(onPlay).toHaveBeenCalledExactlyOnceWith(moves[1]);

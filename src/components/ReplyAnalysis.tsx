@@ -616,7 +616,9 @@ export function ReplyPreview({
               })
             }
           >
-            {detail?.pending ? "Refining replies…" : "Refine to 5,000 racks"}
+            {detail?.pending
+              ? `Refining replies… ${detail.racksChecked ?? 0}/${REPLY_REFINED_SAMPLES}`
+              : "Refine to 5,000 racks"}
           </button>
         )}
       </div>

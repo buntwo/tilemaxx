@@ -114,6 +114,7 @@ export type ReplyWorkerMessage = {
   kind: ReplyRequest["kind"];
   moveId?: string;
   result?: ReplyResult;
+  racksChecked?: number;
   line?: EndgameLine;
   done?: boolean;
   error?: string;
@@ -228,6 +229,7 @@ export function prepareReplyAnalysis(
   samples: number,
   deadline: () => number,
   captureHeatmap = false,
+  onRacksChecked?: (weight: number) => void,
 ) {
   const {
     board,
@@ -343,6 +345,7 @@ export function prepareReplyAnalysis(
       samplesForBoard,
       deadline,
       captureHeatmap,
+      onRacksChecked,
     );
   const baseline = summarize(reference);
   return (candidate: Move): ReplyDistribution =>
@@ -371,6 +374,7 @@ export function summarizeReplyBoard(
   { racks }: ReplyRacks,
   deadline: () => number,
   captureHeatmap = false,
+  onRacksChecked?: (weight: number) => void,
 ) {
   const count = racks.reduce((sum, { weight }) => sum + weight, 0);
   const solver = prepareSolver(lexicon, placeTiles(board, candidate), template);
@@ -425,6 +429,7 @@ export function summarizeReplyBoard(
     bucketByRack[i] = index;
     sum += score * weight;
     if (score > candidate.score) outscored += weight;
+    onRacksChecked?.(weight);
   }
   const squares = Array.from(hotspots, ([square, { count, examples }]) => {
     const ranked = [...examples.values()].sort(
