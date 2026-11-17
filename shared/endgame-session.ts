@@ -1,3 +1,8 @@
+import {
+  createEndgamePositionKeys,
+  type EndgamePositionKey,
+} from "./endgame-position";
+import { createEndgameTable, type EndgameTableEntry } from "./endgame-table";
 import type { Board, BoardTemplate, Move } from "./model";
 import {
   rackPoints,
@@ -8,14 +13,8 @@ import {
 } from "./endgame";
 import { SearchLimitError } from "./solver";
 
-type Flag = "exact" | "lower" | "upper";
-type Entry = {
-  value: number;
-  flag: Flag;
-  depth: number;
-  proved: boolean;
-  best?: Move | null;
-};
+type Flag = EndgameTableEntry["flag"];
+type Entry = EndgameTableEntry;
 type Result = { value: number; proved: boolean };
 type Search = (board: Board, rack: string, deadline: number) => Move[];
 class SliceLimit extends Error {
@@ -42,7 +41,9 @@ export function createEndgameSession(
     tableLimit > ENDGAME_TABLE_LIMIT
   )
     throw new Error("Invalid endgame table size.");
-  const table = new Map<string, Entry>();
+  const positions = createEndgamePositionKeys(template.size ** 2, place);
+  place = positions.place;
+  const table = createEndgameTable(tableLimit);
   const points = new Map<string, number>();
   const value = (r: string) => {
     let p = points.get(r);
@@ -69,22 +70,10 @@ export function createEndgameSession(
     if (performance.now() >= deadline) throw new SliceLimit("time");
     if (stats.nodes >= totalNodesLimit) throw new SliceLimit("work");
   };
-  const key = (b: Board, a: string, c: string, s: number) =>
-    `${b.join(".")}|${a}|${c}|${s}`;
-  const save = (k: string, e: Entry) => {
-    const prior = table.get(k);
-    if (prior?.proved && prior.flag === "exact") return;
-    if (prior && prior.proved && !e.proved) return;
+  const key = positions.key;
+  const save = (k: EndgamePositionKey, e: Entry) => {
     table.set(k, e);
-    const limit = tableLimit;
-    if (table.size > limit) {
-      let n = Math.ceil(limit / 10);
-      for (const k of table.keys()) {
-        table.delete(k);
-        stats.evictions++;
-        if (--n === 0) break;
-      }
-    }
+    stats.evictions = table.evictions;
   };
   const find = (b: Board, r: string) => {
     check();
