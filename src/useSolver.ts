@@ -16,6 +16,7 @@ import type { ShortlistEntry } from "../shared/move-shortlist";
 import type { SolverMessage, SolverRequest } from "./solver-messages";
 import type { EndgameSettings } from "../shared/endgame";
 import type { MoveTiming, SolverStages } from "./move-timing";
+import type { ReplyCandidate } from "../shared/reply-candidates";
 
 type Snapshot = {
   results: MoveResults | null;
@@ -25,6 +26,7 @@ type Snapshot = {
   timing?: MoveTiming;
   rackOdds?: RackOdds;
   defense?: DefenseResults;
+  replyCandidates?: ReplyCandidate[] | null;
   boardOdds?: BoardOddsResult;
   exchangeAdvice?: ExchangeAdvice;
 };
@@ -233,7 +235,13 @@ export function useSolver(positionKey: string) {
           discard(visibleSearch.current);
           visibleSearch.current = message.id;
           const { results, warnings, stages, exchange } = message;
-          setSnapshot({ results, warnings, stages, startedAt: startedAt.current });
+          setSnapshot({
+            results,
+            warnings,
+            stages,
+            startedAt: startedAt.current,
+            replyCandidates: message.replyCandidatesPending ? null : undefined,
+          });
           setBusy("");
           if (exchange) checkExchange(exchange, message.id);
           const pending = results.total > 0;
@@ -243,10 +251,11 @@ export function useSolver(positionKey: string) {
           break;
         }
         case "defense":
-          if (message.defense || message.elapsed !== undefined)
+          if (message.defense || message.elapsed !== undefined || message.replyCandidates)
             setSnapshot((current) => ({
               ...current,
               defense: message.defense ?? current.defense,
+              replyCandidates: message.replyCandidates ?? current.replyCandidates,
               stages: current.stages && {
                 ...current.stages,
                 premiumReplies: message.elapsed,

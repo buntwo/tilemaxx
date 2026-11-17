@@ -8,6 +8,7 @@ import {
   replyEndgameLine,
   ReplySearchLimitError,
   sampleReplyRacks,
+  summarizeReplyBoard,
   type ReplyRequest,
   type ReplyWorkerMessage,
 } from "../shared/reply-analysis";
@@ -20,6 +21,12 @@ let dictionary: { id: string; lexicon: Lexicon } | undefined;
 let summary: Extract<ReplyRequest, { kind: "reply-summary" }> | undefined;
 let detail: Exclude<ReplyRequest, { kind: "reply-summary" }> | undefined;
 let running = false;
+type Histogram = ReturnType<typeof summarizeReplyBoard>;
+let sampledBaseline: {
+  referenceId: string;
+  samples: ReturnType<typeof sampleReplyRacks>;
+  board: Histogram;
+} | undefined;
 const yieldToMessages = () =>
   new Promise<void>((resolve) => setTimeout(resolve, 0));
 
@@ -119,7 +126,6 @@ async function runHistograms(
   if (!candidates.length) return;
   const samples = sampleReplyRacks(position, REPLY_SAMPLES);
   type HistogramResult = Extract<CandidateResult, { kind: "histogram" | "limit" }>;
-  type Histogram = Extract<HistogramResult, { kind: "histogram" }>["board"];
   let baseline: Histogram | undefined;
   const ready = new Map<string, HistogramResult>();
   const publishReference = candidates.some(({ id }) => id === reference.id);
@@ -149,6 +155,7 @@ async function runHistograms(
           throw new Error(result.message);
         }
         baseline = result.board;
+        sampledBaseline = { referenceId: reference.id, samples, board: baseline };
         if (publishReference) {
           const result = compareReplyBoards(baseline, baseline, samples);
           publish({ id, kind, moveId: move.id, result });
@@ -187,6 +194,18 @@ async function runDetail(
         2_500,
       );
       publish({ id, kind, line });
+    } else if (kind === "reply-histogram") {
+      const deadline = performance.now() + REPLY_DETAIL_TIME_MS;
+      const cached =
+        sampledBaseline?.referenceId === reference.id ? sampledBaseline : undefined;
+      const samples = cached?.samples ?? sampleReplyRacks(request, REPLY_SAMPLES);
+      const baseline = cached?.board ??
+        summarizeReplyBoard(lexicon, request, reference, samples, () => deadline);
+      sampledBaseline = { referenceId: reference.id, samples, board: baseline };
+      const board = candidate.id === reference.id
+        ? baseline
+        : summarizeReplyBoard(lexicon, request, candidate, samples, () => deadline);
+      publish({ id, kind, result: compareReplyBoards(board, baseline, samples) });
     } else {
       const deadline = performance.now() + REPLY_DETAIL_TIME_MS;
       const analyze = prepareReplyAnalysis(

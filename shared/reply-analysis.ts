@@ -92,6 +92,7 @@ export interface ReplyPosition extends Position, EndgameSettings {
 }
 
 export type ReplyDetailOptions =
+  | { kind: "reply-histogram" }
   | {
       kind: "reply-detail";
       samples: typeof REPLY_SAMPLES | typeof REPLY_REFINED_SAMPLES;

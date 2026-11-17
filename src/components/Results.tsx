@@ -80,6 +80,7 @@ import {
 } from "../useMoveResults";
 import ReplyHeatmapDialog, {
   ReplyCell,
+  ReplyHistogramStatus,
   ReplyLimitNotice,
   ReplyPreview,
   ReplySettings,
@@ -336,18 +337,22 @@ export default function Results({
     move: Move;
     searchId: number;
   }>();
-  const [heatmap, setHeatmap] = useState<{ id: string; searchId: number }>();
+  const [heatmap, setHeatmap] = useState<{ move: Move; searchId: number }>();
   const replyMove =
     (analyzing ? null : preview) ??
     (inspectedReply?.searchId === resultSet?.searchId
       ? inspectedReply?.move
       : undefined);
   const replyDetail = replyMove && replyAnalysis.results?.[replyMove.id];
+  const requestedHistogram = replyMove &&
+    replyAnalysis.detail?.key === `reply-histogram:${replyMove.id}`
+      ? replyAnalysis.detail
+      : undefined;
   const replyLine = replyMove && replyAnalysis.cachedEndgame(replyMove.id);
   const replyLength = replyLine && endgameLength(replyLine);
   const heatmapMove =
     heatmap?.searchId === resultSet?.searchId
-      ? replyAnalysis.target.find(({ id }) => id === heatmap?.id)
+      ? heatmap?.move
       : undefined;
   const originalHeatmap =
     heatmapMove && replyAnalysis.results?.[heatmapMove.id];
@@ -365,7 +370,7 @@ export default function Results({
         : undefined;
     const result = detail?.result ?? replyAnalysis.results?.[move.id];
     if (result?.kind !== "distribution") return;
-    setHeatmap({ id: move.id, searchId: resultSet.searchId });
+    setHeatmap({ move, searchId: resultSet.searchId });
     if (!result.heatmap)
       replyAnalysis.requestDetail(move, {
         kind: "reply-detail",
@@ -375,6 +380,13 @@ export default function Results({
             : REPLY_SAMPLES,
         captureHeatmap: true,
       });
+  }
+  function checkReplyHistogram(move: Move) {
+    if (!resultSet || !replyAnalysis.canRequestHistogram) return;
+    setLocked(null);
+    onPreview(null);
+    setInspectedReply({ move, searchId: resultSet.searchId });
+    replyAnalysis.requestDetail(move, { kind: "reply-histogram" });
   }
   const replyDeltas = useMemo(
     () =>
@@ -1148,6 +1160,10 @@ export default function Results({
                   ? blockedReplyPoints(risk.closed)
                   : undefined;
                 const reply = replyAnalysis.results?.[m.id];
+                const extraReason = replyAnalysis.extraReasons[m.id];
+                const extraLabel = extraReason === "block" ? "Premium block" :
+                  extraReason === "leave" ? "Better leave" : undefined;
+                const movePosition = coordinate(m.row * size + m.col, size);
                 const adjusted = showAdjustedPoints && reply?.kind === "distribution"
                   ? replyAdjustedPoints(m, reply.difference)
                   : undefined;
@@ -1183,9 +1199,12 @@ export default function Results({
                     ? `${replyMetricId}-${start + offset}`
                     : undefined;
                 const replyPending =
-                  targetIds.has(m.id) &&
-                  replyAnalysis.pending &&
-                  !(m.id in (replyAnalysis.results ?? {}));
+                  (targetIds.has(m.id) &&
+                    replyAnalysis.pending &&
+                    !(m.id in (replyAnalysis.results ?? {}))) ||
+                  (!!replyAnalysis.detail?.pending &&
+                    replyAnalysis.detail.key === `reply-histogram:${m.id}`);
+                const checkHistogram = !analyzing && replyEnabled && replyAnalysis.canRequestHistogram;
                 const sacrifice = topScore === null ? 0 : topScore - m.score;
                 const sacrificeLabel =
                   topScore === null
@@ -1238,7 +1257,7 @@ export default function Results({
                         !selected &&
                         candidates.length >= ANALYSIS_LIMIT
                       }
-                      aria-label={`${m.word}, ${m.score} points, ${coordinate(m.row * size + m.col, size)} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrificeLabel}${adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : ""}${scoreRankLabel ? `, ${scoreRankLabel}` : ""}`}
+                      aria-label={`${m.word}, ${m.score} points, ${movePosition} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrificeLabel}${adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : extraLabel ? `, ${extraLabel}` : ""}${scoreRankLabel ? `, ${scoreRankLabel}` : ""}`}
                       onPointerDown={(e) => {
                         pointer.current = e.pointerType;
                       }}
@@ -1316,11 +1335,11 @@ export default function Results({
                           <span className="result-word-note">
                             {short
                               ? `${short.reason}${short.detail ? ` · ${short.detail}` : ""}`
-                              : `${m.tiles.length} tile${m.tiles.length !== 1 ? "s" : ""}`}
-                            {!short && m.blanks
+                              : extraLabel ?? `${m.tiles.length} tile${m.tiles.length !== 1 ? "s" : ""}`}
+                            {!short && !extraLabel && m.blanks
                               ? ` · ${m.blanks} blank${m.blanks > 1 ? "s" : ""}`
                               : ""}
-                            {!short && m.crosses.length
+                            {!short && !extraLabel && m.crosses.length
                               ? ` · +${m.crosses.length} cross`
                               : ""}
                           </span>
@@ -1457,29 +1476,35 @@ export default function Results({
                         />
                       </span>
                     )}
-                    {!showEndgameSwing && !reply && !replyPending && risk && (
-                      <button
-                        type="button"
-                        className={`result-defense-action icon-button ${risk.opened ? "defense-warning" : "defense-covered"}`}
-                        aria-label={`Reply risk for ${m.word} at ${coordinate(m.row * size + m.col, size)} ${m.direction}. ${defenseLabel(risk, size)}`}
-                        title={defenseLabel(risk, size)}
-                        onClick={() =>
-                          setInspectedDefense({
-                            move: m,
-                            risk,
-                            key: analysisKey,
-                          })
-                        }
-                      >
-                        <span
-                          className="result-defense-badge"
-                          aria-hidden="true"
-                        >
-                          {riskScore === undefined
-                            ? `−${blockedPoints}`
-                            : `↑${riskScore}`}
-                        </span>
-                      </button>
+                    {!showEndgameSwing && !reply && !replyPending && (risk || checkHistogram) && (
+                      <div className="result-defense-action result-reply-actions">
+                        {risk && (
+                          <button
+                            type="button"
+                            className={`icon-button ${risk.opened ? "defense-warning" : "defense-covered"}`}
+                            aria-label={`Reply risk for ${m.word} at ${movePosition} ${m.direction}. ${defenseLabel(risk, size)}`}
+                            title={defenseLabel(risk, size)}
+                            onClick={() =>
+                              setInspectedDefense({ move: m, risk, key: analysisKey })
+                            }
+                          >
+                            <span className="result-defense-badge" aria-hidden="true">
+                              {riskScore === undefined ? `−${blockedPoints}` : `↑${riskScore}`}
+                            </span>
+                          </button>
+                        )}
+                        {checkHistogram && (
+                          <button
+                            type="button"
+                            className="icon-button result-histogram-trigger"
+                            aria-label={`Check reply histogram for ${m.word} at ${movePosition} ${m.direction}`}
+                            title="Check reply histogram"
+                            onClick={() => checkReplyHistogram(m)}
+                          >
+                            <ChartNoAxesCombined size={15} aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
@@ -1503,7 +1528,7 @@ export default function Results({
         )}
         {replyAnalysis.pending ? (
           <span title="Checking opponent replies">
-            Replies {Object.keys(replyAnalysis.results ?? {}).length}/
+            Replies {replyAnalysis.target.filter(({ id }) => id in (replyAnalysis.results ?? {})).length}/
             {replyAnalysis.target.length}
           </span>
         ) : !endgame && boardOddsProgress ? (
@@ -1518,7 +1543,7 @@ export default function Results({
           timing && <MoveTimingButton timing={timing} size={size} />
         )}
       </footer>
-      {analysisGame && replyMove && (replyLine || replyDetail) && (
+      {analysisGame && replyMove && (replyLine || replyDetail || requestedHistogram) && (
         <section
           className={`inline-reply${compact && replyDetail?.kind === "distribution" ? " compact-reply" : ""}`}
           aria-label={`Reply after ${replyMove.word}`}
@@ -1540,7 +1565,7 @@ export default function Results({
               line={replyLine}
               opponentRack={replyAnalysis.opponentRack}
             />
-          ) : replyDetail && (
+          ) : replyDetail ? (
             <ReplyPreview
               game={analysisGame}
               move={replyMove}
@@ -1549,7 +1574,7 @@ export default function Results({
               analysis={replyAnalysis}
               onHeatmap={() => openHeatmap(replyMove)}
             />
-          )}
+          ) : <ReplyHistogramStatus detail={requestedHistogram} size={size} />}
         </section>
       )}
       {scoreTooltip.popup}

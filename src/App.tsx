@@ -338,6 +338,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     workspace === "games" && !!game && !gameOver && !busy && !solver.error,
     { searchId: solver.results?.searchId, rank: solver.rankEndgame },
     workerLimit,
+    solver.replyCandidates,
   );
   const activeFlight =
     workspace === "games" && flight?.destination === signature
