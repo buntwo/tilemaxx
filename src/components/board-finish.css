@@ -38,10 +38,6 @@
   --finish-shade: light-dark(#281c215c, #160f14a6);
 }
 
-.board-finish[data-leaving] {
-  animation: board-finish-fade 270ms ease-in both;
-}
-
 .board-finish-effects {
   position: absolute;
   z-index: 1;
@@ -182,7 +178,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .board-finish, .board-finish[data-leaving], .board-finish .board-finish-card {
+  .board-finish, .board-finish .board-finish-card {
     animation: none !important;
   }
   .board-finish-effects { display: none; }
@@ -191,11 +187,6 @@
 @keyframes board-finish-reveal {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-@keyframes board-finish-fade {
-  from { opacity: 1; }
-  to { opacity: 0; }
 }
 
 @keyframes board-finish-settle {
