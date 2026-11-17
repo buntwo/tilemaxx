@@ -335,7 +335,7 @@ export default function GamePicker({
             type="button"
             className="game-picker-trigger"
             aria-label="Switch game"
-            aria-keyshortcuts="Alt+G"
+            aria-keyshortcuts="Alt+F"
             aria-description={
               game?.fullMoveHistory ? "Full move history" : undefined
             }

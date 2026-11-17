@@ -72,7 +72,7 @@ export default function ArchivedGames({
                 className="archive-filter"
                 type="search"
                 aria-label="Filter by opponent"
-                aria-keyshortcuts="Alt+G"
+                aria-keyshortcuts="Alt+F"
                 placeholder="Filter by opponent"
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}

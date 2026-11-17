@@ -4074,7 +4074,7 @@ test("workspace shortcuts focus the rack and game filter, and the guide leaves r
   expect(current().rack).toBe("CA?");
   expect(guide()).toBeNull();
 
-  fireEvent.keyDown(rack, { key: "©", code: "KeyG", altKey: true });
+  fireEvent.keyDown(rack, { key: "ƒ", code: "KeyF", altKey: true });
   const search = screen.getByRole("searchbox", { name: "Filter by opponent" });
   expect(document.activeElement).toBe(search);
   await user.keyboard("Smith{Enter}");
@@ -4083,8 +4083,8 @@ test("workspace shortcuts focus the rack and game filter, and the guide leaves r
   await user.keyboard("?");
   expect(guide()).toBeTruthy();
   expect(within(guide()!).getByText("Alt / Option + R")).toBeTruthy();
-  expect(within(guide()!).getByText("Alt / Option + G")).toBeTruthy();
-  fireEvent.keyDown(document.activeElement!, { key: "g", code: "KeyG", altKey: true });
+  expect(within(guide()!).getByText("Alt / Option + F")).toBeTruthy();
+  fireEvent.keyDown(document.activeElement!, { key: "f", code: "KeyF", altKey: true });
   expect(screen.queryByRole("searchbox", { name: "Filter by opponent" })).toBeNull();
   await user.click(within(guide()!).getByRole("button", { name: "Close dialog" }));
   await user.click(cell("Keyboard shortcuts"));
@@ -4097,12 +4097,12 @@ test("search games focuses the archived filter and can return there from an arch
   await act(() => store.refresh());
   await user.click(cell("Archived games"));
   const search = () => screen.getByRole("searchbox", { name: "Filter by opponent" });
-  await user.keyboard("{Alt>}g{/Alt}");
+  await user.keyboard("{Alt>}f{/Alt}");
   expect(document.activeElement).toBe(search());
   await user.keyboard("Smith");
   await user.click(screen.getByRole("button", { name: /^Jo Smith/ }));
   expect(await screen.findByRole("heading", { name: "Jo Smith" })).toBeTruthy();
-  await user.keyboard("{Alt>}g{/Alt}");
+  await user.keyboard("{Alt>}f{/Alt}");
   expect(document.activeElement).toBe(search());
 });
 
