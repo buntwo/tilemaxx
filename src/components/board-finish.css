@@ -41,6 +41,14 @@
   --finish-shade: light-dark(#281c215c, #160f14a6);
 }
 
+.board-finish-backdrop {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  border: 0;
+  outline-offset: -4px;
+}
+
 .board-finish-effects {
   position: absolute;
   z-index: 1;
