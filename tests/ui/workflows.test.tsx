@@ -4940,7 +4940,7 @@ test("a new search after playing starts with highest points", async () => {
 
 test.each([false, true])("after the last draw, Solve endgame previews opponent lines without playing (phone %s)", async (phone) => {
   const played = playBeforeRefill();
-  remote.games[0] = played;
+  remote.games[0] = { ...played, trackScores: true, scoring: emptyScoring() };
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: phone && query === "(max-width: 650px)",
     addEventListener() {},
@@ -4972,9 +4972,12 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   await user.click(solve);
 
   const result = within(await screen.findByRole("region", { name: "Opponent endgame" }));
+  expect(result.getByRole("heading", { name: "Opponent endgame" }).previousElementSibling
+    ?.querySelector(".lucide-swords")).toBeTruthy();
   const list = result.getByRole("list", { name: /sorted by swing for you/ });
   const rows = within(list).getAllByRole("button");
   expect(rows).toHaveLength(5);
+  expect(within(rows[0]).getByText(/^Lose by \d+$/)).toBeTruthy();
   expect(rows.map((row) => row.querySelector(".endgame-ply-count")?.textContent)).toEqual([
     "1 ply", "1 ply", "1 ply", "3 plies", "5 plies (3)",
   ]);
@@ -4989,6 +4992,9 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   expect(preview.getByRole("heading", { name: "Optimal endgame line" })).toBeTruthy();
   const firstTurn = preview.getAllByRole("button", { pressed: true })[0];
   expect(firstTurn.textContent).toContain("Opponent");
+  expect(within(firstTurn).getByRole("img", { name: "Bingo" })).toBeTruthy();
+  expect(firstTurn.querySelector(".optimal-reply-step-score small.value-bad")?.textContent)
+    .toMatch(/^−\d+$/);
   expect(firstTurn.closest("ol")?.firstElementChild?.firstElementChild).toBe(firstTurn);
   const secondTurn = firstTurn.closest("li")?.nextElementSibling?.querySelector("button");
   if (secondTurn) {
@@ -5019,6 +5025,8 @@ test("editing the position cancels the opponent worker and ignores its stale res
   const user = await start();
   await user.click(screen.getByRole("button", { name: "Solve endgame" }));
   expect(screen.getByText("Solving opponent endgame…")).toBeTruthy();
+  const heading = screen.getByRole("heading", { name: "Opponent endgame" });
+  expect(heading.previousElementSibling?.querySelector(".lucide-swords")).toBeTruthy();
   await user.click(rackTile(3));
   await user.keyboard("{Backspace}");
   expect(pending?.terminate).toHaveBeenCalledTimes(1);

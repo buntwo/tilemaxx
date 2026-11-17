@@ -1,6 +1,12 @@
-export default function MiniTiles({ tiles }: { tiles: string }) {
+export default function MiniTiles({
+  tiles,
+  opponent = false,
+}: {
+  tiles: string;
+  opponent?: boolean;
+}) {
   return (
-    <span className="mini-tiles">
+    <span className={opponent ? "mini-tiles opponent" : "mini-tiles"}>
       {[...tiles].map((tile, i) => (
         <span
           key={i}

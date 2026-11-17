@@ -1837,7 +1837,7 @@ label + label {
   width: var(--calculation-icon-size);
   height: var(--calculation-icon-size);
 }
-.calculation-star,
+.calculation-idle-icon,
 .calculation-spinner {
   position: absolute;
   inset: 0;
@@ -1855,7 +1855,7 @@ label + label {
   opacity: 0;
   transform: translateY(4px) scale(.76);
 }
-.calculation-indicator[data-phase="active"] .calculation-star {
+.calculation-indicator[data-phase="active"] .calculation-idle-icon {
   opacity: 0;
   transform: translateY(-4px) scale(.76);
 }
@@ -1875,7 +1875,7 @@ label + label {
   white-space: nowrap;
 }
 @media (prefers-reduced-motion: reduce) {
-  .calculation-indicator :is(.calculation-star, .calculation-spinner) {
+  .calculation-indicator :is(.calculation-idle-icon, .calculation-spinner) {
     transform: none !important;
   }
   .calculation-indicator[data-phase] .calculation-spinner svg {
@@ -4795,16 +4795,20 @@ label + label {
   min-width: 0;
   min-height: 0;
   aspect-ratio: 1;
-  border: 1px solid light-dark(#aebfc3, #849fa5);
-  border-bottom-width: 2px;
   border-radius: 4px;
-  background: light-dark(#dde8e9, #bacdd0);
-  color: #28464b;
   font-size: 13px;
   font-weight: 650;
   line-height: 1;
 }
-.opponent-rack-tiles .blank {
+.opponent-rack-tiles span,
+.mini-tiles.opponent > span {
+  border: 1px solid light-dark(#aebfc3, #849fa5);
+  border-bottom-width: 2px;
+  background: light-dark(#dde8e9, #bacdd0);
+  color: #28464b;
+}
+.opponent-rack-tiles .blank,
+.mini-tiles.opponent > .blank {
   background: var(--blank-tile);
 }
 .tile-pool {

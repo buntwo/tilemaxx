@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Check, ChevronUp, LoaderCircle, X } from "lucide-react";
+import { Check, ChevronUp, LoaderCircle, Swords, X } from "lucide-react";
 import type { EndgameLine } from "../../shared/endgame";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { coordinate, isBingo, type Game, type Move } from "../../shared/model";
@@ -47,7 +47,7 @@ export default function OpponentEndgameResults({
     >
       <header className="results-title">
         <div className="heading-with-icon">
-          <CalculationIndicator active={false} />
+          <CalculationIndicator active={false} idleIcon={<Swords />} />
           <h2>Opponent endgame</h2>
           {!!result.lines.length && (
             <span className="count-badge">{result.lines.length}</span>
