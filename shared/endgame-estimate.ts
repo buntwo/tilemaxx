@@ -4,11 +4,12 @@ import {
   nextEndgameStreak,
   rackPoints,
 } from "./endgame";
+import { pruneEndgameDictionary } from "./endgame-dictionary";
 import type { Lexicon } from "./lexicon";
 import type { Board, Move } from "./model";
-import { placeTiles } from "./move-analysis";
+import { rackLetters } from "./rack-entry";
 import { replyPosition, type ReplyPosition } from "./reply-analysis";
-import { prepareSolver, SearchLimitError, SEARCH_LIMITS } from "./solver";
+import { createSolverFactory, SearchLimitError, SEARCH_LIMITS } from "./solver";
 
 export interface EndgameEstimate {
   spread: number;
@@ -16,12 +17,16 @@ export interface EndgameEstimate {
   reply?: { word: string; score: number; goesOut: boolean };
 }
 
-const REPLY_LOOKAHEAD = 3;
+const BEAM_WIDTH = 4;
+const PLIES = 7;
 
-/** Rank plays by examining all immediate replies and selected counterplays. */
+/** One fixed-depth, narrow minimax pass. Omitted moves make beam results
+ * approximate, even when every selected branch reaches a terminal position.
+ */
 export function prepareEndgameEstimate(
   lexicon: Lexicon,
   position: ReplyPosition,
+  preparationDeadline = Infinity,
 ) {
   const {
     board,
@@ -33,101 +38,183 @@ export function prepareEndgameEstimate(
   if (bagSize) throw new Error("Endgame estimates require an empty bag.");
   const rule = endgameStreaks[template.rules];
   const opponent = pool.join("");
+  const dictionary = rule
+    ? pruneEndgameDictionary(
+        lexicon,
+        board,
+        template.size,
+        rackLetters(position.rack) + opponent,
+        Math.min(preparationDeadline, performance.now() + 500),
+      )
+    : lexicon;
+  const prepare = createSolverFactory(dictionary, template, true);
+  const compiled = new WeakMap<Board, ReturnType<typeof prepare>>();
   const points = new Map<string, number>();
   function value(rack: string) {
-    const cached = points.get(rack);
-    if (cached !== undefined) return cached;
-    const score = rackPoints(rack, template.rules);
-    points.set(rack, score);
+    let score = points.get(rack);
+    if (score === undefined) {
+      score = rackPoints(rack, template.rules);
+      points.set(rack, score);
+    }
     return score;
   }
-
-  const opponentPoints = value(opponent);
+  function check(deadline: number) {
+    if (performance.now() >= deadline) throw new SearchLimitError("time");
+  }
   function search(board: Board, rack: string, deadline: number) {
-    const solver = prepareSolver(lexicon, board, template);
+    check(deadline);
+    if (rack.length === 1) return prepare.singleMoves(board, rack);
+    let solver = compiled.get(board);
+    if (!solver) {
+      solver = prepare(board);
+      compiled.set(board, solver);
+    }
     const maxMs = Math.min(SEARCH_LIMITS.maxMs, deadline - performance.now());
     if (maxMs <= 0) throw new SearchLimitError("time");
     return solver.solve(rack, { maxMs }, { unsorted: true });
   }
+  function describe(move: Move | null) {
+    return move
+      ? { word: move.word, score: move.score, goesOut: !move.leave }
+      : undefined;
+  }
+  // Select four moves without sorting a potentially large generated list.
+  // Terminal moves share the same rack transfer: only the highest score matters.
+  function select(moves: Move[]): (Move | null)[] {
+    const top: Move[] = [];
+    let out: Move | undefined,
+      outCount = 0;
+    const priority = (move: Move) => move.score + 5 * move.tiles.length;
+    for (const move of moves) {
+      if (!move.leave) {
+        outCount++;
+        if (!out || move.score > out.score) out = move;
+        continue;
+      }
+      let i = 0;
+      while (i < top.length && priority(top[i]) >= priority(move)) i++;
+      if (i < BEAM_WIDTH) {
+        top.splice(i, 0, move);
+        if (top.length > BEAM_WIDTH) top.pop();
+      }
+    }
+    const selected: (Move | null)[] = out ? [out] : [];
+    selected.push(...top.slice(0, Math.max(0, BEAM_WIDTH - outCount)), null);
+    return selected;
+  }
+  function turn(
+    board: Board,
+    own: string,
+    other: string,
+    streak: number,
+    depth: number,
+    alpha: number,
+    beta: number,
+    deadline: number,
+    moves?: Move[],
+  ): { value: number; best: Move | null } {
+    check(deadline);
+    if (streak >= rule!.limit || depth <= 0)
+      return { value: value(other) - value(own), best: null };
+    let best = -Infinity,
+      bestMove: Move | null = null;
+    for (const move of select(moves ?? search(board, own, deadline))) {
+      const score = move?.score ?? 0;
+      const result =
+        move && !move.leave
+          ? score + 2 * value(other)
+          : score -
+            turn(
+              move ? prepare.place(board, move) : board,
+              other,
+              move?.leave ?? own,
+              nextEndgameStreak(rule!, streak, move),
+              depth - 1,
+              score - beta,
+              score - alpha,
+              deadline,
+            ).value;
+      if (result > best) {
+        best = result;
+        bestMove = move;
+      }
+      if (best >= beta) break;
+      alpha = Math.max(alpha, best);
+    }
+    return { value: best, best: bestMove };
+  }
+  const opponentPoints = value(opponent);
   return (candidate: Move, deadline: number): EndgameEstimate => {
     if (!rule) {
       const replies = opponentHasFinalTurn
-        ? search(placeTiles(board, candidate), opponent, deadline)
+        ? search(prepare.place(board, candidate), opponent, deadline)
         : undefined;
       const result = crossplayFinalRound(candidate, replies);
-      const reply = result.line[1];
       return {
         spread: result.spread,
         exact: true,
-        reply: reply
-          ? { word: reply.word, score: reply.score, goesOut: false }
+        reply: result.line[1]
+          ? {
+              word: result.line[1].word,
+              score: result.line[1].score,
+              goesOut: false,
+            }
           : undefined,
       };
     }
     if (!candidate.leave)
       return { spread: candidate.score + 2 * opponentPoints, exact: true };
-    const yourPoints = value(candidate.leave);
     const afterPlay = nextEndgameStreak(rule, scorelessTurns, candidate);
     if (afterPlay >= rule.limit)
       return {
-        spread: candidate.score + opponentPoints - yourPoints,
+        spread: candidate.score + opponentPoints - value(candidate.leave),
         exact: true,
       };
-
-    const position = placeTiles(board, candidate);
-    const replies = search(position, opponent, deadline);
-    let worst = -Infinity;
-    let worstReply: Move | null = null;
-    function consider(spread: number, move: Move | null) {
-      if (spread > worst) {
-        worst = spread;
-        worstReply = move;
-      }
-    }
-    const options: { move: Move | null; upper: number; leavePoints: number }[] =
-      [];
-    for (const move of [...replies, null]) {
-      const score = move?.score ?? 0;
-      if (move && !move.leave) {
-        consider(score + 2 * yourPoints, move);
-        continue;
-      }
-      const leavePoints = move ? value(move.leave) : opponentPoints;
-      // Passing on our next turn guarantees this upper bound within the
-      // estimate, since the horizon values both racks at their point totals.
-      const upper = score + yourPoints - leavePoints;
-      if (nextEndgameStreak(rule, afterPlay, move) >= rule.limit)
-        consider(upper, move);
-      else options.push({ move, upper, leavePoints });
-    }
-
-    options.sort((a, b) => b.upper - a.upper);
-    for (const { move, upper, leavePoints } of options.slice(
-      0,
-      REPLY_LOOKAHEAD,
-    )) {
-      if (upper <= worst) break;
-      let bestResponse = leavePoints - yourPoints; // Pass.
-      const replyBoard = move ? placeTiles(position, move) : position;
-      for (const counter of search(replyBoard, candidate.leave, deadline)) {
+    const after = prepare.place(board, candidate);
+    const replies = search(after, opponent, deadline);
+    // When every immediate reply (including pass) ends the game, evaluate all
+    // of them directly. These trivial results can still be certified exact.
+    if (
+      afterPlay + 1 >= rule.limit &&
+      replies.every(
+        (move) =>
+          !move.leave || nextEndgameStreak(rule, afterPlay, move) >= rule.limit,
+      )
+    ) {
+      let best = value(candidate.leave) - opponentPoints;
+      let reply: Move | null = null;
+      for (const move of replies) {
         const score =
-          counter.score +
-          (counter.leave
-            ? leavePoints - value(counter.leave)
-            : 2 * leavePoints);
-        bestResponse = Math.max(bestResponse, score);
+          move.score +
+          (move.leave
+            ? value(candidate.leave) - value(move.leave)
+            : 2 * value(candidate.leave));
+        if (score > best) {
+          best = score;
+          reply = move;
+        }
       }
-      consider((move?.score ?? 0) - bestResponse, move);
+      return {
+        spread: candidate.score - best,
+        exact: true,
+        reply: describe(reply),
+      };
     }
-    function describe(move: Move | null) {
-      return move
-        ? { word: move.word, score: move.score, goesOut: !move.leave }
-        : undefined;
-    }
+    const result = turn(
+      after,
+      opponent,
+      candidate.leave,
+      afterPlay,
+      PLIES - 1,
+      -Infinity,
+      Infinity,
+      deadline,
+      replies,
+    );
     return {
-      spread: candidate.score - worst,
-      exact: options.length === 0,
-      reply: describe(worstReply),
+      spread: candidate.score - result.value,
+      exact: false,
+      reply: describe(result.best),
     };
   };
 }

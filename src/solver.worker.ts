@@ -48,10 +48,10 @@ async function rankEndgame(
   const { searchId, id } = request;
   const result = results.get(searchId);
   if (!result) return;
-  const estimate = prepareEndgameEstimate(lexicon, { ...request, bagSize: 0 });
-  const estimates = new Map<string, EndgameEstimate>();
   let slice = performance.now();
   const deadline = slice + ENDGAME_ESTIMATE_TIME_MS;
+  const estimate = prepareEndgameEstimate(lexicon, { ...request, bagSize: 0 }, deadline);
+  const estimates = new Map<string, EndgameEstimate>();
   for (const move of result.moves.slice(0, ENDGAME_ESTIMATE_MOVES)) {
     if (signal.aborted || results.get(searchId) !== result) return;
     const now = performance.now();
