@@ -104,7 +104,9 @@ export default function OptimalExchange({
                 <td>
                   <MiniTiles tiles={available} />
                 </td>
-                <td>{result.keepBingo ? "100%" : "0%"}</td>
+                <td className={result.keepBingo ? "value-good" : undefined}>
+                  {result.keepBingo ? "100%" : "0%"}
+                </td>
                 <td />
               </tr>
               {result.bestSwaps.map((option, index) => {
@@ -119,9 +121,11 @@ export default function OptimalExchange({
                 const chance = exchangePercent.format(option.chance);
                 const keepChance = Number(result.keepBingo);
                 const tone =
-                  chance === exchangePercent.format(keepChance)
-                    ? undefined
-                    : scoreTone(option.chance - keepChance);
+                  option.chance === 1
+                    ? "value-good"
+                    : chance === exchangePercent.format(keepChance)
+                      ? undefined
+                      : scoreTone(option.chance - keepChance);
                 return (
                   <tr
                     key={option.slots.join(",")}

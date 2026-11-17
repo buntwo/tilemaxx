@@ -10,6 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { version } from "../../package.json";
 import App from "../../src/App";
+import OptimalExchange from "../../src/components/OptimalExchange";
 import { GameStore, store } from "../../src/store";
 import { emptyScoring } from "../../shared/game-scoring";
 import { summarizeGame } from "../../shared/game-index";
@@ -4485,6 +4486,32 @@ test("the points value opens an anchored score breakdown without playing the mov
   fireEvent.click(action);
   expect(screen.getByRole("tooltip")).toBeTruthy();
   expect(current().board.some(Boolean)).toBe(false);
+});
+
+test("Optimal exchange shows a 100% keep or swap bingo chance in green", () => {
+  render(
+    <OptimalExchange
+      game={{ ...game(), rack: "RETAINS" }}
+      bag={86}
+      assumed
+      restoredResult={{
+        keepBingo: true,
+        checked: 2,
+        finalists: 2,
+        screeningDraws: 128,
+        refinementDraws: 1200,
+        bestSwaps: [
+          { slots: [0], chance: 1, close: false },
+          { slots: [1], chance: 0.5, close: false },
+        ],
+      }}
+      onClose={vi.fn()}
+      onUse={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("100%").classList.contains("value-good")).toBe(true);
+  expect(screen.getByText("≈100%").classList.contains("value-good")).toBe(true);
+  expect(screen.getByText("≈50%").classList.contains("value-bad")).toBe(true);
 });
 
 test("Optimal exchange restores the rankings and caches each completed simulation", async () => {
