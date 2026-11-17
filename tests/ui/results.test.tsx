@@ -264,7 +264,11 @@ test("scrolling and filtering use worker pages and ignore out-of-order results",
   expect(screen.queryByRole("button", { name: /^QUICK,/ })).toBeNull();
 });
 
-test.each([true, false])("an on-demand histogram keeps the scroller mounted and follows changed ranks (automatic histogram: %s)", async (automatic) => {
+test.each([
+  { automatic: true, phone: false },
+  { automatic: false, phone: false },
+  { automatic: true, phone: true },
+])("an on-demand histogram selects the move and follows changed ranks (automatic: $automatic, phone: $phone)", async ({ automatic, phone }) => {
   let worker: ReplyWorker | undefined;
   class ReplyWorker {
     onmessage?: (message: { data: unknown }) => void;
@@ -307,7 +311,7 @@ test.each([true, false])("an on-demand histogram keeps the scroller mounted and 
       locateMoveId: query.locateMoveId,
       complete: () => resolve(index.page(query)),
     }));
-  const { user } = setup(false, {
+  const { user, onPlay, onPreview } = setup(phone, {
     moves: longList,
     analysisGame: game,
     fetchPage,
@@ -323,7 +327,7 @@ test.each([true, false])("an on-demand histogram keeps the scroller mounted and 
     },
   });
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(any-hover: hover)",
+    matches: !phone && query === "(any-hover: hover)",
   }));
   const summary = worker!.request!;
   const distribution: ReplyDistribution = {
@@ -361,7 +365,19 @@ test.each([true, false])("an on-demand histogram keeps the scroller mounted and 
   expect(risk.nextElementSibling).toBe(chart);
   expect(risk.dataset.risk).toBe("muted");
   expect(risk.querySelector(".result-defense-chance")?.textContent).toBe("7%");
-  await user.click(chart);
+  if (phone) await user.pointer({ keys: "[TouchA]", target: chart });
+  else await user.click(chart);
+  const selectedRow = () => screen.getByRole("button", { name: /^ZEBRA,/ });
+  const replyDetails = () => screen.getByRole("region", { name: "Reply after ZEBRA" });
+  expect(selectedRow().classList.contains("pinned")).toBe(true);
+  expect(within(replyDetails()).getByRole("status").textContent).toBe("Checking reply histogram…");
+  expect(onPreview).toHaveBeenLastCalledWith(null);
+  expect(onPlay).not.toHaveBeenCalled();
+  if (!phone) {
+    await user.hover(screen.getAllByRole("button", { name: /^CATS,/ })[0]);
+    expect(onPreview).toHaveBeenLastCalledWith(null);
+    expect(replyDetails()).toBeTruthy();
+  }
   const manual = worker!.request!;
   expect(manual.kind).toBe("reply-histogram");
   act(() => worker!.onmessage?.({
@@ -371,11 +387,11 @@ test.each([true, false])("an on-demand histogram keeps the scroller mounted and 
   expect(scroller.scrollTop).toBe(scrollTop);
   expect(screen.queryByText("Loading move list…")).toBeNull();
   expect(screen.queryByRole("button", { name: /^Reply risk for ZEBRA/ })).toBeNull();
-  expect(screen.getByRole("region", { name: "Reply after ZEBRA" })).toBeTruthy();
+  expect(replyDetails().querySelector(".reply-chart")).toBeTruthy();
   expect(followScroll).not.toHaveBeenCalled();
   if (!automatic) {
     expect(pending).toHaveLength(1);
-    expect(screen.getByRole("button", { name: /^ZEBRA,/ }).querySelector(".reply-mini")).toBeTruthy();
+    expect(selectedRow().querySelector(".reply-mini")).toBeTruthy();
     return;
   }
   await waitFor(() => expect(pending).toHaveLength(2));
@@ -390,8 +406,23 @@ test.each([true, false])("an on-demand histogram keeps the scroller mounted and 
   fireEvent.scroll(scroller);
   await waitFor(() => expect(pending).toHaveLength(3));
   await act(async () => pending[2].complete());
-  expect(screen.getByRole("button", { name: /^ZEBRA,/ }).querySelector(".reply-mini")).toBeTruthy();
+  expect(selectedRow().querySelector(".reply-mini")).toBeTruthy();
+  expect(selectedRow().classList.contains("pinned")).toBe(true);
+  expect(replyDetails().querySelector(".reply-chart")).toBeTruthy();
   expect(screen.queryByRole("button", { name: /^Reply risk for ZEBRA/ })).toBeNull();
+  if (phone) {
+    await user.pointer({ keys: "[TouchA]", target: selectedRow() });
+    expect(onPlay).not.toHaveBeenCalled();
+    expect(onPreview).toHaveBeenLastCalledWith(longList[lower]);
+    await user.pointer({ keys: "[TouchA]", target: selectedRow() });
+    expect(onPlay).toHaveBeenCalledExactlyOnceWith(longList[lower]);
+  } else {
+    await user.hover(screen.getAllByRole("button", { name: /^CATS,/ })[0]);
+    expect(replyDetails().querySelector(".reply-chart")).toBeTruthy();
+    await user.click(screen.getByRole("heading", { name: "Possible moves" }));
+    expect(selectedRow().classList.contains("pinned")).toBe(false);
+    expect(screen.queryByRole("region", { name: "Reply after ZEBRA" })).toBeNull();
+  }
 });
 
 test("reply risk badges distinguish rare, likely low-impact, and likely costly replies", () => {
