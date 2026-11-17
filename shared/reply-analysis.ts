@@ -1,5 +1,8 @@
+import { createEndgameSession } from "./endgame-session";
+import { pruneEndgameDictionary } from "./endgame-dictionary";
 import {
   crossplayFinalRound,
+  EndgameSearchLimitError,
   endgameStreaks,
   nextEndgameStreak,
   rackPoints,
@@ -242,7 +245,11 @@ export function prepareReplyAnalysis(
   const rack = pool.join("");
   const rule = endgameStreaks[template.rules];
   function opponentMoves(candidate: Move) {
-    const solver = prepareSolver(lexicon, placeTiles(board, candidate), template);
+    const solver = prepareSolver(
+      lexicon,
+      placeTiles(board, candidate),
+      template,
+    );
     return searchReplyRack(candidate, rack, deadline, (letters, budget) =>
       solver.solve(letters, budget, { unsorted: true }),
     );
@@ -493,20 +500,89 @@ export function replyEndgameLine(
   timeLimitMs: number,
   positionLimit?: number,
 ) {
-  const { pool, bagSize } = replyPosition(position);
-  const { board, template } = position;
-  if (bagSize !== 0)
-    throw new Error("Full endgame lines require an empty bag.");
-  return solveEmptyBag(
-    board,
+  // Explicit legacy position budgets remain available to Analyze callers.
+  if (positionLimit !== undefined && Number.isFinite(positionLimit)) {
+    const { pool, bagSize } = replyPosition(position);
+    if (bagSize) throw new Error("Full endgame lines require an empty bag.");
+    return solveEmptyBag(
+      position.board,
+      candidate,
+      pool.join(""),
+      position.template,
+      position,
+      endgameSearch(lexicon, position.template),
+      placeTiles,
+      { timeLimitMs, positionLimit },
+    );
+  }
+  return createReplyEndgameSession(lexicon, position).run(
     candidate,
-    pool.join(""),
-    template,
-    position,
-    endgameSearch(lexicon, template),
-    placeTiles,
-    { timeLimitMs, positionLimit },
+    timeLimitMs,
   );
+}
+
+/** Owned by one worker lane and one immutable root position. */
+export function createReplyEndgameSession(
+  lexicon: Lexicon,
+  position: ReplyPosition,
+) {
+  const { pool, bagSize } = replyPosition(position);
+  if (bagSize) throw new Error("Full endgame lines require an empty bag.");
+  const { board, template } = position;
+  const opponent = pool.join("");
+  if (!endgameStreaks[template.rules])
+    return {
+      run(candidate: Move, timeLimitMs: number) {
+        return solveEmptyBag(
+          board,
+          candidate,
+          opponent,
+          template,
+          position,
+          endgameSearch(lexicon, template),
+          placeTiles,
+          { timeLimitMs, positionLimit: Infinity },
+        );
+      },
+    };
+  const dictionary = pruneEndgameDictionary(
+    lexicon,
+    board,
+    template.size,
+    rackLetters(position.rack) + opponent,
+  );
+  const prepare = createSolverFactory(dictionary, template, true);
+  const compiled = new WeakMap<Board, ReturnType<typeof prepare>>();
+  const search = (board: Board, rack: string, deadline: number) => {
+    limit(deadline);
+    if (rack.length === 1) return prepare.singleMoves(board, rack);
+    let solver = compiled.get(board);
+    if (!solver) {
+      solver = prepare(board);
+      compiled.set(board, solver);
+    }
+    return solver.solve(rack, limit(deadline), { unsorted: true });
+  };
+  const session = createEndgameSession(template, search, prepare.place);
+  return {
+    run(candidate: Move, timeLimitMs: number) {
+      const result = session.run(
+        board,
+        candidate,
+        opponent,
+        position.scorelessTurns,
+        timeLimitMs,
+      );
+      if (result.line) return result.line;
+      const reason =
+        result.reason === "time"
+          ? `its ${Math.round(timeLimitMs).toLocaleString()} ms time limit`
+          : `a move-generation ${result.reason} limit`;
+      throw new EndgameSearchLimitError(
+        `Endgame search reached ${reason}. Progress is retained for another run.`,
+      );
+    },
+  };
 }
 
 function endgameSearch(lexicon: Lexicon, template: BoardTemplate) {
@@ -523,7 +599,8 @@ function endgameSearch(lexicon: Lexicon, template: BoardTemplate) {
 }
 
 export type OpponentEndgamePosition = Pick<
-  ReplyPosition, "board" | "rack" | "template" | "scorelessTurns"
+  ReplyPosition,
+  "board" | "rack" | "template" | "scorelessTurns"
 > & { opponentRack: string };
 
 export function opponentEndgameLine(

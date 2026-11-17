@@ -86,6 +86,21 @@ export class Lexicon {
     }
   }
 
+  /** Enumerate the indexed words without retaining a second full word list. */
+  *words(): Generator<string> {
+    const { first, mask, terminal } = this;
+    function* visit(node: number, prefix: string): Generator<string> {
+      if (terminal[node]) yield prefix;
+      let child = first[node];
+      for (let bits = mask[node]; bits; child++) {
+        const code = 31 - Math.clz32(bits);
+        bits ^= 1 << code;
+        yield* visit(child, prefix + String.fromCharCode(65 + code));
+      }
+    }
+    yield* visit(0, "");
+  }
+
   child(node: number, letter: number): number {
     if (letter < 0 || letter >= 26) return 0;
     const mask = this.mask[node];

@@ -1,6 +1,6 @@
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { analyzeMoves, type AnalysisRequest } from "../shared/move-analysis";
-import { runCandidateJobs } from "./candidate-analysis-pool";
+import { createEndgamePrecompute } from "./endgame-precompute";
 import {
   parallelOpponentEndgame,
   type OpponentEndgameMessage,
@@ -12,6 +12,9 @@ import type {
 } from "./useEndgameLines";
 
 let dictionary: { id: string; lexicon: Lexicon } | undefined;
+let endgames:
+  | { key: string; pool: ReturnType<typeof createEndgamePrecompute> }
+  | undefined;
 let familiar: Set<string> | undefined;
 
 async function words(url: string) {
@@ -32,17 +35,27 @@ async function loadDictionary(id: string) {
 async function precomputeEndgames(request: EndgamePrecomputeRequest) {
   const post = (message: EndgamePrecomputeMessage) => self.postMessage(message);
   try {
-    const { dictionaryId, moves, workerLimit, kind: _, ...position } = request;
-    const lexicon = await loadDictionary(dictionaryId);
-    await runCandidateJobs(
-      lexicon,
-      moves.map((move) => ({ kind: "endgame", position, move })),
-      ({ move }, result) => {
+    const { dictionaryId, moves, workerLimit, kind, id, ...position } = request;
+    const key = JSON.stringify([dictionaryId, position]);
+    if (kind === "precompute-endgames") {
+      endgames?.pool.close();
+      const lexicon = await loadDictionary(dictionaryId);
+      endgames = {
+        key,
+        pool: createEndgamePrecompute(lexicon, position, moves, workerLimit),
+      };
+    }
+    if (!endgames || endgames.key !== key)
+      throw new Error("This endgame position is no longer active.");
+    await endgames.pool.run(
+      moves,
+      kind === "continue-endgames" ? 10_000 : 5_000,
+      (move, result) => {
         const { id: moveId } = move;
         if (result.kind === "endgame")
-          post({ moveId, line: result.line, elapsed: result.elapsed });
+          post({ id, moveId, line: result.line, elapsed: result.elapsed });
         else if (result.kind === "limit")
-          post({ moveId, limit: result.message, elapsed: result.elapsed });
+          post({ id, moveId, limit: result.message, elapsed: result.elapsed });
         else
           throw new Error(
             result.kind === "error"
@@ -50,11 +63,13 @@ async function precomputeEndgames(request: EndgamePrecomputeRequest) {
               : "Unexpected endgame result.",
           );
       },
-      workerLimit,
     );
-    post({ done: true });
+    post({ id: request.id, done: true });
   } catch (error) {
+    endgames?.pool.close();
+    endgames = undefined;
     post({
+      id: request.id,
       done: true,
       error:
         error instanceof Error
@@ -73,10 +88,14 @@ self.onmessage = async (
 ) => {
   const request = event.data;
   if ("kind" in request) {
-    if (request.kind === "precompute-endgames") {
+    if (
+      request.kind === "precompute-endgames" ||
+      request.kind === "continue-endgames"
+    ) {
       await precomputeEndgames(request);
     } else {
-      const post = (message: OpponentEndgameMessage) => self.postMessage(message);
+      const post = (message: OpponentEndgameMessage) =>
+        self.postMessage(message);
       try {
         const { dictionaryId, workerLimit, kind: _, ...position } = request;
         const lexicon = await loadDictionary(dictionaryId);

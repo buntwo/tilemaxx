@@ -11,7 +11,7 @@ import {
 import {
   opponentEndgameLine,
   REPLY_SUMMARY_TIME_MS,
-  replyEndgameLine,
+  createReplyEndgameSession,
   ReplySearchLimitError,
   summarizeReplyBoard,
   type OpponentEndgamePosition,
@@ -27,7 +27,7 @@ export type CandidateJob =
       kind: "histogram";
       samples: ReturnType<typeof sampleReplyRacks>;
     })
-  | (CandidateMove & { kind: "endgame" })
+  | (CandidateMove & { kind: "endgame"; timeLimitMs?: 5_000 | 10_000 })
   | {
       kind: "opponent-endgame";
       position: OpponentEndgamePosition;
@@ -81,6 +81,10 @@ export type CandidateRequest = {
 export const POLICY_TURN_BUDGET_MS = 1_250;
 
 export function createCandidateAnalyzer(lexicon: Lexicon) {
+  // One immutable endgame position stays on this lane across bounded slices.
+  let endgame:
+    | { key: string; session: ReturnType<typeof createReplyEndgameSession> }
+    | undefined;
   // An Optimal Exchange pool checks one immutable board across both phases.
   let exchangeSolver: ReturnType<typeof prepareSolver> | undefined;
   return (job: CandidateJob): CandidateResult => {
@@ -99,13 +103,18 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
             ),
           };
         case "endgame": {
-          const line = replyEndgameLine(
-            lexicon,
-            job.position,
-            job.move,
-            5_000,
-            Infinity,
+          const key = JSON.stringify(job.position);
+          if (endgame?.key !== key)
+            endgame = {
+              key,
+              session: createReplyEndgameSession(lexicon, job.position),
+            };
+          const timeLimitMs = job.timeLimitMs ?? 5_000;
+          const remaining = Math.max(
+            0,
+            timeLimitMs - (performance.now() - started),
           );
+          const line = endgame.session.run(job.move, remaining);
           return {
             kind: "endgame",
             line,
@@ -115,7 +124,11 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
         case "opponent-endgame": {
           const remaining = job.deadline - performance.timeOrigin - started;
           if (remaining <= 0)
-            return { kind: "limit", message: "The opponent endgame reached its time limit.", elapsed: 0 };
+            return {
+              kind: "limit",
+              message: "The opponent endgame reached its time limit.",
+              elapsed: 0,
+            };
           return {
             kind: "opponent-endgame",
             line: opponentEndgameLine(

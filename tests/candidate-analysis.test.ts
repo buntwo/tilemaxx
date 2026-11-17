@@ -395,3 +395,77 @@ test("policy turn jobs return the serial result and skip work after the batch de
   assert.ok(completed.has("1"));
   assert.equal(completed.get("1"), undefined);
 });
+
+test("exact endgame continuation stays on its original lane and sends the dictionary once", async () => {
+  const { createEndgamePrecompute } = await import("../src/endgame-precompute");
+  const moves = choices.slice(0, 3),
+    workers: TestWorker[] = [],
+    completed: string[] = [];
+  const pool = createEndgamePrecompute(
+    lexicon,
+    { ...position, bagSize: 0 },
+    moves,
+    8,
+    () => {
+      const worker = new TestWorker();
+      workers.push(worker);
+      return worker as unknown as Worker;
+    },
+  );
+  const receive = (move: (typeof moves)[number]) => completed.push(move.id);
+  const running = pool.run(moves, 5000, receive);
+  assert.equal(workers.length, 2);
+  const limit = {
+    kind: "limit",
+    message: "Time limit reached.",
+    elapsed: 5000,
+  } as const;
+  workers[0].onmessage?.({ data: limit });
+  workers[1].onmessage?.({ data: limit });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(workers[0].requests.length, 2);
+  assert.equal(workers[0].requests[1].dictionary, undefined);
+  workers[0].onmessage?.({ data: limit });
+  await running;
+  assert.equal(completed.length, 3);
+  assert.ok(workers.every((w) => !w.stopped));
+  const retry = pool.run([moves[2]], 10000, receive);
+  assert.equal(workers.length, 2);
+  assert.equal(workers[1].requests.length, 1);
+  const sent = workers[0].requests.at(-1)!;
+  assert.equal(sent.dictionary, undefined);
+  assert.equal(sent.job.kind, "endgame");
+  assert.equal(sent.job.timeLimitMs, 10000);
+  assert.equal(sent.job.move.id, moves[2].id);
+  workers[0].onmessage?.({ data: { ...limit, elapsed: 10000 } });
+  await retry;
+  const again = pool.run([moves[2]], 10000, receive);
+  workers[0].onmessage?.({ data: limit });
+  await again;
+  pool.close();
+  assert.ok(workers.every((w) => w.stopped));
+  await assert.rejects(pool.run(moves, 10000, receive), /unavailable/);
+});
+
+test("closing retained endgame workers cancels pending batches without publishing stale results", async () => {
+  const { createEndgamePrecompute } = await import("../src/endgame-precompute");
+  const moves = choices.slice(0, 2),
+    workers: TestWorker[] = [],
+    completed: string[] = [];
+  const pool = createEndgamePrecompute(
+    lexicon,
+    { ...position, bagSize: 0 },
+    moves,
+    2,
+    () => {
+      const worker = new TestWorker();
+      workers.push(worker);
+      return worker as unknown as Worker;
+    },
+  );
+  const running = pool.run(moves, 5000, (move) => completed.push(move.id));
+  pool.close();
+  await running;
+  assert.deepEqual(completed, []);
+  assert.ok(workers.every((w) => w.stopped));
+});

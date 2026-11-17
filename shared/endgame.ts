@@ -150,31 +150,15 @@ export function searchEmptyBagCandidate(
     if (performance.now() >= deadline)
       stop(`its ${timeLimitMs.toLocaleString()} ms time limit`);
   }
-  function finish(
-    spread: number,
-    continuation: EndgameLine["line"],
-  ): EndgameLine {
-    const line = [candidate, ...continuation];
-    const points = { you: 0, opponent: 0 };
-    const racks = { you: leave, opponent };
-    for (const [turn, move] of line.entries()) {
-      if (!move) continue;
-      const player = turn % 2 ? "opponent" : "you";
-      points[player] += move.score;
-      racks[player] = move.leave;
-    }
-    const last = line.at(-1);
-    if (last && !last.leave) {
-      const transfer =
-        line.length % 2 ? value(racks.opponent) : -value(racks.you);
-      points.you += transfer;
-      points.opponent -= transfer;
-    } else {
-      points.you -= value(racks.you);
-      points.opponent -= value(racks.opponent);
-    }
-    return { spread, line, points };
-  }
+  const finish = (spread: number, continuation: EndgameLine["line"]) =>
+    finishEndgameLine(
+      candidate,
+      leave,
+      opponent,
+      template,
+      spread,
+      continuation,
+    );
   function findMoves(position: Board, rack: string) {
     if (states === positionLimit) stop("its position limit");
     states++;
@@ -201,7 +185,7 @@ export function searchEmptyBagCandidate(
   }
   const rule = endgameStreaks[template.rules];
   const score = candidate?.score ?? 0;
-  const after = () => candidate ? place(board, candidate) : board;
+  const after = () => (candidate ? place(board, candidate) : board);
   if (!rule) {
     checkTime();
     if (score < minimumSpread) return;
@@ -238,7 +222,8 @@ export function searchEmptyBagCandidate(
     // move ordering: low-scoring plays and passes still receive an exact search.
     const priority = (move: Move) => move.score + 5 * move.tiles.length;
     const ordered: (Move | null)[] = [...moves].sort(
-      (a, b) => Number(!b.leave) - Number(!a.leave) || priority(b) - priority(a),
+      (a, b) =>
+        Number(!b.leave) - Number(!a.leave) || priority(b) - priority(a),
     );
     ordered.push(null);
     let bestSpread = -Infinity;
@@ -293,9 +278,41 @@ export function searchEmptyBagCandidate(
     score - (minimumSpread - 1),
   );
   checkTime();
-  if (result.bound === "lower" || score - result.spread < minimumSpread)
-    return;
+  if (result.bound === "lower" || score - result.spread < minimumSpread) return;
   if (result.bound !== "exact")
-    throw new Error("An endgame search that reaches the cutoff must return an exact line.");
+    throw new Error(
+      "An endgame search that reaches the cutoff must return an exact line.",
+    );
   return finish(score - result.spread, result.line);
+}
+
+export function finishEndgameLine(
+  candidate: Move | null,
+  leave: string,
+  opponent: string,
+  template: BoardTemplate,
+  spread: number,
+  continuation: EndgameLine["line"],
+): EndgameLine {
+  const value = (rack: string) => rackPoints(rack, template.rules);
+  const line = [candidate, ...continuation];
+  const points = { you: 0, opponent: 0 };
+  const racks = { you: leave, opponent };
+  for (const [turn, move] of line.entries()) {
+    if (!move) continue;
+    const player = turn % 2 ? "opponent" : "you";
+    points[player] += move.score;
+    racks[player] = move.leave;
+  }
+  const last = line.at(-1);
+  if (last && !last.leave) {
+    const transfer =
+      line.length % 2 ? value(racks.opponent) : -value(racks.you);
+    points.you += transfer;
+    points.opponent -= transfer;
+  } else {
+    points.you -= value(racks.you);
+    points.opponent -= value(racks.opponent);
+  }
+  return { spread, line, points };
 }

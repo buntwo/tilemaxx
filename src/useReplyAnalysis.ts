@@ -180,7 +180,10 @@ export function useReplyAnalysis(
   );
   const dictionaryId = game?.dictionaryId;
   const endgameMoves = estimateRun ? moveList : undefined;
-  const { cachedEndgame, exactEndgameSpreads, rememberEndgame, endgameProgress } = useEndgameLines(
+  const {
+    cachedEndgame, exactEndgameSpreads, rememberEndgame, endgameProgress,
+    canContinueEndgames, continueEndgames,
+  } = useEndgameLines(
     endgameMoves,
     position,
     dictionaryId,
@@ -390,6 +393,8 @@ export function useReplyAnalysis(
     exactEndgameSpreads,
     rememberEndgame,
     endgameProgress,
+    canContinueEndgames,
+    continueEndgames,
     repliesElapsed: current?.elapsed,
     estimatesElapsed: estimateRun?.elapsed,
     ranking,
