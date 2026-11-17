@@ -1060,6 +1060,11 @@ test.each(["narrow", "wide"])("%s results stream bingo odds after replies finish
 
 beforeEach(() => {
   workspaceWidth = 950;
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query !== "(max-width: 650px)" && query !== "(max-width: 800px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
   vi.stubGlobal("ResizeObserver", WorkspaceResizeObserver);
   localStorage.clear();
   history.replaceState(null, "", "/");
@@ -1201,7 +1206,7 @@ beforeEach(() => {
   );
 });
 afterEach(() => clearTimeout(store.timer));
-async function start(width = workspaceWidth) {
+async function start(width = matchMedia("(max-width: 650px)").matches ? 390 : workspaceWidth) {
   workspaceWidth = width;
   const user = userEvent.setup();
   render(<App />);
@@ -3296,19 +3301,22 @@ test("phone rack entry reveals the tiles above the keyboard and restores the pag
     () => new Promise<void>((done) => requestAnimationFrame(() => done())),
   );
   expect(scrollTo).toHaveBeenCalledTimes(1);
-  expect(rack.closest(".phone-move-review")).toBeTruthy();
+  expect(rack.closest(".move-review")).toBeTruthy();
 });
 
-test("phone results preview on the game board and tapping the side rack resumes editing", async () => {
+test.each([
+  { layout: "phone", width: 390 },
+  { layout: "narrow laptop", width: 690 },
+])("on a $layout, searching moves the rack beside the board and selecting it resumes editing", async ({ layout, width }) => {
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(max-width: 650px)",
+    matches: layout === "phone" && query === "(max-width: 650px)",
     addEventListener() {},
     removeEventListener() {},
   }));
-  const user = await start();
+  const user = await start(width);
   const board = document.querySelector(".board-entry")!;
   const workspace = board.closest(".workspace-grid")!;
-  const reviewing = () => workspace.classList.contains("phone-move-review");
+  const reviewing = () => workspace.classList.contains("move-review");
   const ghosts = () => board.querySelectorAll(".ghost");
   expect(reviewing()).toBe(false);
   await typeRack(user, "CATS");
@@ -3750,10 +3758,10 @@ test("on a phone the score updates before choosing a reply and a missing tile ca
   await user.click(findMoves());
   expect(scoreTotals()).toBe("0–10");
   await screen.findByRole("button", { name: /^CATS, / });
-  expect(document.querySelector(".phone-move-review")).toBeTruthy();
+  expect(document.querySelector(".move-review")).toBeTruthy();
   await user.click(cell("Edit last opponent move"));
   expect(scoreTotals()).toBe("0–0");
-  expect(document.querySelector(".phone-move-review")).toBeNull();
+  expect(document.querySelector(".move-review")).toBeNull();
   await user.click(cell("K8: empty"));
   await user.keyboard("S{Enter}");
   expect(scoreTotals()).toBe("0–12");
@@ -4397,7 +4405,7 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
   expect(opponentRack()).toBeTruthy();
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   await screen.findAllByRole("button", { name: /^CAT, / });
-  expect(!!yourRack.closest(".phone-move-review")).toBe(phone);
+  expect(!!yourRack.closest(".move-review")).toBe(phone);
   expectLabeledRacks();
   await user.click(screen.getByText("Options", { selector: "summary" }));
   await user.click(screen.getByText("Reply settings", { selector: "summary" }));

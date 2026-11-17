@@ -48,7 +48,7 @@ import {
 } from "./components/GameCalculations";
 import GameId from "./components/GameId";
 import { MoveSquareFilterControls, useMoveSquareFilter } from "./components/MoveSquareFilter";
-import GameWorkspace, { usePhoneMoveReview } from "./components/GameWorkspace";
+import GameWorkspace, { useMoveReview } from "./components/GameWorkspace";
 import RackEntry, { type RackEntryHandle } from "./components/RackEntry";
 import ExchangeSuggestion from "./components/ExchangeSuggestion";
 import {
@@ -152,7 +152,7 @@ type TileFlight = NonNullable<ReturnType<typeof prepareTileFlight>> & {
   before: Game;
   destination: string;
   move: Move;
-  phoneReview: boolean;
+  reviewing: boolean;
 };
 
 function currentWorkspace(): Workspace {
@@ -328,6 +328,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   }, [openId, editId]);
   const signature = game ? positionSignature(game) : "";
   const gameOver = !!game?.scoring?.end && !game.archived;
+  const narrowLayout = !twoColumns;
+  const compactGame = workspace === "games" && !narrowLayout;
   const solver = useSolver(signature);
   const { busy, warnings } = solver;
   const calculating = useGameCalculating();
@@ -384,12 +386,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       calculating ||
       !!activeFlight,
   );
-  const phoneReview = usePhoneMoveReview(
-    phoneLayout && workspace === "games" && !gameOver,
+  const moveReview = useMoveReview(
+    narrowLayout && workspace === "games" && !gameOver,
     !busy && !solver.error && solver.results?.total
       ? solver.results.searchId
       : undefined,
-    activeFlight?.phoneReview,
+    activeFlight?.reviewing,
   );
   useLayoutEffect(() => {
     if (!flight) return;
@@ -595,11 +597,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     const position = recordOpponentPlayForSearch(game);
     if (position !== game) updateAfterTurn(position);
     if (position.scoring?.end && !position.archived) return;
-    if (phoneLayout) phoneReview.open();
+    if (narrowLayout) moveReview.open();
     if (solver.solve(position, reload)) setPreview(null);
   }
   function editPosition() {
-    if (phoneReview.showing) phoneReview.dismiss();
+    if (moveReview.showing) moveReview.dismiss();
     if (squareFilter.selecting) squareFilter.setSelecting(false);
     setPreview(null);
   }
@@ -615,8 +617,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     if (!game) return;
     squareFilter.setSelecting(true);
     setPreview(null);
-    if (phoneLayout) {
-      phoneReview.open();
+    if (narrowLayout) {
+      moveReview.open();
       boardPanel.current?.scrollIntoView?.({ block: "nearest" });
     }
     const index = squareFilter.requiredSquares?.indices[0] ?? game.template.start;
@@ -629,7 +631,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     analysis = false,
     player: Player = "you",
   ) {
-    if (move && phoneLayout && player === "you") phoneReview.open();
+    if (move && narrowLayout && player === "you") moveReview.open();
     setPreview(move ? { move, analysis, player } : null);
   }
   function play(move: Move) {
@@ -646,7 +648,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           before: game,
           destination: positionSignature(next),
           move,
-          phoneReview: phoneReview.showing,
+          reviewing: moveReview.showing,
         },
       );
       setPreview(null);
@@ -700,7 +702,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         )}
       </div>
     );
-  const compactGame = workspace === "games" && twoColumns;
   function changeSidebarVisibility(visible: boolean) {
     if (visible === sidebarVisible) return;
     moveSidebarFocus.current = true;
@@ -1287,7 +1288,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             onBack={openMyGames}
           />
         ) : game ? (
-          <GameWorkspace phone={phoneLayout} reviewing={phoneReview.showing}>
+          <GameWorkspace narrow={narrowLayout} reviewing={moveReview.showing}>
             <div className="board-column">
               <section
                 ref={boardPanel}
@@ -1334,7 +1335,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   onSelect={editPosition}
                   onSolve={hasPlayableRack && !activeFlight ? solve : undefined}
                   historyControls={
-                    !phoneReview.showing &&
+                    !moveReview.showing &&
                     !squareFilter.selecting &&
                     boardHistoryControls
                   }
@@ -1356,7 +1357,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     }}
                     historyControls={boardModeHistory}
                   />
-                ) : phoneReview.showing && (
+                ) : moveReview.showing && (
                   <div className="board-review-actions">
                     <span aria-live="polite">
                       {preview ? (
@@ -1399,7 +1400,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   }
                   onSolve={solve}
                   phoneLayout={phoneLayout}
-                  onReviewEdit={phoneReview.showing ? editPosition : undefined}
+                  onReviewEdit={moveReview.showing ? editPosition : undefined}
                   positionKey={signature}
                   exchangeAdvice={solver.exchangeAdvice}
                   exchangeBag={replyAnalysis.bagSize}
@@ -1432,8 +1433,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                         advice={solver.exchangeAdvice}
                         rack={game.rack}
                         onOpen={() => {
-                          if (phoneReview.showing) editPosition();
-                          rackEntry.current?.openSuggestedExchange(phoneLayout);
+                          if (moveReview.showing) editPosition();
+                          rackEntry.current?.openSuggestedExchange(narrowLayout);
                         }}
                         inHeader
                       />

@@ -623,8 +623,8 @@ export default function Results({
       setCandidates((current) => current.filter((move) => coversRequiredSquares(move, requiredSquares)));
   }, [requiredSquares]);
   useEffect(() => {
-    if (phoneLayout && !preview) setLocked(null);
-  }, [phoneLayout, preview]);
+    if (!preview) setLocked(null);
+  }, [preview]);
   useEffect(() => {
     if (!locked && !histogramSelection) return;
     function dismissPreview(event: MouseEvent) {
