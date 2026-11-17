@@ -4963,6 +4963,45 @@ test("a new search after playing starts with highest points", async () => {
 });
 
 
+test.each([false, true])("the header star finds moves once even when Solve endgame is available (phone %s)", async (phone) => {
+  remote.games[0] = { ...playBeforeRefill(), rack: "DSD" };
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: phone && query === "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const searches: string[] = [];
+  let finish: (() => void) | undefined;
+  vi.stubGlobal("Worker", class extends SolverWorker {
+    postMessage(request: SolverRequest | OpponentEndgameRequest) {
+      if (request.kind === "solve") {
+        searches.push(request.kind);
+        finish = () => super.postMessage(request);
+      } else if (request.kind === "solve-opponent-endgame") {
+        searches.push(request.kind);
+      } else super.postMessage(request);
+    }
+  });
+
+  const user = await start();
+  const panel = within(screen.getByRole("region", { name: "Possible moves" }));
+  const star = await panel.findByRole("button", { name: "Find moves shortcut" });
+  expect(star.closest("header")).toBeTruthy();
+  expect(panel.getByRole("button", { name: "Solve endgame" })).toBeTruthy();
+  if (phone) await user.click(star);
+  else {
+    star.focus();
+    await user.keyboard("{Enter}");
+  }
+
+  expect(searches).toEqual(["solve"]);
+  expect(panel.queryByRole("button", { name: "Find moves shortcut" })).toBeNull();
+  expect(panel.getByRole("heading", { name: "Finding moves…" })).toBeTruthy();
+  await act(() => finish?.());
+  expect((await panel.findAllByRole("button", { name: /, \d+ points,/ })).length).toBeGreaterThan(0);
+  expect(panel.queryByRole("button", { name: "Find moves shortcut" })).toBeNull();
+});
+
 test.each([false, true])("after the last draw, Solve endgame previews opponent lines without playing (phone %s)", async (phone) => {
   const played = playBeforeRefill();
   remote.games[0] = { ...played, trackScores: true, scoring: emptyScoring() };

@@ -839,6 +839,11 @@ export default function Results({
               localCalculation ||
               replyAnalysis.calculating
             }
+            onFindMoves={
+              hasRack && !resultSet && !busy && !error
+                ? () => onSolve()
+                : undefined
+            }
             onQuiet={
               onTimingComplete && searchId !== undefined
                 ? (stoppedAt) => {
