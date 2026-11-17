@@ -3,16 +3,17 @@ import type { EndgameLine } from "../../shared/endgame";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import {
   coordinate,
+  isBingo,
   type Board as BoardState,
   type Game,
   type Move,
   type Player,
 } from "../../shared/model";
 import { placeTiles } from "../../shared/move-analysis";
-import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
+import { scoreTone, signedPoints } from "../score-tone";
 import Board from "./Board";
 import MiniTiles from "./MiniTiles";
-import MoveWord from "./MoveWord";
+import MoveWord, { BingoBadge, MoveLetters } from "./MoveWord";
 import "./optimal-reply.css";
 
 type Scores = EndgameLine["points"];
@@ -23,12 +24,14 @@ type Step = { board: BoardState; scores?: Scores } & (
 
 const scorePair = ({ you, opponent }: Scores) => `${you}–${opponent}`;
 
-function leadLabel(margin: number) {
-  return margin > 0
-    ? `Ahead by ${margin}`
-    : margin < 0
-      ? `Behind by ${-margin}`
-      : "Tied";
+function ScoreWithMargin({ scores }: { scores: Scores }) {
+  const margin = scores.you - scores.opponent;
+  return (
+    <span className="optimal-reply-score">
+      <strong>{scorePair(scores)}</strong>
+      <small className={scoreTone(margin)}>{signedPoints(margin)}</small>
+    </span>
+  );
 }
 
 export default function OptimalReplyDetails({
@@ -49,7 +52,6 @@ export default function OptimalReplyDetails({
       opponent: totals.opponent + points.opponent,
     };
   const final = scoresWith(line.points);
-  const finalMargin = final && final.you - final.opponent;
   const played = { you: 0, opponent: 0 };
   const racks = { you: game.rack, opponent: opponentRack };
   let board = game.board;
@@ -100,25 +102,10 @@ export default function OptimalReplyDetails({
       <div
         className={`optimal-reply-outcome${final ? " with-final-score" : ""}`}
       >
-        {final && finalMargin !== undefined && (
-          <div>
+        {final && (
+          <div className="optimal-reply-final">
             <span className="optimal-reply-label">Optimal final score</span>
-            <div className="optimal-reply-final">
-              <div className="optimal-reply-score-pair">
-                <span>
-                  <strong>{final.you}</strong>
-                  <small>You</small>
-                </span>
-                <span aria-hidden="true">–</span>
-                <span>
-                  <strong>{final.opponent}</strong>
-                  <small>Opponent</small>
-                </span>
-              </div>
-              <strong className={scoreTone(finalMargin)}>
-                {finalMarginLabel(finalMargin)}
-              </strong>
-            </div>
+            <ScoreWithMargin scores={final} />
           </div>
         )}
         <div className="optimal-reply-swing">
@@ -146,8 +133,6 @@ export default function OptimalReplyDetails({
           )}
           <ol className="optimal-reply-turns">
             {steps.map((entry, index) => {
-              const scores = entry.scores;
-              const margin = scores && scores.you - scores.opponent;
               return (
                 <li key={index}>
                   <button
@@ -160,7 +145,17 @@ export default function OptimalReplyDetails({
                       <>
                         <strong className="optimal-reply-turn-word">
                           {entry.move ? (
-                            <MoveWord move={entry.move} rules={game.template} />
+                            <>
+                              <span role="img" aria-label={entry.move.word}>
+                                <MoveLetters move={entry.move} size={size} />
+                              </span>
+                              {isBingo(game.template, entry.move.tiles.length) && (
+                                <>
+                                  {" "}
+                                  <BingoBadge />
+                                </>
+                              )}
+                            </>
                           ) : (
                             "Pass"
                           )}
@@ -182,7 +177,14 @@ export default function OptimalReplyDetails({
                           }
                           title={entry.leave ? "Rack leave" : "Empty rack"}
                         >
-                          {entry.leave ? <MiniTiles tiles={entry.leave} /> : "—"}
+                          {entry.leave ? (
+                            <MiniTiles
+                              tiles={entry.leave}
+                              opponent={entry.player === "opponent"}
+                            />
+                          ) : (
+                            "—"
+                          )}
                         </span>
                         <span
                           className={`optimal-reply-points ${scoreTone((entry.move?.score ?? 0) * (entry.player === "you" ? 1 : -1)) ?? ""}`}
@@ -205,14 +207,9 @@ export default function OptimalReplyDetails({
                         </small>
                       </span>
                     )}
-                    {scores && margin !== undefined && (
+                    {entry.scores && (
                       <span className="optimal-reply-step-score">
-                        <strong>{scorePair(scores)}</strong>
-                        <small className={scoreTone(margin)}>
-                          {index === steps.length - 1
-                            ? finalMarginLabel(margin)
-                            : leadLabel(margin)}
-                        </small>
+                        <ScoreWithMargin scores={entry.scores} />
                       </span>
                     )}
                   </button>

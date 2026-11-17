@@ -1,13 +1,15 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
 import { LoaderCircle, Sparkles } from "lucide-react";
 
 type Phase = "idle" | "active" | "settling";
 
 export default function CalculationIndicator({
   active,
+  idleIcon = <Sparkles />,
   onQuiet,
 }: {
   active: boolean;
+  idleIcon?: ReactNode;
   onQuiet?: (stoppedAt: number) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -39,8 +41,8 @@ export default function CalculationIndicator({
       className="calculation-indicator"
       data-phase={active ? "active" : phase}
     >
-      <span className="calculation-star" aria-hidden="true">
-        <Sparkles />
+      <span className="calculation-idle-icon" aria-hidden="true">
+        {idleIcon}
       </span>
       <span className="calculation-spinner" aria-hidden="true">
         <LoaderCircle />

@@ -41,7 +41,7 @@ import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import { endgameLength } from "../endgame-line-format";
 import MoveAnalysis from "./MoveAnalysis";
-import MoveWord, { BingoBadge } from "./MoveWord";
+import MoveWord, { BingoBadge, MoveLetters } from "./MoveWord";
 import BingoOddsControls from "./BingoOddsControls";
 import CalculationIndicator from "./CalculationIndicator";
 import OptimalReplyDetails from "./OptimalReplyDetails";
@@ -785,7 +785,10 @@ export default function Results({
       <section className="results-panel panel" aria-label="Opponent endgame search">
         <header className="results-title">
           <div className="heading-with-icon">
-            <CalculationIndicator active={opponentSearch.pending} />
+            <CalculationIndicator
+              active={opponentSearch.pending}
+              idleIcon={<Swords />}
+            />
             <h2>Opponent endgame</h2>
           </div>
         </header>
@@ -1195,7 +1198,6 @@ export default function Results({
                 const boardPercent =
                   boardChance &&
                   formatOdds(boardChance.chance, boardChance.exact);
-                const placed = new Map(m.tiles.map((t) => [t.index, t.letter]));
                 const risk = analysisGame && defense?.[m.id];
                 const reply = replyAnalysis.results?.[m.id];
                 const extraReason = replyAnalysis.extraReasons[m.id];
@@ -1339,29 +1341,7 @@ export default function Results({
                           {scoreRank}
                         </span>
                         <span className="result-letters" aria-hidden="true">
-                          {[...m.word].map((letter, i) => {
-                            const index =
-                              m.row * size +
-                              m.col +
-                              i * (m.direction === "across" ? 1 : size);
-                            const tile = placed.get(index);
-                            const blank = tile && tile === tile.toLowerCase();
-                            return (
-                              <span
-                                key={i}
-                                className={`result-letter ${tile ? "played" : "existing"} ${blank ? "assigned-blank" : ""}`}
-                                title={
-                                  tile
-                                    ? blank
-                                      ? "Play a blank"
-                                      : "Play from rack"
-                                    : "Already on board"
-                                }
-                              >
-                                {letter}
-                              </span>
-                            );
-                          })}
+                          <MoveLetters move={m} size={size} />
                         </span>
                         <small
                           className="result-word-detail"
