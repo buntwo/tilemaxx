@@ -2281,8 +2281,11 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
   await user.click(replay());
   expect(board().getByRole("heading", { name: "You win!" })).toBeTruthy();
   expect(board().getByText("Won by 28")).toBeTruthy();
+  const startSquare = board().getByRole("button", { name: /^H8:/ });
+  expect(startSquare).toHaveProperty("disabled", true);
   await user.click(board().getByRole("button", { name: "View board" }));
   expect(board().queryByRole("heading", { name: "You win!" })).toBeNull();
+  expect(startSquare).toHaveProperty("disabled", false);
 
   await user.click(cell("Back to archived games"));
   await user.click(row("Manually ended opponent"));
@@ -2947,7 +2950,10 @@ test("entering the opponent's final tile updates the score and ends the game on 
     rackPoints: 10,
     endedOn: localDate(),
   });
-  await user.click(cell("Undo"));
+  const undo = cell("Undo");
+  expect(undo).toHaveProperty("disabled", true);
+  await user.click(cell("View board"));
+  await user.click(undo);
   expect(current().board[115]).toBe("");
   expect(scoreTotals()).toBe("20–10");
   expect(trackedScore().getAttribute("data-outcome")).toBe("playing");
@@ -3329,7 +3335,7 @@ test("finish overlay shows the adjusted result after the last tile lands and wai
   }
 });
 
-test("typing the opponent's last tile shows the adjusted loss and releases the board keyboard", async () => {
+test("typing the opponent's last tile shows the adjusted loss and locks the board until dismissal", async () => {
   remote.games[0] = finishFixture("opponent");
   const user = await start();
   const board = within(screen.getByRole("region", { name: "Game board" }));
@@ -3351,8 +3357,28 @@ test("typing the opponent's last tile shows the adjusted loss and releases the b
     .toBe(badge.querySelector(".game-score-separator")?.textContent);
   expect(board.getByText(/First game went out/).textContent).toContain("CATS +6");
   expect(document.activeElement).not.toBe(entry());
+
+  const square = board.getByRole("button", { name: /^H8: C/ });
+  const undo = board.getByRole("button", { name: "Undo" });
+  const finishedBoard = current().board;
+  expect(square).toHaveProperty("disabled", true);
+  expect(entry()).toHaveProperty("disabled", true);
+  expect(undo).toHaveProperty("disabled", true);
+  expect(board.getByRole("button", { name: "Toggle entry direction" })).toHaveProperty("disabled", true);
+  expect(board.getByRole("button", { name: "Erase selected tile" })).toHaveProperty("disabled", true);
+  await user.click(square);
+  await user.keyboard("Z{Backspace}");
+  await user.click(undo);
+  expect(current().board).toEqual(finishedBoard);
+
   await user.keyboard("{Escape}");
   expect(board.queryByRole("heading", { name: "You lose" })).toBeNull();
+  expect(square).toHaveProperty("disabled", false);
+  expect(entry()).toHaveProperty("disabled", false);
+  expect(undo).toHaveProperty("disabled", false);
+  await user.click(square);
+  await user.keyboard("Z");
+  expect(board.getByRole("button", { name: /^H8: Z/ })).toBeTruthy();
 });
 
 test("turning tracking on after a screenshot restores the saved move scores", async () => {

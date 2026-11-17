@@ -31,6 +31,7 @@ type MoveFilterSelection = {
 export default function BoardEntry({
   game,
   hideHelp,
+  readOnly,
   displayBoard,
   preview,
   onChange,
@@ -42,6 +43,7 @@ export default function BoardEntry({
 }: {
   game: Game;
   hideHelp?: boolean;
+  readOnly?: boolean;
   displayBoard?: BoardState;
   preview: Move | null;
   onChange: (game: Game) => void;
@@ -60,6 +62,7 @@ export default function BoardEntry({
     <BoardInput
       board={displayBoard ?? game.board}
       hideHelp={hideHelp}
+      readOnly={readOnly}
       archivedBoard={game.archived ? game.archivedBoard : undefined}
       template={game.template}
       preview={preview}
@@ -93,6 +96,7 @@ export function BoardInput({
   uncertain,
   inputLabel = "Type on board",
   hideHelp = false,
+  readOnly = false,
   wordScores,
   moveFilter,
   historyControls,
@@ -111,6 +115,7 @@ export function BoardInput({
   uncertain?: ReadonlySet<number>;
   inputLabel?: string;
   hideHelp?: boolean;
+  readOnly?: boolean;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
@@ -166,11 +171,13 @@ export function BoardInput({
         ? "Board edge"
         : "Board edge — choose another square"
       : "Type to enter";
-  const status = cursor
-    ? `${cursor} · ${instruction}`
-    : "Tap a square and type";
+  const status = readOnly
+    ? "Board locked"
+    : cursor
+      ? `${cursor} · ${instruction}`
+      : "Tap a square and type";
   const help = <BoardEntryHelp id={helpId} hidden={hideHelp} />;
-  const toggleMark = moveFilter?.onToggle;
+  const toggleMark = readOnly ? undefined : moveFilter?.onToggle;
 
   function focus() {
     setFocused(true);
@@ -212,7 +219,8 @@ export function BoardInput({
     }
   }
   function save(next: string[], kind: EditKind) {
-    if (next.some((letter, i) => letter !== board[i])) onChange(next, kind);
+    if (!readOnly && next.some((letter, i) => letter !== board[i]))
+      onChange(next, kind);
   }
   function erase(backspace = false) {
     if (selected === null) return;
@@ -282,8 +290,9 @@ export function BoardInput({
         board={board}
         archivedBoard={archivedBoard}
         preview={preview}
+        disabled={readOnly}
         selected={
-          (focused || onCursorChange) && !preview && !toggleMark
+          !readOnly && (focused || onCursorChange) && !preview && !toggleMark
             ? selected
             : null
         }
@@ -293,7 +302,7 @@ export function BoardInput({
         entryDirection={direction}
         pendingBlank={pendingBlank}
         uncertain={uncertain}
-        wordScores={toggleMark ? undefined : wordScores}
+        wordScores={readOnly || toggleMark ? undefined : wordScores}
         keepInputFocus={!toggleMark}
         overlay={overlay}
       />
@@ -302,7 +311,7 @@ export function BoardInput({
         className="board-keyboard-input"
         aria-label={inputLabel}
         aria-describedby={helpId}
-        disabled={!!toggleMark}
+        disabled={readOnly || !!toggleMark}
         value={SENTINEL}
         autoComplete="off"
         autoCorrect="off"
@@ -336,6 +345,7 @@ export function BoardInput({
           if (e.key === "Shift") shiftHeld.current = false;
         }}
         onKeyDown={(e) => {
+          if (readOnly) return;
           if (e.key === "Shift") shiftHeld.current = true;
           if (e.nativeEvent.isComposing || e.metaKey || e.ctrlKey || e.altKey)
             return;
@@ -406,6 +416,7 @@ export function BoardInput({
         <div className="direct-entry-actions">
           <button
             className="text-button direction-button"
+            disabled={readOnly}
             aria-label="Toggle entry direction"
             title="Right/Down switches direction; Shift+Enter also toggles"
             onPointerDown={(e) => e.preventDefault()}
@@ -423,7 +434,7 @@ export function BoardInput({
           </button>
           <button
             className={`text-button ${pendingBlank || isBlank ? "active" : ""}`}
-            disabled={selected === null}
+            disabled={readOnly || selected === null}
             aria-label={`Blank tile: ${pendingBlank || isBlank ? "on" : "off"}`}
             aria-pressed={pendingBlank || isBlank}
             onPointerDown={(e) => e.preventDefault()}
@@ -437,7 +448,7 @@ export function BoardInput({
             className="icon-button"
             aria-label="Erase selected tile"
             title="Erase selected tile"
-            disabled={selected === null || (!tile && !pendingBlank)}
+            disabled={readOnly || selected === null || (!tile && !pendingBlank)}
             onPointerDown={(e) => e.preventDefault()}
             onClick={() => {
               erase();

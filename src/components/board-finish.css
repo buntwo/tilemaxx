@@ -3,6 +3,10 @@
   isolation: isolate;
 }
 
+.board-grid:has(> .board-finish) > .square:disabled {
+  opacity: 1;
+}
+
 .board-finish {
   --finish-ink: var(--text);
   --finish-wash: var(--soft);
@@ -19,7 +23,6 @@
   overflow: hidden;
   border-radius: 4px;
   background: var(--finish-shade);
-  pointer-events: none;
   animation: board-finish-reveal 280ms ease-out both;
 }
 
