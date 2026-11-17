@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { EndgameLine } from "../../shared/endgame";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import {
@@ -91,13 +91,27 @@ export default function OptimalReplyDetails({
     line: EndgameLine;
     index: number;
   }>();
-  const selected =
-    selection?.line === line
-      ? selection.index
-      : firstPlayer === "you" && line.line.length > 1
-        ? 1
-        : 0;
-  const step = steps[selected];
+  const selected = selection?.line === line ? selection.index : undefined;
+  const step = selected === undefined ? undefined : steps[selected];
+  const table = useRef<HTMLTableElement>(null);
+  useEffect(() => {
+    function dismissOutside(event: PointerEvent) {
+      const row =
+        event.target instanceof Element
+          ? event.target.closest("tbody tr")
+          : null;
+      if (!row || !table.current?.contains(row)) setSelection(undefined);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape") setSelection(undefined);
+    }
+    document.addEventListener("pointerdown", dismissOutside, true);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside, true);
+      document.removeEventListener("keydown", escape);
+    };
+  }, []);
   const candidate = line.line[0];
   const { size } = game.template;
 
@@ -123,6 +137,7 @@ export default function OptimalReplyDetails({
         <div>
           <h4>Optimal endgame line</h4>
           <table
+            ref={table}
             className="optimal-reply-turns"
             aria-label="Optimal endgame line"
           >
@@ -161,7 +176,11 @@ export default function OptimalReplyDetails({
                         : undefined
                   }
                   data-selected={index === selected || undefined}
-                  onClick={() => setSelection({ line, index })}
+                  onClick={() =>
+                    setSelection(
+                      index === selected ? undefined : { line, index },
+                    )
+                  }
                 >
                   <td>
                     <button
@@ -270,7 +289,9 @@ export default function OptimalReplyDetails({
         </div>
         <figure className="optimal-reply-board">
           <figcaption aria-live="polite">
-            {step.kind === "adjustment" ? (
+            {!step ? (
+              "Current board"
+            ) : step.kind === "adjustment" ? (
               "Final board"
             ) : step.move ? (
               <>
@@ -285,8 +306,8 @@ export default function OptimalReplyDetails({
           <Board
             compact
             template={game.template}
-            board={step.board}
-            preview={step.kind === "turn" ? step.move : undefined}
+            board={step?.board ?? game.board}
+            preview={step?.kind === "turn" ? step.move : undefined}
           />
         </figure>
       </div>
