@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { History } from "lucide-react";
 import { opponentNameMatches } from "../../shared/game-index";
 import { localDate, MAX_GAME_NOTES, type Game } from "../../shared/model";
@@ -50,6 +50,7 @@ export function GameMetadata({
 const platforms: string[] = gamePlatforms.map(({ name }) => name);
 
 function OpponentField({ suggestions }: { suggestions: readonly string[] }) {
+  const field = useRef<HTMLDivElement>(null);
   const listId = useId();
   const [name, setName] = useState("");
   const [open, setOpen] = useState(false);
@@ -64,10 +65,24 @@ function OpponentField({ suggestions }: { suggestions: readonly string[] }) {
       document.getElementById(activeId)?.scrollIntoView?.({ block: "nearest" });
   }, [activeId]);
 
-  function dismiss() {
+  const dismiss = useCallback(() => {
     setOpen(false);
     setHighlight(-1);
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!expanded) return;
+    // A tap can blur the input before the suggestion receives its click.
+    const dismissOutside = (event: Event) => {
+      if (!field.current?.contains(event.target as Node)) dismiss();
+    };
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("focusin", dismissOutside);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("focusin", dismissOutside);
+    };
+  }, [dismiss, expanded]);
 
   function choose(option: string) {
     setName(option);
@@ -75,7 +90,7 @@ function OpponentField({ suggestions }: { suggestions: readonly string[] }) {
   }
 
   return (
-    <div className="opponent-field">
+    <div ref={field} className="opponent-field">
       <label>
         Opponent
         <input
@@ -96,7 +111,6 @@ function OpponentField({ suggestions }: { suggestions: readonly string[] }) {
             setOpen(true);
           }}
           onClick={() => setOpen(true)}
-          onBlur={dismiss}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return;
             if (event.key === "Escape" && expanded) {
@@ -128,16 +142,18 @@ function OpponentField({ suggestions }: { suggestions: readonly string[] }) {
           aria-label="Recent opponents"
         >
           {matches.map((option, index) => (
-            <div
+            <button
               key={option}
               id={`${listId}-${index}`}
+              type="button"
+              tabIndex={-1}
               role="option"
               aria-selected={index === highlight}
-              onPointerDown={(event) => event.preventDefault()}
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => choose(option)}
             >
               {option}
-            </div>
+            </button>
           ))}
         </div>
       )}
