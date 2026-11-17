@@ -968,6 +968,9 @@ test("a completed reply line replaces the immediate warning and replays each tur
   expect(replyScore.querySelector("small.value-bad")?.textContent).toBe("−21");
   expect(replyTurn.querySelector(".result-letter.played")?.textContent).toBe("Z");
   expect(replyTurn.querySelector(".result-letter.existing")?.textContent).toBe("A");
+  expect(details.queryByRole("button", { pressed: true })).toBeNull();
+  expect(details.getByText("Current board")).toBeTruthy();
+  await user.click(replyTurn);
   expect(replyTurn.getAttribute("aria-pressed")).toBe("true");
   const leave = within(replyTurn.closest("tr")!).getByRole("img", { name: "Leave: T, T, blank" });
   const tiles = [...leave.querySelectorAll(".mini-tiles.opponent > span")];
@@ -1548,4 +1551,40 @@ test("endgame table includes a final row without adjustments and does not call a
   expect(within(table).getByRole("button", { name: "Final score" })).toBeTruthy();
   expect(within(table).queryByText("Rack adjustment")).toBeNull();
   expect(within(table).queryByRole("img", { name: "Goes out" })).toBeNull();
+});
+
+test.each(["mouse", "touch"])("endgame selection starts empty, toggles and dismisses outside (%s)", async (pointerType) => {
+  const user = userEvent.setup();
+  const line = { line: [moves[0], { ...moves[1], leave: "" }], points: { you: 20, opponent: 10 }, spread: 10 };
+  const { container, rerender } = render(
+    <OptimalReplyDetails game={endgame} opponentRack="CAT" line={line} />,
+  );
+  const table = screen.getByRole("table", { name: "Optimal endgame line" });
+  const first = within(table).getByRole("button", { name: /^CATS You/ });
+  const second = within(table).getByRole("button", { name: /^CAT Opponent/ });
+  const expectClear = () => {
+    expect(within(table).queryByRole("button", { pressed: true })).toBeNull();
+    expect(screen.getByText("Current board")).toBeTruthy();
+    expect(container.querySelector(".ghost")).toBeNull();
+  };
+  expectClear();
+  fireEvent.pointerDown(first, { pointerType });
+  await user.click(first);
+  expect(first.getAttribute("aria-pressed")).toBe("true");
+  expect(container.querySelector(".ghost")).toBeTruthy();
+  fireEvent.pointerDown(first, { pointerType });
+  await user.click(first);
+  expectClear();
+  await user.click(second);
+  fireEvent.pointerDown(screen.getByRole("heading", { name: "Optimal endgame line" }), { pointerType });
+  expectClear();
+  await user.click(first);
+  fireEvent.pointerDown(document.body, { pointerType });
+  expectClear();
+  await user.click(first);
+  await user.keyboard("{Escape}");
+  expectClear();
+  await user.click(second);
+  rerender(<OptimalReplyDetails game={endgame} opponentRack="CAT" line={{ ...line }} />);
+  expectClear();
 });

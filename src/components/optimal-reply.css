@@ -111,13 +111,13 @@
   vertical-align: middle;
 }
 .optimal-reply-opponent-row {
-  background: color-mix(in srgb, var(--blank-tile) 12%, var(--surface));
+  background: color-mix(in srgb, var(--blank-tile) 4%, var(--surface));
 }
 .optimal-reply-turns tbody tr:is(:hover, [data-selected]) {
-  background: var(--soft);
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
 }
 .optimal-reply-opponent-row:is(:hover, [data-selected]) {
-  background: color-mix(in srgb, var(--blank-tile) 18%, var(--soft));
+  background: color-mix(in srgb, var(--blank-tile) 6%, var(--surface));
 }
 .optimal-reply-turns tbody tr[data-selected] td:first-child {
   box-shadow: inset 2px 0 var(--primary);
@@ -148,7 +148,7 @@
   font-size: 10px;
 }
 .optimal-reply-turn-word {
-  font-size: var(--move-word-size, 17px);
+  font-size: var(--move-word-size, 15px);
   line-height: 20px;
   letter-spacing: .2px;
   font-weight: 650;
@@ -156,7 +156,7 @@
 }
 .optimal-reply-turn-word .bingo-badge { margin-inline-start: 3px; }
 .optimal-reply-turn-note { white-space: nowrap; }
-.optimal-reply-final-label { font-size: 15px; }
+.optimal-reply-final-label { font-size: 14px; }
 .optimal-reply-adjustment { font-size: 11px; }
 .optimal-reply-adjustment strong { font-weight: 500; color: var(--muted); }
 .optimal-reply-adjustment small { white-space: nowrap; }

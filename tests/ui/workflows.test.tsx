@@ -3339,7 +3339,7 @@ test("entering the opponent's final tile updates the score and ends the game on 
   expect(trackedScore().classList.contains("value-good")).toBe(false);
   expect(scoreDelta()?.textContent).toBe("+10");
   expect(scoreDelta()?.classList.contains("value-good")).toBe(true);
-  expect(screen.getByText("Lead by 10").classList.contains("value-good")).toBe(true);
+  expect(screen.getByText("+10 pts").classList.contains("value-good")).toBe(true);
   await user.click(cell("K8: empty"));
   await user.keyboard("S");
   expect(scoreTotals()).toBe("10–26");
@@ -5335,7 +5335,11 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   await user.click(rows[0]);
   const preview = within(result.getByRole("region", { name: "Opponent reply details" }));
   expect(preview.getByRole("heading", { name: "Optimal endgame line" })).toBeTruthy();
-  const firstTurn = preview.getAllByRole("button", { pressed: true })[0];
+  expect(preview.queryByRole("button", { pressed: true })).toBeNull();
+  expect(preview.getByText("Current board")).toBeTruthy();
+  const firstTurn = preview.getByRole("table", { name: "Optimal endgame line" })
+    .querySelector<HTMLButtonElement>("tbody button")!;
+  await user.click(firstTurn);
   expect(firstTurn.textContent).toContain("Opponent");
   expect(within(firstTurn).getByRole("img", { name: "Bingo" })).toBeTruthy();
   expect(firstTurn.closest("tr")!.querySelector(".optimal-reply-step-score small.value-bad")?.textContent)
@@ -5453,7 +5457,8 @@ test("an archived game can solve an edited empty-bag position before and after F
   expect(results.getByText("Opponent plays next")).toBeTruthy();
   const ranked = within(results.getByRole("list", { name: /sorted by swing for you/ }));
   await user.click(ranked.getAllByRole("button")[0]);
-  expect(results.getAllByRole("button", { pressed: true })[0].textContent).toContain("Opponent");
+  expect(results.queryByRole("button", { pressed: true })).toBeNull();
+  expect(results.getByText("Current board")).toBeTruthy();
   expect(requests[0]).toMatchObject({
     board: archived.board,
     rack: "DSD",
@@ -5521,7 +5526,8 @@ test("an active empty-bag game can solve with two partial racks and no refill hi
   expect(swing.children).toHaveLength(3);
   expect(swing.lastElementChild?.textContent).toBe("1 ply");
   await user.click(row);
-  expect(results.getByRole("button", { pressed: true }).textContent).toContain("Opponent");
+  expect(results.queryByRole("button", { pressed: true })).toBeNull();
+  expect(results.getByText("Current board")).toBeTruthy();
   expect(current().board).toEqual(board);
   expect(current().rack).toBe("DSD");
   await user.click(results.getByRole("button", { name: "Close opponent endgame" }));

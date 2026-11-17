@@ -12,7 +12,7 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --move-word-size: 17px;
+  --move-word-size: 15px;
   --bg: #f7f8f5;
   --surface: #fff;
   --sidebar: #f0f3ee;
@@ -1362,6 +1362,7 @@ label + label {
   margin: 12px 0 0;
 }
 .score-players > div + div {
+  text-align: right;
   border-left: 1px solid var(--line);
   padding-left: 14px;
 }
@@ -1381,6 +1382,13 @@ label + label {
 .score-pending p {
   color: var(--muted);
   font-size: 12px;
+}
+.score-margin {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 .score-panel > .score-detail {
   margin-top: 8px;

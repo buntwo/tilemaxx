@@ -15,7 +15,7 @@ import {
   pendingOpponentTurns,
   tracksScores,
 } from "../../shared/game-scoring";
-import { scoreTone } from "../score-tone";
+import { scoreTone, signedPoints } from "../score-tone";
 import Modal from "./Modal";
 import MoveWord, { BingoBadge } from "./MoveWord";
 import ScoreBreakdown from "./ScoreBreakdown";
@@ -43,12 +43,9 @@ export default function GameScores({
   const end = scoring.end;
   const rackOut = end && "out" in end ? end : undefined;
   const manual = end && "manual" in end ? end : undefined;
-  const outcome = manual?.outcome;
   const adjusted = gameScoreTotals(scoring);
   const margin = adjusted.you - adjusted.opponent;
-  const tone = scoreTone(
-    outcome ? { win: 1, loss: -1, tie: 0 }[outcome] : margin,
-  );
+  const tone = scoreTone(margin);
   const totals = { you: 0, opponent: 0 };
   const history = trackedMoveHistory(game);
   const historyKey = JSON.stringify(history);
@@ -132,16 +129,8 @@ export default function GameScores({
               Game ended. Showing points from saved moves.
             </p>
           ) : (
-            <p className={`score-detail ${tone ?? ""}`}>
-              {outcome
-                ? { win: "You won", loss: "Opponent won", tie: "Tie" }[outcome]
-                : margin > 0
-                  ? `${scoring.end ? "Win" : "Lead"} by ${margin}`
-                  : margin < 0
-                    ? `${scoring.end ? "Lose" : "Trail"} by ${-margin}`
-                    : scoring.end
-                      ? "Tie"
-                      : "Tied"}
+            <p className={`score-margin ${tone ?? ""}`}>
+              {signedPoints(margin)} pts
             </p>
           )}
           {rackOut && (
