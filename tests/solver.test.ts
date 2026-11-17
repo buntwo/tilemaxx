@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import {
+  BIG_REPLY_SCORE,
   inspectBoard,
   prepareSolver,
   solve,
@@ -439,7 +440,7 @@ function brute(
         }
   return out;
 }
-test("all legal placements and scores match exhaustive enumeration across 30 positions", () => {
+test("legal placements, best scores, and tied strong replies match exhaustive enumeration", () => {
   let seed = 301;
   const random = () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
@@ -487,15 +488,50 @@ test("all legal placements and scores match exhaustive enumeration across 30 pos
     const bingo = [...expected.keys()].some(
       (id) => id.split(",").length === t.rackSize,
     );
+    const score = Math.max(0, ...expected.values());
     assert.deepEqual(prepared.summarize(rack), {
-      score: Math.max(0, ...expected.values()),
+      score,
       bingo,
     });
+    assert.equal(prepared.bestScore(rack), score, `Trial ${trial}, rack ${rack}`);
+    const reply = prepared.summarizeReply(rack);
+    assert.equal(reply.score, score);
+    assert.deepEqual(
+      new Map(reply.bigReplies.map(({ score, tiles }) => [
+        tiles.map(({ index, letter }) => `${index}:${letter}`).sort().join(","),
+        score,
+      ])),
+      new Map([...expected].filter(([, points]) =>
+        points === score && score >= BIG_REPLY_SCORE
+      )),
+    );
     assert.equal(
       prepared.solve(rack, {}, { bingoOnly: true }).length,
       Number(bingo),
     );
   }
+});
+
+test("score-only pruning finds an exact result within a blank-heavy node budget", () => {
+  const words = Array.from({ length: 4 ** 6 }, (_, index) =>
+    index.toString(4).padStart(6, "0").replace(/[0-3]/g, (digit) => "ABCD"[+digit]),
+  );
+  const template: BoardTemplate = {
+    ...PRESETS[0],
+    additionalBonuses: { 5: 60 },
+  };
+  const board = emptyBoard(15);
+  board[template.start] = "A";
+  const solver = prepareSolver(new Lexicon(words), board, template);
+  const rack = "???????";
+  const score = solver.summarize(rack).score;
+  assert.equal(score, 61);
+  const limits = { maxNodes: 25_000 };
+  assert.throws(() => solver.summarize(rack, limits), {
+    name: "SearchLimitError",
+    reason: "nodes",
+  });
+  assert.equal(solver.bestScore(rack, limits), score);
 });
 
 test("blank-heavy searches stop at work, result and time budgets instead of returning partial moves", () => {
