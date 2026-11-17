@@ -1,0 +1,51 @@
+import { useEffect, useEffectEvent } from "react";
+
+export default function useKeyboardShortcuts({
+  enabled,
+  focusRack,
+  searchGames,
+  showGuide,
+}: {
+  enabled: boolean;
+  focusRack: () => boolean;
+  searchGames: () => boolean;
+  showGuide: () => void;
+}) {
+  const handleKey = useEffectEvent((event: KeyboardEvent) => {
+    if (
+      !enabled ||
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.repeat ||
+      event.ctrlKey ||
+      event.metaKey ||
+      document.querySelector("dialog[open]")
+    )
+      return;
+
+    const key = event.key.toLowerCase();
+    // Option generates a symbol instead of a letter on macOS.
+    if (event.altKey && !event.shiftKey) {
+      if ((key === "r" || event.code === "KeyR") && focusRack())
+        event.preventDefault();
+      else if ((key === "g" || event.code === "KeyG") && searchGames())
+        event.preventDefault();
+      return;
+    }
+    if (event.altKey || key !== "?") return;
+    if (
+      event.target instanceof HTMLElement &&
+      (event.target.isContentEditable ||
+        event.target.closest("input, textarea, select, [contenteditable]:not([contenteditable=false])"))
+    )
+      return;
+    event.preventDefault();
+    showGuide();
+  });
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => handleKey(event);
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+}

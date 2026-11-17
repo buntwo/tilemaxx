@@ -3258,6 +3258,31 @@ label + label {
   padding: 20px 2px;
   text-align: left;
 }
+.keyboard-shortcuts {
+  display: grid;
+  gap: 14px;
+}
+.keyboard-shortcuts h3 { margin: 0 0 4px; font-size: 13px; }
+.keyboard-shortcuts dl { margin: 0; }
+.keyboard-shortcuts dl > div {
+  display: grid;
+  grid-template-columns: minmax(7em, .6fr) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding-block: 5px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.keyboard-shortcuts dd { margin: 0; }
+.keyboard-shortcuts kbd {
+  display: inline-block;
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 11px;
+}
 .game-option-list > button:hover {
   background: var(--bg);
 }

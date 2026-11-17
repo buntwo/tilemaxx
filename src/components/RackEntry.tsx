@@ -40,6 +40,7 @@ const EXCHANGE_CACHE_LIMIT = 16;
 const TILE_HOLD_MS = 450;
 export type RackEntryHandle = {
   openSuggestedExchange: (reveal: boolean) => void;
+  focusEntry: () => void;
 };
 
 export default function RackEntry({
@@ -168,7 +169,7 @@ export default function RackEntry({
           : "smooth",
       });
   });
-  useImperativeHandle(ref, () => ({ openSuggestedExchange }));
+  useImperativeHandle(ref, () => ({ openSuggestedExchange, focusEntry }));
   useEffect(() => {
     const close = (event: PointerEvent) => {
       if (!tools.current?.contains(event.target as Node) && tools.current)
@@ -355,6 +356,13 @@ export default function RackEntry({
     onReviewEdit?.();
     chooseMode("entry");
     focus(slot);
+  }
+  function focusEntry() {
+    if (document.activeElement !== input.current) {
+      const gap = game.rack.indexOf(".");
+      editFromReview(Math.min(gap === -1 ? game.rack.length : gap, capacity - 1));
+    }
+    rack.current?.scrollIntoView?.({ block: "nearest" });
   }
   function openSuggestedExchange(reveal: boolean) {
     if (!exchangeAdvice || flyingRack) return;
@@ -591,6 +599,7 @@ export default function RackEntry({
         ref={input}
         tabIndex={onReviewEdit ? -1 : undefined}
         aria-label="Rack letters"
+        aria-keyshortcuts="Alt+R"
         aria-describedby={opponentRack ? undefined : helpId}
         value={SENTINEL}
         autoCapitalize="characters"

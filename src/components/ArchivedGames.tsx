@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, type Ref } from "react";
 import { ArrowLeft, ArrowRight, Pencil } from "lucide-react";
 import { opponentNameMatches, type GameSummary } from "../../shared/game-index";
 import { FullMoveHistoryIcon, GameMetadata } from "./GameDetails";
@@ -14,6 +14,7 @@ const opponentOrder = new Intl.Collator(undefined, {
 export default function ArchivedGames({
   games,
   headerControl,
+  filterRef,
   sort,
   onSort,
   onOpen,
@@ -22,6 +23,7 @@ export default function ArchivedGames({
 }: {
   games: GameSummary[];
   headerControl?: ReactNode;
+  filterRef?: Ref<HTMLInputElement>;
   sort: ArchiveSort;
   onSort: (sort: ArchiveSort) => void;
   onOpen: (id: string) => void;
@@ -66,9 +68,11 @@ export default function ArchivedGames({
           <>
             <div className="archive-controls">
               <input
+                ref={filterRef}
                 className="archive-filter"
                 type="search"
                 aria-label="Filter by opponent"
+                aria-keyshortcuts="Alt+G"
                 placeholder="Filter by opponent"
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}

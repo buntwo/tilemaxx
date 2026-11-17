@@ -1,10 +1,12 @@
 import {
   useEffect,
   useId,
+  useImperativeHandle,
   useRef,
   useState,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type Ref,
 } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronRight, GripVertical } from "lucide-react";
@@ -42,12 +44,16 @@ function GamePickerLabel({
   );
 }
 
+export type GamePickerHandle = { focusSearch: () => boolean };
+
 export default function GamePicker({
+  ref,
   game,
   games,
   onChoose,
   onReorder,
 }: {
+  ref?: Ref<GamePickerHandle>;
   game?: GameSummary;
   games: GameSummary[];
   onChoose: (id: string) => void;
@@ -59,7 +65,7 @@ export default function GamePicker({
   const trigger = useRef<HTMLButtonElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const focusOptionOnOpen = useRef(false);
+  const focusOnOpen = useRef<"search" | "option">(undefined);
   const id = useId();
   const visibleGames = games
     .map((option, index) => ({ option, index }))
@@ -130,16 +136,29 @@ export default function GamePicker({
 
   useEffect(() => {
     if (!open) return;
-    if (focusOptionOnOpen.current) {
-      focusOptionOnOpen.current = false;
+    const requested = focusOnOpen.current;
+    focusOnOpen.current = undefined;
+    if (requested === "option") {
       const selected = list.current?.querySelector<HTMLButtonElement>(
         '[aria-checked="true"]',
       );
       (selected ?? list.current?.querySelector("button"))?.focus();
-    } else if (!window.matchMedia?.("(pointer: coarse)").matches) {
+    } else if (requested === "search" || !window.matchMedia?.("(pointer: coarse)").matches) {
       search.current?.focus();
     }
   }, [open]);
+
+  useImperativeHandle(ref, () => ({
+    focusSearch() {
+      if (!games.length) return false;
+      if (open) search.current?.focus();
+      else {
+        focusOnOpen.current = "search";
+        setOpen(true);
+      }
+      return true;
+    },
+  }));
 
   function choose(id: string) {
     closePicker();
@@ -289,7 +308,7 @@ export default function GamePicker({
         options.at(event.key === "Home" ? 0 : -1)?.focus();
         break;
       default:
-        if (!inSearch && event.key.length === 1 && event.key !== " ") {
+        if (!inSearch && event.key.length === 1 && event.key !== " " && event.key !== "?") {
           event.preventDefault();
           search.current?.focus();
           updateQuery(query + event.key);
@@ -316,6 +335,7 @@ export default function GamePicker({
             type="button"
             className="game-picker-trigger"
             aria-label="Switch game"
+            aria-keyshortcuts="Alt+G"
             aria-description={
               game?.fullMoveHistory ? "Full move history" : undefined
             }
@@ -330,7 +350,7 @@ export default function GamePicker({
                 (event.key === "ArrowDown" || event.key === "ArrowUp")
               ) {
                 event.preventDefault();
-                focusOptionOnOpen.current = true;
+                focusOnOpen.current = "option";
                 setOpen(true);
               }
             }}
