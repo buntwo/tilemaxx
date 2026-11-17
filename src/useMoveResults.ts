@@ -41,27 +41,18 @@ export function useMoveResults(
         requiredSquares,
         sort,
         reversed,
-        rackOdds,
-        boardOdds,
-        replyDeltas,
         endgameId,
       ]),
-    [
-      searchId,
-      filter,
-      requiredSquares,
-      sort,
-      reversed,
-      rackOdds,
-      boardOdds,
-      replyDeltas,
-      endgameId,
-    ],
+    [searchId, filter, requiredSquares, sort, reversed, endgameId],
+  );
+  const orderData = useMemo(
+    () => ({ rackOdds, boardOdds, replyDeltas, exactEndgameSpreads }),
+    [rackOdds, boardOdds, replyDeltas, exactEndgameSpreads],
   );
   const [received, setReceived] = useState<{
     key: string;
     page?: MovePage;
-    exactEndgameSpreads?: MoveQuery["exactEndgameSpreads"];
+    orderData: typeof orderData;
   }>();
   const response = received?.key === key ? received : undefined;
   const page = response?.page;
@@ -92,11 +83,11 @@ export function useMoveResults(
     start >= slice.offset &&
     Math.min(total, start + visibleMoveRows) <=
       slice.offset + slice.rows.length;
-  const unavailable = !!response && !page;
-  const orderChanged = response?.exactEndgameSpreads !== exactEndgameSpreads;
+  const orderChanged = !!response && response.orderData !== orderData;
+  const unavailable = !!response && !page && !orderChanged;
   const needsPage =
     enabled && !!results && (orderChanged || (!unavailable && !hasWindow));
-  // Keep the current rows visible while the worker applies new exact scores.
+  // New analysis can reorder moves while the user is scrolled into this page.
   const previousOrder = orderChanged && hasWindow ? page : undefined;
   // Keep a window wider than the rendered rows. A small overlapping scroll
   // stays synchronous, and only a new page boundary needs a worker message.
@@ -107,7 +98,7 @@ export function useMoveResults(
     let current = true;
     const settle = (next?: MovePage) => {
       if (current)
-        setReceived({ key, page: next ?? previousOrder, exactEndgameSpreads });
+        setReceived({ key, page: next ?? previousOrder, orderData });
     };
     void fetchPage(searchId, {
       filter,
@@ -115,11 +106,8 @@ export function useMoveResults(
       sort,
       reversed,
       offset: target,
-      rackOdds,
-      boardOdds,
-      replyDeltas,
       endgameId,
-      exactEndgameSpreads,
+      ...orderData,
     }).then(settle, () => settle());
     return () => {
       current = false;
@@ -134,11 +122,8 @@ export function useMoveResults(
     requiredSquares,
     sort,
     reversed,
-    rackOdds,
-    boardOdds,
-    replyDeltas,
     endgameId,
-    exactEndgameSpreads,
+    orderData,
     previousOrder,
   ]);
 

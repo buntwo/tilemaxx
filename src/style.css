@@ -2173,6 +2173,7 @@ label + label {
 .result-scroll {
   height: 435px;
   overflow: auto;
+  overflow-anchor: none;
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
@@ -2295,27 +2296,26 @@ label + label {
 .result-reply-actions {
   width: 100%;
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
   pointer-events: none;
 }
 .result-reply-actions .icon-button {
-  flex: 0 1 auto;
-  width: auto;
-  min-width: 0;
+  flex: none;
+  width: 38px;
   padding: 0;
   pointer-events: auto;
 }
 .result-reply-actions .result-histogram-trigger {
-  flex: 0 0 24px;
   color: var(--muted);
 }
 .result-reply-actions .result-histogram-trigger:hover,
 .result-reply-actions .result-histogram-trigger:focus-visible {
   color: var(--primary);
 }
-.result-reply-actions:has(.result-histogram-trigger) .result-defense-badge {
-  min-width: 24px;
-  padding-inline: 2px;
+.result-reply-actions:has(.result-histogram-trigger) .icon-button {
+  height: 24px;
 }
 .result-reply-metric,
 .result-reply-pending {

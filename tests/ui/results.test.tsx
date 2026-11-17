@@ -14,6 +14,7 @@ import Results from "../../src/components/Results";
 import { emptyBoard, type Game, type Move } from "../../shared/model";
 import { TILE_SYMBOLS } from "../../shared/tile-pool";
 import { PRESETS } from "../../shared/presets";
+import type { DefenseResults } from "../../shared/premium-defense";
 import type {
   ReplyRequest,
   ReplyDistribution,
@@ -117,6 +118,7 @@ function setup(
     boardOdds?: BoardOddsResult;
     analysisGame?: Game;
     replyEnabled?: boolean;
+    defense?: DefenseResults;
     fetchPage?: FetchMovePage;
     rankEndgame?: (index: MoveResultIndex) => RankEndgame;
     onBoardOdds?: (moves: Move[], bagSize: number) => BoardOddsResult | void;
@@ -163,6 +165,7 @@ function setup(
         analysisGame={options.analysisGame}
         replyAnalysis={replyAnalysis}
         replyEnabled={options.replyEnabled}
+        defense={options.defense}
         preview={preview}
         phoneLayout={mobile}
         compact={options.compact}
@@ -259,6 +262,122 @@ test("scrolling and filtering use worker pages and ignore out-of-order results",
   await act(async () => pending[1]());
   expect(rows()).toHaveLength(1);
   expect(screen.queryByRole("button", { name: /^QUICK,/ })).toBeNull();
+});
+
+test.each([true, false])("an on-demand histogram keeps the scrolled list visible (automatic histogram available: %s)", async (automatic) => {
+  let worker: ReplyWorker | undefined;
+  class ReplyWorker {
+    onmessage?: (message: { data: unknown }) => void;
+    terminate = vi.fn();
+    request?: ReplyRequest;
+    constructor() {
+      worker = this;
+    }
+    postMessage(request: ReplyRequest) {
+      this.request = request;
+    }
+  }
+  vi.stubGlobal("Worker", ReplyWorker);
+  const game: Game = {
+    id: "test",
+    name: "Test",
+    profileId: "p",
+    board: emptyBoard(15),
+    rack: "CATS",
+    template: PRESETS[0],
+    dictionaryId: "test",
+    past: [],
+    future: [],
+    revision: 0,
+    updatedAt: "",
+    archived: false,
+  };
+  const lower = 95;
+  const longList = Array.from({ length: 200 }, (_, i) => ({
+    ...moves[0],
+    id: String(i),
+    word: i === lower ? "ZEBRA" : "CATS",
+    score: 400 - i,
+  }));
+  const index = new MoveResultIndex(longList, game.template);
+  const pending: Array<{ offset: number; complete: () => void }> = [];
+  const fetchPage: FetchMovePage = (_id, query) =>
+    new Promise((resolve) => pending.push({
+      offset: query.offset,
+      complete: () => resolve(index.page(query)),
+    }));
+  const { user } = setup(false, {
+    moves: longList,
+    analysisGame: game,
+    fetchPage,
+    defense: {
+      [lower]: {
+        depth: 1,
+        opened: {
+          square: 0,
+          premium: "TW",
+          after: { word: "QI", score: 33, tiles: [{ index: 0, letter: "Q" }] },
+        },
+      },
+    },
+  });
+  const summary = worker!.request!;
+  const distribution: ReplyDistribution = {
+    kind: "distribution",
+    mean: 25,
+    buckets: [0, 500, 0, 0, 0],
+    difference: 0,
+    outscored: 0,
+    count: 500,
+    exact: false,
+    discordant: [0, 0, 0, 0, 0],
+    reference: { mean: 25, buckets: [0, 500, 0, 0, 0] },
+  };
+  act(() => worker!.onmessage?.({
+    data: {
+      id: summary.id, kind: summary.kind, done: true,
+      ...(automatic && { moveId: summary.reference.id, result: distribution }),
+    },
+  }));
+  const scroller = screen.getByLabelText("Suggested moves");
+  const scrollTop = (lower - 1) * moveRowHeight;
+  scroller.scrollTop = scrollTop;
+  fireEvent.scroll(scroller);
+  await waitFor(() => expect(pending).toHaveLength(1));
+  await act(async () => pending[0].complete());
+
+  const chart = await screen.findByRole("button", { name: /^Check reply histogram for ZEBRA/ });
+  const risk = screen.getByRole("button", { name: /^Reply risk for ZEBRA/ });
+  expect(risk.parentElement).toBe(chart.parentElement);
+  expect(risk.nextElementSibling).toBe(chart);
+  await user.click(chart);
+  const manual = worker!.request!;
+  expect(manual.kind).toBe("reply-histogram");
+  act(() => worker!.onmessage?.({
+    data: { id: manual.id, kind: manual.kind, result: distribution },
+  }));
+  expect(screen.getByLabelText("Suggested moves")).toBe(scroller);
+  expect(scroller.scrollTop).toBe(scrollTop);
+  expect(screen.queryByText("Loading move list…")).toBeNull();
+  expect(screen.queryByRole("button", { name: /^Reply risk for ZEBRA/ })).toBeNull();
+  expect(screen.getByRole("region", { name: "Reply after ZEBRA" })).toBeTruthy();
+  if (!automatic) {
+    expect(pending).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /^ZEBRA,/ }).querySelector(".reply-mini")).toBeTruthy();
+    return;
+  }
+  await waitFor(() => expect(pending).toHaveLength(2));
+  expect(pending[1].offset).toBe(pending[0].offset);
+  await act(async () => pending[1].complete());
+  expect(screen.getByLabelText("Suggested moves")).toBe(scroller);
+  expect(scroller.scrollTop).toBe(scrollTop);
+
+  scroller.scrollTop = 0;
+  fireEvent.scroll(scroller);
+  await waitFor(() => expect(pending).toHaveLength(3));
+  await act(async () => pending[2].complete());
+  expect(screen.getByRole("button", { name: /^ZEBRA,/ }).querySelector(".reply-mini")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /^Reply risk for ZEBRA/ })).toBeNull();
 });
 
 test("reply rows resolve individually and compare against the highest score after sorting", async () => {
