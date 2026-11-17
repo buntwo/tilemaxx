@@ -140,17 +140,25 @@ export function createStore(directory: string, root: string) {
       JSON.stringify(summarizeGame(game)),
     );
   }
+  const staleSummary = `summaries.id IS NULL OR json_type(summaries.data, '$.fullMoveHistory') IS NULL
+      OR json_type(summaries.data, '$.score') IS NULL`;
   const staleSummaryJoin = `
     FROM games LEFT JOIN game_summaries AS summaries
       ON summaries.id=games.id AND summaries.revision=games.revision
-    WHERE summaries.id IS NULL OR json_type(summaries.data, '$.fullMoveHistory') IS NULL
-      OR json_type(summaries.data, '$.score') IS NULL
+    WHERE ${staleSummary}
   `;
   const hasStaleSummary = db.prepare(`SELECT 1 ${staleSummaryJoin} LIMIT 1`);
   const missingSummaries = db.prepare(`SELECT games.data ${staleSummaryJoin}`);
   const summaries = db.prepare(`
     SELECT summaries.data FROM games
     JOIN game_summaries AS summaries
+      ON summaries.id=games.id AND summaries.revision=games.revision
+    ORDER BY games.rowid
+  `);
+  const debugSummaries = db.prepare(`
+    SELECT CASE WHEN ${staleSummary} THEN games.data END AS game,
+      summaries.data AS summary
+    FROM games LEFT JOIN game_summaries AS summaries
       ON summaries.id=games.id AND summaries.revision=games.revision
     ORDER BY games.rowid
   `);
@@ -307,6 +315,19 @@ export function createStore(directory: string, root: string) {
     },
     index(): GameIndex {
       return { ...workspace(), games: gameIndex() };
+    },
+    debugIndex(): GameIndex {
+      // Debug reads must not repair or write the summary cache, even on old saves.
+      return {
+        ...workspace(),
+        games: debugSummaries
+          .all()
+          .map((row) =>
+            row.game
+              ? summarizeGame(JSON.parse(row.game as string) as Game)
+              : (JSON.parse(row.summary as string) as GameSummary),
+          ),
+      };
     },
     createProfile(name: string) {
       const profile = { id: randomUUID(), name };
