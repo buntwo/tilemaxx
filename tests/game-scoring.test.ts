@@ -15,7 +15,9 @@ import {
   pendingOpponentTurns,
   playTrackedMove,
   recordOpponentPlay,
+  recordOpponentPlayForSearch,
   recordOpponentRackOut,
+  reopenSearchRecordedOpponentPlay,
   scoreTotalsAtPosition,
   setScoreTracking,
   summarizeGameScore,
@@ -320,6 +322,123 @@ test("opponent rack-out waits for complete valid counts and a scoreable play", (
   assert.deepEqual(restored.board, game.board);
   assert.deepEqual(restored.scoring, game.scoring);
   assert.deepEqual(redo(restored).scoring, finished.scoring);
+});
+
+test("an opponent play recorded on search can be edited after saving or redoing it", () => {
+  const game = { ...fixture(), rack: "S" };
+  const { start } = game.template;
+  const edits = new BoardEditHistory();
+  const opening = [...game.board];
+  opening.splice(start, 3, ..."CAT");
+  const recorded = recordOpponentPlayForSearch(edits.apply(game, opening, "enter"));
+  const saved = gameSchema.parse(JSON.parse(JSON.stringify(recorded)));
+  assert.equal(saved.past.at(-1)?.recordedOnSearch, true);
+  assert.equal(saved.scoring?.opponent.points, 10);
+  assert.equal(recordOpponentPlayForSearch(saved), saved);
+
+  const redone = redo(undo(saved));
+  const correctedBoard = [...redone.board];
+  correctedBoard[start] = "c";
+  const corrected = edits.apply(redone, correctedBoard, "blank");
+  assert.equal(corrected.scoring?.opponent.points, 0);
+  assert.deepEqual(trackedMoveHistory(corrected), []);
+  const rescored = recordOpponentPlayForSearch(corrected);
+  assert.equal(rescored.scoring?.opponent.points, 4);
+  assert.deepEqual(rescored.past.map(({ label }) => label), ["CAT"]);
+  assert.deepEqual(undo(rescored).board, game.board);
+  assert.deepEqual(redo(undo(rescored)).scoring, rescored.scoring);
+});
+
+test("an explicitly reopened play can take more tiles, while a fresh placement can be a second opponent turn", () => {
+  const game = fixture();
+  const { start } = game.template;
+  const history = new BoardEditHistory();
+  const opening = [...game.board];
+  opening.splice(start, 3, ..."CAT");
+  const recorded = recordOpponentPlayForSearch(history.apply(game, opening, "enter"));
+  const extended = [...opening];
+  extended[start + 3] = "S";
+
+  const anotherTurn = recordOpponentPlayForSearch(history.apply(recorded, extended, "enter"));
+  assert.deepEqual(trackedMoveHistory(anotherTurn).map(({ word, score }) => [word, score]), [
+    ["CAT", 10], ["CATS", 6],
+  ]);
+  assert.deepEqual(undo(anotherTurn).board, opening);
+
+  const reopened = reopenSearchRecordedOpponentPlay(recorded);
+  const revised = recordOpponentPlayForSearch(history.apply(reopened, extended, "enter"));
+  assert.deepEqual(trackedMoveHistory(revised).map(({ word, score }) => [word, score]), [
+    ["CATS", 12],
+  ]);
+  assert.deepEqual(undo(revised).board, game.board);
+});
+
+test("a continuous deletion of the full auto-recorded word can be undone in one step", () => {
+  const game = fixture();
+  const { start } = game.template;
+  const edits = new BoardEditHistory();
+  const opening = [...game.board];
+  opening.splice(start, 3, ..."CAT");
+  const recorded = recordOpponentPlayForSearch(edits.apply(game, opening, "enter"));
+  let erased = recorded;
+  for (let i = start + 2; i >= start; i--) {
+    const board = [...erased.board];
+    board[i] = "";
+    erased = edits.apply(erased, board, "erase");
+  }
+  assert.deepEqual(erased.board, game.board);
+  assert.equal(erased.scoring?.opponent.moves, 0);
+  assert.deepEqual(trackedMoveHistory(erased), []);
+  const restored = undo(erased);
+  assert.deepEqual(restored.board, opening);
+  assert.deepEqual(restored.scoring, recorded.scoring);
+  assert.deepEqual(trackedMoveHistory(restored), trackedMoveHistory(recorded));
+  assert.deepEqual(trackedMoveHistory(redo(restored)), []);
+});
+
+test("search leaves ambiguous, untracked, archived, and undone board entries alone", () => {
+  const game = fixture();
+  const { start } = game.template;
+  const edits = new BoardEditHistory();
+  const board = [...game.board];
+  board[start] = "C";
+  const partial = edits.apply(game, [...board], "enter");
+  assert.equal(recordOpponentPlayForSearch(partial), partial);
+  board[start + 1] = "A";
+  const entered = edits.apply(partial, [...board], "enter");
+  for (const position of [
+    { ...entered, trackScores: false },
+    archiveGame(entered),
+    insertThenUndo(entered),
+  ]) {
+    assert.equal(recordOpponentPlayForSearch(position), position);
+  }
+  function insertThenUndo(position: Game) {
+    const next = [...position.board];
+    next[start + 2] = "T";
+    edits.reset();
+    return undo(edits.apply(position, next, "enter"));
+  }
+});
+
+test("a rack refill after searching can establish opponent rack-out without a second score entry", () => {
+  const game = rackOutFixture("");
+  const board = [...game.board];
+  board[game.template.start + 3] = "S";
+  const entered = new BoardEditHistory().apply(game, board, "enter");
+  const recorded = recordOpponentPlayForSearch(entered);
+  assert.equal(recorded.scoring?.opponent.points, 16);
+  assert.equal(recorded.scoring?.end, undefined);
+
+  const finished = recordOpponentRackOut({ ...recorded, rack: "Q" });
+  assert.deepEqual(finished.scoring?.end, {
+    out: "opponent",
+    rackPoints: 10,
+    endedOn: localDate(),
+  });
+  assert.equal(trackedMoveHistory(finished).length, 1);
+  assert.equal(finished.past.length, 1);
+  assert.deepEqual(undo(finished).board, game.board);
 });
 
 test("playing out uses the actual remaining rack and respects a known nonempty bag", () => {

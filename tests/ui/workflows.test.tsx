@@ -3297,6 +3297,10 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   expect(scores().getByText("CAT · 10 pts")).toBeTruthy();
   await typeRack(user, "S");
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  expect(scoreTotals()).toBe("0–10");
+  expect(current().trackedMoves?.map(({ word }) => word)).toEqual(["CAT"]);
+  await act(() => store.flush());
+  expect(remote.games[0].scoring?.opponent.points).toBe(10);
   await user.click(await screen.findByRole("button", { name: /^CATS, / }));
   expect(current().past.map(({ label }) => label)).toEqual(["CAT", "CATS"]);
   expect(current().scoring?.opponent).toEqual({
@@ -3366,6 +3370,7 @@ test("two opponent plays entered before a reply both make it into the score hist
   expect(scores.getByRole("button", { name: "Record opponent moves" })).toBeTruthy();
   await typeRack(user, "S");
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  expect(scoreTotals()).toBe("0–13");
   await user.click(await screen.findByRole("button", { name: /^CATS, / }));
   expect(scoreTotals()).toBe("6–13");
   expect(current().trackedMoves?.map(({ player, word }) => [player, word])).toEqual([
@@ -3380,6 +3385,35 @@ test("two opponent plays entered before a reply both make it into the score hist
   expect(cell("I9: DL")).toBeTruthy();
   await user.click(cell("Redo"));
   expect(scoreTotals()).toBe("0–13");
+});
+
+test("on a phone the score updates before choosing a reply and a missing tile can be added to that turn", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const user = await start(390);
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT");
+  await typeRack(user, "S");
+  const findMoves = () => screen.getByRole("button", { name: "Find moves" });
+  await user.click(findMoves());
+  expect(scoreTotals()).toBe("0–10");
+  await screen.findByRole("button", { name: /^CATS, / });
+  expect(document.querySelector(".phone-move-review")).toBeTruthy();
+  await user.click(cell("Edit last opponent move"));
+  expect(scoreTotals()).toBe("0–0");
+  expect(document.querySelector(".phone-move-review")).toBeNull();
+  await user.click(cell("K8: empty"));
+  await user.keyboard("S{Enter}");
+  expect(scoreTotals()).toBe("0–12");
+  expect(current().trackedMoves?.map(({ word, score }) => [word, score])).toEqual([["CATS", 12]]);
+  await user.click(cell("Undo"));
+  expect(scoreTotals()).toBe("0–0");
+  expect(current().board.every((tile) => !tile)).toBe(true);
+  await user.click(cell("Redo"));
+  expect(scoreTotals()).toBe("0–12");
 });
 
 test("the board blank control corrects recorded scores and saves with undo and redo", async () => {

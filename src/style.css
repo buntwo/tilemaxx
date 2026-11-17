@@ -1471,6 +1471,12 @@ label + label {
   flex-shrink: 0;
   color: var(--primary);
 }
+.score-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.score-actions,
 .score-action {
   margin-top: 8px;
 }
