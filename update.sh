@@ -29,7 +29,21 @@ if [[ ! -s "$state" ]]; then
   git rev-parse HEAD > "$state"
 fi
 previous=$(cat -- "$state")
-git pull --ff-only
+if [[ ${2:-} == --sync-upstream ]]; then
+  # The scheduled deployment follows rewrites and rollbacks of its upstream.
+  git fetch --force --prune --no-tags
+  upstream=$(git rev-parse --verify '@{upstream}')
+  if [[ $upstream != "$(git rev-parse HEAD)" ]]; then
+    # Git can overwrite ignored files when they are tracked by the target.
+    if ! git diff --quiet HEAD "$upstream" -- compose.yaml .env data; then
+      printf '%s\n' 'Upstream changes tracked deployment files (compose.yaml, .env, or data/). Sync stopped to protect local files.' >&2
+      exit 1
+    fi
+    git reset --keep "$upstream"
+  fi
+else
+  git pull --ff-only
+fi
 current=$(git rev-parse HEAD)
 
 if [[ ${1:-} == --notify-if-changed && $current == "$previous" ]]; then
