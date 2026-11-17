@@ -2127,6 +2127,19 @@ label + label {
 .illustrated-tiles > span:nth-child(3) {
   transform: rotate(13deg);
 }
+.empty-move-tiles {
+  isolation: isolate;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+.empty-move-tiles[data-dragging] { cursor: grabbing; }
+.empty-move-tiles > span {
+  z-index: 1;
+  flex: none;
+  pointer-events: none;
+}
 .illustrated-tiles small {
   font-size: 8px;
   position: absolute;
