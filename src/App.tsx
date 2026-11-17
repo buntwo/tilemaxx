@@ -335,6 +335,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const narrowLayout = !twoColumns;
   const compactGame = workspace === "games" && !narrowLayout;
   const solver = useSolver(signature, game);
+  const [findMovesRequest, setFindMovesRequest] = useState(0);
   const { busy, warnings } = solver;
   const calculating = useGameCalculating();
   const replyAnalysis = useReplyAnalysis(
@@ -602,6 +603,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     const position = recordOpponentPlayForSearch(game);
     if (position !== game) updateAfterTurn(position);
     if (position.scoring?.end && !position.archived) return;
+    setFindMovesRequest((request) => request + 1);
     if (narrowLayout) moveReview.open();
     if (solver.solve(position, reload)) setPreview(null);
   }
@@ -1435,6 +1437,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   compact={compactGame}
                   collapsibleSearch
                   results={solver.results}
+                  findMovesRequest={findMovesRequest}
                   exchangeAction={
                     solver.exchangeAdvice &&
                     !activeFlight && (

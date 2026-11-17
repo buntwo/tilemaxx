@@ -173,6 +173,7 @@ function ResultSortMenu({
 
 export default function Results({
   results: resultSet,
+  findMovesRequest,
   exchangeAction,
   compact = false,
   collapsibleSearch = compact,
@@ -210,6 +211,7 @@ export default function Results({
   onCancelBoardOdds,
 }: {
   results: MoveResults | null;
+  findMovesRequest?: number;
   exchangeAction?: ReactElement | false;
   compact?: boolean;
   collapsibleSearch?: boolean;
@@ -256,6 +258,7 @@ export default function Results({
   const [filter, setFilter] = useState(""),
     [scroll, setScroll] = useState(0),
     [locked, setLocked] = useState<string | null>(null);
+  useEffect(() => setFilter(""), [findMovesRequest]);
   const localCalculation = useGameCalculating();
   const workerLimit = useContext(ComputeWorkerLimit) ?? computeWorkerLimit();
   const { bagSize, bagConfirmed, invalid, opponentRack, scorelessTurns } =
