@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import { coordinate } from "../../shared/model";
-import type { MoveTiming } from "../move-timing";
+import type { MoveTiming, OpponentEndgameTiming } from "../move-timing";
 import Modal from "./Modal";
 
 function duration(ms: number) {
@@ -17,17 +17,8 @@ function TimingValue({ elapsed, total }: { elapsed: number; total: number }) {
   );
 }
 
-export default function MoveTimingButton({
-  timing,
-  size,
-}: {
-  timing: MoveTiming;
-  size: number;
-}) {
-  const [open, setOpen] = useState(false);
-  const { total, solver, replies, estimates, exactLines } = timing;
-  const formatted = duration(total);
-  const stages: [string, number | undefined][] = [
+function moveStages({ solver, replies, estimates, exactLines }: MoveTiming): [string, number | undefined][] {
+  return [
     ["Dictionary loading and indexing", solver.dictionary],
     ["Board check and legal moves", solver.moves],
     ["Move list preparation", solver.indexing],
@@ -39,6 +30,27 @@ export default function MoveTimingButton({
     ["Endgame estimates", estimates],
     ["Exact endgame lines", exactLines?.elapsed],
   ];
+}
+
+export default function MoveTimingButton({
+  timing,
+  size,
+}: {
+  timing: MoveTiming | OpponentEndgameTiming;
+  size: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const { total } = timing;
+  const formatted = duration(total);
+  const stages: [string, number | undefined][] = "batches" in timing
+    ? timing.batches.map(({ checked, elapsed }, index, batches) => {
+        const first = (batches[index - 1]?.checked ?? 0) + 1;
+        const from = first.toLocaleString();
+        const to = checked.toLocaleString();
+        return [first === checked ? `Option ${to}` : `Options ${from}–${to}`, elapsed];
+      })
+    : moveStages(timing);
+  const attempts = "exactLines" in timing ? timing.exactLines?.attempts : undefined;
   return (
     <>
       <button
@@ -70,11 +82,11 @@ export default function MoveTimingButton({
               ),
             )}
           </dl>
-          {!!exactLines?.attempts.length && (
+          {!!attempts?.length && (
             <section aria-label="Individual endgame solves">
               <h3>Individual endgame solves</h3>
               <dl className="move-timing-stages move-timing-attempts">
-                {exactLines.attempts.map(({ move, elapsed, limit }) => (
+                {attempts.map(({ move, elapsed, limit }) => (
                   <div key={move.id}>
                     <dt>
                       <strong>{move.word}</strong>{" "}
@@ -91,7 +103,9 @@ export default function MoveTimingButton({
             </section>
           )}
           <p className="small muted">
-            Total includes setup and worker handoffs. Some stages run in parallel.
+            {"batches" in timing
+              ? "Options are grouped by when their checks finish. Total includes setup and worker handoffs."
+              : "Total includes setup and worker handoffs. Some stages run in parallel."}
           </p>
         </Modal>
       )}

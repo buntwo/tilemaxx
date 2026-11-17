@@ -4803,9 +4803,11 @@ label + label {
 .opponent-rack-tiles span,
 .mini-tiles.opponent > span {
   border: 1px solid light-dark(#aebfc3, #849fa5);
-  border-bottom-width: 2px;
   background: light-dark(#dde8e9, #bacdd0);
   color: #28464b;
+}
+.opponent-rack-tiles span {
+  border-bottom-width: 2px;
 }
 .opponent-rack-tiles .blank,
 .mini-tiles.opponent > .blank {

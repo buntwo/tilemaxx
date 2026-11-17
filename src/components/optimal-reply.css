@@ -106,8 +106,21 @@
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
 }
-.optimal-reply-turns li + li {
+.optimal-reply-turns li + li:not(.optimal-reply-adjustment-row) {
   border-top: 1px solid var(--line);
+}
+.optimal-reply-adjustment-row {
+  position: relative;
+}
+.optimal-reply-adjustment-row::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset-block-start: -1px;
+  inset-inline: 0;
+  height: 2px;
+  background: color-mix(in srgb, var(--primary) 42%, var(--line));
+  pointer-events: none;
 }
 .optimal-reply-turn {
   grid-template-rows: auto auto;

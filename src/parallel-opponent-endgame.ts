@@ -6,9 +6,11 @@ import type { OpponentEndgamePosition } from "../shared/reply-analysis";
 import { solve } from "../shared/solver";
 import type { CandidateJob, CandidateResult } from "./candidate-analysis-jobs";
 import { createCandidatePool } from "./candidate-analysis-pool";
+import type { EndgameBatchTiming } from "./move-timing";
 
 const RESULT_COUNT = 5;
 const SEARCH_MS = 25_000;
+const TIMING_BATCH_SIZE = 500;
 
 type Job = Extract<CandidateJob, { kind: "opponent-endgame" }> & {
   index: number;
@@ -18,6 +20,7 @@ export type OpponentEndgameProgress = { checked: number; total: number };
 
 export type OpponentEndgameResult = OpponentEndgameProgress & {
   lines: EndgameLine[];
+  batches: EndgameBatchTiming[];
 };
 
 export type OpponentEndgameRequest = OpponentEndgamePosition & {
@@ -57,8 +60,15 @@ export async function parallelOpponentEndgame(
   const pool = createCandidatePool(lexicon, workerLimit, createWorker);
   const best: { index: number; line: EndgameLine }[] = [];
   const limited: Job[] = [];
+  const batches: EndgameBatchTiming[] = [];
+  let batchStarted = performance.now();
   let checked = 0;
   let reported = -Infinity;
+  function finishBatch() {
+    const now = performance.now();
+    batches.push({ checked, elapsed: now - batchStarted });
+    batchStarted = now;
+  }
   function progress() {
     reported = performance.now();
     onProgress({ checked, total: roots.length });
@@ -95,6 +105,7 @@ export async function parallelOpponentEndgame(
       best.sort((a, b) => a.line.spread - b.line.spread || a.index - b.index);
       if (best.length > RESULT_COUNT) best.pop();
     }
+    if (checked % TIMING_BATCH_SIZE === 0) finishBatch();
     if (performance.now() - reported >= 120) progress();
   }
 
@@ -108,10 +119,12 @@ export async function parallelOpponentEndgame(
     );
     if (retry.length && performance.now() < deadline)
       await pool.run(retry, receive, prepare);
+    if (checked % TIMING_BATCH_SIZE !== 0) finishBatch();
     return {
       checked,
       total: roots.length,
       lines: best.map(({ line }) => line),
+      batches,
     };
   } finally {
     pool.close();

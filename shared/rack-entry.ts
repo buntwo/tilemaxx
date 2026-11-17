@@ -3,6 +3,8 @@ import type { Placement, Position } from "./model";
 // A dot is an empty rack slot; ? is an unassigned blank tile.
 // Keep internal gaps in persisted positions, trimming only unused trailing slots.
 export const rackLetters = (rack: string) => rack.replaceAll(".", "");
+export const rackComposition = (rack: string) =>
+  [...rackLetters(rack)].sort().join("");
 export const trimRack = (rack: string) => rack.replace(/\.+$/, "");
 
 export function splitRack({
@@ -88,14 +90,25 @@ export function rackAfterMove(
 }
 
 export function rackSlotsForMove(
-  { rack, excludedRackSlots = [], requiredRackSlots = [] }: Position,
+  position: Position,
   tiles: readonly Placement[],
+) {
+  return rackSlotsForLetters(
+    position,
+    tiles.map(({ letter }) => letter === letter.toUpperCase() ? letter : "?"),
+  );
+}
+
+export function rackSlotsForLetters(
+  { rack, excludedRackSlots = [], requiredRackSlots = [] }: Pick<
+    Position, "rack" | "excludedRackSlots" | "requiredRackSlots"
+  >,
+  symbols: Iterable<string>,
 ) {
   const used = new Set(excludedRackSlots);
   const slots: number[] = [];
   const letters = [...rack];
-  for (const { letter } of tiles) {
-    const symbol = letter === letter.toUpperCase() ? letter : "?";
+  for (const symbol of symbols) {
     const required = requiredRackSlots.find(
       (index) => letters[index] === symbol && !used.has(index),
     );

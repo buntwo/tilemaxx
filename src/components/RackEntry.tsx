@@ -128,12 +128,14 @@ export default function RackEntry({
   const position = Math.min(cursor, capacity);
   const excludedSlots = game.excludedRackSlots ?? [];
   const requiredSlots = game.requiredRackSlots ?? [];
+  // Exchange selections address physical slots even when solver results can be reused.
+  const slotKey = JSON.stringify([positionKey, game.rack, excludedSlots, requiredSlots]);
   const canReorder = !reviewing && !flyingRack && mode === "entry";
   const exchangeSlots = Object.keys(exchangeMarks)
     .map(Number)
     .filter((i) => game.rack[i] === exchangeMarks[i]);
-  const exchangeKey = JSON.stringify([positionKey, exchangeSlots, exchangeBag]);
-  const optimalKey = JSON.stringify([positionKey, exchangeBag]);
+  const exchangeKey = JSON.stringify([slotKey, exchangeSlots, exchangeBag]);
+  const optimalKey = JSON.stringify([slotKey, exchangeBag]);
   const activeSimulation =
     simulation?.key === exchangeKey ? simulation : undefined;
   const canOpenOptimal = !opponentRack && exchangeBag > 0;
@@ -141,7 +143,7 @@ export default function RackEntry({
   const reorder = useRackReorder({
     rack,
     letters: game.rack,
-    positionKey,
+    positionKey: slotKey,
     enabled: canReorder,
     prepare: () => {
       for (const slide of slides.current.values()) slide.stop();
@@ -164,7 +166,7 @@ export default function RackEntry({
   useEffect(() => {
     setExchangeResults(undefined);
   }, [optimalKey]);
-  useEffect(() => () => clearTimeout(holdTimer.current), [positionKey]);
+  useEffect(() => () => clearTimeout(holdTimer.current), [slotKey]);
   const cacheExchangeResult = useCallback(
     (result: ExchangeResult) => {
       setExchangeResults((previous) => {
@@ -399,7 +401,7 @@ export default function RackEntry({
     setExchangeMarks(
       Object.fromEntries(slots.map((slot) => [slot, game.rack[slot]])),
     );
-    const key = JSON.stringify([positionKey, slots, exchangeBag]);
+    const key = JSON.stringify([slotKey, slots, exchangeBag]);
     setAcceptedAdvice({ key, detail: exchangeAdviceDetail(exchangeAdvice) });
     setSimulation({ key });
   }
@@ -844,7 +846,7 @@ export default function RackEntry({
             setOptimalOpen(undefined);
             openExchange.current = { reveal: false };
             setSimulation({
-              key: JSON.stringify([positionKey, slots, exchangeBag]),
+              key: JSON.stringify([slotKey, slots, exchangeBag]),
               optimalResult: result,
               bingoEstimate: chance,
             });

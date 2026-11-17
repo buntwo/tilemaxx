@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MoveTimingButton from "../../src/components/MoveTimingButton";
+import OptimalReplyDetails from "../../src/components/OptimalReplyDetails";
 import Results from "../../src/components/Results";
 import { emptyBoard, type Game, type Move } from "../../shared/model";
 import { TILE_SYMBOLS } from "../../shared/tile-pool";
@@ -103,6 +104,21 @@ test("timing bars use total elapsed time for both stages and exact solves", asyn
 
   rerender(<MoveTimingButton size={15} timing={{ ...timing, total: 0 }} />);
   expect(bars()).toEqual(Array(6).fill("0%"));
+
+  rerender(<MoveTimingButton size={15} timing={{
+    total: 2000,
+    batches: [
+      { checked: 500, elapsed: 500 },
+      { checked: 1000, elapsed: 800 },
+      { checked: 1200, elapsed: 200 },
+    ],
+  }} />);
+  const stages = within(dialog);
+  expect(stages.getByText("Options 1–500")).toBeTruthy();
+  expect(stages.getByText("Options 501–1,000")).toBeTruthy();
+  expect(stages.getByText("Options 1,001–1,200")).toBeTruthy();
+  expect(stages.queryByText("Individual endgame solves")).toBeNull();
+  expect(bars()).toEqual(["100%", "25%", "40%", "10%"]);
 });
 
 function setup(
@@ -746,6 +762,22 @@ const endgame: Game = {
   archived: false,
 };
 
+test.each(["scrabble", "crossplay"] as const)(
+  "%s shows a zero-point rack adjustment only when its rules transfer rack points",
+  (rules) => {
+    const move = { ...moves[0], leave: "" };
+    render(<OptimalReplyDetails
+      game={{ ...endgame, template: { ...endgame.template, rules } }}
+      opponentRack="?"
+      line={{ line: [move], points: { you: move.score, opponent: 0 }, spread: move.score }}
+    />);
+    const adjustment = screen.queryByRole("button", { name: /^Rack adjustment/ });
+    if (rules === "scrabble")
+      expect(adjustment?.closest("li")?.classList.contains("optimal-reply-adjustment-row")).toBe(true);
+    else expect(adjustment).toBeNull();
+  },
+);
+
 test("empty-bag replies start automatically and can be overridden", async () => {
   const requests: ReplyRequest[] = [];
   const terminate = vi.fn();
@@ -957,6 +989,7 @@ test("a completed reply line replaces the immediate warning and replays each tur
   expect(details.getByText("Board after TA")).toBeTruthy();
   expect(details.getByRole("button", { name: /^G8: T/ }).classList.contains("ghost")).toBe(true);
   const adjustment = details.getByRole("button", { name: /^Rack adjustment/ });
+  expect(adjustment.closest("li")?.classList.contains("optimal-reply-adjustment-row")).toBe(true);
   expect(within(adjustment).queryByRole("img")).toBeNull();
   await user.click(adjustment);
   expect(details.getByText("Final board")).toBeTruthy();

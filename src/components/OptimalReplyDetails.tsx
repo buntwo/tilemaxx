@@ -77,7 +77,10 @@ export default function OptimalReplyDetails({
     you: line.points.you - played.you,
     opponent: line.points.opponent - played.opponent,
   };
-  if (adjustment.you || adjustment.opponent)
+  const lastMove = line.line.at(-1);
+  const wentOut =
+    game.template.rules !== "crossplay" && lastMove && !lastMove.leave;
+  if (wentOut || adjustment.you || adjustment.opponent)
     steps.push({
       kind: "adjustment",
       points: adjustment,
@@ -134,7 +137,12 @@ export default function OptimalReplyDetails({
           <ol className="optimal-reply-turns">
             {steps.map((entry, index) => {
               return (
-                <li key={index}>
+                <li
+                  key={index}
+                  className={
+                    entry.kind === "adjustment" ? "optimal-reply-adjustment-row" : undefined
+                  }
+                >
                   <button
                     type="button"
                     className="optimal-reply-turn"

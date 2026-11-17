@@ -121,7 +121,9 @@ test("the worker pool ranks five exact opponent lines against all plays and pass
     1,
     () => undefined,
   );
-  assert.deepEqual(serial, result);
+  assert.deepEqual(serial.lines, result.lines);
+  assert.equal(serial.checked, result.checked);
+  assert.deepEqual(result.batches.map(({ checked }) => checked), [roots.length]);
   const exhausted = await parallelOpponentEndgame(
     lexicon,
     position,
@@ -130,7 +132,42 @@ test("the worker pool ranks five exact opponent lines against all plays and pass
     undefined,
     0,
   );
-  assert.deepEqual(exhausted, { checked: 0, total: roots.length, lines: [] });
+  assert.deepEqual(exhausted, { checked: 0, total: roots.length, lines: [], batches: [] });
+});
+
+test("opponent timing groups every 500 completed options and the last partial batch", async () => {
+  const letters = [..."ABCDEFG"];
+  const lexicon = new Lexicon(letters.flatMap((a) =>
+    letters.flatMap((b) => b === a ? [] :
+      letters.flatMap((c) => c === a || c === b ? [] : [a + b + c])),
+  ));
+  const game = playBeforeRefill();
+  const position = {
+    ...game,
+    board: game.board.map(() => ""),
+    rack: "H",
+    opponentRack: letters.join(""),
+    template: { ...game.template, rackSize: 7 },
+    scorelessTurns: 0,
+  };
+  const makeWorker = () => {
+    const worker = {
+      onmessage: undefined as ((event: { data: CandidateResult }) => void) | undefined,
+      postMessage() {
+        queueMicrotask(() => worker.onmessage?.({ data: { kind: "opponent-endgame" } }));
+      },
+      terminate() {},
+    };
+    return worker as unknown as Worker;
+  };
+  const result = await parallelOpponentEndgame(
+    lexicon, position, 2, () => undefined, makeWorker,
+  );
+  assert.equal(result.checked, result.total);
+  assert.ok(result.checked > 500 && result.checked % 500 > 0);
+  const fullBatches = Array.from({ length: Math.floor(result.checked / 500) }, (_, i) => (i + 1) * 500);
+  assert.deepEqual(result.batches.map(({ checked }) => checked), [...fullBatches, result.checked]);
+  assert.ok(result.batches.every(({ elapsed }) => elapsed >= 0));
 });
 
 test("a cutoff preserves exact ties and a forced pass uses the opponent rack", async () => {

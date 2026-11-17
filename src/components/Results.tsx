@@ -36,6 +36,7 @@ import {
 } from "../../shared/reply-analysis";
 import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
 import { endgameAfterRefill } from "../../shared/endgame-refill";
+import { rackLetters } from "../../shared/rack-entry";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
@@ -273,8 +274,13 @@ export default function Results({
       scorelessTurns: refill?.scorelessTurns ?? scorelessTurns,
     };
   }, [analysisGame, busy, bagSize, bagConfirmed, invalid, opponentRack, scorelessTurns]);
+  const emptyRackEndgame =
+    !!analysisGame &&
+    !rackLetters(analysisGame.rack) &&
+    (!replyAnalysis.crossplay || !replyAnalysis.opponentHasFinalTurn);
+  const emptyRackMessage = "Your rack is empty. There’s no opponent endgame to solve.";
   const opponentKey =
-    opponentPosition && analysisKey
+    opponentPosition && !emptyRackEndgame && analysisKey
       ? JSON.stringify([
           analysisKey,
           opponentPosition.opponentRack,
@@ -284,7 +290,7 @@ export default function Results({
   const opponent = useOpponentEndgame(opponentKey, workerLimit);
   const opponentSearch = opponent.current;
   function startOpponentEndgame() {
-    if (!analysisGame || !opponentPosition) return;
+    if (!analysisGame || !opponentPosition || emptyRackEndgame) return;
     const { board, rack, template, dictionaryId } = analysisGame;
     setLocked(null);
     setInspectedReply(undefined);
@@ -717,7 +723,8 @@ export default function Results({
       className="button secondary solve-endgame-action"
       type="button"
       aria-label="Solve endgame"
-      title="Solve endgame"
+      title={emptyRackEndgame ? emptyRackMessage : "Solve endgame"}
+      disabled={emptyRackEndgame}
       onClick={startOpponentEndgame}
     >
       <Swords size={16} aria-hidden="true" />
@@ -776,6 +783,7 @@ export default function Results({
           game={analysisGame}
           opponentRack={opponentPosition.opponentRack}
           result={opponentSearch.result}
+          timing={opponentSearch.timing}
           onClose={closeOpponentEndgame}
           onPreview={(move) => onPreview(move, true, "opponent")}
         />
@@ -1013,12 +1021,16 @@ export default function Results({
               A<small>1</small>
             </span>
           </div>
-          <h3>A good move starts here.</h3>
-          <p>
-            Enter the board and your rack.
-            <br />
-            We’ll find the possibilities.
-          </p>
+          <h3>{solveEndgame && emptyRackEndgame ? "No opponent endgame" : "A good move starts here."}</h3>
+          {solveEndgame && emptyRackEndgame ? (
+            <p>{emptyRackMessage}</p>
+          ) : (
+            <p>
+              Enter the board and your rack.
+              <br />
+              We’ll find the possibilities.
+            </p>
+          )}
           <div className="results-search-actions">
             <button
               className="button primary"
