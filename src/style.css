@@ -4422,8 +4422,15 @@ label + label {
 }
 .rack-optimal-exchange {
   grid-column: 2;
+  padding: 3px 6px;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--line));
+  border-radius: 6px;
   color: var(--primary);
   white-space: nowrap;
+}
+.rack-optimal-exchange:hover,
+.rack-optimal-exchange[aria-expanded="true"] {
+  background: var(--soft);
 }
 .rack-entry-actions .rack-exchange-advice {
   min-height: 32px;
@@ -5399,6 +5406,7 @@ label + label {
 .phone-layout .rack-optimal-exchange { gap: 4px; }
 .phone-layout .opponent-rack-tiles { gap: 3px; }
 @media (max-width: 350px) {
+  .phone-layout .rack-optimal-exchange { font-size: 11px; }
   .phone-layout .rack-optimal-exchange svg { display: none; }
 }
 .phone-layout .rack-panel .tile-pool { margin-top: 4px; }
