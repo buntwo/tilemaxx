@@ -8,6 +8,7 @@ import type {
   OpponentEndgameResult,
 } from "../parallel-opponent-endgame";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
+import { endgameLength } from "../endgame-line-format";
 import CalculationIndicator from "./CalculationIndicator";
 import { BingoBadge } from "./MoveWord";
 import OptimalReplyDetails from "./OptimalReplyDetails";
@@ -85,6 +86,7 @@ export default function OpponentEndgameResults({
           >
             {result.lines.map((line, index) => {
               const move = line.line[0];
+              const length = endgameLength(line);
               const leave = move ? move.leave : opponentRack;
               const bingo = !!move && isBingo(game.template, move.tiles.length);
               const margin =
@@ -134,6 +136,12 @@ export default function OpponentEndgameResults({
                           {finalMarginLabel(margin)}
                         </small>
                       )}
+                      <small
+                        className="reply-neutral endgame-ply-count"
+                        title={length.expanded}
+                      >
+                        {length.compact}
+                      </small>
                     </span>
                     <span className="result-leave">{leave || "—"}</span>
                     <span className="result-coordinate">

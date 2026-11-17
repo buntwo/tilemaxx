@@ -4473,6 +4473,11 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   const list = result.getByRole("list", { name: /sorted by swing for you/ });
   const rows = within(list).getAllByRole("button");
   expect(rows).toHaveLength(5);
+  expect(rows.map((row) => row.querySelector(".endgame-ply-count")?.textContent)).toEqual([
+    "1 ply", "1 ply", "1 ply", "3 plies", "5 plies (3)",
+  ]);
+  expect(rows[4].querySelector(".endgame-ply-count")?.getAttribute("title"))
+    .toBe("5 plies · 3 plays · 2 passes");
   expect(finds).toBe(0);
   expect(requests[0]).toMatchObject({ rack: "DSD", opponentRack: "AOT", dictionaryId: "test" });
   const boardBefore = [...current().board];
@@ -4593,6 +4598,7 @@ test("an active empty-bag game can solve with two partial racks and no refill hi
     template: { ...template, rackSize: 4 },
     rack: "DSD",
     revision: 1,
+    scoring: emptyScoring(),
   };
   const requests: OpponentEndgameRequest[] = [];
   class PartialRackEndgameWorker extends SolverWorker {
@@ -4613,7 +4619,11 @@ test("an active empty-bag game can solve with two partial racks and no refill hi
   const results = within(await screen.findByRole("region", { name: "Opponent endgame" }));
   expect(requests[0]).toMatchObject({ rack: "DSD", opponentRack: "AOT" });
   const list = results.getByRole("list", { name: /sorted by swing for you/ });
-  await user.click(within(list).getAllByRole("button")[0]);
+  const row = within(list).getAllByRole("button")[0];
+  const swing = row.querySelector(".endgame-estimate")!;
+  expect(swing.children).toHaveLength(3);
+  expect(swing.lastElementChild?.textContent).toBe("1 ply");
+  await user.click(row);
   expect(results.getByRole("button", { pressed: true }).textContent).toContain("Opponent");
   expect(current().board).toEqual(board);
   expect(current().rack).toBe("DSD");
@@ -4622,5 +4632,43 @@ test("an active empty-bag game can solve with two partial racks and no refill hi
   await user.click(within(screen.getByRole("region", { name: "Possible moves" }))
     .getByRole("button", { name: "Find moves" }));
   await screen.findByRole("button", { name: "Analyze" });
-  expect(solveEndgame()).toBeTruthy();
+  const moveView = screen.getByRole("group", { name: "Move list view" });
+  expect(within(moveView).getByRole("button", { name: /Shortlist/ })).toBeTruthy();
+  expect(moveView.nextElementSibling).toBe(solveEndgame());
+});
+
+
+test.each([false, true])("closing Possible moves clears its preview and returns to Find moves (phone %s)", async (phone) => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: phone && query === "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const user = await start();
+  await typeRack(user, "CATS");
+  const possible = () => within(screen.getByRole("region", { name: "Possible moves" }));
+  await user.click(possible().getByRole("button", { name: "Find moves" }));
+  const move = (await possible().findAllByRole("button", { name: /^CATS, / }))[0];
+  if (phone) {
+    await user.pointer([{ keys: "[TouchA]", target: move }, { keys: "[/TouchA]" }]);
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+  } else {
+    fireEvent.contextMenu(move);
+  }
+  expect(document.querySelector(".board-entry .ghost")).toBeTruthy();
+
+  const close = possible().getByRole("button", { name: "Close possible moves" });
+  expect(close.parentElement?.lastElementChild).toBe(close);
+  await user.click(close);
+  const find = possible().getByRole("button", { name: "Find moves" });
+  expect(document.activeElement).toBe(find);
+  expect(possible().queryByRole("button", { name: "Close possible moves" })).toBeNull();
+  expect(document.querySelector(".board-entry .ghost")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
+  expect(current().rack).toBe("CATS");
+  expect(current().board.some(Boolean)).toBe(false);
+
+  await user.click(find);
+  expect(await possible().findByRole("button", { name: "Close possible moves" })).toBeTruthy();
+  expect(await possible().findAllByRole("button", { name: /^CATS, / })).not.toHaveLength(0);
 });

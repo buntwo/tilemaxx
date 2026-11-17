@@ -15,6 +15,7 @@ import {
   Search,
   Sparkles,
   Swords,
+  X,
   LoaderCircle,
   Trophy,
   ChartNoAxesCombined,
@@ -34,11 +35,11 @@ import {
   REPLY_SAMPLES,
 } from "../../shared/reply-analysis";
 import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
-import type { EndgameLine } from "../../shared/endgame";
 import { endgameAfterRefill } from "../../shared/endgame-refill";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
+import { endgameLength } from "../endgame-line-format";
 import MoveAnalysis from "./MoveAnalysis";
 import MoveWord, { BingoBadge } from "./MoveWord";
 import BingoOddsControls from "./BingoOddsControls";
@@ -82,19 +83,6 @@ import ReplyHeatmapDialog, {
   ReplyPreview,
   ReplySettings,
 } from "./ReplyAnalysis";
-
-function endgameLength({ line }: EndgameLine) {
-  const plies = line.length;
-  const plays = line.filter((move) => move !== null).length;
-  const passes = plies - plays;
-  const label = `${plies} ${plies === 1 ? "ply" : "plies"}`;
-  return {
-    compact: passes ? `${label} (${plays})` : label,
-    expanded: passes
-      ? `${label} · ${plays} ${plays === 1 ? "play" : "plays"} · ${passes} ${passes === 1 ? "pass" : "passes"}`
-      : label,
-  };
-}
 
 function formatOdds(chance: number, exact: boolean) {
   const value =
@@ -202,6 +190,7 @@ export default function Results({
   onPlay,
   onSolve,
   onCancelSearch,
+  onCloseResults,
   hasRack,
   analysisGame,
   analysisKey,
@@ -245,6 +234,7 @@ export default function Results({
   onPlay: (m: Move) => void;
   onSolve: (reload?: boolean) => void;
   onCancelSearch: () => void;
+  onCloseResults: () => void;
   hasRack: boolean;
   analysisGame?: Game;
   analysisKey?: string;
@@ -307,6 +297,14 @@ export default function Results({
   const searchInput = useRef<HTMLInputElement>(null);
   const searchButton = useRef<HTMLButtonElement>(null);
   const filterInputId = useId();
+  const findMovesButton = useRef<HTMLButtonElement>(null);
+  const focusFindMoves = useRef(false);
+  useEffect(() => {
+    if (focusFindMoves.current && !resultSet && !busy && !error) {
+      focusFindMoves.current = false;
+      findMovesButton.current?.focus({ preventScroll: true });
+    }
+  }, [resultSet, busy, error]);
   useEffect(() => {
     if (collapsibleSearch && searchOpen)
       searchInput.current?.focus({ preventScroll: true });
@@ -656,6 +654,24 @@ export default function Results({
       </button>
     </div>
   );
+  const solveEndgame = opponentPosition && (
+    <button
+      className="button secondary solve-endgame-action"
+      type="button"
+      aria-label="Solve endgame"
+      title="Solve endgame"
+      onClick={startOpponentEndgame}
+    >
+      <Swords size={16} aria-hidden="true" />
+      <span>Solve endgame</span>
+    </button>
+  );
+  const moveListControls = viewPicker && (
+    <div className="move-list-controls">
+      {viewPicker}
+      {solveEndgame}
+    </div>
+  );
   const searchField = (
     <div
       className="search-input"
@@ -732,12 +748,6 @@ export default function Results({
       </section>
     );
   }
-  const solveEndgame = opponentPosition && (
-    <button className="button secondary" type="button" onClick={startOpponentEndgame}>
-      <Swords size={16} aria-hidden="true" />
-      Solve endgame
-    </button>
-  );
   return (
     <section
       aria-label="Possible moves"
@@ -837,13 +847,27 @@ export default function Results({
             <span>{analyzing ? "Close analysis" : "Analyze"}</span>
           </button>
         )}
+        {(resultSet || error) && (
+          <button
+            className="icon-button move-results-close"
+            type="button"
+            aria-label="Close possible moves"
+            onClick={() => {
+              setFilter("");
+              setSearchOpen(false);
+              setOrdering(undefined);
+              setInspectedReply(undefined);
+              focusFindMoves.current = true;
+              onCloseResults();
+            }}
+          >
+            <X size={16} aria-hidden="true" />
+          </button>
+        )}
       </header>
-      {(resultSet || error) && solveEndgame && (
-        <div className="results-endgame-actions">{solveEndgame}</div>
-      )}
       {showFilters && (!collapsibleSearch || !hasBingoControls || !totalMoves) && (
         <div className="result-filters">
-          {viewPicker}
+          {moveListControls}
           {searchField}
           {squareFilterControl}
           {collapsibleSearch && searchToggle}
@@ -875,7 +899,7 @@ export default function Results({
             settings={
               replyEnabled && <ReplySettings analysis={replyAnalysis} />
             }
-            toolbarStart={collapsibleSearch && viewPicker}
+            toolbarStart={collapsibleSearch && moveListControls}
             toolbarEnd={collapsibleSearch && <>{squareFilterControl}{searchToggle}</>}
             searchField={collapsibleSearch && searchField}
             rackOdds={rackOdds}
@@ -911,9 +935,12 @@ export default function Results({
           <p className="error" role="alert">
             {error}
           </p>
-          <button className="button secondary" onClick={() => onSolve()}>
-            Try again
-          </button>
+          <div className="results-search-actions">
+            <button className="button secondary" type="button" onClick={() => onSolve()}>
+              Try again
+            </button>
+            {solveEndgame}
+          </div>
         </div>
       ) : resultSet === null ? (
         <div className="results-empty">
@@ -939,6 +966,7 @@ export default function Results({
               className="button primary"
               type="button"
               onClick={() => onSolve()}
+              ref={findMovesButton}
               disabled={!hasRack}
             >
               <Sparkles size={16} />
@@ -990,6 +1018,7 @@ export default function Results({
                   ? "Try a different word or clear the filter."
                   : "Try the All moves view."}
           </p>
+          {!showFilters && solveEndgame}
         </div>
       ) : (
         <>

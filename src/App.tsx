@@ -1393,6 +1393,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   onPlay={play}
                   onSolve={solve}
                   onCancelSearch={solver.cancelSearch}
+                  onCloseResults={() => {
+                    editPosition();
+                    solver.closeResults();
+                  }}
                   hasRack={hasPlayableRack}
                   analysisGame={game}
                   analysisKey={signature}

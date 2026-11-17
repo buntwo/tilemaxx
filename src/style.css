@@ -2021,11 +2021,24 @@ label + label {
   margin-top: 23px;
 }
 .results-search-actions .button { font-size: 11px; }
-.results-endgame-actions { padding: 0 12px 6px; }
-.results-endgame-actions .button {
+.move-list-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.move-list-controls .result-view-picker {
+  flex-wrap: nowrap;
+  padding: 0;
+}
+.move-list-controls .solve-endgame-action {
   min-height: 32px;
-  padding: 5px 9px;
+  padding: 4px 7px;
+  gap: 4px;
   font-size: 11px;
+}
+.move-results-close { flex: none; }
+@container (max-width: 380px) {
+  .compact-game .move-list-controls .solve-endgame-action span { display: none; }
 }
 .opponent-endgame { --move-row-height: 50px; }
 .opponent-endgame .opponent-endgame-note {

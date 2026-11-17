@@ -164,25 +164,29 @@ export function useSolver(positionKey: string) {
     } satisfies SolverRequest);
   }
 
-  useEffect(() => {
+  function replaceResults(next = emptySnapshot) {
     stopSearch();
     stopBoardOdds();
     stopExchangeAdvice();
-    const restored =
-      restore.current === positionKey
-        ? saved.current.get(positionKey)
-        : undefined;
-    restore.current = null;
     const previous = visibleSearch.current;
-    visibleSearch.current = restored?.results?.searchId;
+    visibleSearch.current = next.results?.searchId;
     if (previous !== visibleSearch.current) discard(previous);
     setSnapshotKey(positionKey);
-    setSnapshot(restored ?? emptySnapshot);
+    setSnapshot(next);
     setBusy("");
     setError("");
     setRackOddsPending(false);
     setDefenseProgress(undefined);
     setBoardOddsError("");
+  }
+
+  useEffect(() => {
+    const restored =
+      restore.current === positionKey
+        ? saved.current.get(positionKey)
+        : undefined;
+    restore.current = null;
+    replaceResults(restored);
   }, [positionKey]);
 
   useEffect(
@@ -544,6 +548,7 @@ export function useSolver(positionKey: string) {
     boardOddsError,
     solve,
     cancelSearch: stopSearch,
+    closeResults: () => replaceResults(),
     page,
     shortlist,
     rankEndgame,
