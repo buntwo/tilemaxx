@@ -3232,7 +3232,7 @@ function finishFixture(out: "you" | "opponent") {
   return { ...initial, revision: initial.revision + 1 };
 }
 
-test("finish overlay waits for the last tile flight and uses the adjusted win score", async () => {
+test("finish overlay shows the adjusted result after the last tile lands and waits for dismissal", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === "(any-hover: hover)",
     addEventListener() {},
@@ -3262,12 +3262,19 @@ test("finish overlay waits for the last tile flight and uses the adjusted win sc
     await user.click(move);
     expect(document.querySelector(".tile-flight-layer")).toBeTruthy();
     expect(board.queryByRole("heading", { name: "You win" })).toBeNull();
-    await act(async () => finish());
-    expect(document.querySelector(".tile-flight-layer")).toBeNull();
-    const outcome = await board.findByRole("heading", { name: "You win" });
-    expect(outcome.closest(".board-grid")).toBeTruthy();
-    expect(board.getByText("Won by 11")).toBeTruthy();
-    expect(board.getByText(/You went out/).textContent).toContain("CATS +6");
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await act(async () => finish());
+      expect(document.querySelector(".tile-flight-layer")).toBeNull();
+      const outcome = board.getByRole("heading", { name: "You win" });
+      expect(outcome.closest(".board-grid")).toBeTruthy();
+      expect(board.getByText("Won by 11")).toBeTruthy();
+      expect(board.getByText(/You went out/).textContent).toContain("CATS +6");
+      await act(async () => vi.advanceTimersByTimeAsync(10_000));
+      expect(board.getByRole("heading", { name: "You win" })).toBe(outcome);
+    } finally {
+      vi.useRealTimers();
+    }
     await user.click(board.getByRole("button", { name: "View board" }));
     expect(board.queryByRole("heading", { name: "You win" })).toBeNull();
     await user.click(board.getByRole("button", { name: "Undo" }));

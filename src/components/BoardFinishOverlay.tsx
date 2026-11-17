@@ -2,16 +2,12 @@ import {
   useCallback,
   useEffect,
   useRef,
-  useState,
   type CSSProperties,
 } from "react";
 import { Flag, Minus, Trophy } from "lucide-react";
 import type { GameFinish } from "../useGameFinish";
 import MoveWord from "./MoveWord";
 import "./board-finish.css";
-
-const HOLD_MS = 2400;
-const FADE_MS = 270;
 
 const flecks = Array.from({ length: 16 }, (_, index) => {
   const angle = index * 2.39996;
@@ -42,7 +38,6 @@ export default function BoardFinishOverlay({
   const { Icon, label, margin } = results[outcome];
   const overlay = useRef<HTMLDivElement>(null);
   const dismissButton = useRef<HTMLButtonElement>(null);
-  const [leaving, setLeaving] = useState(false);
   const dismiss = useCallback(() => {
     if (document.activeElement === dismissButton.current)
       overlay.current?.parentElement
@@ -51,17 +46,11 @@ export default function BoardFinishOverlay({
     onDismiss();
   }, [onDismiss, square]);
   useEffect(() => {
-    const fade = setTimeout(() => setLeaving(true), HOLD_MS);
-    const close = setTimeout(dismiss, HOLD_MS + FADE_MS);
     function escape(event: KeyboardEvent) {
       if (event.key === "Escape" && !event.defaultPrevented) dismiss();
     }
     document.addEventListener("keydown", escape);
-    return () => {
-      clearTimeout(fade);
-      clearTimeout(close);
-      document.removeEventListener("keydown", escape);
-    };
+    return () => document.removeEventListener("keydown", escape);
   }, [dismiss]);
 
   return (
@@ -69,7 +58,6 @@ export default function BoardFinishOverlay({
       ref={overlay}
       className="board-finish"
       data-outcome={outcome}
-      data-leaving={leaving || undefined}
       style={
         {
           "--finish-x": `${(((square % size) + 1.5) / (size + 1)) * 100}%`,
