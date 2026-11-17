@@ -92,6 +92,7 @@ import ReplyHeatmapDialog, {
 const emptyMoveWords = [
   "AHA", "YAY", "WOW", "OOH", "HMM", "HUH", "OOF", "EEK", "AWW",
   "YEP", "NAH", "BRO", "SUP", "LOL", "OMG", "QAT", "WAT",
+  "RAD", "ACE", "YUM", "OHO",
 ];
 
 function EmptyMoveTiles({ rules }: { rules: Rules }) {
