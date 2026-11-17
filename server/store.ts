@@ -50,6 +50,9 @@ export function createStore(directory: string, root: string) {
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
     CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY,name TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY,revision INTEGER NOT NULL,data TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS deleted_games (id TEXT PRIMARY KEY);
+    CREATE TRIGGER IF NOT EXISTS remember_deleted_game AFTER DELETE ON games
+      BEGIN INSERT OR IGNORE INTO deleted_games VALUES (OLD.id); END;
     CREATE TABLE IF NOT EXISTS game_summaries (id TEXT PRIMARY KEY,revision INTEGER NOT NULL,data TEXT NOT NULL);
     CREATE TRIGGER IF NOT EXISTS delete_game_summary AFTER DELETE ON games
       BEGIN DELETE FROM game_summaries WHERE id=OLD.id; END;
@@ -221,12 +224,13 @@ export function createStore(directory: string, root: string) {
   });
   function insertGame(
     input: Omit<Game, "id" | "revision" | "updatedAt">,
+    id: string = randomUUID(),
   ): Game {
     const game = {
       ...input,
       startedOn: input.startedOn ?? localDate(),
       trackScores: input.trackScores ?? true,
-      id: randomUUID(),
+      id,
       revision: 0,
       updatedAt: new Date().toISOString(),
     };
@@ -238,8 +242,8 @@ export function createStore(directory: string, root: string) {
     saveSummary(game);
     return game;
   }
-  function createGame(input: Parameters<typeof insertGame>[0]) {
-    return transaction(() => insertGame(input));
+  function createGame(input: Parameters<typeof insertGame>[0], id?: string) {
+    return transaction(() => insertGame(input, id));
   }
   function writeGame(
     game: Game,
@@ -384,8 +388,15 @@ export function createStore(directory: string, root: string) {
         } as const;
       });
     },
+    wasGameDeleted(id: string) {
+      return !!db.prepare("SELECT id FROM deleted_games WHERE id=?").get(id);
+    },
     deleteGame(id: string) {
-      db.prepare("DELETE FROM games WHERE id=?").run(id);
+      transaction(() => {
+        // Also cover a DELETE that arrives before an in-flight creation.
+        db.prepare("INSERT OR IGNORE INTO deleted_games VALUES (?)").run(id);
+        db.prepare("DELETE FROM games WHERE id=?").run(id);
+      });
     },
     saveGame(game: Game): Game | undefined {
       return transaction(() => writeGame(game));

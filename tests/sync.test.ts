@@ -186,15 +186,15 @@ test("a background poll cannot erase a game created while it was in flight", asy
   try {
     let finish!: (r: Response) => void;
     const oldState = structuredClone(client.snapshot.data!);
-    globalThis.fetch = async (url) =>
+    globalThis.fetch = async (url, options) =>
       String(url).endsWith("/state/index")
         ? new Promise<Response>((r) => (finish = r))
-        : response({ ...game, id: "new", name: "New game" });
+        : response({ ...JSON.parse(options!.body as string), revision: 0 });
     const refreshing = client.refresh();
-    await client.createGame({ ...game, name: "New game" });
+    const created = await client.createGame({ ...game, name: "New game" });
     finish(response(oldState));
     await refreshing;
-    assert.ok(client.snapshot.data!.games.some((g) => g.id === "new"));
+    assert.ok(client.snapshot.data!.games.some((g) => g.id === created.id));
   } finally {
     cleanup();
   }
@@ -659,6 +659,141 @@ test("board typing stays grouped across a server JSON acknowledgement", async ()
     next[113] = "T";
     assert.equal(saved.revision, 1);
     assert.equal(history.apply(saved, next, "enter").past.length, 1);
+  } finally {
+    cleanup();
+  }
+});
+
+test("new offline games survive reload, remain in the index, and sync their latest edits", async () => {
+  const { client, game, cleanup } = setup();
+  let reloaded: GameStore | undefined;
+  try {
+    globalThis.fetch = async () => {
+      throw new Error("Offline");
+    };
+    const created = await client.createGame({ ...game, name: "Offline game" });
+    await client.flush();
+    client.update({ ...created, rack: "CAT" });
+    clearTimeout(client.timer);
+    reloaded = new GameStore();
+    assert.equal(reloaded.snapshot.games[created.id].rack, "CAT");
+    assert.ok(reloaded.snapshot.data!.games.some((g) => g.id === created.id));
+    const writes: Game[] = [];
+    globalThis.fetch = async (url, options) => {
+      if (String(url).endsWith("/state/index"))
+        return response({
+          ...client.snapshot.data!,
+          games: [summarizeGame(game)],
+        });
+      assert.equal(options?.method, "POST");
+      const body = JSON.parse(options!.body as string);
+      assert.equal(body.creationId, created.id);
+      writes.push(body);
+      return response({ ...body, revision: 0 });
+    };
+    await reloaded.refresh();
+    // refresh initiates the save without blocking index updates.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].rack, "CAT");
+    assert.equal(reloaded.drafts.size, 0);
+    assert.equal(reloaded.snapshot.games[created.id].revision, 0);
+  } finally {
+    if (reloaded) clearTimeout(reloaded.timer);
+    cleanup();
+  }
+});
+
+test("a lost creation response retries the same identity and preserves newer edits", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    let remote: Game | undefined;
+    globalThis.fetch = async (_url, options) => {
+      remote = { ...JSON.parse(options!.body as string), revision: 0 };
+      throw new Error("Response lost");
+    };
+    const created = await client.createGame(game);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    client.update({ ...created, rack: "DOG" });
+    let posts = 0;
+    globalThis.fetch = async (_url, options) => {
+      const body = JSON.parse(options!.body as string);
+      assert.equal(body.id, remote!.id);
+      if (options?.method === "POST") {
+        posts++;
+        return response({ game: remote, error: "Already created" }, 409);
+      }
+      assert.equal(body.revision, 0);
+      return response({ ...body, revision: 1 });
+    };
+    await client.flush();
+    assert.equal(client.drafts.get(created.id)?.revision, 0);
+    await client.flush();
+    assert.equal(posts, 1);
+    assert.equal(client.snapshot.games[created.id].rack, "DOG");
+    assert.equal(client.drafts.size, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test("new-game acknowledgement preserves edits made during creation", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    let acknowledge!: (response: Response) => void;
+    globalThis.fetch = async () =>
+      new Promise((resolve) => {
+        acknowledge = resolve;
+      });
+    const created = await client.createGame(game);
+    client.update({ ...created, rack: "CATS" });
+    acknowledge(response({ ...created, revision: 0 }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(client.drafts.get(created.id)?.rack, "CATS");
+    assert.equal(client.drafts.get(created.id)?.revision, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test("a retried creation never overwrites another device's newer revision", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    globalThis.fetch = async () => {
+      throw new Error("Offline");
+    };
+    const created = await client.createGame(game);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const remote = { ...created, rack: "DOG", revision: 2 };
+    globalThis.fetch = async () => response({ game: remote }, 409);
+    await client.flush();
+    assert.equal(client.snapshot.conflicts[created.id].revision, 2);
+    assert.equal(client.drafts.get(created.id)?.revision, -1);
+  } finally {
+    cleanup();
+  }
+});
+
+test("a poll started after local creation cannot erase its in-flight acknowledgement", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    let finishSave!: (value: Response) => void;
+    let finishPoll!: (value: Response) => void;
+    const oldIndex = structuredClone(client.snapshot.data!);
+    globalThis.fetch = async (url) =>
+      new Promise((resolve) => {
+        if (String(url).endsWith("/state/index")) finishPoll = resolve;
+        else finishSave = resolve;
+      });
+    const created = await client.createGame(game);
+    const refreshing = client.refresh();
+    finishSave(response({ ...created, revision: 0 }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(client.drafts.size, 0);
+    finishPoll(response(oldIndex));
+    await refreshing;
+    assert.ok(client.snapshot.data!.games.some((g) => g.id === created.id));
+    assert.equal(client.snapshot.games[created.id].revision, 0);
   } finally {
     cleanup();
   }

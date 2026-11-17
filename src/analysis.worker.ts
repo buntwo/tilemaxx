@@ -1,3 +1,4 @@
+import { loadWordList } from "./word-list-cache";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { analyzeMoves, type AnalysisRequest } from "../shared/move-analysis";
 import { createEndgamePrecompute } from "./endgame-precompute";
@@ -18,10 +19,7 @@ let endgames:
 let familiar: Set<string> | undefined;
 
 async function words(url: string) {
-  const response = await fetch(url);
-  if (!response.ok)
-    throw new Error("Could not load the word list for analysis.");
-  return parseWords(await response.text());
+  return parseWords((await loadWordList(url)).text);
 }
 
 async function loadDictionary(id: string) {

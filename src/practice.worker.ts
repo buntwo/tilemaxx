@@ -1,3 +1,4 @@
+import { dictionaryText } from "./word-list-cache";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { RackBingoIndex } from "../shared/bingo-odds";
 import type {
@@ -89,10 +90,7 @@ export type OptimalExchangeMessage =
 self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
   const dictionaries = new Map<string, Lexicon>();
   async function loadWords(id: string) {
-    const response = await fetch(`/api/dictionaries/${encodeURIComponent(id)}`);
-    if (!response.ok)
-      throw new Error("Could not load the word list for this position.");
-    return parseWords(await response.text());
+    return parseWords(await dictionaryText(id));
   }
   async function dictionary(id: string) {
     const cached = dictionaries.get(id);

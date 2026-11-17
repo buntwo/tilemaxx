@@ -102,6 +102,12 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
   });
   app.post("/api/games", (req, res) => {
+    // An optional client-generated identity makes offline creation retryable.
+    const creationId = z
+      .string()
+      .regex(/^[a-f0-9]{32}$/)
+      .optional()
+      .parse(req.body.creationId);
     const game = gameSchema.parse({
       ...req.body,
       id: randomUUID(),
@@ -115,7 +121,23 @@ export function createApp(store: ReturnType<typeof createStore>) {
       res.status(400).json({ error: "Unknown profile or dictionary." });
       return;
     }
-    res.status(201).json(store.createGame(game));
+    if (creationId && store.wasGameDeleted(creationId)) {
+      res
+        .status(410)
+        .json({
+          error:
+            "This game was deleted on the server. Your local draft is still on this device.",
+        });
+      return;
+    }
+    const existing = creationId && store.getGame(creationId);
+    if (existing) {
+      res
+        .status(409)
+        .json({ error: "This game was already created.", game: existing });
+      return;
+    }
+    res.status(201).json(store.createGame(game, creationId));
   });
   app.get("/api/games/:id", (req, res) => {
     const game = store.getGame(req.params.id);

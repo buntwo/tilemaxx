@@ -1,3 +1,4 @@
+import { dictionaryText } from "./word-list-cache";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import {
   solvePositionWithBaseline,
@@ -156,15 +157,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       const started = performance.now();
       if (request.kind === "solve")
         post({ id, kind: "solve-status", status: "Loading dictionary…" });
-      const response = await fetch(
-        `/api/dictionaries/${encodeURIComponent(dictionaryId)}`,
-        { signal: abort?.signal },
-      );
-      if (!response.ok)
-        throw new Error(
-          "Could not load the dictionary. Check your connection to Tilemaxx.",
-        );
-      const text = await response.text();
+      const text = await dictionaryText(dictionaryId);
       if (abort?.signal.aborted) return;
       const words = parseWords(text);
       dictionary = index = {
