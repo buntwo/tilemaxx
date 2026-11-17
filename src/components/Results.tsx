@@ -341,14 +341,15 @@ export default function Results({
   const [inspectedReply, setInspectedReply] = useState<{
     move: Move;
     searchId: number;
+    histogramSelected?: true;
   }>();
   const [followHistogram, setFollowHistogram] = useState<{ moveId: string; searchId: number }>();
   const [heatmap, setHeatmap] = useState<{ move: Move; searchId: number }>();
+  const replyInspection =
+    inspectedReply?.searchId === resultSet?.searchId ? inspectedReply : undefined;
+  const histogramSelection = replyInspection?.histogramSelected ? replyInspection.move : undefined;
   const replyMove =
-    (analyzing ? null : preview) ??
-    (inspectedReply?.searchId === resultSet?.searchId
-      ? inspectedReply?.move
-      : undefined);
+    (analyzing ? null : histogramSelection ?? preview) ?? replyInspection?.move;
   const replyDetail = replyMove && replyAnalysis.results?.[replyMove.id];
   const requestedHistogram = replyMove &&
     replyAnalysis.detail?.key === `reply-histogram:${replyMove.id}`
@@ -446,7 +447,7 @@ export default function Results({
       : undefined);
     setLocked(null);
     onPreview(null);
-    setInspectedReply({ move, searchId: resultSet.searchId });
+    setInspectedReply({ move, searchId: resultSet.searchId, histogramSelected: true });
     replyAnalysis.requestDetail(move, { kind: "reply-histogram" });
   }
   const estimateNotice = replyAnalysis.endgameEstimateUnavailable
@@ -533,6 +534,7 @@ export default function Results({
     );
   const locateMoveId =
     followHistogram &&
+    histogramSelection?.id === followHistogram.moveId &&
     followHistogram.searchId === searchId &&
     !replyAnalysis.pending &&
     replyAnalysis.detail?.key === `reply-histogram:${followHistogram.moveId}` &&
@@ -593,6 +595,7 @@ export default function Results({
     setScroll(0);
     if (scroller.current) scroller.current.scrollTop = 0;
     setLocked(null);
+    setInspectedReply((current) => current?.histogramSelected ? undefined : current);
     setFollowHistogram(undefined);
     scoreTooltip.close();
   }, [resultSet, filter, requiredSquares, sort, reversed, shortlistActive]);
@@ -623,13 +626,14 @@ export default function Results({
     if (phoneLayout && !preview) setLocked(null);
   }, [phoneLayout, preview]);
   useEffect(() => {
-    if (!locked) return;
+    if (!locked && !histogramSelection) return;
     function dismissPreview(event: MouseEvent) {
       const target = event.target;
       if (
         !(target instanceof Element) ||
         pinnedRow.current?.contains(target) ||
-        target.closest("[data-move-preview-action]")
+        target.closest("[data-move-preview-action]") ||
+        (histogramSelection && (target === scroller.current || target.closest("dialog")))
       )
         return;
       setLocked(null);
@@ -639,8 +643,9 @@ export default function Results({
     // A completed tap dismisses the preview. Starting a scroll does not.
     document.addEventListener("click", dismissPreview, true);
     return () => document.removeEventListener("click", dismissPreview, true);
-  }, [locked, onPreview]);
+  }, [locked, histogramSelection, onPreview]);
   function togglePin(move: Move) {
+    if (histogramSelection) setInspectedReply(undefined);
     setLocked((current) => (current === move.id ? null : move.id));
     onPreview(move);
   }
@@ -1256,14 +1261,16 @@ export default function Results({
                 const selected =
                   analyzing &&
                   candidates.some((candidate) => candidate.id === m.id);
+                const histogramSelected = histogramSelection?.id === m.id;
+                const pinned = locked === m.id || histogramSelected;
                 return (
                   <div
                     className="result-slot"
                     key={m.id}
-                    ref={locked === m.id ? pinnedRow : undefined}
+                    ref={pinned ? pinnedRow : undefined}
                     style={{ top: (start + offset) * moveRowHeight }}
                     onPointerEnter={(e) => {
-                      if (locked || !canHoverWithMouse(e.pointerType)) return;
+                      if (locked || histogramSelection || !canHoverWithMouse(e.pointerType)) return;
                       onPreview(m, analyzing);
                       if (
                         !analyzing &&
@@ -1273,7 +1280,7 @@ export default function Results({
                         setInspectedReply({ move: m, searchId });
                     }}
                     onPointerLeave={(e) => {
-                      if (!locked && canHoverWithMouse(e.pointerType))
+                      if (!locked && !histogramSelection && canHoverWithMouse(e.pointerType))
                         onPreview(null);
                     }}
                   >
@@ -1285,7 +1292,7 @@ export default function Results({
                       />
                     )}
                     <button
-                      className={`result-row${bingo ? " bingo" : ""}${preview?.id === m.id || selected ? " active" : ""}${locked === m.id ? " pinned" : ""}`}
+                      className={`result-row${bingo ? " bingo" : ""}${preview?.id === m.id || selected || histogramSelected ? " active" : ""}${pinned ? " pinned" : ""}`}
                       aria-pressed={analyzing ? selected : undefined}
                       aria-describedby={metricId}
                       disabled={
@@ -1293,12 +1300,12 @@ export default function Results({
                         !selected &&
                         candidates.length >= ANALYSIS_LIMIT
                       }
-                      aria-label={`${m.word}, ${m.score} points, ${movePosition} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrificeLabel}${adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : extraLabel ? `, ${extraLabel}` : ""}${scoreRankLabel ? `, ${scoreRankLabel}` : ""}`}
+                      aria-label={`${m.word}, ${m.score} points, ${movePosition} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrificeLabel}${adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : extraLabel ? `, ${extraLabel}` : ""}${scoreRankLabel ? `, ${scoreRankLabel}` : ""}${histogramSelected ? ", selected for reply details" : ""}`}
                       onPointerDown={(e) => {
                         pointer.current = e.pointerType;
                       }}
                       onFocus={() => {
-                        if (!locked) onPreview(m, analyzing);
+                        if (!locked && !histogramSelection) onPreview(m, analyzing);
                       }}
                       onContextMenu={(event) => {
                         if (analyzing) return;
@@ -1317,6 +1324,7 @@ export default function Results({
                           onPreview(m, true);
                           return;
                         }
+                        if (histogramSelection) setInspectedReply(undefined);
                         if (
                           (e.detail > 0 && canHoverWithMouse(pointer.current)) ||
                           locked === m.id
@@ -1531,6 +1539,7 @@ export default function Results({
                             className="icon-button result-histogram-trigger"
                             aria-label={`Check reply histogram for ${m.word} at ${movePosition} ${m.direction}`}
                             title="Check reply histogram"
+                            data-move-preview-action
                             onClick={() => checkReplyHistogram(m)}
                           >
                             <ChartNoAxesCombined size={15} aria-hidden="true" />
