@@ -14,6 +14,7 @@
 - Before every minor release, review all code changes through the release candidate since the last completed full review. Record the reviewed commit range and any outstanding findings.
 - Run `npm run verify` for changes to rules, solving, persistence, UI, imports, or deployment. It runs the tests, type check, and production build, and is the GitHub CI gate.
 - Keep solver, API, sync, and UI tests in the default suite. Add targeted regression coverage for behavior changes. Check changed UI interactions in an isolated browser workspace with test data.
+- Preserve the 38 px height of the **Possible moves** header unless the user explicitly requests a height change. For changes that affect the header or its controls, measure it in a browser at desktop and phone widths before and after **Find moves**, including with the close button visible.
 
 ## Git and deployment
 
