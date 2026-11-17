@@ -4628,6 +4628,9 @@ label + label {
   line-height: 1;
   letter-spacing: .045em;
 }
+.rack-tile.exchange-mark .rack-required-stripe {
+  padding-inline-end: min(11px, 29cqi);
+}
 .rack-entry-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -5317,11 +5320,19 @@ label + label {
   border-color: #b7772f;
 }
 .rack-tile.exchange-mark:not(.selected) .rack-slot { box-shadow: var(--rack-slot-mark); }
-.rack-exchange-icon { position: absolute; top: 3px; right: 3px; color: #9a5619; }
-.rack-tile.required-tile .rack-slot > .rack-exchange-icon {
-  inset: auto auto 2px 2px;
-  max-width: 23cqi;
+.rack-exchange-icon {
+  position: absolute;
+  top: min(3px, 8cqi);
+  right: min(3px, 8cqi);
+  width: min(12px, 32cqi);
   height: auto;
+  color: #9a5619;
+}
+.rack-required-stripe .rack-exchange-icon {
+  top: 0;
+  right: min(2px, 6cqi);
+  width: min(10px, 23cqi, 1.12em);
+  color: inherit;
 }
 
 
@@ -5838,13 +5849,12 @@ label + label {
   line-height: 1;
 }
 .compact-game .rack-panel .rack-face.empty { font-size: min(18px, 40cqi); }
-.compact-game .rack-panel :is(.rack-excluded-icon, .rack-exchange-icon) {
+.compact-game .rack-panel .rack-excluded-icon {
   width: min(11px, 23cqi);
   height: min(11px, 23cqi);
   top: 2px;
+  left: 2px;
 }
-.compact-game .rack-panel .rack-excluded-icon { left: 2px; }
-.compact-game .rack-panel .rack-exchange-icon { right: 2px; }
 .compact-game .rack-panel .rack-tools summary { min-height: 25px; }
 .compact-game .rack-panel .rack-exchange-advice { min-height: 25px; }
 .compact-game .rack-panel .tile-pool { margin-top: 5px; }
