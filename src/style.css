@@ -2047,7 +2047,6 @@ label + label {
   gap: 4px;
   font-size: 11px;
 }
-.move-results-close { flex: none; }
 @container (max-width: 380px) {
   .compact-game .move-list-controls .solve-endgame-action span { display: none; }
 }
@@ -5164,6 +5163,11 @@ label + label {
   gap: 6px;
   min-height: 43px;
   padding: 12px 12px 7px;
+}
+.results-title .results-close {
+  flex: none;
+  /* Match the 24px header controls while keeping a 32px click target. */
+  margin-block: -4px;
 }
 .results-title .result-counts { margin-left: auto; }
 .results-panel .result-filters {

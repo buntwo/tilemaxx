@@ -849,7 +849,7 @@ export default function Results({
         )}
         {(resultSet || error) && (
           <button
-            className="icon-button move-results-close"
+            className="icon-button results-close move-results-close"
             type="button"
             aria-label="Close possible moves"
             onClick={() => {
