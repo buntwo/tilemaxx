@@ -224,7 +224,6 @@ export default function Results({
   calculating?: boolean;
   timing?: MoveTiming;
   onTimingComplete?: (
-    searchId: number,
     stoppedAt: number,
     analysis: Omit<MoveTiming, "total" | "solver">,
   ) => void;
@@ -845,9 +844,9 @@ export default function Results({
                 : undefined
             }
             onQuiet={
-              onTimingComplete && searchId !== undefined
+              onTimingComplete
                 ? (stoppedAt) => {
-                    onTimingComplete(searchId, stoppedAt, {
+                    onTimingComplete(stoppedAt, {
                       replies:
                         replyAnalysis.repliesElapsed === undefined
                           ? undefined
@@ -930,7 +929,9 @@ export default function Results({
               setFilter("");
               setSearchOpen(false);
               setOrdering(undefined);
+              setShortlistSearch(undefined);
               setInspectedReply(undefined);
+              setHeatmap(undefined);
               focusFindMoves.current = true;
               onCloseResults();
             }}

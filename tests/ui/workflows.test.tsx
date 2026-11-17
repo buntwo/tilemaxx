@@ -404,6 +404,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
   const analyses: AnalysisRequest[] = [];
   let background: { worker: SolverWorker; request: EndgamePrecomputeRequest } | undefined;
   let firstSix: string[] = [];
+  let rankings = 0;
   class EndgameWorker extends SolverWorker {
     postMessage(request: SolverRequest | AnalysisRequest | EndgamePrecomputeRequest | ReplyRequest) {
       if (!("kind" in request)) {
@@ -424,6 +425,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
       } else if (request.kind === "precompute-endgames") {
         background = { worker: this, request };
       } else if (request.kind === "endgame") {
+        rankings++;
         const index = this.results.get(request.searchId)!;
         const estimate = prepareEndgameEstimate(lexicon, { ...request, bagSize: 0 });
         const ranking = index.setEndgame(
@@ -502,6 +504,14 @@ test("the first six endgame moves report progress and update Analyze with exact 
   await user.click(screen.getByRole("button", { name: "Run analysis" }));
   await screen.findByRole("button", { name: "Refine estimates" });
   expect(analyses[1].cachedEndgames).toBeUndefined();
+
+  await user.click(screen.getByRole("button", { name: "Close possible moves" }));
+  expect(screen.queryByText(/exact lines ready/)).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Find moves" }));
+  expect(await screen.findByText("2/6 exact lines ready · 4 hit a limit")).toBeTruthy();
+  expect(rankings).toBe(1);
+  expect(background?.request).toBe(request);
+
   await typeRack(user, "Z");
   expect(screen.queryByText(/exact lines ready/)).toBeNull();
   expect(worker.terminate).toHaveBeenCalledOnce();
@@ -665,13 +675,17 @@ test("calculation timing waits for reply histograms and stays fixed for follow-u
   let replies: { worker: SolverWorker; request: ReplySummary } | undefined;
   let boardOdds: { worker: SolverWorker; request: BoardOdds } | undefined;
   let detail: { worker: SolverWorker; request: ReplyRequest } | undefined;
+  let solves = 0;
   class DeferredReplyWorker extends SolverWorker {
     postMessage(request: SolverRequest | ReplyRequest) {
       if (request.kind === "reply-summary") replies = { worker: this, request };
       else if (request.kind === "board-odds") boardOdds = { worker: this, request };
       else if (request.kind === "reply-detail" || request.kind === "reply-line")
         detail = { worker: this, request };
-      else if (request.kind !== "reply-histogram") super.postMessage(request);
+      else if (request.kind !== "reply-histogram") {
+        if (request.kind === "solve") solves++;
+        super.postMessage(request);
+      }
     }
   }
   vi.stubGlobal("Worker", DeferredReplyWorker);
@@ -743,6 +757,22 @@ test("calculation timing waits for reply histograms and stays fixed for follow-u
     `Hit the 25-second analysis time limit after ${word} at ${coordinate(row * 15 + col, 15)} ${direction} with opponent rack AENRST? (? = blank).`,
   )).toBeTruthy();
   expect(screen.getByRole("button", { name: /^Calculation timing/ }).textContent).toBe(total);
+
+  const checkedBoard = boardOdds?.request;
+  await user.click(screen.getByRole("button", { name: "Close possible moves" }));
+  expect(screen.queryByRole("button", { name: /^Calculation timing/ })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Find moves" }));
+  expect((await screen.findByRole("button", { name: /^Calculation timing/ })).textContent).toBe(total);
+  expect(screen.getAllByRole("button", { name: /^CATS, / }).length).toBeGreaterThan(0);
+  expect(replies?.request).toBe(request);
+  expect(boardOdds?.request).toBe(checkedBoard);
+  expect(solves).toBe(1);
+
+  await user.click(screen.getByRole("button", { name: "Close possible moves" }));
+  await typeRack(user, "DOG");
+  await user.click(screen.getByRole("button", { name: "Find moves" }));
+  await screen.findAllByRole("button", { name: /^DOG, / });
+  expect(solves).toBe(2);
 });
 
 test.each(["reference", "alternatives"] as const)(

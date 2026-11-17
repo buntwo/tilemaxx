@@ -47,6 +47,7 @@ export type BoardOddsProgress = Omit<BoardOddsResult, "byMove">;
 export function useSolver(positionKey: string, game: Game | undefined) {
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [snapshotKey, setSnapshotKey] = useState(positionKey);
+  const [resultsClosed, setResultsClosed] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [rackOddsPending, setRackOddsPending] = useState(false);
@@ -181,6 +182,7 @@ export function useSolver(positionKey: string, game: Game | undefined) {
     if (previous !== visibleSearch.current) discard(previous);
     setSnapshotKey(positionKey);
     setSnapshot(next);
+    setResultsClosed(false);
     setBusy("");
     setError("");
     setRackOddsPending(false);
@@ -309,6 +311,7 @@ export function useSolver(positionKey: string, game: Game | undefined) {
         solving.current !== visibleSearch.current)
     )
       return false;
+    setResultsClosed(false);
     if (!reload && !error && snapshotKey === positionKey && snapshot.results)
       return false;
     stopSearch();
@@ -542,27 +545,31 @@ export function useSolver(positionKey: string, game: Game | undefined) {
   }
 
   const current = snapshotKey === positionKey ? snapshot : emptySnapshot;
-  const recommendation = current.exchangeAdvice;
+  const shown = resultsClosed ? emptySnapshot : current;
+  const computing = !!(
+    busy ||
+    rackOddsPending ||
+    defenseProgress !== undefined ||
+    boardOddsProgress ||
+    exchangeAdvicePending
+  );
+  const recommendation = shown.exchangeAdvice;
   const slots = game && recommendation && rackSlotsForLetters(game, recommendation.tiles);
   return {
-    ...current,
+    ...shown,
+    searchResults: current.results,
+    replyCandidates: current.replyCandidates,
+    startedAt: current.startedAt,
     exchangeAdvice: slots && recommendation ? {
       slots: slots.sort((a, b) => a - b),
       edge: recommendation.edge,
       comparedWith: recommendation.comparedWith,
     } : undefined,
     boardOdds:
-      current.boardOdds ??
-      (snapshotKey === positionKey ? liveBoardOdds : undefined),
+      shown.boardOdds ??
+      (!resultsClosed && snapshotKey === positionKey ? liveBoardOdds : undefined),
     busy,
-    calculating: !!(
-      busy ||
-      rackOddsPending ||
-      defenseProgress !== undefined ||
-      boardOddsProgress ||
-      exchangeAdvicePending ||
-      queriesPending
-    ),
+    calculating: computing || queriesPending,
     error,
     rackOddsPending,
     defenseProgress,
@@ -570,7 +577,11 @@ export function useSolver(positionKey: string, game: Game | undefined) {
     boardOddsError,
     solve,
     cancelSearch: stopSearch,
-    closeResults: () => replaceResults(),
+    closeResults(repliesFinished: boolean) {
+      if (current.results && !error && !computing && repliesFinished)
+        setResultsClosed(true);
+      else replaceResults();
+    },
     page,
     shortlist,
     rankEndgame,
