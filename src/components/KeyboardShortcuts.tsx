@@ -5,7 +5,7 @@ const sections = [
     title: "Workspace",
     shortcuts: [
       ["Alt / Option + R", "Focus the rack"],
-      ["Alt / Option + G", "Search games by opponent"],
+      ["Alt / Option + F", "Search games by opponent"],
       ["?", "Open this guide outside text fields"],
     ],
   },

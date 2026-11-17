@@ -28,7 +28,7 @@ export default function useKeyboardShortcuts({
     if (event.altKey && !event.shiftKey) {
       if ((key === "r" || event.code === "KeyR") && focusRack())
         event.preventDefault();
-      else if ((key === "g" || event.code === "KeyG") && searchGames())
+      else if ((key === "f" || event.code === "KeyF") && searchGames())
         event.preventDefault();
       return;
     }

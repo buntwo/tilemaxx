@@ -5,7 +5,7 @@
 | Name | Where to find it |
 | --- | --- |
 | **Sidebar** | The profile picker, game navigation, settings, UI guide, and keyboard shortcuts. Use the three-line **Open sidebar** button beside the page title or **Collapse sidebar** in the sidebar’s upper-right corner. |
-| **Keyboard shortcuts** | Open the guide from the sidebar or press **?** outside text fields. **Alt / Option + R** focuses the rack. **Alt / Option + G** opens the game picker with its opponent filter focused, or focuses the filter in Archived games. |
+| **Keyboard shortcuts** | Open the guide from the sidebar or press **?** outside text fields. **Alt / Option + R** focuses the rack. **Alt / Option + F** opens the game picker with its opponent filter focused, or focuses the filter in Archived games. |
 | **Review changes** | The sidebar status for games with local and server versions. Hover or open it, then select a game to jump to its sync warning. |
 | **Settings** | The gear below the theme controls, beside the version number. Control rack highlighting, animations, and automatic reloads when the server has a newer version. **Hardware info** shows the browser concurrency hint and the effective compute worker limit. Tilemaxx uses the browser hint by default. Enable **Limit compute workers to** and enter a maximum, which starts at 1. The setting applies to opponent reply histograms, automatic exact endgame lines, Solve endgame, board-based bingo odds, Optimal exchange, and policy timelines. These choices apply to this browser only. |
 | **Update available** | The arrow beside the version number appears when automatic updates are off and the server has a newer version. |
