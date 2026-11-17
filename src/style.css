@@ -2117,10 +2117,12 @@ label + label {
     0 5px 10px #574b2f0a;
   transform: rotate(-10deg);
 }
-.illustrated-tiles > span:nth-child(2) {
-  transform: translateY(-9px) rotate(4deg);
+.illustrated-tiles > .illustrated-tile-green {
   background: #d9e4ce;
   box-shadow: inset 0 -3px #c2d1b4;
+}
+.illustrated-tiles > span:nth-child(2) {
+  transform: translateY(-9px) rotate(4deg);
 }
 .illustrated-tiles > span:nth-child(3) {
   transform: rotate(13deg);

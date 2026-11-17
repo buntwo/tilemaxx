@@ -1553,7 +1553,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               <span>
                 H<small>4</small>
               </span>
-              <span>
+              <span className="illustrated-tile-green">
                 I<small>1</small>
               </span>
             </div>
