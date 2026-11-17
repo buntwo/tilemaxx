@@ -5,6 +5,7 @@ import {
   BIG_REPLY_SCORE,
   inspectBoard,
   prepareSolver,
+  createSolverFactory,
   solve,
   solvePosition,
   solvePositionWithBaseline,
@@ -23,6 +24,108 @@ import {
 
 const lex = (words: string) =>
   new Lexicon(parseWords(words.split(" ").join("\n")));
+
+test("solver factories match independent board preparation across every preset", () => {
+  const dictionary = lex("AT CAT CATS ACT RAT ART TAR READING READINGS");
+  for (const template of PRESETS) {
+    const prepare = createSolverFactory(dictionary, template);
+    const board = emptyBoard(template.size);
+    for (const tile of ["", "a", "A", "Z"]) {
+      board[template.start] = tile;
+      for (const rack of ["CATS?", "READING", "READINGS"].filter(
+        (rack) => rack.length <= template.rackSize,
+      )) {
+        const expected = prepareSolver(dictionary, board, template);
+        const actual = prepare(board);
+        assert.deepEqual(actual.solve(rack), expected.solve(rack));
+        assert.deepEqual(actual.summarize(rack), expected.summarize(rack));
+        assert.equal(actual.bestScore(rack), expected.bestScore(rack));
+      }
+    }
+  }
+});
+
+test("solver factories capture the layout and do not retain mutable board inputs", () => {
+  const dictionary = lex("AT READING READINGS");
+  const template = structuredClone(
+    PRESETS.find((t) => t.rules === "lexulous")!,
+  );
+  const original = structuredClone(template);
+  const prepare = createSolverFactory(dictionary, template);
+  const board = emptyBoard(template.size);
+  const compiled = prepare(board);
+  const expected = compiled.solve("READINGS");
+  assert.ok(expected.length);
+  board[template.start] = "Z";
+  template.premiums.fill("QW");
+  template.start = 0;
+  template.rules = "wwf";
+  template.bingo = 100;
+  template.additionalBonuses = { 7: 90 };
+  assert.deepEqual(compiled.solve("READINGS"), expected);
+  assert.deepEqual(
+    prepare(emptyBoard(template.size)).solve("READINGS"),
+    expected,
+  );
+  assert.deepEqual(
+    prepare(board).solve("AT"),
+    solve(dictionary, board, "AT", original),
+  );
+  assert.deepEqual(
+    createSolverFactory(
+      dictionary,
+      template,
+    )(emptyBoard(template.size)).solve("READINGS"),
+    solve(dictionary, emptyBoard(template.size), "READINGS", template),
+  );
+  assert.throws(() => prepare(emptyBoard(5)), /board size/);
+});
+
+test("cross-check reuse includes impossible words and is isolated by dictionary", (t) => {
+  const dictionary = lex("AT CAT");
+  const cross = t.mock.method(dictionary, "crossMask");
+  const prepare = createSolverFactory(dictionary, PRESETS[0]);
+  const board = emptyBoard(15);
+  for (const tile of ["A", "Z"]) {
+    board[112] = tile;
+    const expected = prepare(board).solve("AT");
+    const calls = cross.mock.callCount();
+    assert.ok(calls > 0);
+    assert.deepEqual(prepare([...board]).solve("AT"), expected);
+    assert.equal(cross.mock.callCount(), calls);
+  }
+  const other = lex("ZA");
+  assert.deepEqual(prepare(board).solve("A"), []);
+  assert.ok(createSolverFactory(other, PRESETS[0])(board).solve("A").length);
+});
+
+test("cross-check eviction recomputes old entries without changing legal moves", (t) => {
+  const dictionary = lex("AAAAA AAAAB");
+  const cross = t.mock.method(dictionary, "crossMask");
+  const template = {
+    ...PRESETS[0],
+    size: 5,
+    start: 12,
+    premiums: Array<"">(25).fill(""),
+  };
+  const prepare = createSolverFactory(dictionary, template);
+  const board = emptyBoard(5);
+  board.splice(0, 4, "A", "A", "A", "A");
+  const expected = prepare(board).solve("AB");
+  assert.ok(expected.length);
+  for (let i = 1; i <= 4_096; i++) {
+    let code = i;
+    const next = [...board];
+    for (let cell = 0; cell < 4; cell++) {
+      next[cell] = String.fromCharCode(65 + (code % 26));
+      code = Math.floor(code / 26);
+    }
+    prepare(next);
+  }
+  const calls = cross.mock.callCount();
+  assert.deepEqual(prepare(board).solve("AB"), expected);
+  assert.ok(cross.mock.callCount() > calls);
+});
 
 test("required tiles filter moves by newly placed physical copies, including a blank", () => {
   const template = PRESETS[0];

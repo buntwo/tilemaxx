@@ -8,9 +8,14 @@ import {
 } from "../shared/endgame";
 import { Lexicon } from "../shared/lexicon";
 import { placeTiles } from "../shared/move-analysis";
-import { emptyBoard, tileScore, type Board, type Move } from "../shared/model";
+import {
+  emptyBoard,
+  type Board,
+  type BoardTemplate,
+  type Move,
+} from "../shared/model";
 import { PRESETS } from "../shared/presets";
-import { SearchLimitError, solve } from "../shared/solver";
+import { SearchLimitError, solve, createSolverFactory } from "../shared/solver";
 
 const template = PRESETS[0];
 const board = emptyBoard(template.size);
@@ -33,14 +38,12 @@ const smallLexicon = new Lexicon([
 ]);
 const searchSmall = (board: Board, rack: string) =>
   solve(smallLexicon, board, rack, smallTemplate, {}, { unsorted: true });
-const points = (rack: string) =>
-  [...rack].reduce((sum, tile) => sum + tileScore(tile, "scrabble"), 0);
-
 interface SmallPosition {
   board: Board;
   racks: [string, string];
   candidate: Move;
   priorScoreless: number;
+  template?: BoardTemplate;
 }
 
 function smallPosition(
@@ -60,6 +63,11 @@ function smallPosition(
 // Score every continuation in the first player's perspective, with no pruning
 // or cached values. Track different orders of the same moves for the fixture.
 function exhaustive(position: SmallPosition) {
+  const template = position.template ?? smallTemplate;
+  const points = (rack: string) => rackPoints(rack, template.rules);
+  const search = (board: Board, rack: string) =>
+    solve(smallLexicon, board, rack, template, {}, { unsorted: true });
+  const lexulous = template.rules === "lexulous";
   const orders = new Map<string, string>();
   let transposition = false;
   function play(
@@ -80,8 +88,9 @@ function exhaustive(position: SmallPosition) {
       racks[player] = move.leave;
       history = [...history, move.id];
     }
-    scoreless = score ? 0 : scoreless + 1;
-    if (scoreless === 6) return score + points(racks[1]) - points(racks[0]);
+    scoreless = (lexulous ? move : score) ? 0 : scoreless + 1;
+    if (scoreless === (lexulous ? 2 : 6))
+      return score + points(racks[1]) - points(racks[0]);
 
     const key = JSON.stringify([
       board,
@@ -94,7 +103,7 @@ function exhaustive(position: SmallPosition) {
     const previous = orders.get(key);
     if (previous === undefined) orders.set(key, order);
     else if (previous !== order) transposition = true;
-    const replies = [...searchSmall(board, racks[other]), null].map((next) =>
+    const replies = [...search(board, racks[other]), null].map((next) =>
       play(board, racks, other, scoreless, next, history),
     );
     return score + (other === 0 ? Math.max(...replies) : Math.min(...replies));
@@ -111,6 +120,9 @@ function exhaustive(position: SmallPosition) {
 }
 
 function replay(position: SmallPosition, result: EndgameLine) {
+  const template = position.template ?? smallTemplate;
+  const points = (rack: string) => rackPoints(rack, template.rules);
+  const lexulous = template.rules === "lexulous";
   assert.equal(result.line[0], position.candidate);
   const racks = [...position.racks];
   let { board, priorScoreless: scoreless } = position;
@@ -120,7 +132,7 @@ function replay(position: SmallPosition, result: EndgameLine) {
     assert.equal(ended, false, "Line continues after the game ended");
     const player = turn % 2;
     if (move) {
-      const legal = searchSmall(board, racks[player]).find(
+      const legal = solve(smallLexicon, board, racks[player], template).find(
         (option) => option.id === move.id,
       );
       assert.deepEqual(move, legal);
@@ -134,8 +146,8 @@ function replay(position: SmallPosition, result: EndgameLine) {
         ended = true;
       }
     }
-    scoreless = move?.score ? 0 : scoreless + 1;
-    if (!ended && scoreless === 6) {
+    scoreless = (lexulous ? move : move?.score) ? 0 : scoreless + 1;
+    if (!ended && scoreless === (lexulous ? 2 : 6)) {
       scores[0] -= points(racks[0]);
       scores[1] -= points(racks[1]);
       ended = true;
@@ -220,6 +232,54 @@ test("pruned endgames agree with exhaustive play and return complete lines", () 
       );
       assert.equal(result.spread, reference.spread, name);
       replay(position, result);
+    }
+  }
+});
+
+test("Lexulous ordering and shared preparation preserve exact scores and complete lines", () => {
+  const template = {
+    ...PRESETS.find(({ rules }) => rules === "lexulous")!,
+    size: 5,
+    start: 12,
+    premiums: Array<"">(25).fill(""),
+  };
+  const board = emptyBoard(5);
+  board[12] = "a";
+  const prepare = createSolverFactory(smallLexicon, template);
+  for (const [rack, opponent] of [
+    ["ATBCDEFG", "NHIJKLMO"], // Two eight-tile racks, with blocked leftovers.
+    ["AT?", "CN"],
+    ["?K", "Q"], // A zero-point placement must reset Lexulous's pass streak.
+    ["ATN", "ZZ"],
+  ]) {
+    const candidates = solve(smallLexicon, board, rack, template).slice(0, 3);
+    assert.ok(candidates.length);
+    for (const candidate of candidates) {
+      const position: SmallPosition = {
+        board,
+        candidate,
+        racks: [rack, opponent],
+        priorScoreless: 1,
+        template,
+      };
+      const expected = exhaustive(position);
+      for (const reverse of [false, true]) {
+        const result = solveEmptyBag(
+          board,
+          candidate,
+          opponent,
+          template,
+          { scorelessTurns: 1 },
+          (board, rack) => {
+            const moves = prepare(board).solve(rack, {}, { unsorted: true });
+            return reverse ? moves.reverse() : moves;
+          },
+          placeTiles,
+          { timeLimitMs: Infinity, positionLimit: Infinity },
+        );
+        assert.equal(result.spread, expected.spread);
+        replay(position, result);
+      }
     }
   }
 });

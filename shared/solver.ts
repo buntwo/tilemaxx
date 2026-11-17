@@ -72,7 +72,7 @@ interface Direction {
 }
 
 function prepareDirection(
-  lexicon: Lexicon,
+  crossMask: (prefix: string, suffix: string) => number,
   letters: string[],
   points: Uint8Array,
   anchors: Uint8Array,
@@ -130,7 +130,7 @@ function prepareDirection(
         crossScore[cell] += points[i];
       }
       if (prefix[cell] || suffix[cell]) {
-        mask[cell] = lexicon.crossMask(prefix[cell], suffix[cell]);
+        mask[cell] = crossMask(prefix[cell], suffix[cell]);
       }
     }
   }
@@ -202,45 +202,102 @@ function prepareScoreBounds(
   };
 }
 
+function prepareLayout(template: BoardTemplate) {
+  const { size, rackSize, rules, start } = template;
+  if (
+    !Number.isInteger(size) ||
+    size < 5 ||
+    size > 25 ||
+    template.premiums.length !== size ** 2
+  ) {
+    throw new Error("The board size does not match its layout.");
+  }
+  return {
+    size,
+    rackSize,
+    rules,
+    start,
+    bingoTiles: minimumBingoTiles(template),
+    bingoCounts: Array.from({ length: rackSize + 1 }, (_, played) =>
+      isBingo(template, played),
+    ),
+    bonuses: Array.from({ length: rackSize + 1 }, (_, played) =>
+      bingoPoints(template, played),
+    ),
+    lm: Uint8Array.from(template.premiums, (p) => letterBonuses[p] ?? 1),
+    wm: Uint8Array.from(template.premiums, (p) => wordBonuses[p] ?? 1),
+    letterPoints: Uint8Array.from(
+      LETTERS.slice(0, 26),
+      (letter) => SCORES[rules][letter],
+    ),
+    indexPrefixes: Array.from({ length: size ** 2 }, (_, i) => `${i}:`),
+  };
+}
+
 /** Compile a board snapshot once so it can be searched with many different racks. */
 export function prepareSolver(
   lexicon: Lexicon,
   board: Board,
   template: BoardTemplate,
 ) {
-  const { size, rackSize, rules } = template;
-  const bingoTiles = minimumBingoTiles(template);
-  const bingoCounts = Array.from({ length: rackSize + 1 }, (_, played) =>
-    isBingo(template, played),
+  return prepareBoardSolver(
+    lexicon,
+    board,
+    prepareLayout(template),
+    (prefix, suffix) => lexicon.crossMask(prefix, suffix),
   );
-  const bonuses = Array.from({ length: rackSize + 1 }, (_, played) =>
-    bingoPoints(template, played),
-  );
-  if (
-    !Number.isInteger(size) ||
-    size < 5 ||
-    size > 25 ||
-    board.length !== size ** 2 ||
-    template.premiums.length !== size ** 2
-  ) {
+}
+
+/** Reuse layout data and cross-checks across an analysis's many board snapshots.
+ * The layout is captured now; the lexicon must remain immutable for the session.
+ * Keep the cache local and bounded so finished analyses release their memory.
+ */
+export function createSolverFactory(lexicon: Lexicon, template: BoardTemplate) {
+  const layout = prepareLayout(template);
+  const masks = new Map<string, number>();
+  const crossMask = (prefix: string, suffix: string) => {
+    const key = `${prefix}.${suffix}`;
+    const cached = masks.get(key);
+    if (cached !== undefined) return cached;
+    const mask = lexicon.crossMask(prefix, suffix);
+    if (masks.size >= 4_096) masks.delete(masks.keys().next().value!);
+    masks.set(key, mask);
+    return mask;
+  };
+  return (board: Board) =>
+    prepareBoardSolver(lexicon, board, layout, crossMask);
+}
+
+function prepareBoardSolver(
+  lexicon: Lexicon,
+  board: Board,
+  layout: ReturnType<typeof prepareLayout>,
+  crossMask: (prefix: string, suffix: string) => number,
+) {
+  const {
+    size,
+    rackSize,
+    rules,
+    start,
+    bingoTiles,
+    bingoCounts,
+    bonuses,
+    lm,
+    wm,
+    letterPoints,
+    indexPrefixes,
+  } = layout;
+  if (board.length !== size ** 2)
     throw new Error("The board size does not match its layout.");
-  }
   const letters = board.map((tile) => tile.toUpperCase());
   const codes = Int16Array.from(letters, (letter) =>
     letter ? letter.charCodeAt(0) - 65 : -1,
   );
   const points = Uint8Array.from(board, (tile) => tileScore(tile, rules));
-  const lm = Uint8Array.from(template.premiums, (p) => letterBonuses[p] ?? 1);
-  const wm = Uint8Array.from(template.premiums, (p) => wordBonuses[p] ?? 1);
-  const letterPoints = Uint8Array.from(
-    LETTERS.slice(0, 26),
-    (letter) => SCORES[rules][letter],
-  );
-  const indexPrefixes = board.map((_, i) => `${i}:`);
   const empty = !board.some(Boolean);
   const anchors = Uint8Array.from(board, (tile, i) => {
     if (tile) return 0;
-    if (empty) return Number(i === template.start);
+    if (empty) return Number(i === start);
     return Number(
       Boolean(
         board[i - size] ||
@@ -251,7 +308,15 @@ export function prepareSolver(
     );
   });
   const directions = [true, false].map((across) =>
-    prepareDirection(lexicon, letters, points, anchors, size, rackSize, across),
+    prepareDirection(
+      crossMask,
+      letters,
+      points,
+      anchors,
+      size,
+      rackSize,
+      across,
+    ),
   );
   const { first, mask: children, terminal, maxTail } = lexicon;
   const boundStride = rackSize + 1;
