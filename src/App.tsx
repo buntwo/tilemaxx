@@ -1318,6 +1318,16 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                         key={gameFinish.current.animation}
                         finish={gameFinish.current.result}
                         onDismiss={gameFinish.dismiss}
+                        onArchive={
+                          game.archived
+                            ? undefined
+                            : () => {
+                                gameFinish.dismiss();
+                                editPosition();
+                                update(archiveGame(game));
+                                notify("Game archived.");
+                              }
+                        }
                       />
                     )
                   }

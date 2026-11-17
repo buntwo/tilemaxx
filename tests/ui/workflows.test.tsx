@@ -2433,7 +2433,8 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
   expect(board().getByText("Won by 28")).toBeTruthy();
   const startSquare = board().getByRole("button", { name: /^H8:/ });
   expect(startSquare).toHaveProperty("disabled", true);
-  await user.click(board().getByRole("button", { name: "View board" }));
+  expect(board().queryByRole("button", { name: "Archive game" })).toBeNull();
+  await user.click(screen.getByRole("heading", { name: "Finished opponent" }));
   expect(board().queryByRole("heading", { name: "You win!" })).toBeNull();
   expect(startSquare).toHaveProperty("disabled", false);
 
@@ -3102,7 +3103,8 @@ test("entering the opponent's final tile updates the score and ends the game on 
   });
   const undo = cell("Undo");
   expect(undo).toHaveProperty("disabled", true);
-  await user.click(cell("View board"));
+  await user.click(cell("Dismiss result"));
+  expect(current().board[115]).toBe("S");
   await user.click(undo);
   expect(current().board[115]).toBe("");
   expect(scoreTotals()).toBe("20–10");
@@ -3423,13 +3425,14 @@ function finishFixture(out: "you" | "opponent") {
   return { ...initial, revision: initial.revision + 1 };
 }
 
-test("finish overlay shows the adjusted result after the last tile lands and waits for dismissal", async () => {
+test("finish overlay waits for the last tile, dismisses outside the card, and archives in place", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === "(any-hover: hover)",
     addEventListener() {},
     removeEventListener() {},
   }));
   remote.games[0] = finishFixture("you");
+  remote.games.push({ ...game(), id: "second", name: "Other active game" });
   const originalAnimate = Object.getOwnPropertyDescriptor(Element.prototype, "animate");
   let finish!: () => void;
   const finished = new Promise<void>((resolve) => { finish = resolve; });
@@ -3466,8 +3469,12 @@ test("finish overlay shows the adjusted result after the last tile lands and wai
     } finally {
       vi.useRealTimers();
     }
-    await user.click(board.getByRole("button", { name: "View board" }));
+    await user.click(board.getByRole("heading", { name: "You win!" }));
+    expect(board.getByRole("heading", { name: "You win!" })).toBeTruthy();
+    expect(board.queryByRole("button", { name: "View board" })).toBeNull();
+    await user.click(board.getByRole("button", { name: "Dismiss result" }));
     expect(board.queryByRole("heading", { name: "You win!" })).toBeNull();
+    expect(current().archived).toBe(false);
     const replay = screen.getByRole("button", { name: "Replay finish animation" });
     await user.click(replay);
     const firstReplay = board.getByRole("heading", { name: "You win!" });
@@ -3478,6 +3485,19 @@ test("finish overlay shows the adjusted result after the last tile lands and wai
     await user.click(board.getByRole("button", { name: "Undo" }));
     await user.click(board.getByRole("button", { name: "Redo" }));
     expect(board.queryByRole("heading", { name: "You win!" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Replay finish animation" }));
+    const finished = current();
+    await user.click(board.getByRole("button", { name: "Archive game" }));
+    expect(board.queryByRole("heading", { name: "You win!" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "First game" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Back to archived games" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Switch game" })).toBeNull();
+    expect(current().archivedBoard).toEqual(finished.board);
+    expect(current().archivedState?.scoring).toEqual(finished.scoring);
+    await act(() => store.flush());
+    expect(remote.games[0].archived).toBe(true);
+    expect(remote.games[1].archived).toBe(false);
   } finally {
     geometry.mockRestore();
     if (originalAnimate) Object.defineProperty(Element.prototype, "animate", originalAnimate);

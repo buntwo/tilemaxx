@@ -25,33 +25,47 @@ const results = {
 export default function BoardFinishOverlay({
   finish,
   onDismiss,
+  onArchive,
 }: {
   finish: GameFinish;
   onDismiss: () => void;
+  onArchive?: () => void;
 }) {
   const { outcome, out, opponent, scores, square, size, move } = finish;
   const { Icon, label, margin } = results[outcome];
   const overlay = useRef<HTMLDivElement>(null);
-  const dismissButton = useRef<HTMLButtonElement>(null);
-  const dismiss = useCallback(() => {
+  const close = useCallback((action: () => void) => {
     const focusedSquare =
-      document.activeElement === dismissButton.current
-        ? overlay.current?.parentElement?.querySelector<HTMLButtonElement>(
+      overlay.current?.contains(document.activeElement)
+        ? overlay.current.parentElement?.querySelector<HTMLButtonElement>(
             `[data-cell="${square}"]`,
           )
         : undefined;
-    onDismiss();
+    action();
     // The square becomes focusable after the overlay closes.
     if (focusedSquare)
       requestAnimationFrame(() => focusedSquare.focus({ preventScroll: true }));
-  }, [onDismiss, square]);
+  }, [square]);
   useEffect(() => {
     function escape(event: KeyboardEvent) {
-      if (event.key === "Escape" && !event.defaultPrevented) dismiss();
+      if (event.key === "Escape" && !event.defaultPrevented) close(onDismiss);
+    }
+    function outside(event: MouseEvent) {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        !overlay.current?.contains(target) &&
+        !target.closest(".game-score-replay")
+      )
+        onDismiss();
     }
     document.addEventListener("keydown", escape);
-    return () => document.removeEventListener("keydown", escape);
-  }, [dismiss]);
+    document.addEventListener("click", outside, true);
+    return () => {
+      document.removeEventListener("keydown", escape);
+      document.removeEventListener("click", outside, true);
+    };
+  }, [close, onDismiss]);
 
   return (
     <div
@@ -65,6 +79,12 @@ export default function BoardFinishOverlay({
         } as CSSProperties
       }
     >
+      <button
+        type="button"
+        className="board-finish-backdrop"
+        aria-label="Dismiss result"
+        onClick={() => close(onDismiss)}
+      />
       <div className="board-finish-effects" aria-hidden="true">
         {outcome !== "tie" && <div className="board-finish-wave" />}
         {outcome === "win" &&
@@ -108,14 +128,15 @@ export default function BoardFinishOverlay({
             )}
           </div>
         )}
-        <button
-          ref={dismissButton}
-          type="button"
-          className="button secondary"
-          onClick={dismiss}
-        >
-          View board
-        </button>
+        {onArchive && (
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => close(onArchive)}
+          >
+            Archive game
+          </button>
+        )}
       </div>
     </div>
   );
