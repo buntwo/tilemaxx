@@ -1087,10 +1087,14 @@ test("empty-bag rows wait for estimates unless the user skips to points", async 
 test("endgame rows rank exact swings first and mark the boundary as more lines finish", async () => {
   let background: EndgameWorker | undefined;
   class EndgameWorker {
+    id = 0;
     onmessage?: (event: { data: EndgamePrecomputeMessage }) => void;
     terminate() {}
     postMessage(request: ReplyRequest | EndgamePrecomputeRequest) {
-      if (request.kind === "precompute-endgames") background = this;
+      if (request.kind === "precompute-endgames") {
+        background = this;
+        this.id = request.id;
+      }
     }
   }
   vi.stubGlobal("Worker", EndgameWorker);
@@ -1151,12 +1155,13 @@ test("endgame rows rank exact swings first and mark the boundary as more lines f
   act(() => {
     background!.onmessage!({
       data: {
+        id: background!.id,
         moveId: "a",
         elapsed: 5,
         line: { spread: 10, points: { you: 20, opponent: 10 }, line: [moves[0]] },
       },
     });
-    background!.onmessage!({ data: { moveId: "c", limit: "Time limit reached.", elapsed: 10 } });
+    background!.onmessage!({ data: { id: background!.id, moveId: "c", limit: "Time limit reached.", elapsed: 10 } });
   });
   expect(rows()).toEqual(results);
   await act(async () => publishUpdatedPage!());

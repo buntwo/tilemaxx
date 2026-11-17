@@ -400,13 +400,29 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
 });
 
 test("the first six endgame moves report progress and update Analyze with exact lines for matching settings", async () => {
-  const lexicon = new Lexicon(["AT", "CAT", "CATS", "ACT", "RAT", "ART", "TAR"]);
+  const lexicon = new Lexicon([
+    "AT",
+    "CAT",
+    "CATS",
+    "ACT",
+    "RAT",
+    "ART",
+    "TAR",
+  ]);
   const analyses: AnalysisRequest[] = [];
-  let background: { worker: SolverWorker; request: EndgamePrecomputeRequest } | undefined;
+  let background:
+    | { worker: SolverWorker; request: EndgamePrecomputeRequest }
+    | undefined;
   let firstSix: string[] = [];
   let rankings = 0;
   class EndgameWorker extends SolverWorker {
-    postMessage(request: SolverRequest | AnalysisRequest | EndgamePrecomputeRequest | ReplyRequest) {
+    postMessage(
+      request:
+        | SolverRequest
+        | AnalysisRequest
+        | EndgamePrecomputeRequest
+        | ReplyRequest,
+    ) {
       if (!("kind" in request)) {
         analyses.push(request);
         const result = analyzeMoves(lexicon, request, new Set());
@@ -417,100 +433,227 @@ test("the first six endgame moves report progress and update Analyze with exact 
         }
         queueMicrotask(() => this.onmessage?.({ data: { result } }));
       } else if (request.kind === "reply-summary") {
-        queueMicrotask(() => this.onmessage?.({
-          data: { id: request.id, kind: request.kind, done: true },
-        }));
-      } else if (request.kind === "reply-line" || request.kind === "reply-detail" || request.kind === "reply-histogram") {
+        queueMicrotask(() =>
+          this.onmessage?.({
+            data: { id: request.id, kind: request.kind, done: true },
+          }),
+        );
+      } else if (
+        request.kind === "reply-line" ||
+        request.kind === "reply-detail" ||
+        request.kind === "reply-histogram"
+      ) {
         return;
-      } else if (request.kind === "precompute-endgames") {
+      } else if (
+        request.kind === "precompute-endgames" ||
+        request.kind === "continue-endgames"
+      ) {
         background = { worker: this, request };
       } else if (request.kind === "endgame") {
         rankings++;
         const index = this.results.get(request.searchId)!;
-        const estimate = prepareEndgameEstimate(lexicon, { ...request, bagSize: 0 });
+        const estimate = prepareEndgameEstimate(lexicon, {
+          ...request,
+          bagSize: 0,
+        });
         const ranking = index.setEndgame(
           request.id,
-          new Map(index.moves.map((move) => [move.id, estimate(move, Infinity)])),
+          new Map(
+            index.moves.map((move) => [move.id, estimate(move, Infinity)]),
+          ),
         );
         expect(ranking.checked).toBeGreaterThan(6);
         firstSix = ranking.head.slice(0, 6).map(({ id }) => id);
-        queueMicrotask(() => this.onmessage?.({
-          data: { kind: "endgame", id: request.id, ranking },
-        }));
+        queueMicrotask(() =>
+          this.onmessage?.({
+            data: { kind: "endgame", id: request.id, ranking },
+          }),
+        );
       } else super.postMessage(request);
     }
   }
   vi.stubGlobal("Worker", EndgameWorker);
   const user = await start();
   const base = current();
-  act(() => store.update({
-    ...base,
-    rack: "CATS",
-    template: {
-      ...base.template,
-      rackSize: 4,
-      tileCounts: Object.fromEntries(
-        TILE_SYMBOLS.map((tile) => [tile, Number("ACSTZ".includes(tile))]),
-      ),
-    },
-  }));
+  act(() =>
+    store.update({
+      ...base,
+      rack: "CATS",
+      template: {
+        ...base.template,
+        rackSize: 4,
+        tileCounts: Object.fromEntries(
+          TILE_SYMBOLS.map((tile) => [tile, Number("ACSTZ".includes(tile))]),
+        ),
+      },
+    }),
+  );
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
-  await waitFor(() => expect(background?.request.moves.map(({ id }) => id)).toEqual(firstSix));
+  await waitFor(() =>
+    expect(background?.request.moves.map(({ id }) => id)).toEqual(firstSix),
+  );
   const { worker, request } = background!;
   const [first, second] = request.moves;
   expect(screen.getByText("Solving exact lines · 0/6 checked")).toBeTruthy();
   const spinner = document.querySelector(".calculation-indicator")!;
   expect(spinner.getAttribute("data-phase")).toBe("active");
-  expect(screen.queryByRole("button", { name: /^Calculation timing/ })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: /^Calculation timing/ }),
+  ).toBeNull();
   const line = replyEndgameLine(lexicon, request, first, Infinity);
-  act(() => worker.onmessage?.({ data: { moveId: first.id, line, elapsed: 17 } }));
+  act(() =>
+    worker.onmessage?.({
+      data: { id: request.id, moveId: first.id, line, elapsed: 17 },
+    }),
+  );
   expect(screen.getByText("Solving exact lines · 1/6 checked")).toBeTruthy();
   await user.click(await screen.findByRole("button", { name: "Analyze" }));
-  const rows = within(screen.getByLabelText("Suggested moves")).getAllByRole("button", { name: /points,/ });
+  const rows = within(screen.getByLabelText("Suggested moves")).getAllByRole(
+    "button",
+    { name: /points,/ },
+  );
   await user.click(rows[1]);
   await user.click(screen.getByRole("button", { name: "Run analysis" }));
   await screen.findByRole("button", { name: "Refine estimates" });
-  expect(analyses[0].candidates.map(({ id }) => id)).toEqual([first.id, second.id]);
+  expect(analyses[0].candidates.map(({ id }) => id)).toEqual([
+    first.id,
+    second.id,
+  ]);
   expect(analyses[0].cachedEndgames).toEqual({ [first.id]: line });
   const cards = screen.getAllByRole("article", { name: /^Analysis for / });
   await user.click(cards[1].querySelector("summary")!);
-  expect(within(cards[1]).getByText("Foreground endgame position limit reached.")).toBeTruthy();
+  expect(
+    within(cards[1]).getByText("Foreground endgame position limit reached."),
+  ).toBeTruthy();
   const secondLine = replyEndgameLine(lexicon, request, second, Infinity);
-  act(() => worker.onmessage?.({ data: { moveId: second.id, line: secondLine, elapsed: 30 } }));
-  expect(within(cards[1]).getByRole("table", { name: "Optimal endgame line" })).toBeTruthy();
-  expect(within(cards[1]).queryByText("Foreground endgame position limit reached.")).toBeNull();
+  act(() =>
+    worker.onmessage?.({
+      data: {
+        id: request.id,
+        moveId: second.id,
+        line: secondLine,
+        elapsed: 30,
+      },
+    }),
+  );
+  expect(
+    within(cards[1]).getByRole("table", { name: "Optimal endgame line" }),
+  ).toBeTruthy();
+  expect(
+    within(cards[1]).queryByText("Foreground endgame position limit reached."),
+  ).toBeNull();
 
   const timeLimit = "Endgame search reached its 5,000 ms time limit.";
   act(() => {
     for (const move of request.moves.slice(2))
-      worker.onmessage?.({ data: { moveId: move.id, limit: timeLimit, elapsed: 5000 } });
-    worker.onmessage?.({ data: { done: true } });
+      worker.onmessage?.({
+        data: {
+          id: request.id,
+          moveId: move.id,
+          limit: timeLimit,
+          elapsed: 5000,
+        },
+      });
+    worker.onmessage?.({ data: { id: request.id, done: true } });
   });
   const finished = screen.getByText("2/6 exact lines ready · 4 hit a limit");
   expect(finished.getAttribute("title")).toContain(timeLimit);
   await waitFor(() => expect(spinner.textContent).toBe(""));
-  await user.click(await screen.findByRole("button", { name: /^Calculation timing/ }));
-  const timing = within(screen.getByRole("dialog", { name: "Calculation timing" }));
+  await user.click(
+    await screen.findByRole("button", { name: /^Calculation timing/ }),
+  );
+  const timing = within(
+    screen.getByRole("dialog", { name: "Calculation timing" }),
+  );
   expect(timing.getByText("Endgame estimates")).toBeTruthy();
   expect(timing.getByText("Exact endgame lines")).toBeTruthy();
-  const attempts = within(timing.getByRole("region", { name: "Individual endgame solves" }));
-  expect(attempts.getAllByText("Limit reached", { exact: false })).toHaveLength(4);
-  expect(attempts.getByText("17 ms").previousElementSibling?.textContent).toContain(first.word);
-  expect(attempts.getByText("30 ms").previousElementSibling?.textContent).toContain(second.word);
+  const attempts = within(
+    timing.getByRole("region", { name: "Individual endgame solves" }),
+  );
+  expect(attempts.getAllByText("Limit reached", { exact: false })).toHaveLength(
+    4,
+  );
+  expect(
+    attempts.getByText("17 ms").previousElementSibling?.textContent,
+  ).toContain(first.word);
+  expect(
+    attempts.getByText("30 ms").previousElementSibling?.textContent,
+  ).toContain(second.word);
   expect(attempts.getAllByText("5.00 s")).toHaveLength(4);
   await user.click(timing.getByRole("button", { name: "Close dialog" }));
 
-  await user.selectOptions(screen.getByRole("combobox", { name: "Prior scoreless turns" }), "1");
+  const resume = screen.getByRole("button", { name: "Run another 10 seconds" });
+  expect(worker.terminate).not.toHaveBeenCalled();
+  await user.click(resume);
+  const continued = background!.request;
+  expect(continued.kind).toBe("continue-endgames");
+  expect(continued.moves.map((move) => move.id)).toEqual(
+    request.moves.slice(2).map((move) => move.id),
+  );
+  expect(
+    screen.queryByRole("button", { name: "Run another 10 seconds" }),
+  ).toBeNull();
+  expect(screen.getByText("Solving exact lines · 2/6 checked")).toBeTruthy();
+  // A late completion from the previous slice must not overwrite this run.
+  act(() => worker.onmessage?.({ data: { id: request.id, done: true } }));
+  expect(screen.getByText("Solving exact lines · 2/6 checked")).toBeTruthy();
+  act(() => {
+    for (const move of continued.moves)
+      worker.onmessage?.({
+        data: {
+          id: continued.id,
+          moveId: move.id,
+          limit: timeLimit,
+          elapsed: 10000,
+        },
+      });
+    worker.onmessage?.({ data: { id: continued.id, done: true } });
+  });
+  expect(
+    screen.getByRole("button", { name: "Run another 10 seconds" }),
+  ).toBeTruthy();
+  expect(
+    screen.getByText("2/6 exact lines ready · 4 hit a limit"),
+  ).toBeTruthy();
+  await user.click(
+    screen.getByRole("button", { name: "Run another 10 seconds" }),
+  );
+  const repeated = background!.request;
+  expect(repeated.id).not.toBe(continued.id);
+  act(() => {
+    for (const move of repeated.moves)
+      worker.onmessage?.({
+        data: {
+          id: repeated.id,
+          moveId: move.id,
+          line: replyEndgameLine(lexicon, repeated, move, Infinity),
+          elapsed: 10,
+        },
+      });
+    worker.onmessage?.({ data: { id: repeated.id, done: true } });
+  });
+  expect(screen.getByText("6/6 exact lines ready")).toBeTruthy();
+  expect(
+    screen.queryByRole("button", { name: "Run another 10 seconds" }),
+  ).toBeNull();
+  expect(worker.terminate).toHaveBeenCalledOnce();
+
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "Prior scoreless turns" }),
+    "1",
+  );
   await user.click(screen.getByRole("button", { name: "Run analysis" }));
   await screen.findByRole("button", { name: "Refine estimates" });
   expect(analyses[1].cachedEndgames).toBeUndefined();
 
-  await user.click(screen.getByRole("button", { name: "Close possible moves" }));
+  await user.click(
+    screen.getByRole("button", { name: "Close possible moves" }),
+  );
   expect(screen.queryByText(/exact lines ready/)).toBeNull();
   await user.click(screen.getByRole("button", { name: "Find moves" }));
-  expect(await screen.findByText("2/6 exact lines ready · 4 hit a limit")).toBeTruthy();
+  expect(await screen.findByText("6/6 exact lines ready")).toBeTruthy();
   expect(rankings).toBe(1);
-  expect(background?.request).toBe(request);
+  expect(background?.request).toBe(repeated);
 
   await typeRack(user, "Z");
   expect(screen.queryByText(/exact lines ready/)).toBeNull();

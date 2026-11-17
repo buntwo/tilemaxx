@@ -1114,6 +1114,15 @@ export default function Results({
                   {endgameProgress.error && " · Background search stopped"}
                 </span>
               )}
+              {replyAnalysis.canContinueEndgames && (
+                <button
+                  type="button" className="button secondary"
+                  title="Continue each unfinished line for up to 10 more seconds."
+                  onClick={replyAnalysis.continueEndgames}
+                >
+                  Run another 10 seconds
+                </button>
+              )}
             </div>
           )}
           {replyEnabled && analysisGame && !onBoardOdds && (
