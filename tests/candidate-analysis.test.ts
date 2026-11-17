@@ -177,12 +177,15 @@ test("endgame jobs preserve the exact line when a worker cannot start", async ()
   );
 });
 
-test("automatic worker limits follow the browser hint up to four and can be set to one", () => {
+test("the automatic worker count follows the browser hint and the optional cap can lower it", () => {
   assert.deepEqual(
-    [1, 2, 3, 4, 6, 12].map((hint) => computeWorkerLimit(false, hint)),
-    [1, 2, 3, 4, 4, 4],
+    [1, 2, 3, 4, 6, 12].map((hint) => computeWorkerLimit(undefined, hint)),
+    [1, 2, 3, 4, 6, 12],
   );
-  assert.equal(computeWorkerLimit(true, 12), 1);
+  assert.equal(computeWorkerLimit(1, 12), 1);
+  assert.equal(computeWorkerLimit(5, 12), 5);
+  assert.equal(computeWorkerLimit(8, 6), 6);
+  assert.equal(computeWorkerLimit(undefined, NaN), 2);
 });
 
 test("the one-worker limit executes a batch without starting nested workers", async () => {
@@ -206,7 +209,7 @@ test("the one-worker limit executes a batch without starting nested workers", as
       assert.equal(result.kind, "histogram");
       completed.push(move.id);
     },
-    computeWorkerLimit(true, 8),
+    computeWorkerLimit(1, 8),
     () => {
       started++;
       throw new Error("Unexpected nested worker");

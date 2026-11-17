@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { computeWorkerLimit, isWorkerCount } from "../compute-workers";
 import Modal from "./Modal";
 
 const storageKey = "tilemaxx:workspace-preferences";
@@ -7,7 +8,8 @@ const defaults = {
   pulseMovePreviews: true,
   animatePlayedTiles: true,
   autoUpdate: true,
-  singleComputeWorker: false,
+  limitComputeWorkers: false,
+  computeWorkerCap: 1,
 };
 type Preferences = typeof defaults;
 
@@ -39,7 +41,10 @@ function readPreferences(): Preferences {
       pulseMovePreviews: saved?.pulseMovePreviews !== false,
       animatePlayedTiles: saved?.animatePlayedTiles !== false,
       autoUpdate: saved?.autoUpdate !== false,
-      singleComputeWorker: saved?.singleComputeWorker === true,
+      limitComputeWorkers: (saved?.limitComputeWorkers ?? saved?.singleComputeWorker) === true,
+      computeWorkerCap: isWorkerCount(saved?.computeWorkerCap)
+        ? saved.computeWorkerCap
+        : defaults.computeWorkerCap,
     };
   } catch {
     return defaults;
@@ -69,6 +74,9 @@ export default function WorkspaceSettings({
   onChange: (preferences: Preferences) => void;
   onClose: () => void;
 }) {
+  const availableWorkers = computeWorkerLimit(undefined, concurrencyHint);
+  const [capDraft, setCapDraft] = useState<string>();
+  const cap = Math.min(preferences.computeWorkerCap, availableWorkers);
   return (
     <Modal
       title="Settings"
@@ -105,20 +113,41 @@ export default function WorkspaceSettings({
               <dd aria-live="polite">{workerLimit}</dd>
             </div>
           </dl>
-          <label>
+          <div className="workspace-worker-limit">
+            <label>
+              <input
+                type="checkbox"
+                checked={preferences.limitComputeWorkers}
+                aria-describedby="compute-worker-scope"
+                onChange={(event) =>
+                  onChange({
+                    ...preferences,
+                    limitComputeWorkers: event.target.checked,
+                  })
+                }
+              />
+              Limit compute workers to
+            </label>
             <input
-              type="checkbox"
-              checked={preferences.singleComputeWorker}
-              aria-describedby="compute-worker-scope"
-              onChange={(event) =>
-                onChange({
-                  ...preferences,
-                  singleComputeWorker: event.target.checked,
-                })
-              }
+              type="number"
+              aria-label="Maximum compute workers"
+              min={1}
+              max={availableWorkers}
+              step={1}
+              value={capDraft ?? cap}
+              disabled={!preferences.limitComputeWorkers}
+              onChange={(event) => {
+                const { value, valueAsNumber, validity } = event.currentTarget;
+                if (validity.valid && isWorkerCount(valueAsNumber)) {
+                  setCapDraft(undefined);
+                  onChange({ ...preferences, computeWorkerCap: valueAsNumber });
+                } else {
+                  setCapDraft(value);
+                }
+              }}
+              onBlur={() => setCapDraft(undefined)}
             />
-            Limit to one compute worker
-          </label>
+          </div>
           <p className="workspace-hardware-scope" id="compute-worker-scope">
             Applies to reply histograms, exact endgame lines, Solve endgame,
             board-based bingo odds, Optimal exchange, and policy timelines.
