@@ -336,14 +336,15 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const compactGame = workspace === "games" && !narrowLayout;
   const solver = useSolver(signature, game);
   const [findMovesRequest, setFindMovesRequest] = useState(0);
-  const { busy, warnings } = solver;
+  const { busy, warnings, searchResults } = solver;
+  const searchId = searchResults?.searchId;
   const calculating = useGameCalculating();
   const replyAnalysis = useReplyAnalysis(
     game,
     signature,
-    solver.results?.head ?? null,
+    searchResults?.head ?? null,
     workspace === "games" && !!game && !gameOver && !busy && !solver.error,
-    { searchId: solver.results?.searchId, rank: solver.rankEndgame },
+    { searchId, rank: solver.rankEndgame },
     workerLimit,
     solver.replyCandidates,
   );
@@ -1458,9 +1459,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   calculating={solver.calculating}
                   timing={solver.timing}
                   onTimingComplete={
-                    solver.startedAt === undefined
-                      ? undefined
-                      : solver.finishTiming
+                    solver.startedAt !== undefined && searchId !== undefined
+                      ? (stoppedAt, analysis) => solver.finishTiming(searchId, stoppedAt, analysis)
+                      : undefined
                   }
                   error={solver.error}
                   size={game.template.size}
@@ -1488,7 +1489,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   onCancelSearch={solver.cancelSearch}
                   onCloseResults={() => {
                     editPosition();
-                    solver.closeResults();
+                    solver.closeResults(!replyAnalysis.calculating);
                   }}
                   hasRack={hasPlayableRack}
                   analysisGame={game}

@@ -5360,7 +5360,7 @@ label + label {
 .results-panel .results-title {
   container-type: inline-size;
   gap: 6px;
-  min-height: 43px;
+  height: 43px;
   padding: 12px 12px 7px;
 }
 .results-title .results-close {
