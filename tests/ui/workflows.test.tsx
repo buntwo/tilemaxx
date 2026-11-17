@@ -1060,7 +1060,9 @@ async function start(width = workspaceWidth) {
 }
 const entry = () => screen.getByRole("textbox", { name: "Type on board" });
 const cell = (name: string) => screen.getByRole("button", { name });
-const trackedScore = () => screen.getByRole("group", { name: "Tracked score" });
+const trackedScore = () =>
+  screen.queryByRole("button", { name: "Replay finish animation" }) ??
+  screen.getByRole("group", { name: "Tracked score" });
 const scoreTotals = (badge = trackedScore()) =>
   badge.querySelector(".game-score-totals")?.textContent;
 const scoreDelta = (badge = trackedScore()) =>
@@ -2241,12 +2243,23 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
     { ...finished, scoring: { ...scoring, you: player(350) } },
     { ...game(), id: "unfinished", name: "Unfinished opponent", archived: true, scoring },
     { ...game(), id: "untracked", name: "Untracked opponent", archived: true, trackScores: false },
+    archiveGame({
+      ...game(),
+      id: "manual",
+      name: "Manually ended opponent",
+      trackScores: false,
+      scoring: {
+        ...scoring,
+        end: { manual: true, outcome: "loss", scores: { you: 280, opponent: 300 } },
+      },
+    }),
   );
   const user = await start();
   await act(() => store.refresh());
   await user.click(cell("Archived games"));
-  const archive = within(screen.getByRole("region", { name: "Archived games" }));
-  const row = (name: string) => archive.getByRole("button", { name: new RegExp(`^${name}`) });
+  const row = (name: string) =>
+    within(screen.getByRole("region", { name: "Archived games" }))
+      .getByRole("button", { name: new RegExp(`^${name}`) });
   const badge = (name: string) => within(row(name)).getByRole("group", { name: "Tracked score" });
   expect(badge("Finished opponent").textContent).toBe("304–276");
   expect(badge("Finished opponent").getAttribute("data-outcome")).toBe("win");
@@ -2261,6 +2274,28 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
   await waitFor(() => expect(scoreTotals()).toBe("304–276"));
   expect(scoreDelta()?.textContent).toBe("+28");
   expect(scoreDelta()?.className).toBe("game-score-delta");
+
+  const board = () => within(screen.getByRole("region", { name: "Game board" }));
+  const replay = () => screen.getByRole("button", { name: "Replay finish animation" });
+  expect(board().queryByRole("heading", { name: "You win!" })).toBeNull();
+  await user.click(replay());
+  expect(board().getByRole("heading", { name: "You win!" })).toBeTruthy();
+  expect(board().getByText("Won by 28")).toBeTruthy();
+  await user.click(board().getByRole("button", { name: "View board" }));
+  expect(board().queryByRole("heading", { name: "You win!" })).toBeNull();
+
+  await user.click(cell("Back to archived games"));
+  await user.click(row("Manually ended opponent"));
+  await screen.findByRole("heading", { name: "Manually ended opponent" });
+  await screen.findByRole("button", { name: "Replay finish animation" });
+  expect(board().queryByRole("heading", { name: "You lose" })).toBeNull();
+  act(() => replay().focus());
+  await user.keyboard("{Enter}");
+  expect(board().getByRole("heading", { name: "You lose" })).toBeTruthy();
+  expect(board().getByText("Lost by 20")).toBeTruthy();
+  expect(board().queryByText(/went out/)).toBeNull();
+  await user.keyboard("{Escape}");
+  expect(board().queryByRole("heading", { name: "You lose" })).toBeNull();
 });
 
 test("archived games sort by end date with a start-date fallback and can filter by opponent", async () => {
@@ -3261,25 +3296,32 @@ test("finish overlay shows the adjusted result after the last tile lands and wai
     const [move] = await screen.findAllByRole("button", { name: /^CATS, / });
     await user.click(move);
     expect(document.querySelector(".tile-flight-layer")).toBeTruthy();
-    expect(board.queryByRole("heading", { name: "You win" })).toBeNull();
+    expect(board.queryByRole("heading", { name: "You win!" })).toBeNull();
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
       await act(async () => finish());
       expect(document.querySelector(".tile-flight-layer")).toBeNull();
-      const outcome = board.getByRole("heading", { name: "You win" });
+      const outcome = board.getByRole("heading", { name: "You win!" });
       expect(outcome.closest(".board-grid")).toBeTruthy();
       expect(board.getByText("Won by 11")).toBeTruthy();
       expect(board.getByText(/You went out/).textContent).toContain("CATS +6");
       await act(async () => vi.advanceTimersByTimeAsync(10_000));
-      expect(board.getByRole("heading", { name: "You win" })).toBe(outcome);
+      expect(board.getByRole("heading", { name: "You win!" })).toBe(outcome);
     } finally {
       vi.useRealTimers();
     }
     await user.click(board.getByRole("button", { name: "View board" }));
-    expect(board.queryByRole("heading", { name: "You win" })).toBeNull();
+    expect(board.queryByRole("heading", { name: "You win!" })).toBeNull();
+    const replay = screen.getByRole("button", { name: "Replay finish animation" });
+    await user.click(replay);
+    const firstReplay = board.getByRole("heading", { name: "You win!" });
+    await user.click(replay);
+    expect(board.getByRole("heading", { name: "You win!" })).not.toBe(firstReplay);
+    await user.keyboard("{Escape}");
+    expect(board.queryByRole("heading", { name: "You win!" })).toBeNull();
     await user.click(board.getByRole("button", { name: "Undo" }));
     await user.click(board.getByRole("button", { name: "Redo" }));
-    expect(board.queryByRole("heading", { name: "You win" })).toBeNull();
+    expect(board.queryByRole("heading", { name: "You win!" })).toBeNull();
   } finally {
     geometry.mockRestore();
     if (originalAnimate) Object.defineProperty(Element.prototype, "animate", originalAnimate);
