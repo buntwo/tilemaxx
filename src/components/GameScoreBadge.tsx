@@ -1,4 +1,5 @@
 import type { GameScoreSummary } from "../../shared/game-scoring";
+import type { Player } from "../../shared/model";
 import { scoreTone, signedPoints } from "../score-tone";
 
 const status = {
@@ -15,12 +16,14 @@ export function describeGameScore(score: GameScoreSummary) {
 
 export default function GameScoreBadge({
   score,
+  turn,
   prominent = false,
   showMargin = false,
   showNoScore = false,
   onReplay,
 }: {
   score: GameScoreSummary | null;
+  turn?: Player;
   prominent?: boolean;
   showMargin?: boolean;
   showNoScore?: boolean;
@@ -54,6 +57,12 @@ export default function GameScoreBadge({
         : status[score.outcome];
   const marginTone =
     score.outcome === "playing" ? scoreTone(margin) : undefined;
+  const currentTurn = score.outcome === "playing" ? turn : undefined;
+  const turnDescription =
+    currentTurn === "you" ? "Your turn." : "Opponent’s turn.";
+  const badgeDescription = currentTurn
+    ? `${description}. ${turnDescription}`
+    : description;
   const Container = onReplay ? "button" : "span";
   return (
     <Container
@@ -63,17 +72,22 @@ export default function GameScoreBadge({
       type={onReplay ? "button" : undefined}
       role={onReplay ? undefined : "group"}
       aria-label={onReplay ? "Replay finish animation" : "Tracked score"}
-      aria-description={onReplay ? describeGameScore(score) : description}
-      title={onReplay ? "Replay finish animation" : description}
+      aria-description={onReplay ? describeGameScore(score) : badgeDescription}
+      title={onReplay ? "Replay finish animation" : badgeDescription}
       data-outcome={score.outcome}
+      data-turn={currentTurn}
       onClick={onReplay}
     >
       <span className="game-score-totals">
-        <span aria-label="Your score">{score.you}</span>
+        <span className="game-score-player" aria-label="Your score">
+          {score.you}
+        </span>
         <span className="game-score-separator" aria-hidden="true">
           –
         </span>
-        <span aria-label="Opponent score">{score.opponent}</span>
+        <span className="game-score-player" aria-label="Opponent score">
+          {score.opponent}
+        </span>
       </span>
       {showMargin && (
         <span
