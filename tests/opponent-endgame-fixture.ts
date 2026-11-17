@@ -1,5 +1,6 @@
+import { emptyScoring } from "../shared/game-scoring";
 import { Lexicon } from "../shared/lexicon";
-import { applyMove, emptyBoard, type Game } from "../shared/model";
+import { applyMove, archiveGame, emptyBoard, type Game } from "../shared/model";
 import { PRESETS } from "../shared/presets";
 import { solve } from "../shared/solver";
 import { TILE_SYMBOLS } from "../shared/tile-pool";
@@ -74,4 +75,23 @@ export function playBeforeRefill() {
     game.template,
   )[0];
   return applyMove(game, move, "you");
+}
+
+export function archivedBeforeEndgame(): Game {
+  const played = playBeforeRefill();
+  return archiveGame({
+    ...played,
+    id: "archived-endgame",
+    name: "Archived endgame",
+    past: [],
+    template: {
+      ...played.template,
+      rackSize: 4,
+      tileCounts: { ...played.template.tileCounts, O: 2 },
+    },
+    scoring: {
+      ...emptyScoring(),
+      end: { manual: true, scores: { you: 92, opponent: 84 } },
+    },
+  });
 }
