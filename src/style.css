@@ -2966,6 +2966,34 @@ label + label {
 .modal textarea {
   resize: vertical;
 }
+.opponent-field {
+  position: relative;
+}
+.opponent-field + label {
+  margin-top: 18px;
+}
+.opponent-suggestions {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 4px);
+  inset-inline: 0;
+  max-height: min(13rem, 30vh);
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: 0 8px 25px #0002;
+}
+.opponent-suggestions [role="option"] {
+  padding: 11px 12px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.opponent-suggestions [role="option"]:hover,
+.opponent-suggestions [aria-selected="true"] {
+  background: var(--soft);
+}
 .modal-footer {
   display: flex;
   justify-content: flex-end;

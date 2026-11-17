@@ -1,4 +1,4 @@
-import { trackedMoveHistory, type AppState, type Game } from "./model";
+import { localDate, trackedMoveHistory, type AppState, type Game } from "./model";
 import {
   displayedGameScoring,
   summarizeGameScore,
@@ -39,6 +39,30 @@ export type GameIndex = Omit<AppState, "games"> & { games: GameSummary[] };
 
 export function opponentNameMatches(name: string, query: string): boolean {
   return name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+}
+
+export function recentOpponentNames(
+  games: readonly GameSummary[],
+  profileId: string,
+): string[] {
+  const now = new Date();
+  const today = localDate(now);
+  now.setDate(now.getDate() - 14);
+  const cutoff = localDate(now);
+  const opponents = new Map<string, { name: string; date: string }>();
+  for (const game of games) {
+    if (game.profileId !== profileId) continue;
+    const date = game.endedOn ?? game.startedOn;
+    if (!date || date < cutoff || date > today) continue;
+    const name = game.name.trim();
+    if (!name) continue;
+    const key = name.toLocaleLowerCase();
+    const previous = opponents.get(key);
+    if (!previous || date > previous.date) opponents.set(key, { name, date });
+  }
+  return [...opponents.values()]
+    .sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name))
+    .map(({ name }) => name);
 }
 
 function hasFullMoveHistory(game: Game): boolean {
