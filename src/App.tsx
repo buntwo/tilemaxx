@@ -1657,8 +1657,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               }}
             />
             <label>
-              Board layout
+              <span id="new-game-board-layout-label">Board layout</span>
               <select
+                aria-labelledby="new-game-board-layout-label"
+                aria-describedby="new-game-board-layout-help"
                 value={formTemplate}
                 onChange={(e) => {
                   templateChosen.current = true;
@@ -1671,6 +1673,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   </option>
                 ))}
               </select>
+              <small id="new-game-board-layout-help" className="muted">
+                Sets the game rules, board and rack sizes, tile bag counts, and
+                scoring bonuses.
+              </small>
             </label>
             <label>
               Word list

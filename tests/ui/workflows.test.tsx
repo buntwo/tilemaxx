@@ -719,7 +719,11 @@ test("new game board follows the platform until the board is picked manually", a
     return within(screen.getByRole("dialog", { name: "New game" }));
   };
   const setup = await openSetup();
-  const board = setup.getByRole("combobox", { name: "Board layout" });
+  const board = setup.getByRole("combobox", {
+    name: "Board layout",
+    description:
+      "Sets the game rules, board and rack sizes, tile bag counts, and scoring bonuses.",
+  });
   const platform = setup.getByRole("combobox", { name: "Platform" });
   await user.selectOptions(platform, "Wordfeud");
   expect(board).toHaveProperty("value", "wordfeud");
