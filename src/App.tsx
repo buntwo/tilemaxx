@@ -39,6 +39,8 @@ import {
 import { version } from "../package.json";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
 import BoardEntry, { BoardEntryHelp } from "./components/BoardEntry";
+import BoardFinishOverlay from "./components/BoardFinishOverlay";
+import { useGameFinish } from "./useGameFinish";
 import {
   GameCalculations,
   useGameCalculating,
@@ -324,6 +326,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     workspace === "games" && flight?.destination === signature
       ? flight
       : undefined;
+  const gameFinish = useGameFinish(workspace === "games" ? game : undefined, !!activeFlight);
   const availableUpdate = useAutoUpdate(
     state.online ? state.serverVersion : undefined,
     preferences.autoUpdate,
@@ -462,6 +465,15 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     }
     store.update(next);
   }
+  function updateAfterTurn(next: Game) {
+    const previous = store.getSnapshot().games[next.id];
+    const finishing = gameFinish.queue(previous, next);
+    update(next);
+    const active = document.activeElement;
+    if (finishing && active instanceof HTMLInputElement &&
+      (boardPanel.current?.contains(active) || rackPanel.current?.contains(active)))
+      active.blur();
+  }
   function undoGame() {
     if (!game?.past.length) return;
     const previous = undo(game);
@@ -534,7 +546,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   function solve(reload = false) {
     if (!game || !hasPlayableRack) return;
     const position = recordOpponentPlayForSearch(game);
-    if (position !== game) update(position);
+    if (position !== game) updateAfterTurn(position);
     if (position.scoring?.end && !position.archived) return;
     if (phoneLayout) phoneReview.open();
     if (solver.solve(position, reload)) setPreview(null);
@@ -591,7 +603,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         },
       );
       setPreview(null);
-      update(next);
+      updateAfterTurn(next);
       setError("");
     } catch (e) {
       setError((e as Error).message);
@@ -675,7 +687,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       key={game.id}
       game={game}
       onToggle={(enabled) => update(setScoreTracking(game, enabled))}
-      onRecord={() => update(recordOpponentPlay(game))}
+      onRecord={() => updateAfterTurn(recordOpponentPlay(game))}
       onCorrection={() => update(treatBoardEditAsCorrection(game))}
       onEditLastOpponentMove={
         lastSearchRecordedOpponentTurn(game)
@@ -1234,7 +1246,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   hideHelp
                   preview={activeFlight?.move ?? preview}
                   displayBoard={activeFlight?.before.board}
-                  onChange={update}
+                  onChange={updateAfterTurn}
+                  overlay={
+                    gameFinish.result && (
+                      <BoardFinishOverlay finish={gameFinish.result} onDismiss={gameFinish.dismiss} />
+                    )
+                  }
                   onSelect={editPosition}
                   onSolve={hasPlayableRack && !activeFlight ? solve : undefined}
                   historyControls={
@@ -1299,7 +1316,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   ref={rackEntry}
                   game={game}
                   onChange={(next) =>
-                    update(next.rack !== game.rack ? recordOpponentRackOut(next) : next)
+                    updateAfterTurn(next.rack !== game.rack ? recordOpponentRackOut(next) : next)
                   }
                   onSolve={solve}
                   phoneLayout={phoneLayout}
