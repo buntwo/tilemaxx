@@ -54,6 +54,11 @@ interface Start {
   cell: number;
 }
 
+interface RankedStarts {
+  starts: Start[];
+  ceilings: number[];
+}
+
 interface Direction {
   direction: Move["direction"];
   step: number;
@@ -252,6 +257,10 @@ export function prepareSolver(
   const boundStride = rackSize + 1;
   let scoreBounds: ReturnType<typeof prepareScoreBounds>[] | undefined;
   let bonusBounds: Uint16Array | undefined;
+  let startOrders: {
+    rackLength: number;
+    byDirection: Map<number, RankedStarts>[];
+  } | undefined;
 
   function run(
     rack: string,
@@ -311,6 +320,11 @@ export function prepareSolver(
       }
     }
     const pruneScore = mode === "score" && blankCount > 0;
+    // Keep the traversal order for tied example plays in a heatmap.
+    const prioritizeStarts = pruneScore && !bigReplies;
+    if (prioritizeStarts && startOrders?.rackLength !== rackLength) {
+      startOrders = { rackLength, byDirection: directions.map(() => new Map()) };
+    }
     let remainingPoints = 0;
     if (pruneScore) {
       for (let code = 0; code < counts.length; code++)
@@ -373,14 +387,14 @@ export function prepareSolver(
       const upperBound = bounds && bonusCeiling
         ? (
             cell: number,
-            length: number,
+            position: number,
             node: number,
             used: number,
             sum: number,
             multiplier: number,
             crossTotal: number,
           ) => {
-            const squares = size - startPosition - length;
+            const squares = size - position;
             if (!squares) return sum * multiplier + crossTotal + bonuses[used];
             const tail = maxTail[node];
             const empty =
@@ -527,7 +541,8 @@ export function prepareSolver(
         if (++nodes > budget.maxNodes) throw new SearchLimitError("nodes");
         if ((nodes & 255) === 0 && performance.now() >= deadline)
           throw new SearchLimitError("time");
-        const atEdge = startPosition + length === size;
+        const position = startPosition + length;
+        const atEdge = position === size;
         if (
           toPremium &&
           !hitsPremium &&
@@ -544,7 +559,7 @@ export function prepareSolver(
           return false;
         if (
           upperBound &&
-          upperBound(cell, length, node, used, sum, multiplier, crossTotal) <= scoreToBeat
+          upperBound(cell, position, node, used, sum, multiplier, crossTotal) <= scoreToBeat
         )
           return false;
         if (
@@ -646,8 +661,31 @@ export function prepareSolver(
         return false;
       }
 
-      for (const start of starts) {
+      const ordering = prioritizeStarts ? startOrders?.byDirection[axis] : undefined;
+      let ranked = ordering?.get(remainingPoints);
+      if (ordering && upperBound && !ranked) {
+        const priorities = starts
+          .filter(({ cell }) => toAnchor[cell] <= rackLength)
+          .map((start) => ({
+            start,
+            ceiling: upperBound(start.cell, start.position, 0, 0, 0, 1, 0),
+          }))
+          .sort((a, b) =>
+            b.ceiling - a.ceiling || toAnchor[a.start.cell] - toAnchor[b.start.cell],
+          );
+        ranked = {
+          starts: priorities.map(({ start }) => start),
+          ceilings: priorities.map(({ ceiling }) => ceiling),
+        };
+        // The relaxed score uses the rack's tile count and total face points.
+        ordering.set(remainingPoints, ranked);
+      }
+      const candidates = ranked?.starts ?? starts;
+      for (let index = 0; index < candidates.length; index++) {
         if (performance.now() >= deadline) throw new SearchLimitError("time");
+        // The remaining starts have the same or a lower ceiling.
+        if (ranked && ranked.ceilings[index] <= scoreToBeat) break;
+        const start = candidates[index];
         if (
           toAnchor[start.cell] > rackLength ||
           (toPremium && toPremium[start.cell] > rackLength) ||
