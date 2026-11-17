@@ -265,24 +265,17 @@ export default function Results({
     [locked, setLocked] = useState<string | null>(null);
   const localCalculation = useGameCalculating();
   const workerLimit = useContext(ComputeWorkerLimit) ?? computeWorkerLimit();
-  const refill = useMemo(
-    () =>
-      analysisGame && !analysisGame.archived && !resultSet && !busy && !error
-        ? endgameAfterRefill(analysisGame)
-        : undefined,
-    [analysisGame, resultSet, busy, error],
-  );
-  const archivedEndgame =
-    analysisGame?.archived &&
-    !busy &&
-    replyAnalysis.bagSize === 0 &&
-    !replyAnalysis.invalid
-      ? {
-          opponentRack: replyAnalysis.opponentRack,
-          scorelessTurns: replyAnalysis.scorelessTurns,
-        }
-      : undefined;
-  const opponentPosition = archivedEndgame ?? refill;
+  const { bagSize, bagConfirmed, invalid, opponentRack, scorelessTurns } =
+    replyAnalysis;
+  const opponentPosition = useMemo(() => {
+    if (!analysisGame || busy || bagSize !== 0 || invalid) return;
+    // A recorded refill can establish a prior scoreless play when settings are unset.
+    const refill = bagConfirmed ? undefined : endgameAfterRefill(analysisGame);
+    return {
+      opponentRack,
+      scorelessTurns: refill?.scorelessTurns ?? scorelessTurns,
+    };
+  }, [analysisGame, busy, bagSize, bagConfirmed, invalid, opponentRack, scorelessTurns]);
   const opponentKey =
     opponentPosition && analysisKey
       ? JSON.stringify([
@@ -846,7 +839,7 @@ export default function Results({
         )}
       </header>
       {(resultSet || error) && solveEndgame && (
-        <div className="results-archive-actions">{solveEndgame}</div>
+        <div className="results-endgame-actions">{solveEndgame}</div>
       )}
       {showFilters && (!collapsibleSearch || !hasBingoControls || !totalMoves) && (
         <div className="result-filters">
