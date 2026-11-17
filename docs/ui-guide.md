@@ -16,7 +16,7 @@
 | **Board help** | The premium-square legend and board-entry instructions. |
 | **Word score badge** | The points that appear beside a board word when you hover over a tile or hold it on a phone. |
 | **Move preview** | The highlighted tiles on the board for a suggested play. The phone **preview bar** shows the word, points, and **Play** button. Tap a move on a phone or right-click it on desktop to pin its preview. Tap or click outside the move and its preview controls to clear it. |
-| **Your rack** | The rack editor and Find moves button below the board. |
+| **Your rack** | The tile editor below the board. **Shuffle rack** sits on the left. Drag a tile between its neighbors to insert it, or focus a tile and press **Shift + ← / →**. Rack marks follow their tiles. |
 | **Rack tools** | Use **Exclude tiles** to hold tiles back or **Require tiles** to use them in every suggested move. Long-press a tile or press **↓** on the keyboard to cycle through excluded, required, and unmarked. Playing clears both kinds of mark, and Undo restores them. When shown, the opponent rack shares a row with Rack tools. |
 | **Optimal exchange** | The button centered below your rack compares swaps while tiles remain in the bag. **Simulate exchange** shows the expected score, bingo chance, and sample plays for a swap. |
 | **Opponent rack** | The inferred tiles centered directly below yours when the bag is empty. In a phone move preview both racks stack vertically beside the board. |

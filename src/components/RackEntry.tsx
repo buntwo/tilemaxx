@@ -13,8 +13,9 @@ import {
   enterRack,
   eraseRack,
   rackLetters,
-  sortRack,
+  reorderRack,
   rackSlotsForMove,
+  sortedRackSlots,
 } from "../../shared/rack-entry";
 import { tileScore, type Game, type Move } from "../../shared/model";
 import type { ExchangeAdvice } from "../../shared/exchange-advice";
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 import { canAnimateTiles } from "./tile-motion";
 import { useRackKeyboard } from "./useRackKeyboard";
+import { useRackReorder } from "./useRackReorder";
 import ExchangeAnalysis from "./ExchangeAnalysis";
 import OptimalExchange from "./OptimalExchange";
 import ExchangeSuggestion, { exchangeAdviceDetail } from "./ExchangeSuggestion";
@@ -126,6 +128,7 @@ export default function RackEntry({
   const position = Math.min(cursor, capacity);
   const excludedSlots = game.excludedRackSlots ?? [];
   const requiredSlots = game.requiredRackSlots ?? [];
+  const canReorder = !reviewing && !flyingRack && mode === "entry";
   const exchangeSlots = Object.keys(exchangeMarks)
     .map(Number)
     .filter((i) => game.rack[i] === exchangeMarks[i]);
@@ -135,6 +138,29 @@ export default function RackEntry({
     simulation?.key === exchangeKey ? simulation : undefined;
   const canOpenOptimal = !opponentRack && exchangeBag > 0;
   const showingOptimal = canOpenOptimal && optimalOpen?.key === optimalKey;
+  const reorder = useRackReorder({
+    rack,
+    letters: game.rack,
+    positionKey,
+    enabled: canReorder,
+    prepare: () => {
+      for (const slide of slides.current.values()) slide.stop();
+    },
+    onReorder: applyOrder,
+  });
+  function applyOrder(order: number[]) {
+    const next = reorderRack(game, order);
+    const nextCursor = order.indexOf(position);
+    if (nextCursor !== -1) setCursor(nextCursor);
+    setExchangeMarks(Object.fromEntries(order.flatMap((slot, i) =>
+      exchangeSlots.includes(slot) ? [[i, game.rack[slot]]] : [])));
+    if (
+      next.rack !== game.rack ||
+      next.excludedRackSlots.join(",") !== excludedSlots.join(",") ||
+      next.requiredRackSlots.join(",") !== requiredSlots.join(",")
+    )
+      onChange({ ...game, ...next });
+  }
   useEffect(() => {
     setExchangeResults(undefined);
   }, [optimalKey]);
@@ -199,6 +225,7 @@ export default function RackEntry({
         slide.stop();
   }, [game.rack, flyingRack]);
   function save(result: { rack: string; cursor: number }, from: number) {
+    reorder.cancel();
     animateEdit(result.rack);
     const untouched = (slot: number) =>
       !selectAll && (slot < from || slot >= Math.max(from + 1, result.cursor));
@@ -415,6 +442,7 @@ export default function RackEntry({
             type="button"
             key={i}
             data-rack-slot={i}
+            data-rack-reorderable={canReorder && tile ? "" : undefined}
             className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${required ? "required-tile" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""} ${previewed ? "move-preview" : ""}`}
             aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${required ? ", required for this move" : ""}${exchanging ? ", marked for exchange" : ""}${previewed ? ", used by preview" : ""}${onReviewEdit ? ", edit rack" : ""}`}
             aria-pressed={
@@ -431,12 +459,23 @@ export default function RackEntry({
             aria-disabled={
               !onReviewEdit && mode !== "entry" && !tile ? true : undefined
             }
+            aria-keyshortcuts={canReorder && tile ? "Shift+ArrowLeft Shift+ArrowRight" : undefined}
+            onKeyDown={(event) => {
+              if (
+                !canReorder || !tile || !event.shiftKey ||
+                (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
+              )
+                return;
+              event.preventDefault();
+              reorder.moveTile(i, i + (event.key === "ArrowLeft" ? -1 : 1));
+            }}
             onPointerDown={(event) => {
               if (event.isPrimary === false) return;
               event.preventDefault();
               clearTimeout(holdTimer.current);
               tileHold.current = null;
               suppressTap.current = false;
+              if (tile) reorder.begin(event, i);
               if (event.pointerType !== "touch" || !tile || flyingRack) return;
               tileHold.current = {
                 pointerId: event.pointerId,
@@ -444,6 +483,7 @@ export default function RackEntry({
                 y: event.clientY,
               };
               holdTimer.current = setTimeout(() => {
+                reorder.cancel();
                 suppressTap.current = true;
                 onReviewEdit?.();
                 cycleTileMark(i);
@@ -452,22 +492,28 @@ export default function RackEntry({
             onPointerMove={(event) => {
               const hold = tileHold.current;
               if (
-                hold && hold.pointerId === event.pointerId &&
-                Math.hypot(event.clientX - hold.x, event.clientY - hold.y) > 10
+                reorder.move(event) ||
+                (hold && hold.pointerId === event.pointerId &&
+                  Math.hypot(event.clientX - hold.x, event.clientY - hold.y) > 10)
               ) {
                 clearTimeout(holdTimer.current);
                 suppressTap.current = true;
               }
             }}
             onPointerUp={(event) => {
+              if (reorder.finish(event)) suppressTap.current = true;
               if (tileHold.current?.pointerId === event.pointerId)
                 clearTimeout(holdTimer.current);
             }}
             onPointerCancel={(event) => {
+              if (reorder.finish(event, true)) suppressTap.current = true;
               if (tileHold.current?.pointerId !== event.pointerId) return;
               clearTimeout(holdTimer.current);
               tileHold.current = null;
               suppressTap.current = true;
+            }}
+            onLostPointerCapture={(event) => {
+              if (reorder.finish(event, true)) suppressTap.current = true;
             }}
             onContextMenu={(event) => {
               if (tileHold.current) event.preventDefault();
@@ -546,7 +592,8 @@ export default function RackEntry({
               type="button"
               onClick={() => {
                 chooseMode("entry");
-                onChange({ ...game, ...sortRack(game) });
+                  reorder.cancel();
+                  applyOrder(sortedRackSlots(game.rack));
               }}
             >
               <Shuffle size={14} /> Sort rack
@@ -583,13 +630,25 @@ export default function RackEntry({
         } as CSSProperties
       }
     >
-      <div className="rack-lane">
+      <div className="rack-lane rack-player-lane">
         {opponentRack && (
           <small className="rack-owner-label" aria-hidden="true">
             You
           </small>
         )}
         {playerTiles}
+        {!reviewing && (
+          <button
+            type="button"
+            className="button secondary rack-shuffle"
+            aria-label="Shuffle rack"
+            title="Shuffle rack"
+            disabled={!canReorder || rackLetters(game.rack).length < 2}
+            onClick={reorder.shuffle}
+          >
+            <Shuffle size={16} aria-hidden="true" />
+          </button>
+        )}
       </div>
       {opponentRack && (
         <OpponentRack rack={opponentRack}>{rackTools}</OpponentRack>

@@ -3,10 +3,35 @@ import assert from "node:assert/strict";
 import {
   enterRack,
   eraseRack,
+  movedRackSlots,
   rackAfterMove,
   rackSlotsForMove,
+  reorderRack,
+  shuffledRackSlots,
   sortRack,
 } from "../shared/rack-entry";
+
+test("rack insertion shifts the intervening slots and moves marks with the original tile", () => {
+  const position = { rack: "AA.T?", excludedRackSlots: [0], requiredRackSlots: [1, 4] };
+  assert.deepEqual(reorderRack(position, movedRackSlots(7, 0, 3)), {
+    rack: "A.TA?",
+    excludedRackSlots: [3],
+    requiredRackSlots: [0, 4],
+  });
+  assert.deepEqual(reorderRack(position, movedRackSlots(7, 4, 1)), {
+    rack: "A?A.T",
+    excludedRackSlots: [0],
+    requiredRackSlots: [1, 2],
+  });
+});
+
+test("shuffling leaves empty slots in place and gives distinct letters a different order", () => {
+  const rack = "AA.B?";
+  const shuffled = reorderRack({ rack }, shuffledRackSlots(rack)).rack;
+  assert.equal(shuffled[2], ".");
+  assert.deepEqual([...shuffled].sort(), [...rack].sort());
+  assert.notEqual(shuffled, rack);
+});
 
 test("move tiles match distinct rack slots, including blanks and held duplicates", () => {
   const position = { board: [], rack: "A.A?TTA", excludedRackSlots: [0, 4] };

@@ -4022,6 +4022,57 @@ test("a phone rack hold cycles marks without opening the keyboard or marking dur
   }
 });
 
+test("shuffle moves excluded, required, and exchange marks with their tiles", async () => {
+  const user = await start();
+  const shuffle = cell("Shuffle rack");
+  expect(shuffle).toHaveProperty("disabled", true);
+  await typeRack(user, "CATS");
+  await user.click(rackTile(1));
+  await user.keyboard("{ArrowDown}");
+  await user.click(rackTile(2));
+  await user.keyboard("{ArrowDown}{ArrowDown}");
+  await user.click(rackTile(3));
+  await user.keyboard("{ArrowUp}");
+
+  const random = vi.spyOn(Math, "random").mockReturnValue(0);
+  try {
+    await user.click(shuffle);
+  } finally {
+    random.mockRestore();
+  }
+  expect(current().rack).toBe("ATSC");
+  expect(current().excludedRackSlots).toEqual([3]);
+  expect(current().requiredRackSlots).toEqual([0]);
+  expect(rackTile(2).getAttribute("aria-label")).toContain("T, marked for exchange");
+  await act(() => store.flush());
+  expect(remote.games[0].rack).toBe("ATSC");
+});
+
+test.each(["mouse", "touch"])("rack drag inserts between tiles and suppresses a typing tap (%s)", async (pointerType) => {
+  const user = await start();
+  await typeRack(user, "CATS");
+  await user.keyboard("{Escape}");
+  const rack = screen.getByRole("group", { name: "Your rack tiles" });
+  vi.spyOn(rack, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 280, 40));
+  for (let i = 0; i < 7; i++)
+    vi.spyOn(rackTile(i + 1), "getBoundingClientRect").mockReturnValue(new DOMRect(i * 40, 0, 36, 36));
+  const first = rackTile(1);
+  touch(first, "pointerdown", { pointerType, clientX: 18 });
+  touch(first, "pointermove", { pointerType, clientX: 118 });
+  expect(first.hasAttribute("data-rack-lifted")).toBe(true);
+  expect(rackTile(2).style.getPropertyValue("--rack-shift-x")).toBe("-40px");
+  touch(first, "pointerup", { pointerType, clientX: 118 });
+  fireEvent.click(first, { detail: 1 });
+  expect(current().rack).toBe("ATCS");
+  expect(rack.querySelector(".rack-insertion-slot")).toBeNull();
+  expect(document.activeElement).not.toBe(screen.getByRole("textbox", { name: "Rack letters" }));
+
+  rackTile(3).focus();
+  await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+  expect(current().rack).toBe("ATSC");
+  expect(document.activeElement).toBe(rackTile(4));
+});
+
 test("hovering a move highlights the first available copy of each rack tile it uses", async () => {
   const user = await start();
   await typeRack(user, "CAAAT?");

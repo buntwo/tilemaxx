@@ -19,24 +19,55 @@ export function splitRack({
   return { available, held };
 }
 
-export function sortRack({
+export function reorderRack({
   rack,
   excludedRackSlots = [],
   requiredRackSlots = [],
-}: Pick<Position, "rack" | "excludedRackSlots" | "requiredRackSlots">) {
+}: Pick<Position, "rack" | "excludedRackSlots" | "requiredRackSlots">, order: readonly number[]) {
+  const remap = (slots: number[]) =>
+    order.flatMap((slot, index) => slots.includes(slot) ? [index] : []);
+  return {
+    rack: trimRack(order.map((slot) => rack[slot] ?? ".").join("")),
+    excludedRackSlots: remap(excludedRackSlots),
+    requiredRackSlots: remap(requiredRackSlots),
+  };
+}
+
+export function sortedRackSlots(rack: string) {
   const tiles = [...rack].flatMap((letter, slot) =>
     letter === "." ? [] : [{ letter, slot }],
   );
   tiles.sort((a, b) => a.letter.charCodeAt(0) - b.letter.charCodeAt(0));
-  return {
-    rack: tiles.map(({ letter }) => letter).join(""),
-    excludedRackSlots: tiles.flatMap(({ slot }, index) =>
-      excludedRackSlots.includes(slot) ? [index] : [],
-    ),
-    requiredRackSlots: tiles.flatMap(({ slot }, index) =>
-      requiredRackSlots.includes(slot) ? [index] : [],
-    ),
-  };
+  return tiles.map(({ slot }) => slot);
+}
+
+export function sortRack(position: Pick<Position, "rack" | "excludedRackSlots" | "requiredRackSlots">) {
+  return reorderRack(position, sortedRackSlots(position.rack));
+}
+
+export function shuffledRackSlots(rack: string) {
+  const order = Array.from({ length: rack.length }, (_, i) => i);
+  const occupied = order.filter((i) => rack[i] !== ".");
+  for (let i = occupied.length - 1; i > 0; i--) {
+    const from = occupied[i];
+    const to = occupied[Math.floor(Math.random() * (i + 1))];
+    [order[from], order[to]] = [order[to], order[from]];
+  }
+  if (occupied.every((i) => rack[i] === rack[order[i]])) {
+    // Give a visible shuffle even if the random permutation only swapped duplicates.
+    const first = occupied[0];
+    const other = occupied.find((i) => rack[i] !== rack[first]);
+    if (other !== undefined)
+      [order[first], order[other]] = [order[other], order[first]];
+  }
+  return order;
+}
+
+export function movedRackSlots(size: number, from: number, to: number) {
+  const order = Array.from({ length: size }, (_, i) => i);
+  order.splice(from, 1);
+  order.splice(to, 0, from);
+  return order;
 }
 
 export function rackAfterMove(
