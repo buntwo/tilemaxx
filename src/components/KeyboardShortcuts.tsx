@@ -18,6 +18,7 @@ const sections = [
       ["Space", "Enter a blank tile"],
       ["↓", "Cycle rack tile through normal, excluded, and required"],
       ["↑", "Mark or unmark a rack tile for exchange"],
+      ["Shift + ← / →", "Reorder a focused rack tile"],
     ],
   },
   {

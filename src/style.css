@@ -4384,6 +4384,7 @@ label + label {
   pointer-events: none;
 }
 .rack-entry .rack-tiles {
+  position: relative;
   width: var(--rack-tray-width);
   padding: 5px 6px 7px;
   margin-bottom: 7px;
@@ -4415,6 +4416,35 @@ label + label {
   right: min(6px, 13cqi);
   bottom: min(4px, 10cqi);
 }
+.rack-entry .rack-player-lane {
+  display: grid;
+  grid-template-columns: minmax(38px, 1fr) minmax(0, var(--rack-tray-width)) minmax(38px, 1fr);
+  align-items: center;
+  column-gap: 4px;
+}
+.rack-entry .rack-player-lane:has(.rack-owner-label) {
+  grid-template-columns: minmax(60px, 1fr) minmax(0, var(--rack-tray-width)) minmax(60px, 1fr);
+}
+.rack-entry .rack-player-lane > .rack-tiles {
+  grid-area: 1 / 2;
+  width: 100%;
+}
+.rack-player-lane .rack-owner-label { grid-area: 1 / 1; }
+.rack-shuffle.button {
+  grid-area: 1 / 1;
+  justify-self: end;
+  width: 36px;
+  min-height: 34px;
+  padding: 0;
+  color: var(--primary);
+}
+.phone-layout .rack-entry .rack-player-lane {
+  grid-template-columns: 38px minmax(0, 1fr);
+}
+.phone-layout .rack-entry .rack-player-lane:has(.rack-owner-label) {
+  grid-template-columns: 60px minmax(0, 1fr);
+}
+.phone-layout .rack-shuffle.button { min-height: 40px; }
 .rack-entry .rack-tile {
   flex: 1 1 0;
   min-width: 0;
@@ -4424,6 +4454,39 @@ label + label {
   border: 0;
   background: none;
   box-shadow: none;
+}
+.rack-entry .rack-tile[data-rack-reorderable] {
+  cursor: grab;
+  touch-action: pan-y;
+}
+.rack-tile[data-rack-shift] {
+  transform: translateX(var(--rack-shift-x));
+  transition: transform 160ms cubic-bezier(.2,.75,.24,1);
+  pointer-events: none;
+}
+.rack-tile:is([data-rack-covered], [data-rack-lifted]) .rack-slot,
+.rack-tile:is([data-rack-covered], [data-rack-lifted])::after {
+  visibility: hidden;
+}
+.rack-entry .rack-tiles > .rack-reorder-tile {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+}
+.rack-reorder-tile .rack-slot {
+  box-shadow: var(--rack-slot-mark, 0 0 transparent), 0 7px 15px #26190e55;
+}
+.rack-entry .rack-reorder-tile[data-rack-dragging] { z-index: 5; }
+.rack-insertion-slot {
+  position: absolute;
+  z-index: 2;
+  border: 1px dashed #ffedc5;
+  border-radius: 6px;
+  background: #503221a6;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rack-tile[data-rack-shift] { transition: none; }
 }
 .rack-slot {
   position: absolute;
