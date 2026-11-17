@@ -4691,14 +4691,19 @@ label + label {
 }
 .rack-optimal-exchange {
   grid-column: 2;
-  padding: 3px 6px;
-  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--line));
-  border-radius: 6px;
+  padding: 0;
   color: var(--primary);
   white-space: nowrap;
 }
-.rack-optimal-exchange:hover,
-.rack-optimal-exchange[aria-expanded="true"] {
+.rack-optimal-exchange-label {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--line));
+  border-radius: 6px;
+}
+.rack-optimal-exchange:is(:hover, [aria-expanded="true"]) .rack-optimal-exchange-label {
   background: var(--soft);
 }
 .rack-entry-actions .rack-exchange-advice {
@@ -5702,6 +5707,7 @@ label + label {
 .phone-layout .rack-entry-actions .text-button { min-height: 40px; }
 .phone-layout .opponent-rack-lane .text-button { min-height: 32px; }
 .phone-layout .rack-optimal-exchange { gap: 4px; }
+.phone-layout .rack-optimal-exchange-label { min-height: 34px; }
 .phone-layout .opponent-rack-tiles { gap: 3px; }
 @media (max-width: 350px) {
   .phone-layout .rack-optimal-exchange { font-size: 11px; }
