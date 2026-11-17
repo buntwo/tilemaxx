@@ -50,7 +50,7 @@ export default function PolicyTimeline({
   } = timeline;
   const checked = turns.filter(({ key }) => results[key]).length;
   const high = turns.filter(
-    ({ key }) => opponentShortlistStatus(results[key]) === "high",
+    ({ key }) => opponentShortlistStatus(results[key]?.result) === "high",
   ).length;
   return (
     <section
@@ -156,7 +156,7 @@ export default function PolicyTimeline({
           </thead>
           <tbody>
             {turns.map(({ key, move, index, input, bingo }) => {
-              const result = results[key];
+              const result = results[key]?.result;
               const status = opponentShortlistStatus(result);
               const highlight = status === "high";
               const shortlist =

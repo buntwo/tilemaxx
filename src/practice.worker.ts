@@ -27,7 +27,11 @@ import { computeWorkerLimit } from "./compute-workers";
 import { parallelOptimalExchange } from "./parallel-exchange";
 
 type ReviewJob = { position: TurnPosition; move: TrackedMove; index: number };
-type PolicyReviewJob = { key: string; input: OpponentPolicyInput };
+type PolicyReviewJob = {
+  key: string;
+  dictionaryId: string;
+  input: OpponentPolicyInput;
+};
 export type OpponentPolicyUpdate = {
   key: string;
   result: OpponentPolicyResult;
@@ -41,6 +45,7 @@ type OpponentPolicyBatchMessage =
   | { result: OpponentPolicyBatchResult };
 
 const POLICY_BATCH_BUDGET_MS = 45_000;
+const POLICY_RETRY_BUDGET_MS = 15_000;
 
 export type PracticeRequest =
   | { kind: "exchange"; dictionaryId: string; exchange: ExchangeRequest }
@@ -59,10 +64,10 @@ export type PracticeRequest =
       kind: "opponent-policy";
       dictionaryId: string;
       input: OpponentPolicyInput;
+      refine?: boolean;
     }
   | {
       kind: "opponent-policy-timeline";
-      dictionaryId: string;
       turns: PolicyReviewJob[];
       workerLimit?: number;
     }
@@ -131,40 +136,65 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
     if (data.kind === "opponent-policy") {
       const lexicon = await dictionary(data.dictionaryId);
       self.postMessage({
-        result: analyzeOpponentPolicy(lexicon, data.input),
+        result: analyzeOpponentPolicy(lexicon, data.input, {
+          maxMs: data.refine ? POLICY_RETRY_BUDGET_MS : undefined,
+        }),
       } satisfies OpponentPolicyMessage);
       return;
     }
     if (data.kind === "opponent-policy-timeline") {
-      const lexicon = await dictionary(data.dictionaryId);
       const deadline =
         performance.timeOrigin + performance.now() + POLICY_BATCH_BUDGET_MS;
+      const groups = new Map<string, PolicyReviewJob[]>();
+      for (const turn of data.turns) {
+        const group = groups.get(turn.dictionaryId);
+        if (group) group.push(turn);
+        else groups.set(turn.dictionaryId, [turn]);
+      }
+      const total = data.turns.length;
       let completed = 0;
-      await runCandidateJobs(
-        lexicon,
-        data.turns.map(({ key, input }) => ({
-          kind: "policy-turn",
-          key,
-          input,
-          deadline,
-        })),
-        (job, result) => {
-          if (job.kind !== "policy-turn" || result.kind !== "policy-turn")
-            throw new Error(
-              result.kind === "error"
-                ? result.message
-                : "Unexpected policy analysis result.",
-            );
-          if (!result.policy) return;
-          self.postMessage({
-            progress: { completed: ++completed, total: data.turns.length },
-            update: { key: job.key, result: result.policy },
-          } satisfies OpponentPolicyBatchMessage);
-        },
-        data.workerLimit,
-      );
+      function publish(key: string, result: OpponentPolicyResult) {
+        self.postMessage({
+          progress: { completed: ++completed, total },
+          update: { key, result },
+        } satisfies OpponentPolicyBatchMessage);
+      }
+      for (const [dictionaryId, turns] of groups) {
+        if (performance.timeOrigin + performance.now() >= deadline) break;
+        let lexicon: Lexicon;
+        try {
+          lexicon = await dictionary(dictionaryId);
+        } catch {
+          for (const { key } of turns)
+            publish(key, {
+              kind: "unavailable",
+              reason: "Could not load the word list recorded for this turn.",
+            });
+          continue;
+        }
+        if (performance.timeOrigin + performance.now() >= deadline) break;
+        await runCandidateJobs(
+          lexicon,
+          turns.map(({ key, input }) => ({
+            kind: "policy-turn",
+            key,
+            input,
+            deadline,
+          })),
+          (job, result) => {
+            if (result.kind !== "policy-turn")
+              throw new Error(
+                result.kind === "error"
+                  ? result.message
+                  : "Unexpected policy analysis result.",
+              );
+            if (result.policy) publish(job.key, result.policy);
+          },
+          data.workerLimit,
+        );
+      }
       self.postMessage({
-        result: { reachedTimeLimit: completed < data.turns.length },
+        result: { reachedTimeLimit: completed < total },
       } satisfies OpponentPolicyBatchMessage);
       return;
     }

@@ -181,17 +181,78 @@ test("the timeline streams in order, keeps finished turns after cancellation and
   ).toBeNull();
 });
 
-test("changing the word list cancels a batch and discards its stale results", () => {
+test("a word-list change leaves active policy jobs on each turn’s recorded list", () => {
+  const { game, review, rerender } = setup();
+  const moves = [...game.trackedMoves!];
+  moves[2] = {
+    ...moves[2],
+    review: { ...moves[2].review!, dictionaryId: "historical-2" },
+  };
+  const mixed = { ...game, trackedMoves: moves, dictionaryId: "current" };
+  rerender(review(mixed));
+  const { worker, job } = start();
+  expect(job.turns.map(({ dictionaryId }) => dictionaryId)).toEqual([
+    "test",
+    "historical-2",
+  ]);
+  worker.returnTurn(job, 0, fit(0.2));
+  rerender(review({ ...mixed, dictionaryId: "other" }));
+  expect(worker.terminate).not.toHaveBeenCalled();
+  expect(screen.getByText("High fit")).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: "Cancel timeline analysis" }));
+  fireEvent.click(screen.getByRole("button", { name: "3 · OX" }));
+  fireEvent.click(screen.getByRole("button", { name: "Analyze policy fit" }));
+  const [request] = TimelineWorker.instances.at(-1)!.postMessage.mock.calls[0];
+  expect(request).toMatchObject({
+    kind: "opponent-policy",
+    dictionaryId: "historical-2",
+    input: { word: "OX" },
+  });
+});
+
+test("changing a recorded policy input cancels the batch and drops stale results", () => {
   const { game, review, rerender } = setup();
   const { worker, job } = start();
   worker.returnTurn(job, 0, fit(0.2));
-  rerender(review({ ...game, dictionaryId: "other" }));
+  const moves = game.trackedMoves!.map((move) =>
+    move.review
+      ? { ...move, review: { ...move.review, dictionaryId: "corrected" } }
+      : move,
+  );
+  rerender(review({ ...game, trackedMoves: moves }));
   expect(worker.terminate).toHaveBeenCalledOnce();
   worker.returnTurn(job, 1, fit(0.2));
   expect(screen.queryByText("High fit")).toBeNull();
-  const next = start();
-  expect(next.job.dictionaryId).toBe("other");
-  expect(next.job.turns).toHaveLength(2);
+  expect(start().job.turns.map(({ dictionaryId }) => dictionaryId)).toEqual([
+    "corrected",
+    "corrected",
+  ]);
+});
+
+test("a limited standalone policy search can retry once with a larger budget", () => {
+  setup(0);
+  const first = screen.getByRole("button", { name: "Analyze policy fit" });
+  const limited = { ...fit(0.2), kind: "sampled", limited: true, samples: 64 } as const;
+  fireEvent.click(first);
+  const initial = TimelineWorker.instances.at(-1)!;
+  expect(initial.postMessage.mock.calls[0][0]).toMatchObject({ refine: false });
+  act(() => initial.onmessage?.({ data: { result: limited } }));
+
+  fireEvent.click(screen.getByRole("button", { name: "Retry with more time" }));
+  const retry = TimelineWorker.instances.at(-1)!;
+  expect(retry.postMessage.mock.calls[0][0]).toMatchObject({ refine: true });
+  act(() =>
+    retry.onmessage?.({
+      data: { result: { kind: "unavailable", reason: "Search limit", limited: true } },
+    }),
+  );
+  expect(screen.getByText(/64 completed rack samples/)).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Retry with more time" })).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "Back to game review" }));
+  fireEvent.click(screen.getByRole("button", { name: "1 · AT" }));
+  expect(screen.queryByRole("button", { name: "Retry with more time" })).toBeNull();
 });
 
 test("sampled turns stay borderline until the bounds support a highlight", () => {

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { Player } from "../../shared/model";
 import {
   OPPONENT_POLICY_LABELS,
@@ -8,6 +8,7 @@ import {
   type PolicyProbabilities,
 } from "../../shared/opponent-policy";
 import { SHORTLIST_SAMPLE_CHECKPOINTS } from "../../shared/shortlist-confidence";
+import type { PolicyEstimate } from "./usePolicyTimeline";
 import { usePractice } from "./usePractice";
 
 function describeRack(
@@ -73,24 +74,25 @@ export default function PolicyReview({
   input,
   dictionaryId,
   analysisKey,
-  savedResult,
+  saved,
   saveResult,
   queued,
 }: {
   player: Player;
   input?: OpponentPolicyInput;
-  dictionaryId: string;
+  dictionaryId?: string;
   analysisKey: string;
-  savedResult?: OpponentPolicyResult;
-  saveResult: (key: string, result: OpponentPolicyResult) => void;
+  saved?: PolicyEstimate;
+  saveResult: (key: string, estimate: PolicyEstimate) => void;
   queued: boolean;
 }) {
   const { result, error, progress, run, reset } =
     usePractice<OpponentPolicyResult>();
-  const displayed = savedResult ?? result;
+  const [refining, setRefining] = useState(false);
+  const displayed = saved?.result ?? result;
   useEffect(() => {
-    if (result) saveResult(analysisKey, result);
-  }, [analysisKey, result, saveResult]);
+    if (result) saveResult(analysisKey, { result, refined: refining });
+  }, [analysisKey, result, refining, saveResult]);
 
   const unavailable = !input
     ? "No saved placement. Policy fit requires a board before the move and the tiles played."
@@ -100,7 +102,7 @@ export default function PolicyReview({
         ? displayed.reason
         : undefined;
   const finding = displayed?.higherScoringPlacement;
-  const refine = displayed?.limited;
+  const refine = !!displayed?.limited && !saved?.refined;
   const borderline = opponentShortlistStatus(displayed) === "borderline";
   const waiting = queued && !displayed && !!input;
   const title = player === "you" ? "Your policy fit" : "Opponent policy fit";
@@ -115,14 +117,16 @@ export default function PolicyReview({
       )}
       {waiting && <p role="status">Queued in timeline analysis.</p>}
       {input &&
+        dictionaryId &&
         !waiting &&
         !progress &&
         ((!unavailable && !displayed) || refine) && (
           <button
             className="button secondary"
-            onClick={() =>
-              run({ kind: "opponent-policy", dictionaryId, input })
-            }
+            onClick={() => {
+              setRefining(refine);
+              run({ kind: "opponent-policy", dictionaryId, input, refine });
+            }}
           >
             {refine ? "Retry with more time" : "Analyze policy fit"}
           </button>

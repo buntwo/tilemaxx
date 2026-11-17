@@ -11,12 +11,13 @@ import type {
 } from "../practice.worker";
 import { usePractice } from "./usePractice";
 
+export type PolicyEstimate = { result: OpponentPolicyResult; refined?: boolean };
+
 export function usePolicyTimeline(
-  game: Pick<Game, "template" | "dictionaryId">,
+  template: Game["template"],
   turns: ReturnType<typeof reviewTurns>,
   player: Player,
 ) {
-  const { template, dictionaryId } = game;
   const policyTurns = useMemo(
     () =>
       turns.flatMap(({ move, index, position }) => {
@@ -38,35 +39,40 @@ export function usePolicyTimeline(
               word: move.word,
             }
           : undefined;
+        const dictionaryId = position?.dictionaryId;
         const key = JSON.stringify([index, dictionaryId, input]);
         const bingo =
           move.bingo ??
           (!!position && isBingo(template, position.tiles.length));
-        return [{ move, index, input, key, bingo }];
+        return [{ move, index, dictionaryId, input, key, bingo }];
       }),
-    [turns, template, dictionaryId, player],
+    [turns, template, player],
   );
-  const [results, setResults] = useState<Record<string, OpponentPolicyResult>>(
-    {},
-  );
+  const [results, setResults] = useState<Record<string, PolicyEstimate>>({});
   const saveResult = useCallback(
-    (key: string, result: OpponentPolicyResult) => {
+    (key: string, { result, refined }: PolicyEstimate) => {
       setResults((previous) => {
         const old = previous[key];
-        if (old?.kind === "exact") return previous;
-        if (
-          old?.kind === "sampled" &&
+        if (old?.result.kind === "exact") return previous;
+        const keepOld =
+          old?.result.kind === "sampled" &&
           (result.kind === "unavailable" ||
-            (result.kind === "sampled" && old.samples > result.samples))
-        )
-          return previous;
-        return { ...previous, [key]: result };
+            (result.kind === "sampled" && old.result.samples > result.samples));
+        const attemptedRefinement = old?.refined || refined;
+        if (keepOld && old.refined === attemptedRefinement) return previous;
+        return {
+          ...previous,
+          [key]: {
+            result: keepOld ? old.result : result,
+            refined: attemptedRefinement,
+          },
+        };
       });
     },
     [],
   );
   const update = useCallback(
-    ({ key, result }: OpponentPolicyUpdate) => saveResult(key, result),
+    ({ key, result }: OpponentPolicyUpdate) => saveResult(key, { result }),
     [saveResult],
   );
   const { run, reset, result, progress, error } = usePractice<
@@ -80,8 +86,8 @@ export function usePolicyTimeline(
   );
   useEffect(reset, [timelineKey, reset]);
 
-  const remaining = policyTurns.flatMap(({ key, input }) =>
-    input && !results[key] ? [{ key, input }] : [],
+  const remaining = policyTurns.flatMap(({ key, dictionaryId, input }) =>
+    dictionaryId && input && !results[key] ? [{ key, dictionaryId, input }] : [],
   );
   return {
     player,
@@ -93,7 +99,7 @@ export function usePolicyTimeline(
     reachedTimeLimit: result?.reachedTimeLimit,
     remaining: remaining.length,
     analyze: () =>
-      run({ kind: "opponent-policy-timeline", dictionaryId, turns: remaining }),
+      run({ kind: "opponent-policy-timeline", turns: remaining }),
     cancel: reset,
   };
 }
