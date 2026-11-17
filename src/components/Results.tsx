@@ -24,12 +24,10 @@ import {
 import {
   bingoPoints,
   isBingo,
-  tileScore,
   type BingoRules,
   type Game,
   type Move,
   type Player,
-  type Rules,
   coordinate,
 } from "../../shared/model";
 import {
@@ -44,6 +42,7 @@ import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import { endgameLength } from "../endgame-line-format";
 import MoveAnalysis from "./MoveAnalysis";
+import EmptyMoveTiles from "./EmptyMoveTiles";
 import MoveWord, { BingoBadge, MoveLetters } from "./MoveWord";
 import BingoOddsControls from "./BingoOddsControls";
 import CalculationIndicator from "./CalculationIndicator";
@@ -88,28 +87,6 @@ import ReplyHeatmapDialog, {
   ReplyPreview,
   ReplySettings,
 } from "./ReplyAnalysis";
-
-const emptyMoveWords = [
-  "AHA", "YAY", "WOW", "OOH", "HMM", "HUH", "OOF", "EEK", "AWW",
-  "YEP", "NAH", "BRO", "SUP", "LOL", "OMG", "QAT", "WAT",
-  "RAD", "ACE", "YUM", "OHO",
-];
-
-function EmptyMoveTiles({ rules }: { rules: Rules }) {
-  const [tiles] = useState(() => {
-    const word = emptyMoveWords[Math.floor(Math.random() * emptyMoveWords.length)];
-    return [...word].map((letter) => ({ letter, green: Math.random() < 0.5 }));
-  });
-  return (
-    <div className="illustrated-tiles" aria-hidden="true">
-      {tiles.map(({ letter, green }, index) => (
-        <span key={index} className={green ? "illustrated-tile-green" : undefined}>
-          {letter}<small>{tileScore(letter, rules)}</small>
-        </span>
-      ))}
-    </div>
-  );
-}
 
 function formatOdds(chance: number, exact: boolean) {
   const value =
