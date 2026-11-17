@@ -430,9 +430,9 @@ export default function RackEntry({
         const excluded = (
           flyingRack?.before.excludedRackSlots ?? excludedSlots
         ).includes(i);
-        const required = (
-          flyingRack?.before.requiredRackSlots ?? requiredSlots
-        ).includes(i);
+        const required =
+          !!tile &&
+          (flyingRack?.before.requiredRackSlots ?? requiredSlots).includes(i);
         const exchanging = !flyingRack && exchangeSlots.includes(i);
         const previewed = previewSlots?.includes(i);
         const active =
@@ -552,11 +552,9 @@ export default function RackEntry({
                 />
               )}
               {required && (
-                <CircleCheck
-                  className="rack-required-icon"
-                  size={12}
-                  aria-hidden="true"
-                />
+                <span className="rack-required-stripe" aria-hidden="true">
+                  REQ
+                </span>
               )}
               {excluded && (
                 <Ban

@@ -3944,8 +3944,10 @@ test("Down cycles rack marks, Require tiles filters moves, and Undo restores bot
   expect(current().excludedRackSlots).toBeUndefined();
   expect(current().requiredRackSlots).toEqual([3]);
   expect(rackTile(4).getAttribute("aria-label")).toContain("required for this move");
+  expect(rackTile(4).querySelector(".rack-required-stripe")?.textContent).toBe("REQ");
   await user.keyboard("{ArrowDown}");
   expect(current().requiredRackSlots).toBeUndefined();
+  expect(rackTile(4).querySelector(".rack-required-stripe")).toBeNull();
   await user.click(rackTile(5));
   await user.keyboard("{ArrowDown}");
   await user.click(screen.getByText("Rack tools"));
@@ -3970,7 +3972,7 @@ test("Down cycles rack marks, Require tiles filters moves, and Undo restores bot
   expect(current().rack).toBe("CATSQ");
   expect(current().excludedRackSlots).toEqual([4]);
   expect(current().requiredRackSlots).toEqual([3]);
-  expect(rackTile(4).classList.contains("required-tile")).toBe(true);
+  expect(rackTile(4).querySelector(".rack-required-stripe")?.textContent).toBe("REQ");
   await user.click(screen.getByRole("button", { name: "Redo" }));
   expect(current().requiredRackSlots).toBeUndefined();
   expect(current().excludedRackSlots).toBeUndefined();
@@ -4008,6 +4010,7 @@ test("a phone rack hold cycles marks without opening the keyboard or marking dur
       tapEnds();
       expect(current().excludedRackSlots).toEqual(excluded);
       expect(current().requiredRackSlots).toEqual(required);
+      expect(tile.querySelector(".rack-required-stripe")?.textContent).toBe(required ? "REQ" : undefined);
       expect(document.activeElement).not.toBe(input);
     }
 

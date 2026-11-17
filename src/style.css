@@ -4419,7 +4419,6 @@ label + label {
 .rack-lane + .rack-lane { margin-block: 6px; }
 .rack-entry .rack-lane:has(.rack-owner-label) > .rack-tiles { margin-block: 0; }
 .rack-lane:has(.rack-owner-label) .rack-tiles { gap: clamp(3px, 1vw, 7px); }
-.rack-lane:has(.rack-owner-label) :where(.rack-tile) { container-type: inline-size; }
 .rack-lane:has(.rack-owner-label) :where(.rack-face) { font-size: min(23px, 54cqi); }
 .rack-lane:has(.rack-owner-label) :where(.rack-face small) {
   font-size: min(8px, 22cqi);
@@ -4457,6 +4456,7 @@ label + label {
 .phone-layout .rack-shuffle.button { min-height: 40px; }
 .rack-entry .rack-tile {
   flex: 1 1 0;
+  container-type: inline-size;
   min-width: 0;
   min-height: 0;
   padding: 0;
@@ -4545,9 +4545,17 @@ label + label {
 .rack-face {
   display: grid;
   place-items: center;
+  font-size: min(1em, 54cqi);
   background: var(--tile);
   color: #364238;
   box-shadow: inset 0 -2px var(--tile-edge);
+}
+@container (max-width: 34px) {
+  .rack-slot .rack-face small {
+    font-size: min(8px, 22cqi);
+    right: min(4px, 7cqi);
+    bottom: min(4px, 7cqi);
+  }
 }
 .rack-face.blank {
   background: var(--blank-tile);
@@ -4601,23 +4609,24 @@ label + label {
   color: var(--muted);
   box-shadow: none;
 }
-.rack-excluded-icon,
-.rack-required-icon {
+.rack-excluded-icon {
   position: absolute;
   top: 4px;
   left: 4px;
 }
-.rack-required-icon {
-  color: #20644c;
-  filter: drop-shadow(0 0 1px #ffffffa0);
-}
-.rack-tile.required-tile .rack-slot::after {
-  content: "";
+.rack-required-stripe {
   position: absolute;
-  inset: 0;
-  border: 2px solid #358064;
-  border-radius: inherit;
-  pointer-events: none;
+  inset: 0 0 auto;
+  display: grid;
+  place-items: center;
+  height: 1.12em;
+  border-radius: 5px 5px 0 0;
+  background: light-dark(#205647, #b5e7c8);
+  color: light-dark(#f4fbf6, #18392b);
+  font-size: min(9px, 20cqi);
+  font-weight: 850;
+  line-height: 1;
+  letter-spacing: .045em;
 }
 .rack-entry-actions {
   display: grid;
@@ -5309,6 +5318,11 @@ label + label {
 }
 .rack-tile.exchange-mark:not(.selected) .rack-slot { box-shadow: var(--rack-slot-mark); }
 .rack-exchange-icon { position: absolute; top: 3px; right: 3px; color: #9a5619; }
+.rack-tile.required-tile .rack-slot > .rack-exchange-icon {
+  inset: auto auto 2px 2px;
+  max-width: 23cqi;
+  height: auto;
+}
 
 
 .results-panel .results-title {
@@ -5697,7 +5711,6 @@ label + label {
   flex: none;
   width: var(--review-rack-tile-size);
   cursor: pointer;
-  container-type: inline-size;
 }
 .phone-move-review .rack-lane { display: block; }
 .phone-move-review .rack-lane + .rack-lane { margin-block: var(--review-lane-gap) 0; }
@@ -5822,20 +5835,17 @@ label + label {
   margin: 0 auto 3px;
   padding-block: 4px 6px;
 }
-.compact-game .rack-panel .rack-tile {
-  container-type: inline-size;
-}
 .compact-game .rack-panel .rack-face {
   font-size: min(24px, 54cqi);
   line-height: 1;
 }
 .compact-game .rack-panel .rack-face.empty { font-size: min(18px, 40cqi); }
-.compact-game .rack-panel :is(.rack-excluded-icon, .rack-required-icon, .rack-exchange-icon) {
+.compact-game .rack-panel :is(.rack-excluded-icon, .rack-exchange-icon) {
   width: min(11px, 23cqi);
   height: min(11px, 23cqi);
   top: 2px;
 }
-.compact-game .rack-panel :is(.rack-excluded-icon, .rack-required-icon) { left: 2px; }
+.compact-game .rack-panel .rack-excluded-icon { left: 2px; }
 .compact-game .rack-panel .rack-exchange-icon { right: 2px; }
 .compact-game .rack-panel .rack-tools summary { min-height: 25px; }
 .compact-game .rack-panel .rack-exchange-advice { min-height: 25px; }
