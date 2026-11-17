@@ -2313,6 +2313,74 @@ test("archived games sort by end date with a start-date fallback and can filter 
   expect(count.textContent).toBe("3");
 });
 
+test("Review changes lists conflicts and opens the selected warning across profiles", async () => {
+  const active = { ...game(), id: "g2", name: "Open match", revision: 2 };
+  const archived = {
+    ...archiveGame(game()),
+    id: "g3",
+    name: "Finished match",
+    profileId: "other",
+    revision: 3,
+  };
+  remote.profiles.push({ id: "other", name: "Other profile" });
+  remote.games.push(active, archived);
+  const user = await start();
+  await waitFor(() => expect(store.snapshot.data?.games).toHaveLength(3));
+
+  const fetchMock = vi.mocked(fetch);
+  const fetchNormally = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation((url, options) => {
+    const target = [active, archived].find(({ id }) => url === `/api/games/${id}`);
+    if (target && options?.method === "PUT") {
+      return Promise.resolve(
+        new Response(JSON.stringify({ game: target }), { status: 409 }),
+      );
+    }
+    return fetchNormally(url, options);
+  });
+  await act(async () => {
+    for (const target of [active, archived]) {
+      store.update({ ...target, revision: target.revision - 1, rack: "A" });
+    }
+    await store.flush();
+  });
+
+  const review = screen.getByRole("button", { name: "Review changes" });
+  const list = () => screen.getByRole("list", { name: "Games with sync conflicts" });
+  expect(review.getAttribute("aria-expanded")).toBe("false");
+  await user.hover(review);
+  const activeItem = within(list()).getByRole("button", { name: /Open match/ });
+  expect(within(list()).getByRole("button", { name: /Finished match.*Other profile.*Archived/ })).toBeTruthy();
+  expect(within(list()).queryByText("First game")).toBeNull();
+  const movePointerFrom = (from: HTMLElement, to: HTMLElement) => {
+    const event = new MouseEvent("pointerout", { bubbles: true, relatedTarget: to });
+    Object.defineProperty(event, "pointerType", { value: "mouse" });
+    fireEvent(from, event);
+  };
+  movePointerFrom(review, activeItem);
+  expect(review.getAttribute("aria-expanded")).toBe("true");
+  movePointerFrom(activeItem, document.body);
+  expect(review.getAttribute("aria-expanded")).toBe("false");
+
+  act(() => review.focus());
+  await user.keyboard("{Enter}{Tab}{Tab}");
+  expect(document.activeElement).toBe(within(list()).getByRole("button", { name: /Finished match/ }));
+  await user.keyboard("{Escape}");
+  expect(review.getAttribute("aria-expanded")).toBe("false");
+  expect(document.activeElement).toBe(review);
+  await user.keyboard("{Enter}{Tab}{Tab}{Enter}");
+  expect(await screen.findByRole("heading", { name: "Finished match" })).toBeTruthy();
+  expect((screen.getByRole("combobox", { name: "Current profile" }) as HTMLSelectElement).value).toBe("other");
+  const warning = screen.getByText(/This game changed on another device/).closest(".banner");
+  expect(document.activeElement).toBe(warning);
+  expect(review.getAttribute("aria-expanded")).toBe("false");
+
+  await user.click(screen.getByRole("button", { name: "Use server version" }));
+  await user.hover(review);
+  expect(within(list()).getByRole("button", { name: /Open match/ })).toBeTruthy();
+  expect(within(list()).queryByText("Finished match")).toBeNull();
+});
+
 test("dates are editable, the keyboard picker shows active games, and the sidebar opens archived games", async () => {
   const user = await start();
   const archivedBoard = emptyBoard(15);

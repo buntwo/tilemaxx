@@ -815,6 +815,73 @@ label + label {
 .sync-status.offline {
   color: #ac7c40;
 }
+.sync-conflicts {
+  position: relative;
+  align-self: stretch;
+}
+.sync-conflict-trigger {
+  min-height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+}
+.sync-conflict-trigger:hover,
+.sync-conflict-trigger[aria-expanded="true"] {
+  background: var(--soft);
+}
+.sync-conflict-trigger svg {
+  color: currentColor;
+}
+.sync-conflict-popover {
+  position: absolute;
+  z-index: 3;
+  inset-inline: 0;
+  bottom: 100%;
+  padding-bottom: 5px;
+}
+.sync-conflict-popover ul {
+  max-height: min(18rem, 42vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 4px 22px #0002;
+}
+.sync-conflict-game {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 5px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 7px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: start;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.sync-conflict-game:hover,
+.sync-conflict-game:focus-visible {
+  background: var(--soft);
+}
+.sync-conflict-game small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 10px;
+}
+.phone-layout :is(.sync-conflict-trigger, .sync-conflict-game) {
+  min-height: 44px;
+}
 .workspace-settings-row {
   position: relative;
   display: flex;
