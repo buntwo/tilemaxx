@@ -2181,6 +2181,7 @@ test("new games start with score tracking on even after an earlier opt-out", asy
   await createGame("Tracked opponent", true);
   expect(noScoreBadge()).toBeNull();
   expect(scoreTotals()).toBe("0–0");
+  expect(trackedScore().hasAttribute("data-turn")).toBe(false);
   expect(scoreDelta()?.textContent).toBe("0");
 });
 
@@ -3529,6 +3530,7 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   await typeRack(user, "S");
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   expect(scoreTotals()).toBe("0–10");
+  expect(trackedScore().getAttribute("data-turn")).toBe("you");
   expect(current().trackedMoves?.map(({ word }) => word)).toEqual(["CAT"]);
   await act(() => store.flush());
   expect(remote.games[0].scoring?.opponent.points).toBe(10);
@@ -3547,6 +3549,8 @@ test("score tracking records typed opponent moves and solver plays across undo, 
     bingos: 0,
   });
   expect(scoreTotals()).toBe("6–10");
+  expect(trackedScore().getAttribute("data-turn")).toBe("opponent");
+  expect(trackedScore().getAttribute("aria-description")).toContain("Opponent’s turn");
   expect(scoreDelta()?.textContent).toBe("−4");
   expect(scoreDelta()?.classList.contains("value-bad")).toBe(true);
   expect(scores().getByText(/Avg 10\.0/)).toBeTruthy();
@@ -3570,11 +3574,13 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   expect(current().scoring?.opponent.points).toBe(10);
   expect(current().scoring?.you.points).toBe(0);
   expect(scoreTotals()).toBe("0–10");
+  expect(trackedScore().getAttribute("data-turn")).toBe("you");
   expect(current().board.slice(112, 116)).toEqual(["C", "A", "T", ""]);
   expect(moves().getAllByRole("row").slice(1)).toHaveLength(1);
   await user.click(cell("Undo"));
   expect(current().board.every((tile) => !tile)).toBe(true);
   expect(scoreTotals()).toBe("0–0");
+  expect(trackedScore().hasAttribute("data-turn")).toBe(false);
   expect(scores().queryByText("CAT · 10 pts")).toBeNull();
   await user.click(cell("Redo"));
   expect(current().board.slice(112, 116)).toEqual(["C", "A", "T", ""]);
@@ -3582,6 +3588,7 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   await user.click(cell("Redo"));
   expect(current().board.slice(112, 116)).toEqual(["C", "A", "T", "S"]);
   expect(scoreTotals()).toBe("6–10");
+  expect(trackedScore().getAttribute("data-turn")).toBe("opponent");
   await user.click(tracking());
   expect(tracking().checked).toBe(false);
   expect(titleScore()).toBeNull();

@@ -1001,6 +1001,27 @@ label + label {
   gap: 4px;
   line-height: 1;
 }
+.game-heading .game-title-score[data-outcome="playing"] .game-score-totals {
+  padding-inline: 3px;
+}
+.game-score-player { position: relative; }
+.game-title-score[data-turn="you"] .game-score-player:first-child::after,
+.game-title-score[data-turn="opponent"] .game-score-player:last-child::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: light-dark(#41677a, #add2e3);
+}
+.game-title-score[data-turn="you"] .game-score-player:first-child::after {
+  inset-inline-end: calc(100% + 2px);
+}
+.game-title-score[data-turn="opponent"] .game-score-player:last-child::after {
+  inset-inline-start: calc(100% + 2px);
+}
 .game-score-separator {
   opacity: 0.7;
 }

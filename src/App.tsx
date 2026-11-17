@@ -87,6 +87,7 @@ import EndGameDialog from "./components/EndGameDialog";
 import {
   playTrackedMove,
   lastSearchRecordedOpponentTurn,
+  nextPlayerToMove,
   recordOpponentPlay,
   recordOpponentPlayForSearch,
   recordOpponentRackOut,
@@ -667,6 +668,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const headlineScore = game && (
     <GameScoreBadge
       score={gameFinish.score}
+      turn={nextPlayerToMove(game)}
       onReplay={gameFinish.replay}
       prominent={compactGame}
       showMargin

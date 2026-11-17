@@ -54,6 +54,21 @@ export function tracksScores(game: Game): boolean {
   return game.trackScores !== false && !isImportedPosition(game);
 }
 
+export function nextPlayerToMove(game: Game): Player | undefined {
+  const { scoring } = game;
+  if (
+    !scoring ||
+    scoring.incomplete ||
+    scoring.end ||
+    game.archived ||
+    !tracksScores(game) ||
+    !(scoring.you.moves || scoring.opponent.moves)
+  )
+    return;
+  const last = trackedMoveHistory(game).at(-1);
+  if (last) return last.player === "you" ? "opponent" : "you";
+}
+
 export function gameScoreTotals(scoring: GameScoring | undefined) {
   const end = scoring?.end;
   if (end && "manual" in end && end.scores) return end.scores;

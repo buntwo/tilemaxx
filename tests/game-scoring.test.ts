@@ -11,6 +11,7 @@ import {
   emptyScoring,
   endGameManually,
   gameScoreTotals,
+  nextPlayerToMove,
   pendingOpponentPlay,
   pendingOpponentTurns,
   playTrackedMove,
@@ -59,6 +60,28 @@ function fixture(): Game {
     archived: false,
   };
 }
+
+test("the turn indicator follows the latest recorded word, including consecutive plays by one player", () => {
+  const game = { ...fixture(), rack: "S" };
+  const edits = new BoardEditHistory();
+  const { start } = game.template;
+  const opening = [...game.board];
+  opening.splice(start, 3, ..."CAT");
+  const entered = edits.apply(game, opening, "enter");
+  assert.equal(nextPlayerToMove(entered), undefined);
+
+  const recorded = recordOpponentPlayForSearch(entered);
+  const extension = [...opening];
+  extension[start + 3] = "S";
+  const consecutive = recordOpponentPlayForSearch(edits.apply(recorded, extension, "enter"));
+  const saved = gameSchema.parse(JSON.parse(JSON.stringify(consecutive)));
+  assert.equal(nextPlayerToMove(recorded), "you");
+  assert.equal(nextPlayerToMove(saved), "you");
+  assert.equal(nextPlayerToMove({ ...saved, rack: "E" }), "you");
+  assert.equal(nextPlayerToMove(archiveGame(saved)), undefined);
+  assert.equal(nextPlayerToMove(endGameManually(saved, { manual: true })), undefined);
+  assert.equal(nextPlayerToMove(setScoreTracking(saved, false)), undefined);
+});
 
 test("manual game results preserve the end date through saves, undo, redo, and archives", (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: new Date(2026, 10, 16, 20) });
