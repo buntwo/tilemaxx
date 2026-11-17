@@ -224,7 +224,11 @@ function useMediaQuery(query: string) {
 export default function App() {
   const preferenceState = useWorkspacePreferences();
   const concurrencyHint = browserConcurrency();
-  const workerLimit = computeWorkerLimit(preferenceState[0].singleComputeWorker, concurrencyHint);
+  const { limitComputeWorkers, computeWorkerCap } = preferenceState[0];
+  const workerLimit = computeWorkerLimit(
+    limitComputeWorkers ? computeWorkerCap : undefined,
+    concurrencyHint,
+  );
   return (
     <GameCalculations>
       <ComputeWorkerLimit.Provider value={workerLimit}>

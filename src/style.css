@@ -3040,6 +3040,16 @@ label + label {
   font-variant-numeric: tabular-nums;
   font-weight: 650;
 }
+.workspace-worker-limit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.workspace-preference-list .workspace-worker-limit input[type="number"] {
+  width: 4.5rem;
+  padding: 6px 8px;
+  font-variant-numeric: tabular-nums;
+}
 .workspace-hardware-scope {
   margin: 0;
   color: var(--muted);

@@ -3868,9 +3868,10 @@ test("workspace settings keep board previews visible with plain rack tiles and p
   const pulse = "Pulse move previews";
   const playAnimation = "Animate tiles when playing a move";
   const autoUpdate = "Automatically reload when an update is available";
-  const workerOption = "Limit to one compute worker";
+  const workerOption = "Limit compute workers to";
   const hardwareInfo = () => within(dialog().getByRole("group", { name: "Hardware info" }));
   const computeLimit = () => hardwareInfo().getByText("Compute worker limit").nextElementSibling?.textContent;
+  const workerCap = () => hardwareInfo().getByRole<HTMLInputElement>("spinbutton", { name: "Maximum compute workers" });
 
   await openSettings();
   expect(dialog().getByText("Applies to all games in this browser only.")).toBeTruthy();
@@ -3881,10 +3882,21 @@ test("workspace settings keep board previews visible with plain rack tiles and p
     ),
   ).toEqual([2, 1, 1]);
   expect(hardwareInfo().getByText("Browser concurrency hint").nextElementSibling?.textContent).toBe("8");
-  expect(computeLimit()).toBe("4");
+  expect(computeLimit()).toBe("8");
   expect(option(workerOption).checked).toBe(false);
+  expect(workerCap().value).toBe("1");
+  expect(workerCap().disabled).toBe(true);
   await user.click(option(workerOption));
   expect(computeLimit()).toBe("1");
+  expect(workerCap().max).toBe("8");
+  await user.clear(workerCap());
+  await user.type(workerCap(), "3");
+  expect(computeLimit()).toBe("3");
+  await user.clear(workerCap());
+  await user.type(workerCap(), "0");
+  expect(computeLimit()).toBe("3");
+  await user.tab();
+  expect(workerCap().value).toBe("3");
   for (const name of [rackHighlight, pulse, playAnimation, autoUpdate]) {
     expect(option(name).checked).toBe(true);
     await user.click(option(name));
@@ -3908,10 +3920,28 @@ test("workspace settings keep board previews visible with plain rack tiles and p
     expect(option(name).checked).toBe(false);
   }
   expect(option(workerOption).checked).toBe(true);
-  expect(computeLimit()).toBe("1");
+  expect(workerCap().value).toBe("3");
+  expect(computeLimit()).toBe("3");
   await user.click(option(workerOption));
-  expect(computeLimit()).toBe("4");
+  expect(computeLimit()).toBe("8");
+  expect(workerCap().disabled).toBe(true);
+  expect(workerCap().value).toBe("3");
+  await user.click(option(workerOption));
+  expect(computeLimit()).toBe("3");
   hardware.mockRestore();
+});
+
+test("the existing one-worker preference enables the editable limit at one", async () => {
+  localStorage.setItem("tilemaxx:workspace-preferences", JSON.stringify({ singleComputeWorker: true }));
+  const user = await start();
+  await user.click(cell("Settings"));
+  const settings = within(screen.getByRole("dialog", { name: "Settings" }));
+  const toggle = settings.getByRole<HTMLInputElement>("checkbox", { name: "Limit compute workers to" });
+  const cap = settings.getByRole<HTMLInputElement>("spinbutton", { name: "Maximum compute workers" });
+  expect(toggle.checked).toBe(true);
+  expect(cap.disabled).toBe(false);
+  expect(cap.value).toBe("1");
+  expect(settings.getByText("Compute worker limit").nextElementSibling?.textContent).toBe("1");
 });
 
 test("the version shows an available update when automatic updates are off", async () => {
