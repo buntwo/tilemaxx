@@ -120,8 +120,8 @@ export default function WorkspaceSettings({
             Limit to one compute worker
           </label>
           <p className="workspace-hardware-scope" id="compute-worker-scope">
-            Applies to reply histograms, exact endgame lines, board-based bingo
-            odds, Optimal exchange, and policy timelines.
+            Applies to reply histograms, exact endgame lines, Solve endgame,
+            board-based bingo odds, Optimal exchange, and policy timelines.
           </p>
         </fieldset>
       </div>

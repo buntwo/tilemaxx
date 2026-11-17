@@ -63,18 +63,19 @@ export function validEndgameStreak(
 }
 
 export function crossplayFinalRound(
-  candidate: Move,
+  candidate: Move | null,
   replies?: Move[],
 ): EndgameLine {
   const reply = replies?.reduce<Move | null>(
     (best, move) => (!best || move.score > best.score ? move : best),
     null,
   );
+  const first = candidate?.score ?? 0;
   const opponent = reply?.score ?? 0;
   return {
-    spread: candidate.score - opponent,
+    spread: first - opponent,
     line: reply === undefined ? [candidate] : [candidate, reply],
-    points: { you: candidate.score, opponent },
+    points: { you: first, opponent },
   };
 }
 
@@ -91,17 +92,48 @@ export function solveEmptyBag(
   candidate: Move,
   opponent: string,
   template: BoardTemplate,
+  settings: EndgameSettings,
+  search: MoveSearch,
+  place: PlaceMove,
+  budget: Omit<EndgameBudget, "minimumSpread">,
+): EndgameLine {
+  return searchEmptyBagCandidate(
+    board,
+    candidate,
+    candidate.leave,
+    opponent,
+    template,
+    settings,
+    search,
+    place,
+    budget,
+  )!;
+}
+
+type MoveSearch = (board: Board, rack: string, deadline: number) => Move[];
+type PlaceMove = (board: Board, move: Move) => Board;
+type EndgameBudget = {
+  timeLimitMs: number;
+  positionLimit?: number;
+  minimumSpread?: number;
+};
+
+/** An undefined result proves this root cannot reach the requested spread. */
+export function searchEmptyBagCandidate(
+  board: Board,
+  candidate: Move | null,
+  leave: string,
+  opponent: string,
+  template: BoardTemplate,
   { scorelessTurns, opponentHasFinalTurn = true }: EndgameSettings,
-  search: (board: Board, rack: string, deadline: number) => Move[],
-  place: (board: Board, move: Move) => Board,
+  search: MoveSearch,
+  place: PlaceMove,
   {
     timeLimitMs,
     positionLimit = DEFAULT_ENDGAME_POSITION_LIMIT,
-  }: {
-    timeLimitMs: number;
-    positionLimit?: number;
-  },
-): EndgameLine {
+    minimumSpread = -Infinity,
+  }: EndgameBudget,
+): EndgameLine | undefined {
   const value = (rack: string) => rackPoints(rack, template.rules);
   const cache = new Map<string, SearchResult>();
   const start = performance.now();
@@ -124,7 +156,7 @@ export function solveEmptyBag(
   ): EndgameLine {
     const line = [candidate, ...continuation];
     const points = { you: 0, opponent: 0 };
-    const racks = { you: candidate.leave, opponent };
+    const racks = { you: leave, opponent };
     for (const [turn, move] of line.entries()) {
       if (!move) continue;
       const player = turn % 2 ? "opponent" : "you";
@@ -168,13 +200,17 @@ export function solveEmptyBag(
     }
   }
   const rule = endgameStreaks[template.rules];
+  const score = candidate?.score ?? 0;
+  const after = () => candidate ? place(board, candidate) : board;
   if (!rule) {
     checkTime();
+    if (score < minimumSpread) return;
     const replies = opponentHasFinalTurn
-      ? findMoves(place(board, candidate), opponent)
+      ? findMoves(after(), opponent)
       : undefined;
     checkTime();
-    return crossplayFinalRound(candidate, replies);
+    const line = crossplayFinalRound(candidate, replies);
+    return line.spread >= minimumSpread ? line : undefined;
   }
   const turn = (
     position: Board,
@@ -240,20 +276,24 @@ export function solveEmptyBag(
     cache.set(key, result);
     return result;
   };
-  if (!candidate.leave)
-    return finish(candidate.score + 2 * value(opponent), []);
+  if (candidate && !leave) {
+    const spread = score + 2 * value(opponent);
+    return spread >= minimumSpread ? finish(spread, []) : undefined;
+  }
   const result = turn(
-    place(board, candidate),
+    after(),
     [...opponent].sort().join(""),
-    candidate.leave,
+    leave,
     nextEndgameStreak(rule, scorelessTurns, candidate),
     -Infinity,
-    Infinity,
+    // Scores are integers. Include roots that tie the cutoff so the
+    // coordinator can apply its deterministic tiebreak order.
+    score - (minimumSpread - 1),
   );
   checkTime();
+  if (result.bound === "lower" || score - result.spread < minimumSpread)
+    return;
   if (result.bound !== "exact")
-    throw new Error(
-      "A full-window endgame search must return an exact result.",
-    );
-  return finish(candidate.score - result.spread, result.line);
+    throw new Error("An endgame search that reaches the cutoff must return an exact line.");
+  return finish(score - result.spread, result.line);
 }

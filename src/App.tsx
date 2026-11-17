@@ -104,6 +104,7 @@ import {
   type BoardTemplate,
   type Game,
   type Move,
+  type Player,
   archiveGame,
   emptyBoard,
   localDate,
@@ -268,6 +269,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const [movePreview, setPreview] = useState<{
     move: Move;
     analysis: boolean;
+    player: Player;
   } | null>(null);
   const preview = movePreview?.move ?? null;
   const [formName, setFormName] = useState(""),
@@ -557,9 +559,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       ?.querySelector<HTMLButtonElement>(`[data-cell="${index}"]`)
       ?.focus({ preventScroll: true });
   }
-  function previewMove(move: Move | null, analysis = false) {
-    if (move && phoneLayout) phoneReview.open();
-    setPreview(move ? { move, analysis } : null);
+  function previewMove(
+    move: Move | null,
+    analysis = false,
+    player: Player = "you",
+  ) {
+    if (move && phoneLayout && player === "you") phoneReview.open();
+    setPreview(move ? { move, analysis, player } : null);
   }
   function play(move: Move) {
     if (!game || activeFlight) return;
@@ -1288,7 +1294,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   exchangeBag={replyAnalysis.bagSize}
                   exchangeBagConfirmed={replyAnalysis.bagConfirmed}
                   opponentRack={replyAnalysis.opponentRack}
-                  preview={preferences.highlightRackPreview ? preview : null}
+                  preview={
+                    preferences.highlightRackPreview && movePreview?.player !== "opponent"
+                      ? preview
+                      : null
+                  }
                   flyingRack={activeFlight}
                 />
                 <TilePool key={`tile-pool:${game.id}`} game={game} />

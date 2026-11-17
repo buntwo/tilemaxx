@@ -3,13 +3,16 @@ import {
   endgameStreaks,
   nextEndgameStreak,
   rackPoints,
+  searchEmptyBagCandidate,
   solveEmptyBag,
   validEndgameStreak,
+  type EndgameLine,
   type EndgameSettings,
 } from "./endgame";
 import type { Lexicon } from "./lexicon";
 import type { Board, BoardTemplate, Move, Position } from "./model";
 import { placeTiles, randomGenerator, sampleTiles } from "./move-analysis";
+import { rackLetters } from "./rack-entry";
 import {
   BIG_REPLY_SCORE,
   prepareSolver,
@@ -435,22 +438,58 @@ export function replyEndgameLine(
   const { board, template } = position;
   if (bagSize !== 0)
     throw new Error("Full endgame lines require an empty bag.");
-  const cache = new WeakMap<Board, ReturnType<typeof prepareSolver>>();
   return solveEmptyBag(
     board,
     candidate,
     pool.join(""),
     template,
     position,
-    (board, rack, deadline) => {
-      let solver = cache.get(board);
-      if (!solver) {
-        solver = prepareSolver(lexicon, board, template);
-        cache.set(board, solver);
-      }
-      return solver.solve(rack, limit(deadline), { unsorted: true });
-    },
+    endgameSearch(lexicon, template),
     placeTiles,
     { timeLimitMs, positionLimit },
   );
+}
+
+function endgameSearch(lexicon: Lexicon, template: BoardTemplate) {
+  const cache = new WeakMap<Board, ReturnType<typeof prepareSolver>>();
+  return (board: Board, rack: string, deadline: number) => {
+    let solver = cache.get(board);
+    if (!solver) {
+      solver = prepareSolver(lexicon, board, template);
+      cache.set(board, solver);
+    }
+    return solver.solve(rack, limit(deadline), { unsorted: true });
+  };
+}
+
+export type OpponentEndgamePosition = Pick<
+  ReplyPosition, "board" | "rack" | "template" | "scorelessTurns"
+> & { opponentRack: string };
+
+export function opponentEndgameLine(
+  lexicon: Lexicon,
+  position: OpponentEndgamePosition,
+  candidate: Move | null,
+  timeLimitMs: number,
+  minimumSpread?: number,
+): EndgameLine | undefined {
+  const { board, template, rack, opponentRack } = position;
+  const result = searchEmptyBagCandidate(
+    board,
+    candidate,
+    candidate?.leave ?? opponentRack,
+    rackLetters(rack),
+    template,
+    position,
+    endgameSearch(lexicon, template),
+    placeTiles,
+    { timeLimitMs, positionLimit: Infinity, minimumSpread },
+  );
+  if (result) {
+    return {
+      line: result.line,
+      spread: -result.spread || 0,
+      points: { you: result.points.opponent, opponent: result.points.you },
+    };
+  }
 }
