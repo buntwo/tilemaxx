@@ -14,7 +14,7 @@
   font-weight: 630;
 }
 .optimal-reply {
-  container-type: inline-size;
+  container: optimal-reply / inline-size;
 }
 .optimal-reply-outcome {
   display: flex;
@@ -215,8 +215,23 @@
 .optimal-reply-board .ghost::before {
   animation: none;
 }
-@container (min-width: 440px) {
+@container optimal-reply (min-width: 440px) {
   .optimal-reply-layout {
     grid-template-columns: minmax(0, 1.16fr) minmax(0, 1fr);
+  }
+  .optimal-reply-board .board-grid {
+    --axis-width: 13px;
+    --square-gap: 1px;
+    grid-template-columns: var(--axis-width) repeat(var(--size), minmax(0, 1fr));
+    gap: var(--square-gap);
+  }
+  .optimal-reply-board .axis {
+    /* Coordinate labels should fit inside the board rows, even on larger boards. */
+    min-height: 0;
+    font-size: min(
+      8px,
+      calc((100cqi - var(--axis-width)) / var(--size) - var(--square-gap))
+    );
+    line-height: 1;
   }
 }
