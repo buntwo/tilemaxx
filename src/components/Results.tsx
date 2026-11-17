@@ -829,7 +829,7 @@ export default function Results({
       } as CSSProperties}
     >
       <header
-        className={`results-title${exchangeAction ? " has-exchange-advice" : ""}`}
+        className={`results-title possible-moves-title${exchangeAction ? " has-exchange-advice" : ""}`}
       >
         <div className="heading-with-icon">
           <CalculationIndicator
