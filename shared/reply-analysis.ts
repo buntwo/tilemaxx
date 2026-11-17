@@ -417,7 +417,7 @@ export function summarizeReplyBoard(
         }
       }
     } else {
-      score = searchReplyRack(candidate, rack, deadline, solver.summarize).score;
+      score = searchReplyRack(candidate, rack, deadline, solver.bestScore);
     }
     const index = bucket(score);
     buckets[index] += weight;

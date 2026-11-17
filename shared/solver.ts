@@ -24,6 +24,7 @@ export const SEARCH_LIMITS = {
 };
 type Limits = Partial<typeof SEARCH_LIMITS>;
 type Options = { bingoOnly?: boolean; unsorted?: boolean; requiredTiles?: string };
+type SearchMode = "moves" | "score" | "score-and-bingo";
 export const BIG_REPLY_SCORE = 40;
 
 export interface PremiumReply {
@@ -141,6 +142,61 @@ function prepareDirection(
   };
 }
 
+/** Optimistic suffix scores for each square and remaining tile count. */
+function prepareScoreBounds(
+  { step, mask, crossScore, prefix, suffix }: Direction,
+  size: number,
+  rackSize: number,
+  points: Uint8Array,
+  codes: Int16Array,
+  lm: Uint8Array,
+  wm: Uint8Array,
+) {
+  const stride = rackSize + 1;
+  const length = size ** 2 * stride;
+  const reachable = new Uint8Array(size ** 2);
+  const boardPoints = new Uint16Array(length);
+  const wordFactor = new Uint32Array(length).fill(1);
+  const crossPoints = new Uint16Array(length);
+  const letterFactor = new Uint8Array(length);
+  const crossFactor = new Uint8Array(length);
+  const crossStep = step === 1 ? size : 1;
+  for (let line = 0; line < size; line++) {
+    for (let position = size - 1; position >= 0; position--) {
+      const cell = line * crossStep + position * step;
+      const occupied = codes[cell] !== -1;
+      if (!occupied && !mask[cell]) continue;
+      const hasCross = !!(prefix[cell] || suffix[cell]);
+      const next = cell + step;
+      const edge = position === size - 1;
+      reachable[cell] = (occupied ? 0 : 1) + (edge ? 0 : reachable[next]);
+      const letter = occupied ? 0 : lm[cell];
+      const word = occupied ? 1 : wm[cell];
+      for (let tiles = occupied ? 0 : 1; tiles <= rackSize; tiles++) {
+        const index = cell * stride + tiles;
+        const tail = next * stride + tiles - (occupied ? 0 : 1);
+        boardPoints[index] = points[cell] + (edge ? 0 : boardPoints[tail]);
+        wordFactor[index] = word * (edge ? 1 : wordFactor[tail]);
+        crossPoints[index] =
+          (hasCross ? crossScore[cell] * word : 0) + (edge ? 0 : crossPoints[tail]);
+        letterFactor[index] = Math.max(letter, edge ? 0 : letterFactor[tail]);
+        crossFactor[index] = Math.max(
+          hasCross ? letter * word : 0,
+          edge ? 0 : crossFactor[tail],
+        );
+      }
+    }
+  }
+  return {
+    reachable,
+    boardPoints,
+    wordFactor,
+    crossPoints,
+    letterFactor,
+    crossFactor,
+  };
+}
+
 /** Compile a board snapshot once so it can be searched with many different racks. */
 export function prepareSolver(
   lexicon: Lexicon,
@@ -193,15 +249,20 @@ export function prepareSolver(
     prepareDirection(lexicon, letters, points, anchors, size, rackSize, across),
   );
   const { first, mask: children, terminal, maxTail } = lexicon;
+  const boundStride = rackSize + 1;
+  let scoreBounds: ReturnType<typeof prepareScoreBounds>[] | undefined;
+  let bonusBounds: Uint16Array | undefined;
 
   function run(
     rack: string,
     limits: Limits,
     options: Options,
-    summaryOnly: boolean,
+    mode: SearchMode,
     premiumSearch?: PremiumSearch,
     bigReplies?: PremiumReply[],
   ) {
+    const summaryOnly = mode !== "moves";
+    const trackBingo = mode === "score-and-bingo";
     const budget = { ...SEARCH_LIMITS, ...limits };
     for (const key of Object.keys(
       SEARCH_LIMITS,
@@ -232,6 +293,7 @@ export function prepareSolver(
       : rack.length;
     const moves: Move[] = [];
     let bestScore = 0,
+      scoreToBeat = 0,
       hasBingo = false;
     if (!rackLength || (options.bingoOnly && rackLength < bingoTiles))
       return { moves, bestScore, hasBingo };
@@ -246,6 +308,25 @@ export function prepareSolver(
         const code = letter.charCodeAt(0) - 65;
         counts[code]++;
         rackMask |= 1 << code;
+      }
+    }
+    const pruneScore = mode === "score" && blankCount > 0;
+    let remainingPoints = 0;
+    if (pruneScore) {
+      for (let code = 0; code < counts.length; code++)
+        remainingPoints += counts[code] * letterPoints[code];
+      scoreBounds ??= directions.map((direction) =>
+        prepareScoreBounds(direction, size, rackSize, points, codes, lm, wm),
+      );
+      if (!bonusBounds) {
+        bonusBounds = new Uint16Array(boundStride ** 2);
+        for (let used = 0; used <= rackSize; used++) {
+          let most = bonuses[used];
+          for (let more = 0; more <= rackSize - used; more++) {
+            most = Math.max(most, bonuses[used + more]);
+            bonusBounds[used * boundStride + more] = most;
+          }
+        }
       }
     }
     if (premiumSearch) {
@@ -281,19 +362,44 @@ export function prepareSolver(
     const wordCodes = new Uint8Array(size);
     const bingoOnly = options.bingoOnly === true;
 
-    for (const {
-      direction,
-      step,
-      starts,
-      mask,
-      toAnchor,
-      space,
-      crossScore,
-      prefix,
-      suffix,
-    } of directions) {
+    for (const [axis, geometry] of directions.entries()) {
+      const {
+        direction, step, starts, mask, toAnchor, space, crossScore, prefix, suffix,
+      } = geometry;
       let startLine = 0,
         startPosition = 0;
+      const bounds = pruneScore ? scoreBounds?.[axis] : undefined;
+      const bonusCeiling = bonusBounds;
+      const upperBound = bounds && bonusCeiling
+        ? (
+            cell: number,
+            length: number,
+            node: number,
+            used: number,
+            sum: number,
+            multiplier: number,
+            crossTotal: number,
+          ) => {
+            const squares = size - startPosition - length;
+            if (!squares) return sum * multiplier + crossTotal + bonuses[used];
+            const tail = maxTail[node];
+            const empty =
+              tail >= squares ? space[cell] : space[cell] - space[cell + tail * step];
+            const tiles = Math.min(rackLength - used, empty, bounds.reachable[cell]);
+            const index = cell * boundStride + tiles;
+            const word = multiplier * bounds.wordFactor[index];
+            // Relax the word constraint and give every remaining face point
+            // the largest applicable premium in each scoring component.
+            return (
+              (sum + bounds.boardPoints[index]) * word +
+              crossTotal +
+              bounds.crossPoints[index] +
+              remainingPoints *
+                (word * bounds.letterFactor[index] + bounds.crossFactor[index]) +
+              bonusCeiling[used * boundStride + tiles]
+            );
+          }
+        : undefined;
       // Number of new tiles needed to reach the next target in this direction.
       const toPremium = premiumSearch && new Uint8Array(board.length);
       if (toPremium && premiumSearch) {
@@ -353,6 +459,8 @@ export function prepareSolver(
         if (summaryOnly) {
           if (score > bestScore) {
             bestScore = score;
+            // Heatmaps need every tied best reply once it reaches the threshold.
+            scoreToBeat = bigReplies && score >= BIG_REPLY_SCORE ? score - 1 : score;
             if (bigReplies) bigReplies.length = 0;
           }
           if (bigReplies && score >= BIG_REPLY_SCORE && score === bestScore) {
@@ -367,7 +475,7 @@ export function prepareSolver(
               })),
             });
           }
-          hasBingo ||= bingoCounts[used];
+          hasBingo ||= trackBingo && bingoCounts[used];
           return;
         }
         const tiles: Placement[] = [];
@@ -435,6 +543,11 @@ export function prepareSolver(
         if (!connected && (atEdge || toAnchor[cell] > rackLength - used))
           return false;
         if (
+          upperBound &&
+          upperBound(cell, length, node, used, sum, multiplier, crossTotal) <= scoreToBeat
+        )
+          return false;
+        if (
           terminal[node] &&
           length >= 2 &&
           used &&
@@ -474,6 +587,7 @@ export function prepareSolver(
         if (used === rackLength) return false;
         const allChildren = children[node];
         let possible = allChildren & mask[cell] & (blanks ? ALL : available);
+        if (!possible) return false;
         const nextMultiplier = multiplier * wm[cell];
         const hasCross = !!(prefix[cell] || suffix[cell]);
         const baseCross = crossTotal + crossScore[cell] * wm[cell];
@@ -487,9 +601,11 @@ export function prepareSolver(
           const child = first[node] + popcount(allChildren >>> (code + 1));
           if (!summaryOnly || bigReplies) wordCodes[length] = code;
           if (available & bit) {
-            const points = letterPoints[code] * lm[cell];
+            const value = letterPoints[code];
+            const points = value * lm[cell];
             const left = --counts[code] ? available : available ^ bit;
             tileCodes[used] = code;
+            if (bounds) remainingPoints -= value;
             const found = walk(
               cell + step,
               length + 1,
@@ -503,6 +619,7 @@ export function prepareSolver(
               nextConnected,
               nextHitsPremium,
             );
+            if (bounds) remainingPoints += value;
             counts[code]++;
             if (found) return true;
           }
@@ -558,14 +675,16 @@ export function prepareSolver(
 
   return {
     solve: (rack: string, limits: Limits = {}, options: Options = {}) =>
-      run(rack, limits, options, false).moves,
+      run(rack, limits, options, "moves").moves,
+    bestScore: (rack: string, limits: Limits = {}) =>
+      run(rack, limits, {}, "score").bestScore,
     summarize: (rack: string, limits: Limits = {}) => {
-      const { bestScore, hasBingo } = run(rack, limits, {}, true);
+      const { bestScore, hasBingo } = run(rack, limits, {}, "score-and-bingo");
       return { score: bestScore, bingo: hasBingo };
     },
     summarizeReply: (rack: string, limits: Limits = {}) => {
       const bigReplies: PremiumReply[] = [];
-      const { bestScore } = run(rack, limits, {}, true, undefined, bigReplies);
+      const { bestScore } = run(rack, limits, {}, "score", undefined, bigReplies);
       return { score: bestScore, bigReplies };
     },
     premiumReplies(
@@ -574,7 +693,7 @@ export function prepareSolver(
       limits: Limits,
     ) {
       const replies = new Map<number, PremiumReply>();
-      run("", limits, {}, false, { counts, targets, replies });
+      run("", limits, {}, "moves", { counts, targets, replies });
       return replies;
     },
   };
