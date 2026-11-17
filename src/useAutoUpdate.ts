@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { version } from "../package.json";
+import { activateOfflineUpdate } from "./offline";
 import { preserveBrandForUpdate } from "./components/Brand";
 
 const updateAttemptKey = "tilemaxx:automatic-update-attempt";
@@ -33,7 +34,11 @@ export function useAutoUpdate(
       return;
     }
 
-    function reloadWhenIdle() {
+    let checking = false;
+    let cancelled = false;
+    let retryAfter = 0;
+    async function reloadWhenIdle() {
+      if (checking || cancelled || Date.now() < retryAfter) return;
       if (
         document.hidden ||
         document.querySelector("dialog[open], .editor-layout") ||
@@ -42,20 +47,40 @@ export function useAutoUpdate(
         )
       )
         return;
-      clearInterval(timer);
+      checking = true;
       try {
+        if (
+          !(await activateOfflineUpdate(
+            () =>
+              !cancelled &&
+              !document.hidden &&
+              !document.querySelector("dialog[open], .editor-layout") &&
+              !document.activeElement?.matches(
+                "input, select, textarea, [contenteditable]",
+              ),
+          )) ||
+          cancelled
+        )
+          return;
+        clearInterval(timer);
         preserveBrandForUpdate();
         // A cached page may still serve the old build. Attempt this reload once.
         sessionStorage.setItem(updateAttemptKey, attempt);
+        window.location.reload();
       } catch {
-        return;
+        // A failed download keeps the current offline app usable.
+      } finally {
+        checking = false;
+        retryAfter = Date.now() + 10_000;
       }
-      window.location.reload();
     }
 
     const timer = setInterval(reloadWhenIdle, 500);
     reloadWhenIdle();
-    return () => clearInterval(timer);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, [availableVersion, enabled, busy]);
   return availableVersion;
 }

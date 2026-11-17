@@ -1398,7 +1398,7 @@ beforeEach(() => {
       } else if (url === "/api/games" && options?.method === "POST") {
         value = {
           ...body,
-          id: `g${remote.games.length}`,
+          id: body.creationId ?? `g${remote.games.length}`,
           revision: 0,
           updatedAt: "",
         };

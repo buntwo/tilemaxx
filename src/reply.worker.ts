@@ -1,3 +1,4 @@
+import { dictionaryText } from "./word-list-cache";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import {
   compareReplyBoards,
@@ -43,12 +44,9 @@ self.onmessage = (event: MessageEvent<ReplyRequest>) => {
 
 async function getDictionary(id: string) {
   if (dictionary?.id !== id) {
-    const response = await fetch(`/api/dictionaries/${encodeURIComponent(id)}`);
-    if (!response.ok)
-      throw new Error("Could not load the word list for replies.");
     dictionary = {
       id,
-      lexicon: new Lexicon(parseWords(await response.text())),
+      lexicon: new Lexicon(parseWords(await dictionaryText(id))),
     };
   }
   return dictionary.lexicon;

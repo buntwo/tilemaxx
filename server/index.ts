@@ -21,7 +21,7 @@ if (dev) {
     express.static(resolve(root, "dist"), {
       maxAge: "1h",
       setHeaders(res, path) {
-        if (path.endsWith("index.html"))
+        if (path.endsWith("index.html") || path.endsWith("sw.js"))
           res.setHeader("Cache-Control", "no-cache");
       },
     }),

@@ -682,3 +682,57 @@ test("the game index backfills old SQLite saves and leaves full history on the d
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("offline game creation uses a stable identity and rejects duplicate overwrites", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-create-"));
+  const store = createStore(dir, process.cwd());
+  const server = createApp(store).listen(0, "127.0.0.1");
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`;
+  const post = (body: unknown) =>
+    fetch(`${base}/games`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  try {
+    const source = store.state().games[0];
+    const id = "abcdef0123456789abcdef0123456789";
+    const created = await post({
+      ...source,
+      creationId: id,
+      name: "Offline",
+      revision: -1,
+    });
+    assert.equal(created.status, 201);
+    const game = (await created.json()) as Game;
+    assert.equal(game.id, id);
+    assert.equal(game.revision, 0);
+    const duplicate = await post({ ...source, creationId: id, rack: "DOG" });
+    assert.equal(duplicate.status, 409);
+    assert.deepEqual((await duplicate.json()).game, game);
+    assert.equal(store.state().games.filter((g) => g.id === id).length, 1);
+    const changed = store.saveGame({ ...game, rack: "CAT" })!;
+    const retry = await post({ ...source, creationId: id });
+    assert.equal((await retry.json()).game.revision, changed.revision);
+    assert.equal(store.getGame(id)?.rack, "CAT");
+    store.deleteGame(id);
+    assert.equal((await post({ ...source, creationId: id })).status, 410);
+    assert.equal(store.getGame(id), undefined);
+    const cancelledId = "0123456789abcdef0123456789abcdef";
+    store.deleteGame(cancelledId);
+    assert.equal(
+      (await post({ ...source, creationId: cancelledId })).status,
+      410,
+    );
+
+    assert.equal(
+      (await post({ ...source, creationId: "invalid" })).status,
+      400,
+    );
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

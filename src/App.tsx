@@ -104,6 +104,7 @@ import { CLEARED_BOARD } from "../shared/score-recovery";
 import { defaultDictionary } from "../shared/dictionaries";
 import { DEFENSE_LIMIT } from "../shared/premium-defense";
 import { useSolver } from "./useSolver";
+import OfflineStatus from "./components/OfflineStatus";
 import { useAutoUpdate } from "./useAutoUpdate";
 import { useWorkspaceWidth } from "./useWorkspaceWidth";
 import { store, useStore } from "./store";
@@ -1084,6 +1085,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 )}
               </span>
             </div>
+            <OfflineStatus game={game} online={state.online} storageError={state.storageError} />
           </div>
           <div className="profile-picker">
             {profile && (

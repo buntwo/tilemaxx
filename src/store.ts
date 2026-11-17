@@ -18,7 +18,13 @@ import {
   type GameIndex,
   type GameSummary,
 } from "../shared/game-index";
-import type { Game, Profile, BoardTemplate, Dictionary } from "../shared/model";
+import {
+  localDate,
+  type Game,
+  type Profile,
+  type BoardTemplate,
+  type Dictionary,
+} from "../shared/model";
 
 export async function api<T>(
   path: string,
@@ -323,9 +329,9 @@ export class GameStore {
     if (!this.snapshot.data) return;
     this.snapshot.data = {
       ...this.snapshot.data,
-      games: this.snapshot.data.games.map((g) =>
-        g.id === game.id ? summary : g,
-      ),
+      games: this.snapshot.data.games.some((g) => g.id === game.id)
+        ? this.snapshot.data.games.map((g) => (g.id === game.id ? summary : g))
+        : [...this.snapshot.data.games, summary],
     };
   }
   update(game: Game) {
@@ -370,7 +376,13 @@ export class GameStore {
         const remoteIds = new Set(remote[key].map((item) => item.id));
         const created =
           this.snapshot.data?.[key].filter(
-            (item) => !originalIds.has(item.id) && !remoteIds.has(item.id),
+            (item) =>
+              !remoteIds.has(item.id) &&
+              (!originalIds.has(item.id) ||
+                (key === "games" &&
+                  before?.games.some(
+                    (game) => game.id === item.id && game.revision < 0,
+                  ))),
           ) || [];
         (remote[key] as { id: string }[]).push(...created);
       }
@@ -412,6 +424,12 @@ export class GameStore {
       );
       const profileIds = new Set(remote.profiles.map((p) => p.id));
       remote.games = remote.games.filter((g) => profileIds.has(g.profileId));
+      // A negative revision marks a locally created game awaiting its first
+      // acknowledgement. Absence from the server index does not mean deletion.
+      for (const draft of this.drafts.values()) {
+        if (draft.revision < 0 && !remote.games.some((g) => g.id === draft.id))
+          remote.games.push(summarizeGame(draft));
+      }
       const remoteIds = new Set(remote.games.map((g) => g.id));
       for (const game of before?.games || [])
         if (!remoteIds.has(game.id) && !this.deletedGames.has(game.id))
@@ -463,9 +481,9 @@ export class GameStore {
         const draft = this.drafts.get(id)!;
         try {
           const saved = await api<Game>(
-            `/games/${encodeURIComponent(id)}`,
-            "PUT",
-            draft,
+            draft.revision < 0 ? "/games" : `/games/${encodeURIComponent(id)}`,
+            draft.revision < 0 ? "POST" : "PUT",
+            draft.revision < 0 ? { ...draft, creationId: id } : draft,
           );
           if (this.deletedGames.has(id)) continue;
           this.snapshot.online = true;
@@ -498,6 +516,26 @@ export class GameStore {
           if (this.deletedGames.has(id)) continue;
           if (err.status === 404) {
             this.forgetGame(id);
+          } else if (
+            err.status === 409 &&
+            err.game &&
+            draft.revision < 0 &&
+            err.game.id === id &&
+            err.game.profileId === draft.profileId &&
+            err.game.revision === 0
+          ) {
+            // A creation response was lost. Adopt its revision, then PUT the
+            // latest local draft; normal revision checking protects concurrent edits.
+            this.snapshot.online = true;
+            const newer = {
+              ...this.drafts.get(id)!,
+              revision: 0,
+              updatedAt: err.game.updatedAt,
+            };
+            this.confirmGame(err.game);
+            this.drafts.set(id, newer);
+            this.replace(newer);
+            this.persistDraft(newer);
           } else if (err.status === 409 && err.game) {
             this.snapshot.conflicts = {
               ...this.snapshot.conflicts,
@@ -536,11 +574,20 @@ export class GameStore {
     }
   }
   async createGame(game: Omit<Game, "id" | "revision" | "updatedAt">) {
-    const saved = await api<Game>("/games", "POST", game);
-    this.recordCreatedGame(saved);
+    if (this.deletedProfiles.has(game.profileId))
+      throw new Error("This profile was deleted.");
+    const local: Game = {
+      ...game,
+      id: draftToken(),
+      revision: -1,
+      trackScores: game.trackScores ?? true,
+      updatedAt: new Date().toISOString(),
+      startedOn: game.startedOn ?? localDate(),
+    };
+    this.update(local);
     this.persist();
-    this.emit();
-    return saved;
+    void this.flush();
+    return local;
   }
   private recordCreatedGame(saved: Game) {
     if (this.deletedProfiles.has(saved.profileId))
@@ -588,6 +635,7 @@ export class GameStore {
     this.emit();
     return created;
   }
+
   private forgetGame(id: string) {
     this.deletedGames.add(id);
     this.confirmedGames.delete(id);

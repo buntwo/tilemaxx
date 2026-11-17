@@ -6144,3 +6144,36 @@ label + label {
 .import-inference .button {
   margin-top: 10px;
 }
+
+.offline-status {
+  position: relative;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.offline-status summary {
+  cursor: pointer;
+}
+.offline-status > div {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  width: min(280px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 4px 20px #0002;
+  font-size: 0.8rem;
+}
+.offline-status p {
+  margin: 0 0 8px;
+}
+.offline-status p:last-child {
+  margin-bottom: 0;
+}
+.sidebar .offline-status > div {
+  left: 0;
+  right: auto;
+  bottom: calc(100% + 8px);
+}
