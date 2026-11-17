@@ -212,6 +212,9 @@
 .optimal-reply-board .board-wrap {
   padding: 0;
 }
+.optimal-reply-board .tile-points {
+  display: none;
+}
 .optimal-reply-board .ghost::before {
   animation: none;
 }
