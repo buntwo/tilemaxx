@@ -2021,6 +2021,12 @@ label + label {
   margin-top: 23px;
 }
 .results-search-actions .button { font-size: 11px; }
+.results-archive-actions { padding: 0 12px 6px; }
+.results-archive-actions .button {
+  min-height: 32px;
+  padding: 5px 9px;
+  font-size: 11px;
+}
 .opponent-endgame { --move-row-height: 50px; }
 .opponent-endgame .opponent-endgame-note {
   margin: 0;

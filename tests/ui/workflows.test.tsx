@@ -38,7 +38,11 @@ import {
   parallelOpponentEndgame,
   type OpponentEndgameRequest,
 } from "../../src/parallel-opponent-endgame";
-import { opponentEndgameWords, playBeforeRefill } from "../opponent-endgame-fixture";
+import {
+  archivedBeforeEndgame,
+  opponentEndgameWords,
+  playBeforeRefill,
+} from "../opponent-endgame-fixture";
 
 let remote: AppState & { version?: string };
 let workspaceWidth: number;
@@ -4507,4 +4511,69 @@ test("editing the position cancels the opponent worker and ignores its stale res
   await act(async () => pending?.onmessage?.({ data: { result: { checked: 0, total: 1, lines: [] } } }));
   expect(screen.queryByRole("region", { name: "Opponent endgame" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Solve endgame" })).toBeNull();
+});
+
+test("an archived game can solve an edited empty-bag position before and after Find moves", async () => {
+  const archived = archivedBeforeEndgame();
+  remote.games.push(archived);
+  const requests: OpponentEndgameRequest[] = [];
+  class ArchivedEndgameWorker extends SolverWorker {
+    postMessage(request: SolverRequest | OpponentEndgameRequest) {
+      if (request.kind !== "solve-opponent-endgame")
+        return super.postMessage(request);
+      requests.push(request);
+      void parallelOpponentEndgame(
+        new Lexicon(opponentEndgameWords), request, 1, () => undefined,
+      ).then((result) => this.onmessage?.({ data: { result } }));
+    }
+  }
+  vi.stubGlobal("Worker", ArchivedEndgameWorker);
+  const user = await start();
+  await user.click(cell("Archived games"));
+  await user.click(await screen.findByRole("button", { name: /^Archived endgame/ }));
+  await screen.findByRole("heading", { name: "Archived endgame" });
+
+  const solve = () => screen.queryByRole("button", { name: "Solve endgame" });
+  expect(solve()).toBeNull();
+  await user.click(rackTile(3));
+  await user.keyboard("D");
+  expect(solve()).toBeTruthy();
+  await user.click(solve()!);
+
+  const results = within(await screen.findByRole("region", { name: "Opponent endgame" }));
+  expect(results.getByText("Opponent plays next")).toBeTruthy();
+  const ranked = within(results.getByRole("list", { name: /sorted by swing for you/ }));
+  await user.click(ranked.getAllByRole("button")[0]);
+  expect(results.getAllByRole("button", { pressed: true })[0].textContent).toContain("Opponent");
+  expect(requests[0]).toMatchObject({
+    board: archived.board,
+    rack: "DSD",
+    opponentRack: "AOOT",
+  });
+  expect(store.getSnapshot().games[archived.id]).toMatchObject({
+    archived: true,
+    board: archived.board,
+    rack: "DSD",
+    archivedState: { rack: "DS" },
+  });
+  await user.click(results.getByRole("button", { name: "Close opponent endgame" }));
+
+  await user.click(within(screen.getByRole("region", { name: "Possible moves" }))
+    .getByRole("button", { name: "Find moves" }));
+  await screen.findByRole("button", { name: "Analyze" });
+  expect(solve()).toBeTruthy();
+  await user.click(screen.getByText("Options", { selector: "summary" }));
+  await user.click(screen.getByText("Reply settings", { selector: "summary" }));
+  const bag = screen.getByRole("spinbutton", { name: "Tiles in bag" });
+  await user.type(bag, "1");
+  await user.click(screen.getByRole("button", { name: "Update reply analysis" }));
+  expect(solve()).toBeNull();
+  await user.clear(bag);
+  await user.type(screen.getByRole("spinbutton", { name: "Prior scoreless turns" }), "2");
+  await user.click(screen.getByRole("button", { name: "Update reply analysis" }));
+  await user.click(solve()!);
+  expect(requests[1]).toMatchObject({ scorelessTurns: 2, opponentRack: "AOOT" });
+  await screen.findByRole("region", { name: "Opponent endgame" });
+  await user.click(screen.getByRole("button", { name: "Close opponent endgame" }));
+  expect(screen.getByRole("button", { name: "Analyze" })).toBeTruthy();
 });
