@@ -3859,19 +3859,31 @@ test("unchanged positions reuse move results and missing pages can be reloaded",
   expect(solves).toBe(1);
   expect(screen.getAllByRole("button", { name: /^CAT, / })[0]).toBe(move);
 
-  dropPages = true;
   await user.click(screen.getByRole("button", { name: "Search possible moves" }));
-  await user.type(screen.getByRole("textbox", { name: "Filter moves" }), "CAT");
+  const filter = () => screen.getByRole<HTMLInputElement>("textbox", { name: "Filter moves" });
+  await user.type(filter(), "ZZZ");
+  await waitFor(() => expect(screen.queryByRole("button", { name: /^CAT, / })).toBeNull());
+  await user.click(rackTile(1));
+  await user.keyboard("{Enter}");
+  expect(filter().value).toBe("");
+  await screen.findAllByRole("button", { name: /^CAT, / });
+  expect(solves).toBe(1);
+
+  dropPages = true;
+  await user.type(filter(), "CAT");
   expect(await screen.findByText(/Move results are unavailable/)).toBeTruthy();
   dropPages = false;
   await user.click(screen.getByRole("button", { name: "Find moves" }));
   await screen.findAllByRole("button", { name: /^CAT, / });
+  expect(filter().value).toBe("");
   expect(solves).toBe(2);
 
+  await user.type(filter(), "ZZZ");
   await user.click(cell("H8: DW, start"));
   await user.keyboard("S");
   expect(current().rack).toBe("CAT");
   await user.click(screen.getByRole("button", { name: "Find moves" }));
+  await waitFor(() => expect(filter().value).toBe(""));
   expect(solves).toBe(3);
 });
 
