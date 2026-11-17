@@ -5068,6 +5068,27 @@ test("a new search after playing starts with highest points", async () => {
 });
 
 
+test("the empty Possible moves tiles keep their word until the panel reopens", async () => {
+  const random = vi.spyOn(Math, "random").mockReturnValue(0.999);
+  try {
+    const user = await start();
+    const panel = screen.getByRole("region", { name: "Possible moves" });
+    const tiles = () =>
+      [...panel.querySelectorAll(".illustrated-tiles > span")].map((tile) => tile.textContent);
+    expect(tiles()).toEqual(["W4", "A1", "T1"]);
+
+    random.mockReturnValue(0);
+    await typeRack(user, "CATS");
+    expect(tiles()).toEqual(["W4", "A1", "T1"]);
+
+    await user.click(within(panel).getByRole("button", { name: "Find moves" }));
+    await user.click(await within(panel).findByRole("button", { name: "Close possible moves" }));
+    expect(tiles()).toEqual(["A1", "H4", "A1"]);
+  } finally {
+    random.mockRestore();
+  }
+});
+
 test.each([false, true])("the header star finds moves once even when Solve endgame is available (phone %s)", async (phone) => {
   remote.games[0] = { ...playBeforeRefill(), rack: "DSD" };
   vi.stubGlobal("matchMedia", (query: string) => ({

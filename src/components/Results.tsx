@@ -24,10 +24,12 @@ import {
 import {
   bingoPoints,
   isBingo,
+  tileScore,
   type BingoRules,
   type Game,
   type Move,
   type Player,
+  type Rules,
   coordinate,
 } from "../../shared/model";
 import {
@@ -86,6 +88,26 @@ import ReplyHeatmapDialog, {
   ReplyPreview,
   ReplySettings,
 } from "./ReplyAnalysis";
+
+const emptyMoveWords = [
+  "AHA", "YAY", "WOW", "OOH", "HMM", "HUH", "OOF", "EEK", "AWW",
+  "YEP", "NAH", "BRO", "SUP", "LOL", "OMG", "QAT", "WAT",
+];
+
+function EmptyMoveTiles({ rules }: { rules: Rules }) {
+  const [word] = useState(
+    () => emptyMoveWords[Math.floor(Math.random() * emptyMoveWords.length)],
+  );
+  return (
+    <div className="illustrated-tiles" aria-hidden="true">
+      {[...word].map((letter, index) => (
+        <span key={index}>
+          {letter}<small>{tileScore(letter, rules)}</small>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function formatOdds(chance: number, exact: boolean) {
   const value =
@@ -1019,17 +1041,7 @@ export default function Results({
         </div>
       ) : resultSet === null ? (
         <div className="results-empty">
-          <div className="illustrated-tiles">
-            <span>
-              A<small>1</small>
-            </span>
-            <span>
-              H<small>4</small>
-            </span>
-            <span>
-              A<small>1</small>
-            </span>
-          </div>
+          <EmptyMoveTiles rules={bingoRules.rules} />
           <h3>{solveEndgame && emptyRackEndgame ? "No opponent endgame" : "A good move starts here."}</h3>
           {solveEndgame && emptyRackEndgame ? (
             <p>{emptyRackMessage}</p>
