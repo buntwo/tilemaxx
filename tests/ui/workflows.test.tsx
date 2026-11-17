@@ -689,6 +689,23 @@ test("new game suggests distinct opponents by the end date or start date within 
   expect(setup.queryByRole("listbox")).toBeNull();
 
   await user.clear(opponent);
+  await user.type(opponent, "Cas");
+  const option = list().getByRole("option", { name: "Casey" });
+  // WebKit can blur the field before activating the tapped suggestion.
+  fireEvent.pointerDown(option, { pointerType: "touch" });
+  act(() => opponent.blur());
+  expect(list().getByRole("option", { name: "Casey" })).toBe(option);
+  fireEvent.click(option);
+  expect(opponent.value).toBe("Casey");
+  expect(setup.queryByRole("listbox")).toBeNull();
+
+  await user.click(opponent);
+  expect(list().getByRole("option", { name: "Casey" })).toBeTruthy();
+  await user.tab();
+  expect(document.activeElement).toBe(setup.getByRole("combobox", { name: "Platform" }));
+  expect(setup.queryByRole("listbox")).toBeNull();
+
+  await user.clear(opponent);
   await user.type(opponent, "A new opponent");
   expect(setup.queryByRole("listbox")).toBeNull();
   await user.click(setup.getByRole("button", { name: "Create game" }));
