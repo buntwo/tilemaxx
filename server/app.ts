@@ -11,6 +11,7 @@ import {
   templateSchema,
 } from "./validation";
 import { PRESETS } from "../shared/presets";
+import { createDebugRouter } from "./debug";
 
 export function createApp(store: ReturnType<typeof createStore>) {
   const app = express();
@@ -19,6 +20,10 @@ export function createApp(store: ReturnType<typeof createStore>) {
   app.use("/api", (req, res, next) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
+    next();
+  });
+  app.use("/api/debug", createDebugRouter(store));
+  app.use("/api", (req, res, next) => {
     if (!["GET", "HEAD"].includes(req.method)) {
       const origin = req.get("origin");
       if (origin && new URL(origin).host !== req.get("host")) {

@@ -32,3 +32,12 @@
 2. Start Tilemaxx with a temporary `DATA_DIR` and use a fictional game with a bundled word list. Switch the app to **Dark** before taking any README screenshot.
 3. Open **Settings** with the gear below the sidebar theme controls. Turn off **Highlight rack tiles on move preview** and **Pulse move previews**, then find moves and preview a play on the board.
 4. Replace the WebP files in `docs/screenshots/` with real captures of the desktop workspace, phone preview, and reply heatmap. Use the same sample position for all three, check their crops at README width, and update the alt text to match.
+
+## Debugging production games
+
+- Use the read-only HTTP debugging API to retrieve NAS games. Set `TILEMAXX_DEBUG_SERVER` to the instance origin (for example `http://NAS:4173`), or pass `--server`. Ask for the origin if it is unknown; do not guess or use SSH/scp.
+- List games with `npm run debug:games -- --server http://NAS:4173`. Optional `--profile NAME_OR_ID` and `--name TEXT` filters narrow the list; archived games are included.
+- Download a game with `npm run debug:game -- GAME_ID --server http://NAS:4173`. Each download creates a new directory under ignored `data/debug/` containing `snapshot.json` and `dictionary.txt`. The snapshot includes the complete saved game, server version, game revision, timestamps, source origin, and the dictionary with its SHA-256 hash. It contains server-saved state only; unsynced browser drafts are unavailable.
+- Use `snapshot.game` with the functions in `shared/` and load `dictionary.txt` through `parseWords`/the shared lexicon for local reproduction. Archived games retain their final position in `archivedBoard`/`archivedState`; use the shared review helpers to interpret history. Keep all experiments local and never commit downloaded games or word lists.
+- `/api/debug/games` lists games; `/api/debug/games/:id` exports a snapshot. This namespace accepts GET/HEAD only and rejects every other method with 405 before body parsing. It does not change games or backfill the summary cache. The CLI uses GET only, refuses redirects, and times out after 30 seconds. The normal app API still supports saving games.
+- These endpoints require deploying this version to the NAS first. A 404 can mean an older deployment or a missing game; a 409 means the game's dictionary is unavailable. The debugging API shares the app's trusted-LAN access model; keep its port closed to the internet.
