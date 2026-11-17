@@ -1,22 +1,22 @@
 import { Component, createRef, useState, type ReactNode } from "react";
 import { canAnimateTiles } from "./tile-motion";
 
-export function usePhoneMoveReview(
-  phone: boolean,
+export function useMoveReview(
+  narrow: boolean,
   searchId: number | undefined,
   playingReview: boolean | undefined,
 ) {
   const [dismissed, setDismissed] = useState<number>();
   return {
     showing:
-      phone &&
+      narrow &&
       (playingReview ?? (searchId !== undefined && dismissed !== searchId)),
     open: () => setDismissed(undefined),
     dismiss: () => setDismissed(searchId),
   };
 }
 
-type Props = { phone: boolean; reviewing: boolean; children: ReactNode };
+type Props = { narrow: boolean; reviewing: boolean; children: ReactNode };
 type Snapshot = Map<HTMLElement, DOMRect> | null;
 
 function bounds(element: HTMLElement) {
@@ -36,8 +36,8 @@ export default class GameWorkspace extends Component<Props, object, Snapshot> {
   getSnapshotBeforeUpdate(previous: Props): Snapshot {
     if (
       !this.root.current ||
-      !this.props.phone ||
-      !previous.phone ||
+      !this.props.narrow ||
+      !previous.narrow ||
       this.props.reviewing === previous.reviewing
     )
       return null;
@@ -52,8 +52,8 @@ export default class GameWorkspace extends Component<Props, object, Snapshot> {
   }
 
   componentDidUpdate(previous: Props, _state: object, snapshot: Snapshot) {
-    if (!this.props.phone || !snapshot) {
-      if (previous.phone && !this.props.phone) this.stopMotion();
+    if (!this.props.narrow || !snapshot) {
+      if (previous.narrow && !this.props.narrow) this.stopMotion();
       return;
     }
     // Measure the old layout before React moves it, including any in-flight
@@ -107,7 +107,7 @@ export default class GameWorkspace extends Component<Props, object, Snapshot> {
     return (
       <div
         ref={this.root}
-        className={`workspace-grid${this.props.reviewing ? " phone-move-review" : ""}`}
+        className={`workspace-grid${this.props.reviewing ? " move-review" : ""}`}
       >
         {this.props.children}
       </div>
