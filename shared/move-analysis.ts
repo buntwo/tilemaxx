@@ -9,7 +9,7 @@ import {
   type Position,
 } from "./model";
 import { rackLetters } from "./rack-entry";
-import { SEARCH_LIMITS, SearchLimitError, prepareSolver } from "./solver";
+import { SEARCH_LIMITS, SearchLimitError, createSolverFactory } from "./solver";
 import { unseenTiles } from "./tile-pool";
 import {
   DEFAULT_ENDGAME_POSITION_LIMIT,
@@ -311,13 +311,14 @@ export function analyzeMoves(
   const bingoTiles = minimumBingoTiles(template);
   const rule = endgameStreaks[template.rules];
   // The boards used by analysis are immutable snapshots.
-  const prepared = new WeakMap<Board, ReturnType<typeof prepareSolver>>();
+  const prepareBoard = createSolverFactory(lexicon, template);
+  const prepared = new WeakMap<Board, ReturnType<typeof prepareBoard>>();
   function prepare(position: Board, until: number) {
     const deadline = Math.min(until, performance.now() + SEARCH_LIMITS.maxMs);
     if (performance.now() >= deadline) throw new SearchLimitError("time");
     let solver = prepared.get(position);
     if (!solver) {
-      solver = prepareSolver(lexicon, position, template);
+      solver = prepareBoard(position);
       prepared.set(position, solver);
     }
     const maxMs = Math.min(SEARCH_LIMITS.maxMs, deadline - performance.now());

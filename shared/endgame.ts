@@ -234,9 +234,11 @@ export function searchEmptyBagCandidate(
       return cached;
     const moves = findMoves(position, own);
     const outBonus = 2 * value(other);
-    const priority = (move: Move) => move.score + (move.leave ? 0 : outBonus);
+    // Establish terminal values first, then favor shedding tiles. This is only
+    // move ordering: low-scoring plays and passes still receive an exact search.
+    const priority = (move: Move) => move.score + 5 * move.tiles.length;
     const ordered: (Move | null)[] = [...moves].sort(
-      (a, b) => priority(b) - priority(a),
+      (a, b) => Number(!b.leave) - Number(!a.leave) || priority(b) - priority(a),
     );
     ordered.push(null);
     let bestSpread = -Infinity;

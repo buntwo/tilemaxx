@@ -16,6 +16,7 @@ import { rackLetters } from "./rack-entry";
 import {
   BIG_REPLY_SCORE,
   prepareSolver,
+  createSolverFactory,
   SEARCH_LIMITS,
   SearchLimitError,
   type PremiumReply,
@@ -509,11 +510,12 @@ export function replyEndgameLine(
 }
 
 function endgameSearch(lexicon: Lexicon, template: BoardTemplate) {
+  const prepare = createSolverFactory(lexicon, template);
   const cache = new WeakMap<Board, ReturnType<typeof prepareSolver>>();
   return (board: Board, rack: string, deadline: number) => {
     let solver = cache.get(board);
     if (!solver) {
-      solver = prepareSolver(lexicon, board, template);
+      solver = prepare(board);
       cache.set(board, solver);
     }
     return solver.solve(rack, limit(deadline), { unsorted: true });
