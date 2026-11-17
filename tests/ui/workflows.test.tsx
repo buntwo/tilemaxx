@@ -3899,6 +3899,7 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   expect(scoreTotals()).toBe("0–10");
   expect(trackedScore().getAttribute("data-turn")).toBe("you");
+  expect(scores().getByRole("img", { name: "Your turn" })).toBeTruthy();
   expect(current().trackedMoves?.map(({ word }) => word)).toEqual(["CAT"]);
   await act(() => store.flush());
   expect(remote.games[0].scoring?.opponent.points).toBe(10);
@@ -3919,6 +3920,7 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   expect(scoreTotals()).toBe("6–10");
   expect(trackedScore().getAttribute("data-turn")).toBe("opponent");
   expect(trackedScore().getAttribute("aria-description")).toContain("Opponent’s turn");
+  expect(scores().getByRole("img", { name: "Opponent’s turn" })).toBeTruthy();
   expect(scoreDelta()?.textContent).toBe("−4");
   expect(scoreDelta()?.classList.contains("value-bad")).toBe(true);
   expect(scores().getByText(/Avg 10\.0/)).toBeTruthy();

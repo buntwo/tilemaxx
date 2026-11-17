@@ -43,3 +43,60 @@ test("partial scores keep their explanation instead of claiming a complete score
   expect(screen.getByText(/Partial scores/)).toBeTruthy();
   expect(container.querySelector(".score-margin")).toBeNull();
 });
+
+test.each(["you", "opponent"] as const)("Game scores marks %s's turn and preserves the other circle", (turn) => {
+  const game = gameWithScores(340, 346);
+  game.scoring!.you.moves = 12;
+  game.scoring!.opponent.moves = 12;
+  game.trackedMoves = [{ player: turn === "you" ? "opponent" : "you", word: "CAT", score: 3, at: "2026-11-17" }];
+  const { container } = show(game);
+  const active = screen.getByRole("img", { name: turn === "you" ? "Your turn" : "Opponent’s turn" });
+  expect(active.getAttribute("data-status")).toBe("turn");
+  expect(active.closest("[data-player]")?.getAttribute("data-player")).toBe(turn);
+  const waiting = container.querySelector('.score-player-marker[data-status="waiting"]')!;
+  expect(waiting.getAttribute("aria-hidden")).toBe("true");
+  expect(waiting.querySelectorAll(".score-turn-circle > span")).toHaveLength(8);
+  expect(container.querySelectorAll(".score-player-marker")).toHaveLength(2);
+  expect(container.querySelector(".score-winner")).toBeNull();
+});
+
+test.each(["new", "partial", "archived"])("%s scores do not guess a turn or winner", (state) => {
+  const game = gameWithScores(340, 346);
+  if (state !== "new") {
+    game.scoring!.you.moves = 1;
+    game.trackedMoves = [{ player: "you", word: "CAT", score: 3, at: "2026-11-17" }];
+  }
+  if (state === "partial") game.scoring!.incomplete = true;
+  if (state === "archived") game.archived = true;
+  const { container } = show(game);
+  expect(container.querySelectorAll('.score-player-marker[data-status="waiting"]')).toHaveLength(2);
+  expect(container.querySelector(".score-winner")).toBeNull();
+});
+
+test.each([
+  [340, 346, 5, "you", "You won"],
+  [340, 360, 5, "opponent", "Opponent won"],
+  [340, 346, 3, undefined, undefined],
+] as const)("finished score %s–%s uses adjusted totals to choose the trophy", (you, opponent, rackPoints, winner, name) => {
+  const game = gameWithScores(you, opponent);
+  game.scoring!.end = { out: "you", rackPoints };
+  const { container } = show(game);
+  expect(container.querySelector('[data-status="turn"]')).toBeNull();
+  expect(container.querySelectorAll(".score-winner")).toHaveLength(winner ? 1 : 0);
+  if (name) {
+    const marker = screen.getByRole("img", { name });
+    expect(marker.closest("[data-player]")?.getAttribute("data-player")).toBe(winner);
+    expect(marker.querySelector(".bingo-badge .lucide-trophy")).toBeTruthy();
+  }
+});
+
+test("archived score markers follow the saved final result while the board is being edited", () => {
+  const game = gameWithScores(400, 100);
+  const final = gameWithScores(340, 346);
+  final.scoring!.end = { manual: true, scores: { you: 340, opponent: 346 }, outcome: "loss" };
+  game.archived = true;
+  game.archivedState = { ...final, scoring: final.scoring };
+  show(game);
+  expect(screen.getByRole("img", { name: "Opponent won" })).toBeTruthy();
+  expect(screen.queryByRole("img", { name: "You won" })).toBeNull();
+});
