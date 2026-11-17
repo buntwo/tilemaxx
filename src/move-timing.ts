@@ -16,6 +16,16 @@ export type ExactLineTiming = {
   limit?: string;
 };
 
+export type EndgameBatchTiming = {
+  checked: number;
+  elapsed: number;
+};
+
+export type OpponentEndgameTiming = {
+  total: number;
+  batches: EndgameBatchTiming[];
+};
+
 export type MoveTiming = {
   total: number;
   solver: SolverStages;

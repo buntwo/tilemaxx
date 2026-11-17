@@ -7,9 +7,11 @@ import type {
   OpponentEndgameProgress,
   OpponentEndgameResult,
 } from "../parallel-opponent-endgame";
+import type { OpponentEndgameTiming } from "../move-timing";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import { endgameLength } from "../endgame-line-format";
 import CalculationIndicator from "./CalculationIndicator";
+import MoveTimingButton from "./MoveTimingButton";
 import { BingoBadge } from "./MoveWord";
 import OptimalReplyDetails from "./OptimalReplyDetails";
 
@@ -17,12 +19,14 @@ export default function OpponentEndgameResults({
   game,
   opponentRack,
   result,
+  timing,
   onClose,
   onPreview,
 }: {
   game: Game;
   opponentRack: string;
   result: OpponentEndgameResult;
+  timing: OpponentEndgameTiming;
   onClose: () => void;
   onPreview: (move: Move | null) => void;
 }) {
@@ -157,35 +161,38 @@ export default function OpponentEndgameResults({
               );
             })}
           </ol>
-          <footer className="results-foot">
-            <span>Select an opponent move to preview its line</span>
-          </footer>
-          {selected && (
-            <section
-              className="inline-reply"
-              id={detailId}
-              aria-label="Opponent reply details"
-              data-move-preview-action
-            >
-              <h3 className="optimal-reply-title">
-                <span>Reply details</span>
-                <span className="optimal-reply-badge">
-                  <Check size={13} aria-hidden="true" /> Exact line
-                </span>
-              </h3>
-              <OptimalReplyDetails
-                game={game}
-                line={selected}
-                opponentRack={opponentRack}
-                firstPlayer="opponent"
-              />
-            </section>
-          )}
         </>
       ) : (
         <div className="results-empty">
           <h3>No complete lines found</h3>
         </div>
+      )}
+      <footer className="results-foot">
+        {result.lines.length > 0 && (
+          <span>Select an opponent move to preview its line</span>
+        )}
+        <MoveTimingButton timing={timing} size={game.template.size} />
+      </footer>
+      {selected && (
+        <section
+          className="inline-reply"
+          id={detailId}
+          aria-label="Opponent reply details"
+          data-move-preview-action
+        >
+          <h3 className="optimal-reply-title">
+            <span>Reply details</span>
+            <span className="optimal-reply-badge">
+              <Check size={13} aria-hidden="true" /> Exact line
+            </span>
+          </h3>
+          <OptimalReplyDetails
+            game={game}
+            line={selected}
+            opponentRack={opponentRack}
+            firstPlayer="opponent"
+          />
+        </section>
       )}
     </section>
   );

@@ -3,6 +3,7 @@ import type { Game, Move } from "../shared/model";
 import type { BoardOddsResult, RackOdds } from "../shared/bingo-odds";
 import type { DefenseResults } from "../shared/premium-defense";
 import type { ExchangeAdvice } from "../shared/exchange-advice";
+import { rackSlotsForLetters } from "../shared/rack-entry";
 import type { ExchangeAdviceMessage, PracticeRequest } from "./practice.worker";
 import type {
   EndgameRanking,
@@ -28,7 +29,7 @@ type Snapshot = {
   defense?: DefenseResults;
   replyCandidates?: ReplyCandidate[] | null;
   boardOdds?: BoardOddsResult;
-  exchangeAdvice?: ExchangeAdvice;
+  exchangeAdvice?: Omit<ExchangeAdvice, "slots"> & { tiles: string };
 };
 const emptySnapshot: Snapshot = { results: null, warnings: [] };
 type QueryReply = Extract<
@@ -43,7 +44,7 @@ export type RankEndgame = (
 ) => Promise<EndgameRanking | undefined>;
 export type BoardOddsProgress = Omit<BoardOddsResult, "byMove">;
 
-export function useSolver(positionKey: string) {
+export function useSolver(positionKey: string, game: Game | undefined) {
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [snapshotKey, setSnapshotKey] = useState(positionKey);
   const [busy, setBusy] = useState("");
@@ -89,11 +90,16 @@ export function useSolver(positionKey: string) {
     function finish(advice?: ExchangeAdvice) {
       stopExchangeAdvice();
       const elapsed = performance.now() - started;
+      const exchangeAdvice = advice && {
+        tiles: advice.slots.map((slot) => exchange.rack[slot]).join(""),
+        edge: advice.edge,
+        comparedWith: advice.comparedWith,
+      };
       setSnapshot((current) =>
         current.results?.searchId === searchId && current.stages
           ? {
               ...current,
-              exchangeAdvice: advice,
+              exchangeAdvice,
               stages: { ...current.stages, exchangeAdvice: elapsed },
             }
           : current,
@@ -536,8 +542,15 @@ export function useSolver(positionKey: string) {
   }
 
   const current = snapshotKey === positionKey ? snapshot : emptySnapshot;
+  const recommendation = current.exchangeAdvice;
+  const slots = game && recommendation && rackSlotsForLetters(game, recommendation.tiles);
   return {
     ...current,
+    exchangeAdvice: slots && recommendation ? {
+      slots: slots.sort((a, b) => a - b),
+      edge: recommendation.edge,
+      comparedWith: recommendation.comparedWith,
+    } : undefined,
     boardOdds:
       current.boardOdds ??
       (snapshotKey === positionKey ? liveBoardOdds : undefined),

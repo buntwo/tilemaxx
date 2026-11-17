@@ -17,6 +17,7 @@ import { summarizeGame } from "../../shared/game-index";
 import { PRESETS } from "../../shared/presets";
 import { importBoard } from "../../shared/screenshot";
 import {
+  applyMove,
   archiveGame,
   coordinate,
   emptyBoard,
@@ -4046,6 +4047,8 @@ test("shuffle moves excluded, required, and exchange marks with their tiles", as
   await user.click(rackTile(3));
   await user.keyboard("{ArrowUp}");
 
+  await user.click(screen.getByRole("button", { name: "Find moves" }));
+  const move = (await screen.findAllByRole("button", { name: /^AT, / }))[0];
   const random = vi.spyOn(Math, "random").mockReturnValue(0);
   try {
     await user.click(shuffle);
@@ -4053,6 +4056,7 @@ test("shuffle moves excluded, required, and exchange marks with their tiles", as
     random.mockRestore();
   }
   expect(current().rack).toBe("ATSC");
+  expect(move.isConnected).toBe(true);
   expect(current().excludedRackSlots).toEqual([3]);
   expect(current().requiredRackSlots).toEqual([0]);
   expect(rackTile(2).getAttribute("aria-label")).toContain("T, marked for exchange");
@@ -4068,6 +4072,8 @@ test.each(["mouse", "touch"])("rack drag inserts between tiles and suppresses a 
   const user = await start();
   await typeRack(user, "CATS");
   await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("button", { name: "Find moves" }));
+  const move = (await screen.findAllByRole("button", { name: /^CATS, / }))[0];
   const rack = screen.getByRole("group", { name: "Your rack tiles" });
   vi.spyOn(rack, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 280, 40));
   for (let i = 0; i < 7; i++)
@@ -4080,6 +4086,7 @@ test.each(["mouse", "touch"])("rack drag inserts between tiles and suppresses a 
   touch(first, "pointerup", { pointerType, clientX: 118 });
   fireEvent.click(first, { detail: 1 });
   expect(current().rack).toBe("ATCS");
+  expect(move.isConnected).toBe(true);
   expect(rack.querySelector(".rack-insertion-slot")).toBeNull();
   expect(document.activeElement).not.toBe(screen.getByRole("textbox", { name: "Rack letters" }));
 
@@ -4867,12 +4874,18 @@ test.each(["rack", "results"])("the %s exchange suggestion preserves holds and o
   expect(screen.queryByRole("button", { name: /^Swap .* pts/ })).toBeNull();
   expect(pending).toBeTruthy();
   expect(adviceRequest?.exchange.excludedRackSlots).toEqual([6]);
+  if (!fromResults) {
+    // Reverse the order of the recommended tiles before the worker replies.
+    rackTile(6).focus();
+    await user.keyboard("{Shift>}{ArrowLeft}{/Shift}");
+    expect(current().rack).toBe("CATSVUW");
+  }
   await act(() => pending?.onmessage?.({
     data: { result: { slots: [4, 5], edge: 8, comparedWith: "CATS" } },
   }));
   const rack = screen.getByRole("region", { name: "Your rack" });
   const header = screen.getByRole("heading", { name: "Possible moves" }).closest("header")!;
-  const swap = { name: "Swap UV · +8 pts" };
+  const swap = { name: fromResults ? "Swap UV · +8 pts" : "Swap VU · +8 pts" };
   const rackAction = within(rack).getByRole("button", swap);
   const headerAction = within(header).getByRole("button", swap);
   const tiles = within(rack).getByRole("group", { name: "Your rack tiles" });
@@ -4884,15 +4897,15 @@ test.each(["rack", "results"])("the %s exchange suggestion preserves holds and o
   const panel = screen.getByRole("region", { name: "Simulate exchange" });
   expect(panel.closest(".rack-panel")).toBeTruthy();
   expect(within(panel).getByText(/Estimated \+8 points vs. CATS/)).toBeTruthy();
-  expect(screen.getByLabelText("Rack tile 5: U, marked for exchange")).toBeTruthy();
-  expect(screen.getByLabelText("Rack tile 6: V, marked for exchange")).toBeTruthy();
+  expect(screen.getByLabelText(`Rack tile 5: ${fromResults ? "U" : "V"}, marked for exchange`)).toBeTruthy();
+  expect(screen.getByLabelText(`Rack tile 6: ${fromResults ? "V" : "U"}, marked for exchange`)).toBeTruthy();
   expect(screen.getByLabelText("Rack tile 7: W, held out of solver")).toBeTruthy();
   expect(simulation?.exchange.slots).toEqual([4, 5]);
   expect(simulation?.exchange.excludedRackSlots).toEqual([6]);
   expect(document.activeElement).toBe(
     screen.getByRole("button", { name: "Simulate exchange (2)" }),
   );
-  expect(current().rack).toBe("CATSUVW");
+  expect(current().rack).toBe(fromResults ? "CATSUVW" : "CATSVUW");
 
   await user.click(rackTile(1));
   await user.keyboard("R");
@@ -4986,6 +4999,12 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   expect(finds).toBe(0);
   expect(requests[0]).toMatchObject({ rack: "DSD", opponentRack: "AOT", dictionaryId: "test" });
   const boardBefore = [...current().board];
+  const timing = result.getByRole("button", { name: /^Calculation timing,/ });
+  await user.click(timing);
+  const dialog = within(screen.getByRole("dialog", { name: "Calculation timing" }));
+  expect(dialog.getByText("Total elapsed time")).toBeTruthy();
+  expect(dialog.getByText(/^Options 1–\d+$/)).toBeTruthy();
+  await user.click(dialog.getByRole("button", { name: "Close dialog" }));
 
   await user.click(rows[0]);
   const preview = within(result.getByRole("region", { name: "Opponent reply details" }));
@@ -5003,13 +5022,55 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   }
   expect(document.querySelector(".board-entry .ghost")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
+  const random = vi.spyOn(Math, "random").mockReturnValue(0);
+  try {
+    await user.click(screen.getByRole("button", { name: "Shuffle rack" }));
+  } finally {
+    random.mockRestore();
+  }
+  expect(current().rack).toBe("SDD");
+  const rack = screen.getByRole("group", { name: "Your rack tiles" });
+  vi.spyOn(rack, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 120, 40));
+  for (let i = 0; i < 3; i++)
+    vi.spyOn(rackTile(i + 1), "getBoundingClientRect").mockReturnValue(new DOMRect(i * 40, 0, 36, 36));
+  const first = rackTile(1);
+  const pointerType = phone ? "touch" : "mouse";
+  touch(first, "pointerdown", { pointerType, clientX: 18 });
+  touch(first, "pointermove", { pointerType, clientX: 118 });
+  touch(first, "pointerup", { pointerType, clientX: 118 });
+  expect(current().rack).toBe("DDS");
+  expect(requests).toHaveLength(1);
+  expect(result.getByRole("region", { name: "Opponent reply details" })).toBeTruthy();
+  expect(result.getByRole("button", { name: /^Calculation timing,/ })).toBe(timing);
   await user.click(rows[0]);
   expect(result.queryByRole("region", { name: "Opponent reply details" })).toBeNull();
   expect(document.querySelector(".board-entry .ghost")).toBeNull();
   expect(current().board).toEqual(boardBefore);
-  expect(current().rack).toBe("DSD");
+  expect(current().rack).toBe("DDS");
   await user.click(result.getByRole("button", { name: "Close opponent endgame" }));
   expect(screen.getByRole("button", { name: "Solve endgame" })).toBeTruthy();
+});
+
+test("going out with score tracking off disables opponent endgame when the opponent still has a tile", async () => {
+  const opening = { ...game(), rack: "CATS", trackScores: false, revision: 1 };
+  opening.template.tileCounts = Object.fromEntries(
+    TILE_SYMBOLS.map((symbol) => [symbol, Number("CATSZ".includes(symbol))]),
+  );
+  const [move] = solve(new Lexicon(["CATS"]), opening.board, opening.rack, opening.template);
+  remote.games[0] = applyMove(opening, move, "you");
+  const requests: OpponentEndgameRequest[] = [];
+  vi.stubGlobal("Worker", class extends SolverWorker {
+    postMessage(request: SolverRequest | OpponentEndgameRequest) {
+      if (request.kind === "solve-opponent-endgame") requests.push(request);
+      else super.postMessage(request);
+    }
+  });
+  const user = await start();
+  const endgame = await screen.findByRole("button", { name: "Solve endgame" });
+  expect(endgame).toHaveProperty("disabled", true);
+  expect(screen.getByText("Your rack is empty. There’s no opponent endgame to solve.")).toBeTruthy();
+  await user.click(endgame);
+  expect(requests).toHaveLength(0);
 });
 
 test("editing the position cancels the opponent worker and ignores its stale result", async () => {
@@ -5030,7 +5091,7 @@ test("editing the position cancels the opponent worker and ignores its stale res
   await user.click(rackTile(3));
   await user.keyboard("{Backspace}");
   expect(pending?.terminate).toHaveBeenCalledTimes(1);
-  await act(async () => pending?.onmessage?.({ data: { result: { checked: 0, total: 1, lines: [] } } }));
+  await act(async () => pending?.onmessage?.({ data: { result: { checked: 0, total: 1, lines: [], batches: [] } } }));
   expect(screen.queryByRole("region", { name: "Opponent endgame" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Solve endgame" })).toBeNull();
 });

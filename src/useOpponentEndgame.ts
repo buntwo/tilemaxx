@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { OpponentEndgameTiming } from "./move-timing";
 import type { OpponentEndgamePosition } from "../shared/reply-analysis";
 import { useGameCalculation } from "./components/GameCalculations";
 import type {
@@ -10,7 +11,7 @@ import type {
 
 type Search =
   | { pending: true; progress?: OpponentEndgameProgress }
-  | { pending: false; result: OpponentEndgameResult }
+  | { pending: false; result: OpponentEndgameResult; timing: OpponentEndgameTiming }
   | { pending: false; error: string };
 
 export function useOpponentEndgame(
@@ -36,6 +37,7 @@ export function useOpponentEndgame(
     if (key === undefined) return;
     stop();
     const publish = (value: Search) => setSearch({ key, value });
+    const startedAt = performance.now();
     publish({ pending: true });
     try {
       const worker = new Worker(
@@ -54,7 +56,14 @@ export function useOpponentEndgame(
         stop();
         publish(
           "result" in data
-            ? { pending: false, result: data.result }
+            ? {
+                pending: false,
+                result: data.result,
+                timing: {
+                  total: performance.now() - startedAt,
+                  batches: data.result.batches,
+                },
+              }
             : { pending: false, error: data.error },
         );
       };

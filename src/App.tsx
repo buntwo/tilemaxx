@@ -59,7 +59,7 @@ import {
 } from "./components/tile-motion";
 import TilePool from "./components/TilePool";
 import { useReplyAnalysis } from "./useReplyAnalysis";
-import { splitRack } from "../shared/rack-entry";
+import { rackComposition, splitRack } from "../shared/rack-entry";
 import BoardStudio from "./components/BoardStudio";
 import ScreenshotImport from "./components/ScreenshotImport";
 import { hasCustomPremiums, importBoard } from "../shared/screenshot";
@@ -180,12 +180,16 @@ function positionSignature(game: Game) {
     rules,
     tileCounts,
   } = game.template;
+  const { available, held } = splitRack(game);
+  const required = (game.requiredRackSlots ?? [])
+    .map((slot) => game.rack[slot])
+    .join("");
   return JSON.stringify([
     game.id,
     game.dictionaryId,
-    game.rack,
-    game.excludedRackSlots ?? [],
-    game.requiredRackSlots ?? [],
+    rackComposition(available),
+    rackComposition(held),
+    rackComposition(required),
     game.board,
     size,
     start,
@@ -330,7 +334,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const gameOver = !!game?.scoring?.end && !game.archived;
   const narrowLayout = !twoColumns;
   const compactGame = workspace === "games" && !narrowLayout;
-  const solver = useSolver(signature);
+  const solver = useSolver(signature, game);
   const { busy, warnings } = solver;
   const calculating = useGameCalculating();
   const replyAnalysis = useReplyAnalysis(
@@ -1397,7 +1401,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   ref={rackEntry}
                   game={game}
                   onChange={(next) =>
-                    updateAfterTurn(next.rack !== game.rack ? recordOpponentRackOut(next) : next)
+                    updateAfterTurn(
+                      rackComposition(next.rack) !== rackComposition(game.rack)
+                        ? recordOpponentRackOut(next)
+                        : next,
+                    )
                   }
                   onSolve={solve}
                   phoneLayout={phoneLayout}
