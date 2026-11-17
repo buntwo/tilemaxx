@@ -1,4 +1,3 @@
-import { RotateCcw } from "lucide-react";
 import type { GameScoreSummary } from "../../shared/game-scoring";
 import { scoreTone, signedPoints } from "../score-tone";
 
@@ -71,7 +70,9 @@ export default function GameScoreBadge({
     >
       <span className="game-score-totals">
         <span aria-label="Your score">{score.you}</span>
-        <span aria-hidden="true">–</span>
+        <span className="game-score-separator" aria-hidden="true">
+          –
+        </span>
         <span aria-label="Opponent score">{score.opponent}</span>
       </span>
       {showMargin && (
@@ -80,7 +81,6 @@ export default function GameScoreBadge({
           aria-hidden="true"
         >
           {signedPoints(margin)}
-          {onReplay && <RotateCcw size={12} />}
         </span>
       )}
     </Container>

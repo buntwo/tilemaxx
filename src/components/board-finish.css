@@ -136,7 +136,7 @@
   gap: 1px;
 }
 
-.board-finish-score span {
+.board-finish-score > div > span {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -144,14 +144,14 @@
   font-size: 11px;
 }
 
-.board-finish-score strong {
+.board-finish-score :is(strong, .game-score-separator) {
   font-size: clamp(20px, 6.4cqw, 26px);
   font-weight: 710;
   line-height: 1;
   letter-spacing: -.035em;
 }
 
-.board-finish-score [data-winner] strong,
+.board-finish-your-total,
 .board-finish-margin {
   color: var(--finish-ink);
 }

@@ -74,12 +74,14 @@ export default function BoardFinishOverlay({
         <div className="board-finish-result" role="status">
           <h2>{label}</h2>
           <div className="board-finish-score">
-            <div data-winner={outcome === "win" || undefined}>
+            <div>
               <span>You</span>
-              <strong>{scores.you}</strong>
+              <strong className="board-finish-your-total">{scores.you}</strong>
             </div>
-            <span aria-hidden="true">–</span>
-            <div data-winner={outcome === "loss" || undefined}>
+            <span className="game-score-separator" aria-hidden="true">
+              –
+            </span>
+            <div>
               <span title={opponent}>{opponent}</span>
               <strong>{scores.opponent}</strong>
             </div>

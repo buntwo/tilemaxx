@@ -1001,7 +1001,7 @@ label + label {
   gap: 4px;
   line-height: 1;
 }
-.game-score-totals [aria-hidden] {
+.game-score-separator {
   opacity: 0.7;
 }
 .game-title-score:is([data-outcome="playing"], [data-outcome="untracked"]) {
@@ -1019,11 +1019,6 @@ label + label {
 }
 .game-score-replay:hover {
   border-color: currentColor;
-}
-.game-score-replay .game-score-delta {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
 }
 .game-title-score.value-good {
   background: light-dark(#e1f0e6, #294439);
