@@ -10,6 +10,30 @@ const status = {
   loss: "You lost",
 };
 
+// Equally spaced dots keep the small waiting ring symmetric in every browser.
+const ringDots = Array.from({ length: 8 }, (_, index) => {
+  const angle = (index * Math.PI) / 4;
+  return {
+    left: `${50 + Math.cos(angle) * 41}%`,
+    top: `${50 + Math.sin(angle) * 41}%`,
+  };
+});
+
+function TurnMarker({ player, turn }: { player: Player; turn: Player }) {
+  const active = player === turn;
+  return (
+    <span
+      className="game-score-turn-marker"
+      data-player={player}
+      data-status={active ? "turn" : "waiting"}
+      aria-hidden="true"
+    >
+      {!active &&
+        ringDots.map((style, index) => <span key={index} style={style} />)}
+    </span>
+  );
+}
+
 export function describeGameScore(score: GameScoreSummary) {
   return `Your score ${score.you}, opponent score ${score.opponent}. ${status[score.outcome]}.`;
 }
@@ -79,6 +103,7 @@ export default function GameScoreBadge({
       onClick={onReplay}
     >
       <span className="game-score-totals">
+        {currentTurn && <TurnMarker player="you" turn={currentTurn} />}
         <span className="game-score-player" aria-label="Your score">
           {score.you}
         </span>
@@ -88,6 +113,7 @@ export default function GameScoreBadge({
         <span className="game-score-player" aria-label="Opponent score">
           {score.opponent}
         </span>
+        {currentTurn && <TurnMarker player="opponent" turn={currentTurn} />}
       </span>
       {showMargin && (
         <span
