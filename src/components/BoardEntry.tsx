@@ -234,7 +234,6 @@ export function BoardInput({
   function chooseCoordinate(match: typeof target) {
     if (!match || match.row === null || match.column === null) return false;
     select(match.row * n + match.column, false);
-    setDirection(match.direction);
     return true;
   }
 
@@ -285,6 +284,7 @@ export function BoardInput({
   function select(i: number, repeatTap?: boolean) {
     resetHistory();
     setCoordinateQuery(null);
+    if (locating) setDirection("across");
     if (!locating && (repeatTap ?? (focused && i === selected))) toggleDirection();
     else {
       setSelected(i);

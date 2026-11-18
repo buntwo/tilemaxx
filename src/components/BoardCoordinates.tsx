@@ -9,9 +9,9 @@ export type CoordinateSelection = {
 export function parseBoardCoordinate(query: string, size: number) {
   const match = /^([A-Z])(\d{1,2})?$|^(\d{1,2})([A-Z])?$/.exec(query);
   if (!match) return null;
-  const [, letterFirst, downRow, acrossRow, letterLast] = match;
+  const [, letterFirst, rowLast, rowFirst, letterLast] = match;
   const letter = letterFirst ?? letterLast;
-  const digits = downRow ?? acrossRow;
+  const digits = rowLast ?? rowFirst;
   const row = digits === undefined ? null : Number(digits) - 1;
   const column = letter === undefined ? null : letter.charCodeAt(0) - 65;
   if (
@@ -22,7 +22,6 @@ export function parseBoardCoordinate(query: string, size: number) {
   return {
     row,
     column,
-    direction: letterFirst ? ("down" as const) : ("across" as const),
     // On larger boards, a leading 1 or 2 can be a complete row or a prefix.
     ambiguous: Boolean(
       letterFirst && digits?.length === 1 && Number(digits) * 10 <= size,
