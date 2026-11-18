@@ -97,3 +97,21 @@ test("failed game storage cannot be presented as ready for offline use", async (
   await waitFor(() => expect(screen.getByText("Offline setup")).toBeTruthy());
   expect(screen.queryByText("Available offline")).toBeNull();
 });
+
+
+test("a removed historical word list does not block current-game offline readiness", async () => {
+  vi.mocked(loadWordList).mockImplementation(async (url) => {
+    if (url.includes("removed")) throw new Error("Dictionary not found.");
+    return { text: "CAT", persisted: true };
+  });
+  const review = { board: game.board, rack: "CAT", dictionaryId: "removed", tiles: [] };
+  const move = { player: "you" as const, word: "CAT", score: 10, at: "", review };
+  render(<OfflineStatus game={{ ...game, trackedMoves: [move],
+    past: [{ board: game.board, rack: "CAT", at: "", label: "CAT", review }],
+    future: [{ board: game.board, rack: "CAT", at: "", label: "CAT", review }],
+  }} online />);
+  expect(await screen.findByText("Available offline")).toBeTruthy();
+  expect(vi.mocked(loadWordList).mock.calls.map(([url]) => url)).toEqual([
+    "/api/dictionaries/words", "/dictionaries/moby-frequent.txt",
+  ]);
+});

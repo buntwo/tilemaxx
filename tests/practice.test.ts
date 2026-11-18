@@ -223,3 +223,29 @@ test("turn review respects recorded rack exclusions and retains held letters in 
     assert.equal(gameSchema.safeParse(invalid).success, false);
   }
 });
+
+
+test("historical review uses the current word list without changing saved moves", () => {
+  const game: Game = {
+    id: "g", profileId: "p", name: "Changed word list", dictionaryId: "removed",
+    board: emptyBoard(15), rack: "CAT", template: PRESETS[0],
+    past: [], future: [], archived: false, revision: 0, updatedAt: "",
+  };
+  const played = solve(new Lexicon(["AT"]), game.board, game.rack, game.template)[0];
+  const saved = playTrackedMove(game, played);
+  for (const player of ["you", "opponent"] as const) {
+    for (const archived of [false, true]) {
+      const changed = { ...saved, dictionaryId: "current", archived,
+        trackedMoves: saved.trackedMoves!.map(move => ({ ...move, player })) };
+      const before = JSON.stringify(changed);
+      const [turn] = reviewTurns(changed);
+      assert.equal(turn.position?.dictionaryId, "current");
+      assert.equal(turn.move.review?.dictionaryId, "removed");
+      assert.equal(turn.move.score, played.score);
+      assert.ok(reviewTurn(new Lexicon(["CAT"]), turn.position!, game.template)
+        .some(move => move.word === "CAT"));
+      assert.equal(JSON.stringify(changed), before);
+      assert.equal(reviewTurns({ ...changed, dictionaryId: "another" })[0].position?.dictionaryId, "another");
+    }
+  }
+});

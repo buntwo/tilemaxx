@@ -17,27 +17,16 @@ export default function OfflineStatus({
   online: boolean;
   storageError?: boolean;
 }) {
-  const ids = [
-    ...new Set(
-      [
-        game?.dictionaryId,
-        ...(game?.trackedMoves ?? []).map((move) => move.review?.dictionaryId),
-        ...(game?.past ?? []).map((turn) => turn.review?.dictionaryId),
-        ...(game?.future ?? []).map((turn) => turn.review?.dictionaryId),
-      ].filter((id): id is string => !!id),
-    ),
-  ]
-    .sort()
-    .join("\n");
+  const dictionaryId = game?.dictionaryId;
   const [retry, setRetry] = useState(0);
   const [status, setStatus] = useState({ key: "", busy: true, message: "" });
   useEffect(() => {
-    if (!ids) return;
+    if (!dictionaryId) return;
     let cancelled = false;
-    setStatus({ key: ids, busy: true, message: "" });
+    setStatus({ key: dictionaryId, busy: true, message: "" });
     const words = async () => {
       for (const url of [
-        ...ids.split("\n").map(dictionaryUrl),
+        dictionaryUrl(dictionaryId),
         familiarWordsUrl,
       ]) {
         const result = await loadWordList(url, { refresh: online });
@@ -51,7 +40,7 @@ export default function OfflineStatus({
       if (cancelled) return;
       const failed = results.find((result) => result.status === "rejected");
       setStatus({
-        key: ids,
+        key: dictionaryId,
         busy: false,
         message:
           failed?.status === "rejected"
@@ -64,9 +53,9 @@ export default function OfflineStatus({
     return () => {
       cancelled = true;
     };
-  }, [ids, online, retry]);
-  if (!ids) return null;
-  const busy = status.key !== ids || status.busy;
+  }, [dictionaryId, online, retry]);
+  if (!dictionaryId) return null;
+  const busy = status.key !== dictionaryId || status.busy;
   const message = storageError
     ? "This game could not be saved on this device. Keep this page open and restore browser storage before going offline."
     : status.message;

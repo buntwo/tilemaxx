@@ -181,7 +181,7 @@ test("the timeline streams in order, keeps finished turns after cancellation and
   ).toBeNull();
 });
 
-test("a word-list change leaves active policy jobs on each turn’s recorded list", () => {
+test("review uses the current word list and cancels stale policy jobs when it changes", () => {
   const { game, review, rerender } = setup();
   const moves = [...game.trackedMoves!];
   moves[2] = {
@@ -192,21 +192,20 @@ test("a word-list change leaves active policy jobs on each turn’s recorded lis
   rerender(review(mixed));
   const { worker, job } = start();
   expect(job.turns.map(({ dictionaryId }) => dictionaryId)).toEqual([
-    "test",
-    "historical-2",
+    "current",
+    "current",
   ]);
   worker.returnTurn(job, 0, fit(0.2));
   rerender(review({ ...mixed, dictionaryId: "other" }));
-  expect(worker.terminate).not.toHaveBeenCalled();
-  expect(screen.getByText("High fit")).toBeTruthy();
-
-  fireEvent.click(screen.getByRole("button", { name: "Cancel timeline analysis" }));
+  expect(worker.terminate).toHaveBeenCalledOnce();
+  worker.returnTurn(job, 1, fit(0.2));
+  expect(screen.queryByText("High fit")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "3 · OX" }));
   fireEvent.click(screen.getByRole("button", { name: "Analyze policy fit" }));
   const [request] = TimelineWorker.instances.at(-1)!.postMessage.mock.calls[0];
   expect(request).toMatchObject({
     kind: "opponent-policy",
-    dictionaryId: "historical-2",
+    dictionaryId: "other",
     input: { word: "OX" },
   });
 });
@@ -217,7 +216,7 @@ test("changing a recorded policy input cancels the batch and drops stale results
   worker.returnTurn(job, 0, fit(0.2));
   const moves = game.trackedMoves!.map((move) =>
     move.review
-      ? { ...move, review: { ...move.review, dictionaryId: "corrected" } }
+      ? { ...move, review: { ...move.review, observerRack: "AEINRSTZ" } }
       : move,
   );
   rerender(review({ ...game, trackedMoves: moves }));
@@ -225,8 +224,8 @@ test("changing a recorded policy input cancels the batch and drops stale results
   worker.returnTurn(job, 1, fit(0.2));
   expect(screen.queryByText("High fit")).toBeNull();
   expect(start().job.turns.map(({ dictionaryId }) => dictionaryId)).toEqual([
-    "corrected",
-    "corrected",
+    "test",
+    "test",
   ]);
 });
 
@@ -362,4 +361,24 @@ test("reviewing one of your moves directly uses the opponent’s view and return
   expect(
     screen.getByRole("table", { name: "Your moves by turn" }),
   ).toBeTruthy();
+});
+
+
+test("move alternatives and missed opportunities use the current list and discard stale analysis", () => {
+  const { game, review, rerender } = setup(1);
+  rerender(review({ ...game, dictionaryId: "current" }));
+  fireEvent.click(screen.getByRole("button", { name: "Find alternatives" }));
+  const worker = TimelineWorker.instances.at(-1)!;
+  expect(worker.postMessage.mock.calls[0][0]).toMatchObject({
+    kind: "turn", turns: [{ position: { dictionaryId: "current" } }],
+  });
+  rerender(review({ ...game, dictionaryId: "another" }));
+  expect(worker.terminate).toHaveBeenCalledOnce();
+  act(() => worker.onmessage?.({ data: { result: [] } }));
+  expect(screen.queryByText("No alternatives found in the selected word list.")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Back to game review" }));
+  fireEvent.click(screen.getByRole("button", { name: "Find missed opportunities" }));
+  expect(TimelineWorker.instances.at(-1)!.postMessage.mock.calls[0][0]).toMatchObject({
+    kind: "game", turns: [{ position: { dictionaryId: "another" } }],
+  });
 });

@@ -304,7 +304,11 @@ export function reviewTurns(game: Game) {
   const used = new Set<number>();
   const historicalPremiums = historyPremiums(game);
   return trackedMoveHistory(game).map((move, index) => {
-    const snapshot = move.review;
+    // Analyze historical positions with the game’s selected word list without
+    // rewriting the original snapshot or its recorded score.
+    const snapshot = move.review
+      ? { ...move.review, dictionaryId: game.dictionaryId }
+      : undefined;
     if (snapshot && (move.player === "opponent" || snapshot.excludedRackSlots))
       return { move, index, position: snapshot };
     const pastIndex = game.past.findIndex(

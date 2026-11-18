@@ -51,6 +51,10 @@ export default function TurnReview({
   const { result, progress, error, run, reset } = usePractice<
     Move[] | ReviewSummary
   >();
+  useEffect(() => {
+    reset();
+    setPreview(undefined);
+  }, [game.dictionaryId, reset]);
   const turn = selected === null ? undefined : turns[selected];
   const position = turn?.position;
   const template = position?.premiums
@@ -119,7 +123,7 @@ export default function TurnReview({
           "Review game"
         )
       }
-      subtitle="Review only. Your live board and rack stay in place."
+      subtitle="Analysis uses this game’s current word list. Your live board and rack stay in place."
       wide
       onClose={onClose}
     >
