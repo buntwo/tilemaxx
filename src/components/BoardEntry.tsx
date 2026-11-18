@@ -17,6 +17,7 @@ import {
   inferBoardEntryDirection,
 } from "../../shared/board-entry";
 import { boardWordsAt } from "../../shared/game-scoring";
+import { rackLetters } from "../../shared/rack-entry";
 import {
   coordinate,
   type Board as BoardState,
@@ -77,7 +78,12 @@ export default function BoardEntry({
       ref={displayBoard ? undefined : ref}
       board={board}
       directionForSquare={(index) =>
-        inferBoardEntryDirection(board, index, game.template.size)
+        inferBoardEntryDirection(
+          board,
+          index,
+          game.template.size,
+          rackLetters(game.rack).length,
+        )
       }
       hideHelp={hideHelp}
       readOnly={readOnly}

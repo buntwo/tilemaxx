@@ -1637,7 +1637,7 @@ test("board hover shows both word scores on a shared ending and keeps them acros
   await user.keyboard("CAT");
   await user.click(cell("Record opponent move"));
   await user.click(cell("I6: empty"));
-  await user.keyboard("AR");
+  await user.keyboard("{ArrowDown}AR");
   const end = cell("I8: T");
   const grid = end.closest(".board-grid")!;
   const mouseOver = (element: Element) => {
@@ -1693,14 +1693,25 @@ test("direct entry, skip existing letters, blanks, erase, undo/redo and persiste
   expect(current().rack).toBe("");
 });
 
-test("board selection infers direction from committed tiles and leaves Alt+B across", async () => {
+test("board selection uses tiles ahead within the physical rack size and leaves Alt+B across", async () => {
   const user = await start();
   const direction = () => cell("Toggle entry direction").textContent;
   await user.click(cell("G8: empty"));
   await user.keyboard("CAT");
+  await user.click(cell("G6: empty"));
+  await user.keyboard("T");
+  await typeRack(user, "D");
 
   await user.click(cell("I6: empty"));
-  expect(direction()).toBe("Down");
+  expect(direction()).toBe("Across"); // One rack tile falls short of I8.
+
+  await user.click(rackTile(3));
+  await user.keyboard(" ");
+  expect(current().rack).toBe("D.?");
+  await user.click(cell("I5: empty"));
+  expect(direction()).toBe("Across"); // The empty rack slot does not count.
+  await user.click(cell("I6: empty"));
+  expect(direction()).toBe("Down"); // The blank counts; G6 to the left does not.
   await user.click(cell("I6: empty"));
   expect(direction()).toBe("Across");
   await user.click(cell("I6: empty"));
