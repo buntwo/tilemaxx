@@ -4,11 +4,16 @@
   --tl: light-dark(#80b0c0, #497e90);
   --dw: light-dark(#edc2b6, #754b45);
   --tw: light-dark(#d78476, #a35d51);
+  --dl-label: light-dark(#3d3d3d, #fff);
+  --tl-label: light-dark(#3d3d3d, #fff);
+  --dw-label: light-dark(#3d3d3d, #fff);
+  --tw-label: light-dark(#3d3d3d, #fff);
 }
 
 :root {
   --ql: #b9a1e2;
   --qw: #694581;
+  --ql-label: #3d3d3d;
 }
 
 [data-premium-palette="wordfeud"] {
@@ -16,6 +21,10 @@
   --tl: #1f6091;
   --dw: #c8730e;
   --tw: #94272f;
+  --dl-label: #fff;
+  --tl-label: #fff;
+  --dw-label: #fff;
+  --tw-label: #fff;
 }
 
 [data-premium-palette="words-with-friends"] {
@@ -23,10 +32,17 @@
   --tl: #a2bc62;
   --dw: #ed6e61;
   --tw: #f4a34e;
+  --dl-label: #3d3d3d;
+  --tl-label: #3d3d3d;
+  --dw-label: #3d3d3d;
+  --tw-label: #3d3d3d;
 }
 
 [data-premium-palette="crossplay"] {
-  --premium-label: #606060;
+  --dl-label: #3d3d3d;
+  --tl-label: #3d3d3d;
+  --dw-label: #3d3d3d;
+  --tw-label: #3d3d3d;
   --dl: #f4e8c6;
   --tl: #dee9cf;
   --dw: #dce4f5;
@@ -38,6 +54,10 @@
   --tl: #3066c6;
   --dw: #ffb7b8;
   --tw: #cf040c;
+  --dl-label: #3d3d3d;
+  --tl-label: #fff;
+  --dw-label: #3d3d3d;
+  --tw-label: #fff;
 }
 
 :is([data-premium-palette="scrabble-go"], [data-premium-palette="in-person"]) {
@@ -45,4 +65,8 @@
   --tl: #3575a9;
   --dw: #ffa390;
   --tw: #c23b43;
+  --dl-label: #3d3d3d;
+  --tl-label: #fff;
+  --dw-label: #3d3d3d;
+  --tw-label: #fff;
 }

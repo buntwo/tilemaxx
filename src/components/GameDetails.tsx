@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { History } from "lucide-react";
 import { opponentNameMatches } from "../../shared/game-index";
 import { localDate, MAX_GAME_NOTES, type Game } from "../../shared/model";
@@ -49,7 +49,13 @@ export function GameMetadata({
 
 const platforms: string[] = gamePlatforms.map(({ name }) => name);
 
-function OpponentField({ suggestions }: { suggestions: readonly string[] }) {
+function OpponentField({
+  suggestions,
+  initialFocus,
+}: {
+  suggestions: readonly string[];
+  initialFocus?: boolean;
+}) {
   const field = useRef<HTMLDivElement>(null);
   const listId = useId();
   const [name, setName] = useState("");
@@ -96,6 +102,7 @@ function OpponentField({ suggestions }: { suggestions: readonly string[] }) {
         <input
           name="opponent"
           autoFocus
+          data-initial-focus={initialFocus || undefined}
           maxLength={80}
           value={name}
           placeholder="Opponent name"
@@ -165,10 +172,16 @@ export function GameDetailFields({
   game,
   opponentSuggestions,
   onPlatformChange,
+  children,
+  collapseDetails = false,
+  initialFocus,
 }: {
   game?: Game;
   opponentSuggestions?: readonly string[];
   onPlatformChange?: (platform: string) => void;
+  children?: ReactNode;
+  collapseDetails?: boolean;
+  initialFocus?: boolean;
 }) {
   const savedPlatform = game?.platform ?? "";
   const [platform, setPlatform] = useState(() =>
@@ -180,10 +193,32 @@ export function GameDetailFields({
     platform === "other" ? savedPlatform : "",
   );
   const isOther = platform === "other";
+  const details = (
+    <>
+      <label>
+        Date
+        <input
+          type="date"
+          name="startedOn"
+          defaultValue={game ? game.startedOn : localDate()}
+          required={!game}
+        />
+      </label>
+      <label>
+        Notes
+        <textarea
+          name="notes"
+          defaultValue={game?.notes}
+          maxLength={MAX_GAME_NOTES}
+          rows={3}
+        />
+      </label>
+    </>
+  );
   return (
     <>
       {opponentSuggestions ? (
-        <OpponentField suggestions={opponentSuggestions} />
+        <OpponentField suggestions={opponentSuggestions} initialFocus={initialFocus} />
       ) : (
         <label>
           Opponent
@@ -227,24 +262,18 @@ export function GameDetailFields({
           />
         </label>
       )}
-      <label>
-        Date
-        <input
-          type="date"
-          name="startedOn"
-          defaultValue={game ? game.startedOn : localDate()}
-          required={!game}
-        />
-      </label>
-      <label>
-        Notes
-        <textarea
-          name="notes"
-          defaultValue={game?.notes}
-          maxLength={MAX_GAME_NOTES}
-          rows={3}
-        />
-      </label>
+      {children}
+      {collapseDetails ? (
+        <details
+          className="new-game-details"
+          onInvalidCapture={(event) => {
+            event.currentTarget.open = true;
+          }}
+        >
+          <summary>Game details</summary>
+          <div>{details}</div>
+        </details>
+      ) : details}
     </>
   );
 }
