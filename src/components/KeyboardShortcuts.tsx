@@ -4,7 +4,7 @@ const sections = [
   {
     title: "Workspace",
     shortcuts: [
-      ["Alt / Option + B", "Select a board square by coordinate"],
+      ["Alt / Option + B", "Open or close the board coordinate overlay"],
       ["Alt / Option + R", "Focus the rack"],
       ["Alt / Option + F", "Search games by opponent"],
       ["?", "Open this guide outside text fields"],

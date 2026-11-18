@@ -363,10 +363,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       rackEntry.current.focusEntry();
       return true;
     },
-    selectBoardSquare() {
-      if (!boardEntry.current?.openCoordinateOverlay()) return false;
-      setSidebarDrawerOpen(false);
-      boardPanel.current?.scrollIntoView?.({ block: "nearest" });
+    toggleBoardCoordinates() {
+      const outcome = boardEntry.current?.toggleCoordinateOverlay();
+      if (!outcome) return false;
+      if (outcome === "opened") {
+        setSidebarDrawerOpen(false);
+        boardPanel.current?.scrollIntoView?.({ block: "nearest" });
+      }
       return true;
     },
     searchGames() {

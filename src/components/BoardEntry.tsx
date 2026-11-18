@@ -33,7 +33,7 @@ type MoveFilterSelection = {
 };
 
 export type BoardEntryHandle = {
-  openCoordinateOverlay: () => boolean;
+  toggleCoordinateOverlay: () => "opened" | "closed" | false;
 };
 
 export default function BoardEntry({
@@ -199,15 +199,19 @@ export function BoardInput({
   const help = <BoardEntryHelp id={helpId} hidden={hideHelp} />;
 
   useImperativeHandle(ref, () => ({
-    openCoordinateOverlay() {
+    toggleCoordinateOverlay() {
       if (readOnly || toggleMark) return false;
+      if (locating) {
+        closeCoordinateOverlay();
+        return "closed";
+      }
       resetHistory();
       setPendingBlank(false);
       setCoordinateQuery("");
       // Clear any pinned move before focusing the board keyboard.
       if (document.activeElement === input.current) onSelect?.();
       focus();
-      return true;
+      return "opened";
     },
   }));
 
@@ -242,10 +246,14 @@ export function BoardInput({
       setCoordinateQuery(next);
   }
 
+  function closeCoordinateOverlay() {
+    setCoordinateQuery(null);
+    input.current?.blur();
+  }
+
   function coordinateKey(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Escape") {
-      setCoordinateQuery(null);
-      event.currentTarget.blur();
+      closeCoordinateOverlay();
     } else if (event.key === "Backspace" || event.key === "Delete") {
       setCoordinateQuery(coordinateQuery?.slice(0, -1) ?? "");
     } else if (event.key === "Enter") {

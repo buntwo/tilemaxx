@@ -4756,6 +4756,15 @@ test("coordinate entry stops at edges, distinguishes two-digit rows, and can be 
   expect(selectedCell()).toBeUndefined();
 
   await startCoordinate();
+  await user.keyboard("h");
+  expect(status()).toContain("Column H");
+  expect(fireEvent.keyDown(entry(), { key: "∫", code: "KeyB", altKey: true })).toBe(false);
+  expect(overlay()).toBeNull();
+  expect(selectedCell()).toBeUndefined();
+  expect(document.activeElement).not.toBe(entry());
+
+  await startCoordinate();
+  expect(status()).toBe("Type a coordinate");
   await user.click(rackTile(1));
   expect(overlay()).toBeNull();
   expect(current().board.some(Boolean)).toBe(false);
