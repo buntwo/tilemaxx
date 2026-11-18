@@ -3406,9 +3406,7 @@ test("entering the opponent's final tile updates the score and ends the game on 
   await user.keyboard("S");
   expect(scoreTotals()).toBe("10–26");
   expect(trackedScore().getAttribute("data-outcome")).toBe("loss");
-  const headerScore = within(trackedScore());
-  expect(headerScore.getByLabelText("Your score").classList.contains("value-bad")).toBe(true);
-  expect(headerScore.getByLabelText("Opponent score").classList.contains("value-bad")).toBe(false);
+  expect(trackedScore().classList.contains("value-bad")).toBe(true);
   expect(scoreDelta()?.textContent).toBe("−16");
   expect(scoreDelta()?.className).toBe("game-score-delta");
   expect(screen.getByRole("heading", { name: "Game over" })).toBeTruthy();

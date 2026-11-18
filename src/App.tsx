@@ -722,7 +722,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       turn={nextPlayerToMove(game)}
       onReplay={gameFinish.replay}
       prominent={compactGame}
-      inHeader
+      showMargin
       showNoScore={!tracksScores(game)}
     />
   );

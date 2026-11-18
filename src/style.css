@@ -1060,13 +1060,7 @@ label + label {
 }
 .game-title-score:is([data-outcome="playing"], [data-outcome="untracked"]) {
   background: light-dark(#e8e8e9, #3a3a3d);
-}
-.game-title-score:is([data-outcome="playing"], [data-outcome="untracked"]),
-.game-heading .game-title-score:is([data-outcome="win"], [data-outcome="loss"]) {
   color: light-dark(#353539, #e5e5e8);
-}
-.game-heading .game-score-player {
-  font-weight: inherit;
 }
 .game-score-delta {
   color: light-dark(#55565b, #c4c5cb);
@@ -1080,10 +1074,10 @@ label + label {
 .game-score-replay:hover {
   border-color: currentColor;
 }
-.game-title-score[data-outcome="win"] {
+.game-title-score.value-good {
   background: light-dark(#e1f0e6, #294439);
 }
-.game-title-score[data-outcome="loss"] {
+.game-title-score.value-bad {
   background: light-dark(#f5dfdf, #523033);
 }
 .game-over {
