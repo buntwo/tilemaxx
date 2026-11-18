@@ -42,6 +42,7 @@ import BoardEntry, {
   type BoardEntryHandle,
 } from "./components/BoardEntry";
 import BoardFinishOverlay from "./components/BoardFinishOverlay";
+import LastPlay from "./components/LastPlay";
 import { useGameFinish } from "./useGameFinish";
 import {
   GameCalculations,
@@ -1293,6 +1294,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   }
                 }}
               >
+                <LastPlay game={activeFlight?.before ?? game} />
                 <BoardEntry
                   ref={boardEntry}
                   key={game.id}
