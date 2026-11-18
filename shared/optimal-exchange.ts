@@ -1,7 +1,7 @@
 import { RackBingoIndex } from "./bingo-odds";
 import { minimumExchangeBag } from "./exchange";
 import type { Lexicon } from "./lexicon";
-import type { BoardTemplate, Position } from "./model";
+import { minimumBingoTiles, type BoardTemplate, type Position } from "./model";
 import { randomGenerator, sampleTiles } from "./move-analysis";
 import { splitRack } from "./rack-entry";
 import { prepareSolver, SEARCH_LIMITS, SearchLimitError } from "./solver";
@@ -105,7 +105,11 @@ export function* planOptimalExchange(
     bag > total
   )
     throw new Error("The bag does not have enough tiles for an exchange.");
-  if (!available) throw new Error("Enter at least one tile that is not held.");
+  const bingoMinimum = minimumBingoTiles(template);
+  if (available.length < bingoMinimum)
+    throw new Error(
+      `Optimal exchange needs at least ${bingoMinimum} playable rack tiles for a bingo.`,
+    );
   const options = swapOptions(request, bag);
   const maxDraw = Math.min(bag, available.length);
   const pool = tiles.flatMap(({ symbol, count }) =>

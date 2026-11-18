@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Play } from "lucide-react";
 import { minimumExchangeBag } from "../../shared/exchange";
-import type { Game } from "../../shared/model";
+import { minimumBingoTiles, type Game } from "../../shared/model";
 import type { OptimalExchangeResult } from "../../shared/optimal-exchange";
 import { splitRack } from "../../shared/rack-entry";
 import { unseenTiles } from "../../shared/tile-pool";
@@ -33,10 +33,11 @@ export default function OptimalExchange({
   const { available, held } = splitRack(game);
   const { excess } = unseenTiles(game, template);
   const minimum = minimumExchangeBag(template, 1);
+  const bingoMinimum = minimumBingoTiles(template);
   const unavailable = excess.length
     ? "Check the board and rack tile counts first."
-    : !available
-      ? "Enter at least one tile that is not held."
+    : available.length < bingoMinimum
+      ? `Optimal exchange needs at least ${bingoMinimum} playable rack tiles for a bingo.`
       : bag < minimum
         ? `An exchange needs at least ${minimum} ${minimum === 1 ? "tile" : "tiles"} in the bag.`
         : "";
