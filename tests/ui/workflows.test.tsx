@@ -229,7 +229,12 @@ test("playing style requests ranked pages and All moves restores the full list",
       if (request.kind === "page" && request.query.profile) {
         requested.push(request.query.profile);
         const result = this.results.get(request.searchId);
-        if (result) result.setProfile(request.query.profile, result.moves.slice(1, 2));
+        if (result) result.setProfile(request.query, result.moves.slice(1, 2).map((move) => ({
+          move, utility: {
+            total: 8.15, points: 8.5, premium: 0, familiarity: -0.55,
+            crosswords: 0, length: 0, leave: 0.2, goingOut: 0,
+          },
+        })));
       }
       super.postMessage(request);
     }
@@ -241,12 +246,26 @@ test("playing style requests ranked pages and All moves restores the full list",
   await screen.findByRole("button", { name: "Analyze" });
   const all = () => document.querySelectorAll(".result-row");
   expect(all().length).toBeGreaterThan(1);
-  await user.selectOptions(screen.getByRole("combobox", { name: "Playing style" }), "learner");
+  const picker = screen.getByRole("combobox", { name: "Playing style" });
+  expect(within(picker).getByRole("option", { name: "No style", selected: true })).toBeTruthy();
+  await user.selectOptions(picker, "learner");
   await waitFor(() => expect(all()).toHaveLength(1));
   expect(requested).toContain("learner");
   expect(screen.getByLabelText("Sort by playing style or points")).toBeTruthy();
+  expect(within(all()[0] as HTMLElement).getByText("U 8.15")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: /^Utility breakdown for/ }));
+  const tooltip = within(screen.getByRole("tooltip"));
+  expect(tooltip.getByText("Utility breakdown")).toBeTruthy();
+  expect(tooltip.getByText("Word-list learner · Rank 1")).toBeTruthy();
+  expect(tooltip.getByText("Weighted points")).toBeTruthy();
+  expect(tooltip.getByText("Word familiarity")).toBeTruthy();
+  expect(tooltip.getByText("Rack leave")).toBeTruthy();
+  expect(tooltip.queryByText("Score breakdown")).toBeNull();
+  expect(current().board.some(Boolean)).toBe(false);
   await user.click(screen.getByRole("button", { name: "All moves" }));
   await waitFor(() => expect(all().length).toBeGreaterThan(1));
+  expect(screen.queryByText("U 8.15")).toBeNull();
+  expect(screen.getAllByRole("button", { name: /^Score breakdown for/ }).length).toBeGreaterThan(0);
 });
 
 test("phone analysis taps preview and select a move without offering Play", async () => {

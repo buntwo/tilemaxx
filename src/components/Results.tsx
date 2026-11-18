@@ -55,7 +55,7 @@ import { ComputeWorkerLimit } from "./ComputeWorkerLimit";
 import { computeWorkerLimit } from "../compute-workers";
 import { useOpponentEndgame } from "../useOpponentEndgame";
 import { useGameCalculating } from "./GameCalculations";
-import { useMoveScoreTooltip } from "./MoveScoreTooltip";
+import { formatUtility, useMoveScoreTooltip } from "./MoveScoreTooltip";
 import PremiumDefense, {
   createPremiumReplyChance,
   PremiumRiskButton,
@@ -522,12 +522,6 @@ export default function Results({
     () => Object.fromEntries(resultSet?.head.map(({ id }, index) => [id, index + 1]) ?? []),
     [resultSet],
   );
-  const scoreTooltip = useMoveScoreTooltip(analysisGame, (move) => {
-    const delta = replyDeltas[move.id];
-    const adjusted = replyAdjustedPoints(move, delta);
-    if (!showAdjustedPoints || delta === undefined || adjusted === undefined) return;
-    return `${move.score} pts − (${signedPoints(delta, 1)} Δ Reply) = ${Number(adjusted.toFixed(1))} reply-adjusted pts`;
-  });
   const [inspectedDefense, setInspectedDefense] = useState<{
     move: Move;
     risk: MoveDefense;
@@ -580,6 +574,17 @@ export default function Results({
     fetchPage,
     !busy && !error && !waitingForEndgame,
   );
+  const scoreTooltip = useMoveScoreTooltip(analysisGame, (move) => {
+    const delta = replyDeltas[move.id];
+    const adjusted = replyAdjustedPoints(move, delta);
+    if (!showAdjustedPoints || delta === undefined || adjusted === undefined) return;
+    return `${move.score} pts − (${signedPoints(delta, 1)} Δ Reply) = ${Number(adjusted.toFixed(1))} reply-adjusted pts`;
+  }, (move) => {
+    const utility = page.utilities?.[move.id];
+    return profile && utility
+      ? { profile, utility, checksDefense: profile === "strong" && bagSize > 0 }
+      : undefined;
+  });
   const total = shortlistActive ? filteredShortlist.length : page.total;
   const exactCount = page.exactEndgameCount ?? 0;
   const endgameDivider = exactCount > 0 && exactCount < total ? exactCount : -1;
@@ -769,7 +774,7 @@ export default function Results({
           onPreview(null);
         }}
       >
-        <option value="">Playing style</option>
+        <option value="">No style</option>
         {PLAYER_PROFILES.map((profile) => (
           <option key={profile} value={profile}>{PLAYER_PROFILE_LABELS[profile]}</option>
         ))}
@@ -859,7 +864,7 @@ export default function Results({
   return (
     <section
       aria-label="Possible moves"
-      className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${showEndgameSwing ? " with-endgame-estimates" : ""}${showAdjustedPoints ? " with-adjusted-points" : ""}`}
+      className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${showEndgameSwing ? " with-endgame-estimates" : ""}${(showAdjustedPoints || profile) ? " with-third-score-line" : ""}`}
       style={{
         "--move-row-height": `${moveRowHeight}px`,
         "--result-rank-digits": String(totalMoves).length,
@@ -1274,6 +1279,8 @@ export default function Results({
                 const adjustedLabel = adjusted === undefined
                   ? undefined
                   : Number(adjusted.toFixed(1));
+                const utility = page.utilities?.[m.id];
+                const utilityTotal = utility && formatUtility(utility.total);
                 const estimate = page.endgame?.[m.id];
                 const exactLine = showEndgameSwing
                   ? replyAnalysis.cachedEndgame(m.id)
@@ -1368,7 +1375,7 @@ export default function Results({
                         !selected &&
                         candidates.length >= ANALYSIS_LIMIT
                       }
-                      aria-label={`${m.word}, ${m.score} points, ${movePosition} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrificeLabel}${adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : extraLabel ? `, ${extraLabel}` : ""}${scoreRankLabel ? `, ${scoreRankLabel}` : ""}${histogramSelected ? ", selected for reply details" : ""}`}
+                      aria-label={`${m.word}, ${m.score} points, ${movePosition} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrificeLabel}${utility ? `, Utility ${utilityTotal}, rank ${utility.rank} by playing style` : adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : extraLabel ? `, ${extraLabel}` : ""}${scoreRankLabel ? `, ${scoreRankLabel}` : ""}${histogramSelected ? ", selected for reply details" : ""}`}
                       onPointerDown={(e) => {
                         pointer.current = e.pointerType;
                       }}
@@ -1447,8 +1454,10 @@ export default function Results({
                         >
                           {topScore === null ? "—" : signedPoints(-sacrifice)}
                         </small>
-                        {adjustedLabel !== undefined && (
-                          <small className="result-score-adjusted">Adj. {adjustedLabel}</small>
+                        {utility ? (
+                          <small className="result-score-extra">U {utilityTotal}</small>
+                        ) : adjustedLabel !== undefined && (
+                          <small className="result-score-extra">Adj. {adjustedLabel}</small>
                         )}
                       </span>
                       {showEndgameSwing ? (
@@ -1545,7 +1554,7 @@ export default function Results({
                     {analysisGame &&
                       scoreTooltip.trigger(
                         m,
-                        `Score breakdown for ${m.word} at ${moveLocation(m)} ${m.direction}`,
+                        `${utility ? "Utility" : "Score"} breakdown for ${m.word} at ${moveLocation(m)} ${m.direction}`,
                       )}
                     {!showEndgameSwing && replyPending && (
                       <span
