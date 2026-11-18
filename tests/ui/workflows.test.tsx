@@ -32,6 +32,7 @@ import { solve, solvePositionWithBaseline } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
 import { REPLY_LIMIT, REPLY_SAMPLES, replyEndgameLine, type ReplyDistribution, type ReplyRequest, type ReplyWorkerMessage } from "../../shared/reply-analysis";
 import { MoveResultIndex } from "../../shared/move-results";
+import { createPlayerProfiles } from "../../shared/player-profiles";
 import { prepareEndgameEstimate } from "../../shared/endgame-estimate";
 import type { SolverMessage, SolverRequest } from "../../src/solver-messages";
 import type { PracticeRequest } from "../../src/practice.worker";
@@ -179,11 +180,10 @@ test("compare mode selects moves without playing and switches model without reru
     ) {
       if ("kind" in request) return super.postMessage(request);
       runs++;
-      const result = analyzeMoves(
-        new Lexicon(["AT", "CAT", "CATS", "ACT", "DOG", "RAT", "ART", "TAR"]),
-        { ...request, trials: 8 },
-        new Set(["AT", "CAT", "DOG", "ART"]),
-      );
+      const words = ["AT", "CAT", "CATS", "ACT", "DOG", "RAT", "ART", "TAR"];
+      const lexicon = new Lexicon(words);
+      const choose = createPlayerProfiles(lexicon, request.template, new Map(words.map((word) => [word, 4])));
+      const result = analyzeMoves(lexicon, { ...request, trials: 8 }, choose);
       queueMicrotask(() => this.onmessage?.({ data: { result } }));
     }
   }
@@ -214,11 +214,39 @@ test("compare mode selects moves without playing and switches model without reru
     screen.getByRole("combobox", { name: "Opponent model" }),
     "casual",
   );
+  await user.selectOptions(screen.getByRole("combobox", { name: "Opponent model" }), "learner");
   expect(runs).toBe(1);
   expect(current().rack).toBe("CATS");
   await user.click(rackTile(1));
   await user.keyboard("D");
   expect(screen.queryByRole("article", { name: /^Analysis for/ })).toBeNull();
+});
+
+test("playing style requests ranked pages and All moves restores the full list", async () => {
+  const requested: string[] = [];
+  class ProfileWorker extends SolverWorker {
+    postMessage(request: SolverRequest) {
+      if (request.kind === "page" && request.query.profile) {
+        requested.push(request.query.profile);
+        const result = this.results.get(request.searchId);
+        if (result) result.setProfile(request.query.profile, result.moves.slice(1, 2));
+      }
+      super.postMessage(request);
+    }
+  }
+  vi.stubGlobal("Worker", ProfileWorker);
+  const user = await start();
+  await typeRack(user, "CATS");
+  await user.keyboard("{Enter}");
+  await screen.findByRole("button", { name: "Analyze" });
+  const all = () => document.querySelectorAll(".result-row");
+  expect(all().length).toBeGreaterThan(1);
+  await user.selectOptions(screen.getByRole("combobox", { name: "Playing style" }), "learner");
+  await waitFor(() => expect(all()).toHaveLength(1));
+  expect(requested).toContain("learner");
+  expect(screen.getByLabelText("Sort by playing style or points")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "All moves" }));
+  await waitFor(() => expect(all().length).toBeGreaterThan(1));
 });
 
 test("phone analysis taps preview and select a move without offering Play", async () => {
@@ -318,7 +346,7 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
     ) {
       if ("kind" in request) return super.postMessage(request);
       requests.push(request);
-      const result = analyzeMoves(new Lexicon(["CATS"]), request, new Set());
+      const result = analyzeMoves(new Lexicon(["CATS"]), request, undefined);
       queueMicrotask(() => this.onmessage?.({ data: { result } }));
     }
   }
@@ -426,7 +454,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
     ) {
       if (!("kind" in request)) {
         analyses.push(request);
-        const result = analyzeMoves(lexicon, request, new Set());
+        const result = analyzeMoves(lexicon, request, undefined);
         const second = result.forecasts[1];
         if (second && !request.cachedEndgames?.[second.move.id]) {
           second.endgame = null;
@@ -680,7 +708,7 @@ test.each(["wordfeud", "crossplay"] as const)(
       postMessage(request: SolverRequest | AnalysisRequest) {
         if (!("kind" in request)) {
           analyses.push(request);
-          const result = analyzeMoves(lexicon, request, new Set());
+          const result = analyzeMoves(lexicon, request, undefined);
           queueMicrotask(() => this.onmessage?.({ data: { result } }));
         } else if (request.kind === "endgame") {
           ranks.push(request);

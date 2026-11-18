@@ -45,7 +45,6 @@ const storage: WordListStorage = {
 
 export const dictionaryUrl = (id: string) =>
   `/api/dictionaries/${encodeURIComponent(id)}`;
-export const familiarWordsUrl = "/dictionaries/moby-frequent.txt";
 
 export async function loadWordList(
   url: string,

@@ -66,7 +66,7 @@ export function reviewReplyRisk(
       trials: 24,
       seed: 8017,
     },
-    new Set(),
+    undefined,
     undefined,
     900,
   );

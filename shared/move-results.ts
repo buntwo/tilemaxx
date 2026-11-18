@@ -3,12 +3,14 @@ import type { EndgameEstimate } from "./endgame-estimate";
 import { isBingo, type BingoRules, type Move } from "./model";
 import { leaveValue } from "./move-analysis";
 import { shortlistMoves } from "./move-shortlist";
+import type { PlayerProfile } from "./player-profiles";
 
 export const MOVE_HEAD_SIZE = 30;
 export const MOVE_PAGE_SIZE = 64;
 export const MOVE_CACHE_LIMIT = 8;
 export type MoveSort =
   | "score"
+  | "playing-style"
   | "reply-adjusted"
   | "word"
   | "position"
@@ -39,6 +41,9 @@ export interface RequiredSquares {
 
 export interface MoveQuery {
   filter: string;
+  profile?: PlayerProfile;
+  profileBagSize?: number;
+  profileSeed?: number;
   requiredSquares?: RequiredSquares;
   sort: MoveSort;
   reversed?: boolean;
@@ -67,6 +72,7 @@ export interface MovePage {
   endgame?: Record<string, EndgameEstimate>;
   exactEndgameCount?: number;
   locatedIndex?: number;
+  error?: string;
 }
 
 export function coversRequiredSquares(
@@ -105,6 +111,7 @@ const comparators: Partial<Record<MoveSort, (a: Move, b: Move) => number>> = {
 export function defaultSortDescending(sort: MoveSort) {
   return [
     "score",
+    "playing-style",
     "reply-adjusted",
     "equity",
     "endgame",
@@ -197,6 +204,7 @@ export class MoveResultIndex {
   private endgame?: { id: number; estimates: Map<string, EndgameEstimate> };
   private readonly bingoCount: number;
   private readonly scoreRanks = new Map<string, number>();
+  private profileOrder?: { key: string; moves: readonly Move[] };
 
   constructor(
     readonly moves: readonly Move[],
@@ -236,6 +244,15 @@ export class MoveResultIndex {
     return shortlistMoves(this.moves, options);
   }
 
+  hasProfile(key: string) {
+    return this.profileOrder?.key === key;
+  }
+
+  setProfile(key: string, moves: readonly Move[]) {
+    this.profileOrder = { key, moves };
+    this.ordered = undefined;
+  }
+
   setEndgame(
     id: number,
     estimates: Map<string, EndgameEstimate>,
@@ -251,6 +268,9 @@ export class MoveResultIndex {
 
   page({
     filter,
+    profile,
+    profileBagSize,
+    profileSeed,
     requiredSquares,
     offset,
     locateMoveId,
@@ -260,19 +280,20 @@ export class MoveResultIndex {
     const word = filter.trim().toUpperCase();
     const estimates =
       this.endgame?.id === endgameId ? this.endgame?.estimates : undefined;
-    const key = JSON.stringify([word, requiredSquares, order, endgameId]);
+    const source = profile ? this.profileOrder?.moves ?? [] : this.moves;
+    const key = JSON.stringify([word, profile, profileBagSize, profileSeed, requiredSquares, order, endgameId]);
     if (this.ordered?.key !== key) {
       const matches =
         word || requiredSquares?.indices.length
-          ? this.moves.filter(
+          ? source.filter(
               (move) =>
                 move.word.includes(word) &&
                 (!requiredSquares ||
                   coversRequiredSquares(move, requiredSquares)),
             )
-          : this.moves;
+          : source;
       const compare =
-        order.sort === "score" && !order.reversed
+        (!profile && order.sort === "score" && !order.reversed) || order.sort === "playing-style"
           ? undefined
           : moveComparator(order, estimates);
       const moves = compare ? [...matches].sort(compare) : matches;

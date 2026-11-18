@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 const assets = [
   "/index.html",
   "/favicon.svg",
-  "/dictionaries/moby-frequent.txt",
+  "/dictionaries/wordfreq-en-3.1.1.msgpack.gz",
   ...(await readdir("dist/assets")).sort().map((name) => `/assets/${name}`),
 ];
 // Tesseract chooses the SIMD or portable LSTM engine. These JS files embed WASM.

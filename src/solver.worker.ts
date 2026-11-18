@@ -26,8 +26,13 @@ import {
   type EndgameEstimate,
 } from "../shared/endgame-estimate";
 import type { SolverMessage, SolverRequest } from "./solver-messages";
+import { createPlayerProfiles, profileWordHash } from "../shared/player-profiles";
+import { loadWordFrequencies } from "./word-frequencies";
+import { rackComposition } from "../shared/rack-entry";
 
-const results = new Map<number, MoveResultIndex>();
+type SolveRequest = Extract<SolverRequest, { kind: "solve" }>;
+const results = new Map<number, MoveResultIndex & { position: SolveRequest; lexicon: Lexicon }>();
+let models: { lexicon: Lexicon; templateKey: string; choose: ReturnType<typeof createPlayerProfiles> } | undefined;
 let activeSolve: { id: number; abort: AbortController } | undefined;
 let activeEndgame: { id: number; abort: AbortController } | undefined;
 let dictionary:
@@ -40,6 +45,33 @@ const yieldToQueries = () => new Promise((resolve) => setTimeout(resolve, 0));
 const ENDGAME_ESTIMATE_TIME_MS = 2_500;
 const ENDGAME_ESTIMATE_MOVES = 4_000;
 const ENDGAME_ESTIMATE_MOVE_MS = 80;
+
+async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind: "page" }>) {
+  const result = results.get(searchId);
+  const { profile, profileBagSize = 0, profileSeed = 0 } = query;
+  const key = JSON.stringify([profile, profileBagSize, profileSeed]);
+  if (result && profile && !result.hasProfile(key)) {
+    try {
+      const frequencies = await loadWordFrequencies();
+      if (results.get(searchId) !== result) return post({ id, kind: "page" });
+      const { position, lexicon } = result;
+      const templateKey = JSON.stringify(position.template);
+      if (models?.lexicon !== lexicon || models.templateKey !== templateKey) {
+        models = { lexicon, templateKey, choose: createPlayerProfiles(lexicon, position.template, frequencies) };
+      }
+      const seed = profileWordHash(`${position.board.join(".")}:${rackComposition(position.rack)}`);
+      const { considered } = models.choose(result.moves, profile, {
+        ...position, bagSize: profileBagSize, seed, playerSeed: profileSeed,
+      }, { all: true, scoreOrdered: true });
+      result.setProfile(key, considered ?? []);
+    } catch (error) {
+      const page = { ...result.page(query), rows: [], head: [], total: 0, bingoCount: 0,
+        error: error instanceof Error ? error.message : "The playing style could not be loaded." };
+      return post({ id, kind: "page", page });
+    }
+  }
+  post({ id, kind: "page", page: result?.page(query) });
+}
 
 async function rankEndgame(
   request: Extract<SolverRequest, { kind: "endgame" }>,
@@ -126,12 +158,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       if (activeEndgame?.id === request.id) activeEndgame.abort.abort();
       return;
     case "page":
-      post({
-        id: request.id,
-        kind: "page",
-        page: results.get(request.searchId)?.page(request.query),
-      });
-      return;
+      return fetchPage(request);
     case "shortlist":
       post({
         id: request.id,
@@ -189,7 +216,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     );
     const movesElapsed = performance.now() - start;
     const indexingStart = performance.now();
-    const result = new MoveResultIndex(moves, template);
+    const result = Object.assign(new MoveResultIndex(moves, template), { position: request, lexicon });
     const exchangePlays = warnings.length
       ? undefined
       : exchangeAdvicePlays(request, template, moves);

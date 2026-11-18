@@ -35,6 +35,7 @@ import {
   REPLY_SAMPLES,
 } from "../../shared/reply-analysis";
 import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
+import { PLAYER_PROFILES, PLAYER_PROFILE_LABELS, profileWordHash, type PlayerProfile } from "../../shared/player-profiles";
 import { endgameAfterRefill } from "../../shared/endgame-refill";
 import { rackLetters } from "../../shared/rack-entry";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
@@ -334,8 +335,11 @@ export default function Results({
   const replyMetricId = useId();
   const [candidates, setCandidates] = useState<Move[]>([]);
   const [shortlistSearch, setShortlistSearch] = useState<number>();
+  const [playingStyle, setPlayingStyle] = useState<{ gameId: string; profile: PlayerProfile }>();
   const shortlistActive =
     !!analysisGame && !!resultSet && shortlistSearch === resultSet.searchId;
+  const profile = resultSet && playingStyle && playingStyle.gameId === analysisGame?.id && !shortlistActive
+    ? playingStyle.profile : undefined;
   const totalMoves = resultSet?.total ?? 0;
   const endgame = !!analysisGame && replyAnalysis.bagSize === 0;
   const rackOdds = endgame ? undefined : calculatedRackOdds;
@@ -425,15 +429,16 @@ export default function Results({
   const activeOrder = ordering?.searchId === searchId ? ordering : undefined;
   const ranking =
     replyEnabled && !shortlistActive ? replyAnalysis.ranking : undefined;
-  const waitingForEndgame = replyEnabled && replyAnalysis.estimatingEndgame;
+  const waitingForEndgame = replyEnabled && !profile && replyAnalysis.estimatingEndgame;
   const endgameProgress = replyEnabled ? replyAnalysis.endgameProgress : undefined;
   const endgameRanked = !!ranking?.checked;
   const showEndgameSwing =
     endgameRanked || (replyEnabled && !shortlistActive && !!replyAnalysis.exactEndgameSpreads);
-  const sort =
+  const sort = profile && !activeOrder ? "playing-style" :
     activeOrder &&
     (activeOrder.sort !== "endgame" || showEndgameSwing) &&
     (activeOrder.sort !== "reply-adjusted" || canSortAdjusted) &&
+    (activeOrder.sort !== "playing-style" || profile) &&
     (!endgame || (activeOrder.sort !== "bingo-draw" && activeOrder.sort !== "board-bingo"))
       ? activeOrder.sort
       : showEndgameSwing
@@ -443,7 +448,7 @@ export default function Results({
           : "score";
   const reversed =
     (activeOrder?.sort === sort && activeOrder.reversed) || false;
-  const pointsSorted = sort === "score" || sort === "reply-adjusted";
+  const pointsSorted = sort === "score" || sort === "reply-adjusted" || sort === "playing-style";
   function setSort(sort: MoveSort, reversed = false) {
     setOrdering({ searchId, sort, reversed });
   }
@@ -555,6 +560,9 @@ export default function Results({
     resultSet,
     {
       filter,
+      profile,
+      profileBagSize: profile ? bagSize : undefined,
+      profileSeed: profile && analysisGame ? profileWordHash(analysisGame.id) : undefined,
       requiredSquares,
       sort: shortlistActive || sort === "shortlist" ? "score" : sort,
       reversed: !shortlistActive && reversed,
@@ -566,7 +574,7 @@ export default function Results({
       boardOdds: sort === "board-bingo" ? boardOdds : undefined,
       replyDeltas:
         sort === "reply" || sort === "reply-adjusted" ? replyDeltas : undefined,
-      endgameId: endgameRanked ? ranking.id : undefined,
+      endgameId: !profile && endgameRanked ? ranking.id : undefined,
       exactEndgameSpreads: sort === "endgame" ? replyAnalysis.exactEndgameSpreads : undefined,
     },
     fetchPage,
@@ -580,7 +588,7 @@ export default function Results({
   const pagePending = shortlistActive
     ? shortlistResult?.searchId !== searchId
     : page.pending;
-  const bingoCount = requiredSquares
+  const bingoCount = profile ? page.bingoCount : requiredSquares
     ? shortlistActive
       ? filteredShortlist.filter((move) => isBingo(bingoRules, move.tiles.length)).length
       : page.bingoCount
@@ -607,7 +615,7 @@ export default function Results({
     setInspectedReply((current) => current?.histogramSelected ? undefined : current);
     setFollowHistogram(undefined);
     scoreTooltip.close();
-  }, [resultSet, filter, requiredSquares, sort, reversed, shortlistActive]);
+  }, [resultSet, filter, requiredSquares, sort, reversed, shortlistActive, profile]);
   useEffect(() => {
     const index = page.locatedIndex;
     const list = scroller.current;
@@ -707,9 +715,10 @@ export default function Results({
     >
       <button
         type="button"
-        aria-pressed={!shortlistActive}
+        aria-pressed={!shortlistActive && !profile}
         onClick={() => {
-          if (!shortlistActive) return;
+          if (!shortlistActive && !profile) return;
+          setPlayingStyle(undefined);
           setShortlistSearch(undefined);
           setOrdering(undefined);
         }}
@@ -720,6 +729,7 @@ export default function Results({
         type="button"
         aria-pressed={shortlistActive}
         onClick={() => {
+          setPlayingStyle(undefined);
           setShortlistSearch(searchId);
           setSort("shortlist");
         }}
@@ -745,6 +755,25 @@ export default function Results({
     <div className="move-list-controls">
       {viewPicker}
       {solveEndgame}
+      <select
+        className="move-playing-style"
+        aria-label="Playing style"
+        title="Show the moves a player is likely to spot, ranked by their playing style"
+        value={profile ?? ""}
+        onChange={(event) => {
+          const value = event.target.value as PlayerProfile | "";
+          setPlayingStyle(value && analysisGame ? { gameId: analysisGame.id, profile: value } : undefined);
+          setShortlistSearch(undefined);
+          setOrdering(undefined);
+          setLocked(null);
+          onPreview(null);
+        }}
+      >
+        <option value="">Playing style</option>
+        {PLAYER_PROFILES.map((profile) => (
+          <option key={profile} value={profile}>{PLAYER_PROFILE_LABELS[profile]}</option>
+        ))}
+      </select>
     </div>
   );
   const searchField = (
@@ -892,7 +921,7 @@ export default function Results({
               </span>
             )}
             <span className="count-badge" title={requiredSquares ? "Moves covering the selected squares" : undefined}>
-              {requiredSquares && pagePending ? "…" : (requiredSquares ? total : totalMoves).toLocaleString()}
+              {(requiredSquares || profile) && pagePending ? "…" : (requiredSquares || profile ? total : totalMoves).toLocaleString()}
             </span>
           </div>
         )}
@@ -938,6 +967,7 @@ export default function Results({
               setSearchOpen(false);
               setOrdering(undefined);
               setShortlistSearch(undefined);
+              setPlayingStyle(undefined);
               setInspectedReply(undefined);
               setHeatmap(undefined);
               focusFindMoves.current = true;
@@ -1068,6 +1098,8 @@ export default function Results({
             Skip endgame analysis
           </button>
         </div>
+      ) : profile && page.error ? (
+        <div className="results-empty" role="status"><p>{page.error}</p></div>
       ) : !shortlistActive && page.unavailable ? (
         <div className="results-empty">
           <p role="status">
@@ -1085,7 +1117,7 @@ export default function Results({
       ) : !total ? (
         <div className="results-empty">
           <Search size={30} />
-          <h3>{totalMoves ? "No matching words" : "No legal moves found"}</h3>
+          <h3>{profile && !filter && !requiredSquares ? "No moves spotted" : totalMoves ? "No matching words" : "No legal moves found"}</h3>
           <p>
             {!totalMoves
               ? "Check your rack and board, or try a different dictionary."
@@ -1142,10 +1174,10 @@ export default function Results({
               {column("WORD", "word", "word")}
             </div>
             <div className="result-points-heading">
-              {canSortAdjusted ? (
+              {canSortAdjusted || profile ? (
                 <ResultSortMenu
-                  label={sort === "reply-adjusted" ? "ADJ. PTS" : "PTS"}
-                  accessibleLabel="Sort by points or reply-adjusted points"
+                  label={sort === "playing-style" ? "STYLE" : sort === "reply-adjusted" ? "ADJ. PTS" : "PTS"}
+                  accessibleLabel={profile ? "Sort by playing style or points" : "Sort by points or reply-adjusted points"}
                   sortDirection={
                     pointsSorted
                       ? reversed ? "ascending" : "descending"
@@ -1153,7 +1185,11 @@ export default function Results({
                   }
                 >
                   {column("Points", "score", "points")}
-                  {column("Reply-adjusted points", "reply-adjusted", "reply-adjusted points")}
+                  {canSortAdjusted && column("Reply-adjusted points", "reply-adjusted", "reply-adjusted points")}
+                  {profile && (
+                    <button className="result-column-sort" type="button" aria-pressed={sort === "playing-style"}
+                      onClick={() => setSort("playing-style")}>Playing style</button>
+                  )}
                 </ResultSortMenu>
               ) : (
                 column("PTS", "score", "points")
