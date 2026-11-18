@@ -4426,9 +4426,9 @@ label + label {
   min-height: 0;
   background: #17251e66;
   color: #f3f7f3;
-  font: 700 10px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 700 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
   /* Fit a three-character coordinate when custom boards have narrow squares. */
-  font-size: min(10px, calc((100cqw - var(--axis-width) - var(--size) * var(--board-gap)) / var(--size) / 1.82));
+  font-size: min(12px, calc((100cqw - var(--axis-width) - var(--size) * var(--board-gap)) / var(--size) / 1.82));
   text-shadow: 0 1px 2px #07130e;
 }
 .board-coordinate-label[data-match] {
