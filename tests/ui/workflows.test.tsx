@@ -1637,7 +1637,7 @@ test("board hover shows both word scores on a shared ending and keeps them acros
   await user.keyboard("CAT");
   await user.click(cell("Record opponent move"));
   await user.click(cell("I6: empty"));
-  await user.keyboard("{ArrowDown}AR");
+  await user.keyboard("AR");
   const end = cell("I8: T");
   const grid = end.closest(".board-grid")!;
   const mouseOver = (element: Element) => {
@@ -1691,6 +1691,33 @@ test("direct entry, skip existing letters, blanks, erase, undo/redo and persiste
   await store.flush();
   expect(remote.games[0].board).toEqual(current().board);
   expect(current().rack).toBe("");
+});
+
+test("board selection infers direction from committed tiles and leaves Alt+B across", async () => {
+  const user = await start();
+  const direction = () => cell("Toggle entry direction").textContent;
+  await user.click(cell("G8: empty"));
+  await user.keyboard("CAT");
+
+  await user.click(cell("I6: empty"));
+  expect(direction()).toBe("Down");
+  await user.click(cell("I6: empty"));
+  expect(direction()).toBe("Across");
+  await user.click(cell("I6: empty"));
+  expect(direction()).toBe("Down");
+  await user.keyboard("AR");
+  expect([83, 98, 113].map((index) => current().board[index])).toEqual(["A", "R", "T"]);
+
+  await user.click(cell("H6: empty"));
+  expect(direction()).toBe("Across"); // Both the row and column have tiles.
+  await user.click(cell("I5: empty"));
+  expect(direction()).toBe("Down");
+  await user.click(cell("A1: TW"));
+  expect(direction()).toBe("Across"); // Neither axis has tiles.
+
+  await user.keyboard("{Alt>}b{/Alt}i5");
+  expect(selectedCell()).toBe("68");
+  expect(direction()).toBe("Across");
 });
 
 test("right/down switch direction first, then advance; left/up always move without turning", async () => {

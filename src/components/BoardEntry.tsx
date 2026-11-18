@@ -12,7 +12,10 @@ import {
 import { ArrowDown, ArrowRight, Trash2 } from "lucide-react";
 import Board from "./Board";
 import { parseBoardCoordinate } from "./BoardCoordinates";
-import { BoardEditHistory } from "../../shared/board-entry";
+import {
+  BoardEditHistory,
+  inferBoardEntryDirection,
+} from "../../shared/board-entry";
 import { boardWordsAt } from "../../shared/game-scoring";
 import {
   coordinate,
@@ -64,6 +67,7 @@ export default function BoardEntry({
   overlay?: ReactNode;
 }) {
   const history = useRef(new BoardEditHistory());
+  const board = displayBoard ?? game.board;
   const wordScores = useCallback(
     (index: number) => boardWordsAt(game, index),
     [game],
@@ -71,7 +75,10 @@ export default function BoardEntry({
   return (
     <BoardInput
       ref={displayBoard ? undefined : ref}
-      board={displayBoard ?? game.board}
+      board={board}
+      directionForSquare={(index) =>
+        inferBoardEntryDirection(board, index, game.template.size)
+      }
       hideHelp={hideHelp}
       readOnly={readOnly}
       archivedBoard={game.archived ? game.archivedBoard : undefined}
@@ -104,6 +111,7 @@ export function BoardInput({
   onSolve,
   onBreak,
   onCursorChange,
+  directionForSquare,
   selection,
   uncertain,
   inputLabel = "Type on board",
@@ -124,6 +132,7 @@ export function BoardInput({
   onSolve?: () => void;
   onBreak?: () => void;
   onCursorChange?: (index: number | null) => void;
+  directionForSquare?: (index: number) => Direction;
   selection?: { index: number };
   uncertain?: ReadonlySet<number>;
   inputLabel?: string;
@@ -284,9 +293,9 @@ export function BoardInput({
   function select(i: number, repeatTap?: boolean) {
     resetHistory();
     setCoordinateQuery(null);
-    if (locating) setDirection("across");
     if (!locating && (repeatTap ?? (focused && i === selected))) toggleDirection();
     else {
+      setDirection(locating ? "across" : (directionForSquare?.(i) ?? direction));
       setSelected(i);
       setPendingBlank(false);
       setAtEnd(false);

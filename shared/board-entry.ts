@@ -13,6 +13,21 @@ import {
 
 type EditKind = keyof typeof BOARD_EDIT_LABELS;
 
+export function inferBoardEntryDirection(
+  board: readonly string[],
+  index: number,
+  size: number,
+): "across" | "down" {
+  const row = Math.floor(index / size);
+  const column = index % size;
+  let touchesColumn = false;
+  for (let offset = 0; offset < size; offset++) {
+    if (offset !== column && board[row * size + offset]) return "across";
+    if (offset !== row && board[offset * size + column]) touchesColumn = true;
+  }
+  return touchesColumn ? "down" : "across";
+}
+
 // Local save acknowledgments retain the position and history references.
 function sameEditPosition(a: Game, b: Game) {
   return (
