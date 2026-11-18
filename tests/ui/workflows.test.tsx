@@ -231,8 +231,8 @@ test("playing style requests ranked pages and All moves restores the full list",
         const result = this.results.get(request.searchId);
         if (result) result.setProfile(request.query, result.moves.slice(1, 2).map((move) => ({
           move, utility: {
-            total: 8.15, points: 8.5, premium: 0, familiarity: -0.55,
-            crosswords: 0, length: 0, leave: 0.2, goingOut: 0,
+            total: 7, points: 8.5, premium: 0, familiarity: -0.55,
+            crosswords: 0, length: 0, leave: 0.2, goingOut: 0, premiumLane: -1.15,
           },
         })));
       }
@@ -252,7 +252,7 @@ test("playing style requests ranked pages and All moves restores the full list",
   await waitFor(() => expect(all()).toHaveLength(1));
   expect(requested).toContain("learner");
   expect(screen.getByLabelText("Sort by playing style or points")).toBeTruthy();
-  expect(within(all()[0] as HTMLElement).getByText("U 8.15")).toBeTruthy();
+  expect(within(all()[0] as HTMLElement).getByText("U 7")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: /^Utility breakdown for/ }));
   const tooltip = within(screen.getByRole("tooltip"));
   expect(tooltip.getByText("Utility breakdown")).toBeTruthy();
@@ -260,11 +260,13 @@ test("playing style requests ranked pages and All moves restores the full list",
   expect(tooltip.getByText("Weighted points")).toBeTruthy();
   expect(tooltip.getByText("Word familiarity")).toBeTruthy();
   expect(tooltip.getByText("Rack leave")).toBeTruthy();
+  expect(tooltip.getByText("Premium lane risk")).toBeTruthy();
+  expect(tooltip.getByText("-1.15").classList.contains("value-bad")).toBe(true);
   expect(tooltip.queryByText("Score breakdown")).toBeNull();
   expect(current().board.some(Boolean)).toBe(false);
   await user.click(screen.getByRole("button", { name: "All moves" }));
   await waitFor(() => expect(all().length).toBeGreaterThan(1));
-  expect(screen.queryByText("U 8.15")).toBeNull();
+  expect(screen.queryByText("U 7")).toBeNull();
   expect(screen.getAllByRole("button", { name: /^Score breakdown for/ }).length).toBeGreaterThan(0);
 });
 

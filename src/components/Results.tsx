@@ -582,7 +582,7 @@ export default function Results({
   }, (move) => {
     const utility = page.utilities?.[move.id];
     return profile && utility
-      ? { profile, utility, checksDefense: profile === "strong" && bagSize > 0 }
+      ? { profile, utility, checksDefense: profile !== "casual" && bagSize > 0 }
       : undefined;
   });
   const total = shortlistActive ? filteredShortlist.length : page.total;

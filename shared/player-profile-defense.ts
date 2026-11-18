@@ -2,11 +2,13 @@ import type { Lexicon } from "./lexicon";
 import {
   tileScore,
   wordBonuses,
+  type Board,
   type BoardTemplate,
   type Move,
   type Position,
 } from "./model";
 import { choose, unseenTiles } from "./tile-pool";
+import { createPremiumLaneRisk } from "./player-profile-lanes";
 
 export function createProfileDefense(
   lexicon: Lexicon,
@@ -40,12 +42,13 @@ export function createProfileDefense(
       ? next
       : -1;
   }
-  return (position: Position, bagSize: number) => {
-    const pool = unseenTiles(position, template);
-    const draws = Math.max(
-      0,
-      Math.min(pool.total - bagSize, template.rackSize),
-    );
+  const premiumLaneRisk = createPremiumLaneRisk(template, crossMask);
+
+  function createHookRisk(
+    board: Board,
+    pool: ReturnType<typeof unseenTiles>,
+    draws: number,
+  ) {
     const combinations = choose(pool.total, draws);
     const chance = pool.tiles.map(
       ({ count }) => 1 - choose(pool.total - count, draws) / combinations,
@@ -58,7 +61,6 @@ export function createProfileDefense(
               probability ? mask | (1 << index) : mask,
             0,
           );
-    const board = [...position.board];
     function risk(cell: number) {
       if (board[cell]) return 0;
       let base = 0;
@@ -110,7 +112,6 @@ export function createProfileDefense(
       let opened = 0;
       let closed = 0;
       const checked = new Set<number>();
-      for (const { index, letter } of move.tiles) board[index] = letter;
       for (const { index } of move.tiles) {
         for (const target of affected[index]) {
           if (checked.has(target) || !before.has(target)) continue;
@@ -120,8 +121,32 @@ export function createProfileDefense(
           closed = Math.max(closed, -delta);
         }
       }
-      for (const { index } of move.tiles) board[index] = "";
       return opened - closed;
+    };
+  }
+
+  return (position: Position, bagSize: number, checkHooks: boolean) => {
+    const pool = unseenTiles(position, template);
+    const draws = Math.max(
+      0,
+      Math.min(pool.total - bagSize, template.rackSize),
+    );
+    const board = [...position.board];
+    const hookRisk = checkHooks
+      ? createHookRisk(board, pool, draws)
+      : undefined;
+    const laneRisk = premiumLaneRisk(
+      board,
+      pool.tiles.map(({ count }) => count),
+      draws,
+    );
+    return (move: Move) => {
+      for (const { index, letter } of move.tiles) board[index] = letter;
+      try {
+        return { hook: hookRisk?.(move), lane: laneRisk?.() };
+      } finally {
+        for (const { index } of move.tiles) board[index] = "";
+      }
     };
   };
 }

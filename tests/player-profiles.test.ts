@@ -4,6 +4,9 @@ import { test } from "node:test";
 import { gunzipSync } from "node:zlib";
 import { Lexicon } from "../shared/lexicon";
 import { emptyBoard, type Move } from "../shared/model";
+import { moveLocation } from "../shared/notation";
+import { createPremiumLaneRisk } from "../shared/player-profile-lanes";
+import { unseenTiles } from "../shared/tile-pool";
 import { analyzeMoves } from "../shared/move-analysis";
 import { MoveResultIndex } from "../shared/move-results";
 import {
@@ -230,4 +233,77 @@ test("fast picking agrees with full ranked results on a two-blank rack", () => {
       }
     }
   }
+});
+
+test("only the stronger profiles account for new lanes, with Strong imposing the larger cost", () => {
+  const template = PRESETS.find(({ id }) => id === "lexulous")!;
+  const board = emptyBoard(template.size);
+  board[18] = "H";
+  board[33] = "E";
+  const rack = "WWUTNKHE";
+  const bagSize =
+    unseenTiles({ board, rack }, template).total - template.rackSize;
+  const words = ["HE", "WHEW", "WHEN"];
+  const lexicon = new Lexicon(words);
+  const choose = createPlayerProfiles(
+    lexicon,
+    template,
+    new Map(words.map((word) => [word, 4])),
+  );
+  const legal = solve(lexicon, board, rack, template);
+  const opening = legal.find(
+    (move) => move.word === "WHEW" && moveLocation(move) === "D1",
+  )!;
+  const safer = legal.find(
+    (move) => move.word === "WHEN" && moveLocation(move) === "2C",
+  )!;
+  assert.ok(opening && safer);
+  const moves = [safer, opening];
+  const position = { board, rack, bagSize, seed: 0, playerSeed: 17 };
+  const penalties = PLAYER_PROFILES.map(
+    (profile) =>
+      choose(moves, profile, position, {
+        all: true,
+        scoreOrdered: true,
+      }).considered!.find(({ move }) => move === opening)!.utility.premiumLane,
+  );
+  assert.deepEqual(
+    penalties.map((value) => value?.toFixed(2)),
+    [undefined, "-1.15", "-3.44"],
+  );
+  const strong = choose(moves, "strong", position, { scoreOrdered: true });
+  assert.equal(strong.beforeDefense?.id, opening.id);
+  assert.equal(strong.move?.id, safer.id);
+  assert.equal(
+    choose(
+      moves,
+      "strong",
+      { ...position, bagSize: 0 },
+      { all: true },
+    ).considered!.find(({ move }) => move === opening)?.utility.premiumLane,
+    undefined,
+  );
+});
+
+test("a premium pair must fit one rack and have possible side words", () => {
+  const template = PRESETS.find(({ id }) => id === "lexulous")!;
+  const lexicon = new Lexicon(["AZ"]);
+  const risk = createPremiumLaneRisk(template, (prefix, suffix) =>
+    lexicon.crossMask(prefix, suffix),
+  );
+  const counts = Array<number>(27).fill(1);
+  counts[26] = 0;
+  const measure = (rackSize: number) => {
+    const board = emptyBoard(template.size);
+    board[16] = "Z"; // B2 requires an A at B1.
+    const delta = risk(board, counts, rackSize)!;
+    board[3] = "W";
+    return delta();
+  };
+  assert.ok(measure(7) > 0);
+  assert.equal(measure(6), 0);
+  counts[0] = 0;
+  assert.equal(measure(7), 0);
+  counts[26] = 1;
+  assert.ok(measure(7) > 0);
 });
