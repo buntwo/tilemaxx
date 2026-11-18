@@ -1035,7 +1035,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         </button>
         <div className="sidebar-bottom">
           <div className="workspace-controls">
-            <OfflineStatus game={game} online={state.online} storageError={state.storageError} />
+            <OfflineStatus
+              game={game}
+              games={data?.games}
+              openGameId={openId}
+              online={state.online}
+              storageError={state.storageError}
+            />
             {sidebarVisible && syncStatus}
             <div className="workspace-settings-row">
               <button

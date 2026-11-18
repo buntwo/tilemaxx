@@ -7,11 +7,17 @@ import {
 } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import OfflineStatus from "../../src/components/OfflineStatus";
+import { summarizeGame } from "../../shared/game-index";
+import { prepareOfflineGames } from "../../src/offline-games";
 import { prepareOfflineApp } from "../../src/offline";
 import { loadWordList } from "../../src/word-list-cache";
 import { emptyBoard, type Game } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
 
+vi.mock("../../src/offline-games", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../src/offline-games")>(),
+  prepareOfflineGames: vi.fn(),
+}));
 vi.mock("../../src/offline", () => ({ prepareOfflineApp: vi.fn() }));
 vi.mock("../../src/word-list-cache", () => ({
   dictionaryUrl: (id: string) => `/api/dictionaries/${id}`,
@@ -113,4 +119,23 @@ test("a removed historical word list does not block current-game offline readine
   expect(vi.mocked(loadWordList).mock.calls.map(([url]) => url)).toEqual([
     "/api/dictionaries/words",
   ]);
+});
+
+test("the offline count covers active games and displays a partial download", async () => {
+  const other = { ...game, id: "other", profileId: "another" };
+  const archived = { ...game, id: "archive", archived: true };
+  const games = [other, archived, game].map(summarizeGame);
+  vi.mocked(prepareOfflineGames).mockResolvedValueOnce({
+    ready: 1,
+    total: 2,
+    message: "",
+  });
+  render(<OfflineStatus game={game} games={games} openGameId={game.id} online />);
+  const label = await screen.findByText("1 of 2 games available offline");
+  expect(label.closest("details")).toBeNull();
+  expect(prepareOfflineGames).toHaveBeenCalledWith(
+    [{ id: game.id, revision: game.revision }, { id: other.id, revision: other.revision }],
+    expect.any(Function),
+    expect.any(AbortSignal),
+  );
 });
