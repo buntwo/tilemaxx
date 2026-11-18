@@ -4688,10 +4688,14 @@ test("workspace shortcuts focus the rack and game filter, and the guide leaves r
   expect(guide()).toBeTruthy();
 });
 
-test("Alt+B selects a board square from a column or row and groups the entered word", async () => {
+test("Alt+B starts across for either coordinate order and groups the entered word", async () => {
   const user = await start();
   const overlay = () => document.querySelector(".board-coordinate-grid");
   const labels = () => [...overlay()!.querySelectorAll(".board-coordinate-label[data-match]")];
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("{ArrowDown}");
+  expect(cell("Toggle entry direction").textContent).toBe("Down");
+
   const rack = screen.getByRole("textbox", { name: "Rack letters" });
   await user.click(rackTile(1));
   fireEvent.keyDown(rack, { key: "∫", code: "KeyB", altKey: true });
@@ -4705,7 +4709,7 @@ test("Alt+B selects a board square from a column or row and groups the entered w
   );
   await user.keyboard("6CAT");
   expect(overlay()).toBeNull();
-  expect([82, 97, 112].map((index) => current().board[index])).toEqual(["C", "A", "T"]);
+  expect(current().board.slice(82, 85)).toEqual(["C", "A", "T"]);
   expect(current().rack).toBe("");
   expect(current().past).toHaveLength(1);
   await user.click(cell("Undo"));
@@ -4747,6 +4751,7 @@ test("coordinate entry stops at edges, distinguishes two-digit rows, and can be 
   await user.keyboard("h1{Enter}");
   expect(overlay()).toBeNull();
   expect(selectedCell()).toBe("7");
+  expect(cell("Toggle entry direction").textContent).toBe("Across");
 
   await startCoordinate();
   await user.keyboard("h0");
