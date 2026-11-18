@@ -92,10 +92,23 @@ export type ProfilePosition = Position & {
   seed: number;
   playerSeed: number;
 };
+export type ProfileUtility = {
+  total: number;
+  points: number;
+  premium: number;
+  familiarity: number;
+  crosswords: number;
+  length: number;
+  leave: number;
+  goingOut: number;
+  defense?: number;
+};
+
+export type RankedProfileMove = { move: Move; utility: ProfileUtility };
 export type ProfileDecision = {
   move?: Move;
   bingoFound: boolean;
-  considered?: Move[];
+  considered?: RankedProfileMove[];
   withoutLeave?: Move;
   beforeDefense?: Move;
   topReason?:
@@ -251,7 +264,12 @@ export function createPlayerProfiles(
     const { bagSize, board, seed, playerSeed, rack } = position;
     const canDefend = profile === "strong" && bagSize > 0;
     const shortlistSize = canDefend ? 4 : 1;
-    const shortlist: { move: Move; value: number; index: number }[] = [];
+    const shortlist: {
+      move: Move;
+      value: number;
+      index: number;
+      utility?: ProfileUtility;
+    }[] = [];
     const ranked: typeof shortlist = [];
     const knownWords = new Map<WordProfile, boolean>();
     const leaveScores = new Map<string, number>();
@@ -366,27 +384,40 @@ export function createPlayerProfiles(
         if (preset.premium)
           for (const tile of move.tiles)
             premium = Math.max(premium, salience[tile.index]);
-        const base =
-          preset.score * move.score +
-          preset.premium * premium -
-          penalty -
-          preset.cross * move.crosses.length -
-          preset.length * extra;
+        const points = preset.score * move.score;
+        const premiumBonus = preset.premium * premium;
+        const crosswords = -preset.cross * move.crosses.length;
+        const length = -preset.length * extra;
+        const base = points + premiumBonus - penalty + crosswords + length;
         if (options.metrics && base > bestBase) {
           bestBase = base;
           withoutLeave = move;
         }
-        let value = base;
+        let leave = 0;
+        const goingOut = !bagSize && !move.leave ? rackOut : 0;
         if (bagSize) {
-          let leave = leaveScores.get(move.leave);
-          if (leave === undefined) {
-            leave = leaveValue(move.leave);
-            leaveScores.set(move.leave, leave);
+          let estimate = leaveScores.get(move.leave);
+          if (estimate === undefined) {
+            estimate = leaveValue(move.leave);
+            leaveScores.set(move.leave, estimate);
           }
-          value += preset.leave * leave;
-        } else if (!move.leave) value += rackOut;
-        const entry = { move, value, index };
-        if (options.all) ranked.push(entry);
+          leave = preset.leave * estimate;
+        }
+        const value = base + leave + goingOut;
+        const entry: (typeof shortlist)[number] = { move, value, index };
+        if (options.all) {
+          entry.utility = {
+            total: value,
+            points,
+            premium: premiumBonus,
+            familiarity: -penalty,
+            crosswords,
+            length,
+            leave,
+            goingOut,
+          };
+          ranked.push(entry);
+        }
         const slot = shortlist.findIndex((item) => value > item.value + 1e-7);
         if (slot >= 0) shortlist.splice(slot, 0, entry);
         else if (shortlist.length < shortlistSize) shortlist.push(entry);
@@ -402,7 +433,14 @@ export function createPlayerProfiles(
         position,
         bagSize,
       );
-      for (const entry of shortlist) entry.value -= 0.65 * risk(entry.move);
+      for (const entry of shortlist) {
+        const adjustment = -0.65 * risk(entry.move);
+        entry.value += adjustment;
+        if (entry.utility) {
+          entry.utility.defense = adjustment;
+          entry.utility.total = entry.value;
+        }
+      }
       shortlist.sort((a, b) => b.value - a.value);
     }
     const move = shortlist[0]?.move;
@@ -413,7 +451,7 @@ export function createPlayerProfiles(
           : withoutLeave?.id === moves[0].id
             ? "leave"
             : "rank";
-    let considered: Move[] | undefined;
+    let considered: RankedProfileMove[] | undefined;
     if (options.all) {
       const finalists = new Set(shortlist.map((entry) => entry.move));
       considered = [
@@ -421,7 +459,7 @@ export function createPlayerProfiles(
         ...ranked
           .filter((entry) => !finalists.has(entry.move))
           .sort((a, b) => b.value - a.value || a.index - b.index),
-      ].map((entry) => entry.move);
+      ].map(({ move, utility }) => ({ move, utility: utility! }));
     }
     return {
       move,

@@ -151,6 +151,7 @@ export function useMoveResults(
     start: Math.max(start, slice?.offset ?? 0),
     visible,
     scoreRanks: page?.scoreRanks,
+    utilities: page?.utilities,
     endgame: page?.endgame,
     exactEndgameCount: page?.exactEndgameCount,
     locatedIndex: locateMoveId && !locateChanged && !orderChanged

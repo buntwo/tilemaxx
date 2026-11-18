@@ -113,18 +113,47 @@ test("profile paging preserves style order and the raw points rank", () => {
   const index = new MoveResultIndex(moves, template);
   const low = moves.at(-1)!;
   const high = moves[0];
-  index.setProfile("casual", [low, high]);
   const query = {
     filter: "",
     profile: "casual",
     sort: "playing-style",
     offset: 0,
   } as const;
+  index.setProfile(
+    query,
+    [low, high].map((move) => ({
+      move,
+      utility: {
+        total: move.score,
+        points: move.score,
+        premium: 0,
+        familiarity: 0,
+        crosswords: 0,
+        length: 0,
+        leave: 0,
+        goingOut: 0,
+      },
+    })),
+  );
   const page = index.page(query);
   assert.deepEqual(page.rows, [low, high]);
   assert.equal(page.scoreRanks[low.id], moves.length);
-  assert.deepEqual(index.page({ ...query, sort: "score" }).rows, [high, low]);
-  assert.deepEqual(index.page({ ...query, filter: low.word }).rows, [low]);
+  const byPoints = index.page({ ...query, sort: "score" });
+  assert.deepEqual(byPoints.rows, [high, low]);
+  assert.equal(byPoints.utilities?.[low.id].rank, 1);
+  assert.equal(byPoints.utilities?.[high.id].rank, 2);
+  const filtered = index.page({ ...query, filter: high.word });
+  assert.deepEqual(filtered.rows, [high]);
+  assert.deepEqual(Object.keys(filtered.utilities ?? {}), [high.id]);
+  assert.equal(filtered.utilities?.[high.id].rank, 2);
+  assert.equal(
+    index.page({ ...query, profile: undefined }).utilities,
+    undefined,
+  );
+  assert.equal(
+    index.page({ ...query, profile: "strong" }).utilities,
+    undefined,
+  );
   assert.equal(
     index.page({ ...query, profile: undefined }).total,
     moves.length,
@@ -193,7 +222,12 @@ test("fast picking agrees with full ranked results on a two-blank rack", () => {
         scoreOrdered: true,
         all: true,
       });
-      assert.equal(fast.move?.id, full.considered?.[0]?.id);
+      assert.equal(fast.move?.id, full.considered?.[0]?.move.id);
+      for (const { utility } of full.considered ?? []) {
+        const { total, ...factors } = utility;
+        const sum = Object.values(factors).reduce((a, b) => a + b, 0);
+        assert.ok(Math.abs(total - sum) < 1e-8);
+      }
     }
   }
 });

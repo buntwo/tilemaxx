@@ -49,8 +49,7 @@ const ENDGAME_ESTIMATE_MOVE_MS = 80;
 async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind: "page" }>) {
   const result = results.get(searchId);
   const { profile, profileBagSize = 0, profileSeed = 0 } = query;
-  const key = JSON.stringify([profile, profileBagSize, profileSeed]);
-  if (result && profile && !result.hasProfile(key)) {
+  if (result && profile && !result.hasProfile(query)) {
     try {
       const frequencies = await loadWordFrequencies();
       if (results.get(searchId) !== result) return post({ id, kind: "page" });
@@ -63,7 +62,7 @@ async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind:
       const { considered } = models.choose(result.moves, profile, {
         ...position, bagSize: profileBagSize, seed, playerSeed: profileSeed,
       }, { all: true, scoreOrdered: true });
-      result.setProfile(key, considered ?? []);
+      result.setProfile(query, considered ?? []);
     } catch (error) {
       const page = { ...result.page(query), rows: [], head: [], total: 0, bingoCount: 0,
         error: error instanceof Error ? error.message : "The playing style could not be loaded." };

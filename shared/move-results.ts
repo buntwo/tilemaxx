@@ -3,7 +3,7 @@ import type { EndgameEstimate } from "./endgame-estimate";
 import { isBingo, type BingoRules, type Move } from "./model";
 import { leaveValue } from "./move-analysis";
 import { shortlistMoves } from "./move-shortlist";
-import type { PlayerProfile } from "./player-profiles";
+import type { PlayerProfile, ProfileUtility, RankedProfileMove } from "./player-profiles";
 
 export const MOVE_HEAD_SIZE = 30;
 export const MOVE_PAGE_SIZE = 64;
@@ -62,6 +62,12 @@ export interface EndgameRanking {
   head: Move[];
 }
 
+function utilityKey({ profile, profileBagSize = 0, profileSeed = 0 }: Pick<MoveQuery, "profile" | "profileBagSize" | "profileSeed">) {
+  return JSON.stringify([profile, profileBagSize, profileSeed]);
+}
+
+export type MoveUtility = ProfileUtility & { rank: number };
+
 export interface MovePage {
   offset: number;
   total: number;
@@ -69,6 +75,7 @@ export interface MovePage {
   head: Move[];
   rows: Move[];
   scoreRanks: Record<string, number>;
+  utilities?: Record<string, MoveUtility>;
   endgame?: Record<string, EndgameEstimate>;
   exactEndgameCount?: number;
   locatedIndex?: number;
@@ -204,7 +211,12 @@ export class MoveResultIndex {
   private endgame?: { id: number; estimates: Map<string, EndgameEstimate> };
   private readonly bingoCount: number;
   private readonly scoreRanks = new Map<string, number>();
-  private profileOrder?: { key: string; moves: readonly Move[] };
+  private profileOrder?: {
+    key: string;
+    moves: readonly Move[];
+    ranked: readonly RankedProfileMove[];
+    ranks: Map<string, number>;
+  };
 
   constructor(
     readonly moves: readonly Move[],
@@ -244,12 +256,17 @@ export class MoveResultIndex {
     return shortlistMoves(this.moves, options);
   }
 
-  hasProfile(key: string) {
-    return this.profileOrder?.key === key;
+  hasProfile(query: MoveQuery) {
+    return this.profileOrder?.key === utilityKey(query);
   }
 
-  setProfile(key: string, moves: readonly Move[]) {
-    this.profileOrder = { key, moves };
+  setProfile(query: MoveQuery, ranked: readonly RankedProfileMove[]) {
+    this.profileOrder = {
+      key: utilityKey(query),
+      moves: ranked.map(({ move }) => move),
+      ranked,
+      ranks: new Map(ranked.map(({ move }, index) => [move.id, index + 1])),
+    };
     this.ordered = undefined;
   }
 
@@ -280,7 +297,9 @@ export class MoveResultIndex {
     const word = filter.trim().toUpperCase();
     const estimates =
       this.endgame?.id === endgameId ? this.endgame?.estimates : undefined;
-    const source = profile ? this.profileOrder?.moves ?? [] : this.moves;
+    const ranked = profile && this.profileOrder?.key === utilityKey({ profile, profileBagSize, profileSeed })
+      ? this.profileOrder : undefined;
+    const source = profile ? ranked?.moves ?? [] : this.moves;
     const key = JSON.stringify([word, profile, profileBagSize, profileSeed, requiredSquares, order, endgameId]);
     if (this.ordered?.key !== key) {
       const matches =
@@ -323,6 +342,10 @@ export class MoveResultIndex {
       scoreRanks: Object.fromEntries(
         rows.map(({ id }) => [id, this.scoreRanks.get(id)!]),
       ),
+      utilities: ranked && Object.fromEntries(rows.map(({ id }) => {
+        const rank = ranked.ranks.get(id)!;
+        return [id, { ...ranked.ranked[rank - 1].utility, rank }];
+      })),
       exactEndgameCount,
       ...(locateMoveId !== undefined && {
         locatedIndex: moves.findIndex(({ id }) => id === locateMoveId),

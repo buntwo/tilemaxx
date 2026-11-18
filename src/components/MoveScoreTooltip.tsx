@@ -5,9 +5,72 @@ import type { Game, Move } from "../../shared/model";
 import { placeTiles } from "../../shared/move-analysis";
 import { ScoreBreakdownContent } from "./ScoreBreakdown";
 
+import type { MoveUtility } from "../../shared/move-results";
+import {
+  PLAYER_PROFILE_LABELS,
+  type PlayerProfile,
+} from "../../shared/player-profiles";
+
+const utilityNumber = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
+
+export function formatUtility(value: number) {
+  return utilityNumber.format(value);
+}
+
+type UtilityDetails = {
+  profile: PlayerProfile;
+  utility: MoveUtility;
+  checksDefense: boolean;
+};
+
+function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
+  const factors = [
+    { label: "Weighted points", value: utility.points, show: true },
+    { label: "Premium squares", value: utility.premium },
+    { label: "Word familiarity", value: utility.familiarity },
+    { label: "Crosswords", value: utility.crosswords },
+    { label: "Play length", value: utility.length },
+    { label: "Rack leave", value: utility.leave },
+    { label: "Going out", value: utility.goingOut },
+    {
+      label: "Defense",
+      value: utility.defense,
+      show: utility.defense !== undefined,
+    },
+  ];
+  return (
+    <div className="score-breakdown-content">
+      <div>
+        {PLAYER_PROFILE_LABELS[profile]} · Rank {utility.rank}
+      </div>
+      <ul>
+        {factors.map(
+          ({ label, value, show }) =>
+            (value || show) && (
+              <li className="score-breakdown-line" key={label}>
+                <span>{label}</span>
+                <span>{formatUtility(value || 0)}</span>
+              </li>
+            ),
+        )}
+      </ul>
+      <div className="score-breakdown-line score-breakdown-total">
+        <strong>Utility</strong>
+        <strong>{formatUtility(utility.total)}</strong>
+      </div>
+      {checksDefense && (
+        <div className="move-score-adjustment">
+          Leading candidates are ranked first and checked for defense.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function useMoveScoreTooltip(
   game?: Game,
   describeAdjustment?: (move: Move) => string | undefined,
+  describeUtility?: (move: Move) => UtilityDetails | undefined,
 ) {
   const id = useId();
   const [active, setActive] = useState<{
@@ -85,7 +148,9 @@ export function useMoveScoreTooltip(
     });
   }, [active]);
 
+  const utility = active && describeUtility?.(active.move);
   const breakdown =
+    !utility &&
     game &&
     active &&
     scorePlacement(
@@ -94,7 +159,7 @@ export function useMoveScoreTooltip(
       game.template,
       active.move.direction,
     );
-  const adjustment = active && describeAdjustment?.(active.move);
+  const adjustment = !utility && active && describeAdjustment?.(active.move);
   return {
     close,
     trigger(move: Move, label: string) {
@@ -157,7 +222,7 @@ export function useMoveScoreTooltip(
       );
     },
     popup:
-      breakdown &&
+      (utility || breakdown) &&
       createPortal(
         <div
           id={id}
@@ -168,9 +233,22 @@ export function useMoveScoreTooltip(
           onPointerEnter={cancelTimer}
           onPointerLeave={leave}
         >
-          <strong>Score breakdown</strong>
-          <ScoreBreakdownContent breakdown={breakdown} />
-          {adjustment && <div className="move-score-adjustment">{adjustment}</div>}
+          {utility ? (
+            <>
+              <strong>Utility breakdown</strong>
+              <UtilityBreakdown {...utility} />
+            </>
+          ) : (
+            breakdown && (
+              <>
+                <strong>Score breakdown</strong>
+                <ScoreBreakdownContent breakdown={breakdown} />
+                {adjustment && (
+                  <div className="move-score-adjustment">{adjustment}</div>
+                )}
+              </>
+            )
+          )}
         </div>,
         document.body,
       ),
