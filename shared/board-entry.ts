@@ -22,16 +22,34 @@ export function inferBoardEntryDirection(
   if (rackTiles === 0) return "across";
   const row = Math.floor(index / size);
   const column = index % size;
-  // Each empty square before the first played tile costs one rack tile.
-  const reach = rackTiles + Number(Boolean(board[index]));
-  const right = Math.min(reach, size - column - 1);
-  const below = Math.min(reach, size - row - 1);
 
-  for (let step = 1; step <= right; step++)
-    if (board[index + step]) return "across";
-  for (let step = 1; step <= below; step++)
-    if (board[index + step * size]) return "down";
-  return "across";
+  function connects(across: boolean) {
+    const length = size - (across ? column : row);
+    const stride = across ? 1 : size;
+    const crossStride = across ? size : 1;
+    const crossCoordinate = across ? row : column;
+    let remaining = rackTiles;
+
+    for (let offset = 0; offset < length; offset++) {
+      const square = index + offset * stride;
+      if (board[square]) {
+        if (offset > 0) return true;
+        continue;
+      }
+
+      if (remaining === 0) return false;
+      remaining--;
+      // An empty square we can fill also connects via a perpendicular hook.
+      if (
+        (crossCoordinate > 0 && board[square - crossStride]) ||
+        (crossCoordinate + 1 < size && board[square + crossStride])
+      )
+        return true;
+    }
+    return false;
+  }
+
+  return !connects(true) && connects(false) ? "down" : "across";
 }
 
 // Local save acknowledgments retain the position and history references.

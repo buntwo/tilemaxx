@@ -48,9 +48,24 @@ test("board entry checks forward within the rack budget, with across taking prio
   assert.equal(direction(2, 2, 1), "down");
   assert.equal(direction(2, 2, 0), "across");
 
-  board[5] = "R"; // Next row, outside the rightward path.
-  board[9] = "Y";
-  assert.equal(direction(0, 4, 1), "down");
+  const edge = emptyBoard(5);
+  edge[5] = "R"; // Next row, outside the rightward path.
+  edge[14] = "Y";
+  assert.equal(inferBoardEntryDirection(edge, 4, 5, 2), "down");
+});
+
+test("reachable side connections count for parallel plays in either direction", () => {
+  const board = emptyBoard(15);
+  const j13 = 12 * 15 + 9;
+  board[j13 + 15] = "G";
+  board[j13 + 16] = "I";
+  assert.equal(inferBoardEntryDirection(board, j13, 15, 2), "across");
+
+  const column = emptyBoard(5);
+  column[17] = "A";
+  column[22] = "T";
+  assert.equal(inferBoardEntryDirection(column, 6, 5, 2), "across");
+  assert.equal(inferBoardEntryDirection(column, 6, 5, 3), "down");
 });
 
 test("typing and deletion form separate whole-word undo/redo steps across save acknowledgments", () => {
