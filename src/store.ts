@@ -13,6 +13,7 @@ import {
   loadGameCache,
   RECENT_GAME_LIMIT,
 } from "./game-cache";
+import { readOfflineGame, removeOfflineGame } from "./offline-games";
 import {
   summarizeGame,
   type GameIndex,
@@ -30,9 +31,11 @@ export async function api<T>(
   path: string,
   method = "GET",
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
   const response = await fetch(`/api${path}`, {
     method,
+    signal,
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -98,7 +101,8 @@ export class GameStore {
     for (const summary of index?.games ?? [])
       this.confirmedSummaries.set(summary.id, summary);
     for (const game of games) {
-      if (!this.confirmedSummaries.has(game.id)) continue;
+      const summary = this.confirmedSummaries.get(game.id);
+      if (!summary || summary.archived || game.archived) continue;
       this.confirmGame(game);
       this.snapshot.games[game.id] = game;
     }
@@ -206,6 +210,38 @@ export class GameStore {
     for (const id of new Set([this.openGameId, this.editGameId]))
       if (id) void this.loadGame(id);
   }
+  getGameForOffline = (id: string, signal: AbortSignal) => {
+    const game = this.confirmedGames.get(id);
+    const summary = this.confirmedSummaries.get(id);
+    if (game && summary && game.revision >= summary.revision)
+      return Promise.resolve(game);
+    return api<Game>(`/games/${encodeURIComponent(id)}`, "GET", undefined, signal);
+  };
+  private showLoadedGame(game: Game) {
+    const id = game.id;
+    if (!this.drafts.has(id)) this.replace(game, this.confirmedSummaries.get(id));
+    this.rememberOpenedGame(id);
+    if (id in this.snapshot.loadErrors) {
+      const { [id]: _error, ...loadErrors } = this.snapshot.loadErrors;
+      this.snapshot.loadErrors = loadErrors;
+    }
+    this.persist();
+    this.emit();
+  }
+  private async restoreOfflineGame(id: string) {
+    if (this.confirmedSummaries.get(id)?.archived) return false;
+    const game = await readOfflineGame(id).catch(() => undefined);
+    const summary = this.confirmedSummaries.get(id);
+    if (!game || game.archived || !summary || summary.archived || this.deletedGames.has(id))
+      return false;
+    const current = this.confirmedGames.get(id);
+    if (current && current.revision >= game.revision) return true;
+    // Keep the last downloaded position usable if the index learned about a
+    // newer server revision before the connection dropped.
+    if (!this.confirmGame(game)) this.confirmedGames.set(id, game);
+    this.showLoadedGame(game);
+    return true;
+  }
   async loadGame(id: string, retryIfStale = true) {
     const summary = this.confirmedSummaries.get(id);
     const current = this.confirmedGames.get(id);
@@ -220,33 +256,42 @@ export class GameStore {
 
     this.gameRequests.add(id);
     let stale = false;
+    const tryOfflineFirst =
+      !this.snapshot.online && typeof indexedDB !== "undefined";
     try {
+      if (tryOfflineFirst && (await this.restoreOfflineGame(id))) {
+        if (!this.snapshot.online || this.drafts.has(id)) return;
+        const latest = this.confirmedSummaries.get(id);
+        const cached = this.confirmedGames.get(id);
+        if (latest && cached && cached.revision >= latest.revision) return;
+      }
+      if (this.deletedGames.has(id)) return;
       const game = await api<Game>(`/games/${encodeURIComponent(id)}`);
       if (this.deletedGames.has(id)) return;
       if (!this.confirmGame(game)) {
         stale = true;
         return;
       }
-      if (!this.drafts.has(id))
-        this.replace(game, this.confirmedSummaries.get(id));
-      this.rememberOpenedGame(id);
-      if (id in this.snapshot.loadErrors) {
-        const { [id]: _error, ...loadErrors } = this.snapshot.loadErrors;
-        this.snapshot.loadErrors = loadErrors;
-      }
-      this.persist();
-      this.emit();
+      this.showLoadedGame(game);
     } catch (error) {
       if (this.deletedGames.has(id)) return;
       if ((error as { status?: number }).status === 404) {
         this.forgetGame(id);
         this.persist();
       } else {
-        this.snapshot.loadErrors = {
-          ...this.snapshot.loadErrors,
-          [id]:
-            error instanceof Error ? error.message : "Could not load the game.",
-        };
+        if (
+          !tryOfflineFirst &&
+          typeof indexedDB !== "undefined" &&
+          (await this.restoreOfflineGame(id))
+        )
+          return;
+        if (this.deletedGames.has(id)) return;
+        let message = error instanceof Error ? error.message : "Could not load the game.";
+        if (typeof navigator !== "undefined" && navigator.onLine === false)
+          message = this.confirmedSummaries.get(id)?.archived
+            ? "Reconnect to open this archived game."
+            : "Reconnect to open this game. It hasn’t been downloaded for offline use.";
+        this.snapshot.loadErrors = { ...this.snapshot.loadErrors, [id]: message };
       }
       this.emit();
     } finally {
@@ -641,6 +686,8 @@ export class GameStore {
     this.confirmedGames.delete(id);
     this.confirmedSummaries.delete(id);
     this.recentGames.delete(id);
+    if (typeof indexedDB !== "undefined")
+      void removeOfflineGame(id).catch(() => {});
     try {
       dropCachedGame(id);
     } catch {

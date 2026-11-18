@@ -41,6 +41,10 @@ export function cacheGameIndex(serialized: string) {
 }
 
 export function cacheOpenGame(game: Game) {
+  if (game.archived) {
+    dropCachedGame(game.id);
+    return;
+  }
   // Keep existing cached games if writing the new one exceeds browser storage.
   const key = openGamePrefix + game.id;
   const existing = read<Game>(key);
