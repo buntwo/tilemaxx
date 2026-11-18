@@ -408,6 +408,13 @@ test.each([
   if (!automatic) {
     expect(pending).toHaveLength(1);
     expect(selectedRow().querySelector(".reply-mini")).toBeTruthy();
+    fireEvent.contextMenu(selectedRow());
+    expect(selectedRow().classList.contains("pinned")).toBe(false);
+    expect(selectedRow().classList.contains("active")).toBe(false);
+    expect(screen.queryByRole("region", { name: "Reply after ZEBRA" })).toBeNull();
+    expect(selectedRow().querySelector(".reply-mini")).toBeTruthy();
+    expect(onPreview).toHaveBeenLastCalledWith(null);
+    expect(onPlay).not.toHaveBeenCalled();
     return;
   }
   await waitFor(() => expect(pending).toHaveLength(2));
