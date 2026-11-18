@@ -1277,6 +1277,9 @@ label + label {
   background: var(--board);
   color: var(--primary);
 }
+.board-thumbnail .thumbnail-premium {
+  fill-opacity: 0.45;
+}
 .game-notes {
   margin-top: 7px;
   max-width: 55ch;
