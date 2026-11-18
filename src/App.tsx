@@ -1067,7 +1067,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 title="Settings"
                 onClick={() => openDialog("workspace-settings")}
               >
-                <Settings size={17} aria-hidden="true" />
+                <Settings size={15} aria-hidden="true" />
               </button>
               <span className="app-version">
                 v{version}

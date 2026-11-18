@@ -639,10 +639,6 @@ label + label {
   margin-top: auto;
   padding-top: 24px;
 }
-.phone-layout .workspace-settings-button {
-  min-width: 44px;
-  min-height: 44px;
-}
 .profile-picker {
   display: flex;
   flex-direction: row;
@@ -799,8 +795,18 @@ label + label {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
-  margin: 0 4px 12px;
+  gap: 0;
+  margin: 0 4px 6px;
+}
+.workspace-controls > *,
+.workspace-controls .offline-status summary {
+  min-height: 26px;
+}
+.workspace-controls :is(.sync-status, .offline-status-label, .app-version) {
+  font-size: 11px;
+}
+.workspace-controls .sync-status span {
+  display: inline;
 }
 .sync-status,
 .offline-status-label {
@@ -889,7 +895,13 @@ label + label {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+.workspace-settings-row .workspace-settings-button {
+  width: 24px;
+  height: 26px;
+  margin-left: -4.5px;
+  padding: 0;
 }
 .app-version {
   display: inline-flex;
@@ -927,25 +939,24 @@ label + label {
 }
 .theme-switch {
   display: flex;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 3px;
-  gap: 2px;
+  align-items: center;
+  margin-left: -4.5px;
+  gap: 3px;
 }
 .theme-switch button {
   border: 0;
   background: none;
   color: var(--muted);
-  width: 28px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
   display: grid;
   place-items: center;
   border-radius: 4px;
 }
 .theme-switch button.active {
-  background: var(--surface);
+  background: var(--soft);
   color: var(--primary);
-  box-shadow: 0 1px 3px #0001;
 }
 .workspace-heading {
   padding: 32px 0 27px;
@@ -3778,10 +3789,6 @@ label + label {
   .sync-status span {
     display: none;
   }
-  .theme-switch button {
-    width: 25px;
-    height: 25px;
-  }
   .workspace-heading {
     padding: 25px 2px 21px;
     max-width: 480px;
@@ -5715,7 +5722,6 @@ label + label {
 .phone-layout .main-content { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 .phone-layout .sidebar { overflow-y: auto; }
 .phone-layout .sidebar .sync-status span { display: inline; }
-.phone-layout .sidebar .theme-switch button { width: 40px; height: 36px; }
 .phone-layout .workspace-heading .menu-button {
   width: 44px;
   height: 44px;
