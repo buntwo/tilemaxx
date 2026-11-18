@@ -174,9 +174,11 @@
   opacity: .78;
 }
 .optimal-reply-leave .mini-tiles span {
-  min-width: 16px;
+  flex: 0 0 17px;
+  width: 17px;
+  min-width: 17px;
   height: 17px;
-  padding: 0 2px;
+  padding: 0;
   border-radius: 3px;
 }
 .optimal-reply-goes-out { white-space: nowrap; color: var(--primary); }
