@@ -167,7 +167,7 @@ export default function OpponentEndgameResults({
         {result.lines.length > 0 && (
           <span>Select an opponent move to preview its line</span>
         )}
-        <MoveTimingButton timing={timing} size={game.template.size} board={game.board} />
+        <MoveTimingButton timing={timing} />
       </footer>
       {selected && (
         <section

@@ -150,7 +150,6 @@ export default function OptimalReplyDetails({
                       <MoveWord
                         move={candidate}
                         rules={game.template}
-                        board={game.board}
                       />
                     ) : (
                       "the pass"
@@ -306,7 +305,6 @@ export default function OptimalReplyDetails({
                 <MoveWord
                   move={step.move}
                   rules={game.template}
-                  board={step.board}
                 />
               </>
             ) : step.player === "you" ? (

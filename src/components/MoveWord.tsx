@@ -1,17 +1,10 @@
-import { Fragment } from "react";
-import {
-  moveLetters,
-  moveNotation,
-  recordedMoveNotation,
-  type NotationMove,
-} from "../../shared/notation";
+import { moveLetters } from "../../shared/notation";
 import { Trophy } from "lucide-react";
 import {
   isBingo,
   type BingoRules,
   type Move,
   type Board,
-  type TurnPosition,
 } from "../../shared/model";
 
 export function BingoBadge({
@@ -47,28 +40,19 @@ export function MoveLetters({
 }) {
   const letters = moveLetters(move, size, board);
   return letters.map((tile, index) => (
-    <Fragment key={index}>
-      {tile.existing && !letters[index - 1]?.existing && (
-        <span className="move-parenthesis">(</span>
-      )}
-      <span
-        className={`result-letter ${tile.existing ? "existing" : "played"}${tile.blank ? " assigned-blank" : ""}`}
-        title={
-          tile.existing
-            ? tile.blank
-              ? "Already on board · blank"
-              : "Already on board"
-            : tile.blank
-              ? "Play a blank"
-              : "Play from rack"
-        }
-      >
-        {tile.letter}
-      </span>
-      {tile.existing && !letters[index + 1]?.existing && (
-        <span className="move-parenthesis">)</span>
-      )}
-    </Fragment>
+    <span
+      key={index}
+      className={`result-letter ${tile.existing ? "existing" : "played"}${tile.blank ? " assigned-blank" : ""}`}
+      title={
+        tile.existing
+          ? "Already on board"
+          : tile.blank
+            ? "Play a blank"
+            : "Play from rack"
+      }
+    >
+      {tile.letter.toUpperCase()}
+    </span>
   ));
 }
 
@@ -76,22 +60,14 @@ type MoveWordProps =
   | {
       word: string;
       bingo?: boolean;
-      position?: Pick<TurnPosition, "board" | "tiles" | "direction">;
-      size?: number;
     }
   | {
-      move: NotationMove;
-      rules: BingoRules & { size?: number };
-      board?: Board;
+      move: { word: string; tiles: readonly unknown[] };
+      rules: BingoRules;
     };
 
 export default function MoveWord(props: MoveWordProps) {
-  const word =
-    "move" in props
-      ? moveNotation(props.move, props.rules.size, props.board)
-      : props.position && props.size
-        ? recordedMoveNotation(props, props.position, props.size)
-        : props.word;
+  const word = "move" in props ? props.move.word : props.word;
   const bingo =
     "move" in props
       ? isBingo(props.rules, props.move.tiles.length)

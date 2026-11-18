@@ -1,5 +1,4 @@
-import type { Board } from "../../shared/model";
-import { moveLocation, moveNotation } from "../../shared/notation";
+import { moveLocation } from "../../shared/notation";
 import { useState, type CSSProperties } from "react";
 import type { MoveTiming, OpponentEndgameTiming } from "../move-timing";
 import Modal from "./Modal";
@@ -43,12 +42,8 @@ function moveStages({
 
 export default function MoveTimingButton({
   timing,
-  size,
-  board,
 }: {
   timing: MoveTiming | OpponentEndgameTiming;
-  size: number;
-  board?: Board;
 }) {
   const [open, setOpen] = useState(false);
   const { total } = timing;
@@ -105,16 +100,7 @@ export default function MoveTimingButton({
                 {attempts.map(({ move, elapsed, limit }) => (
                   <div key={move.id}>
                     <dt>
-                      <strong>
-                        {move.tiles
-                          ? moveNotation(
-                              { ...move, tiles: move.tiles },
-                              size,
-                              board,
-                            )
-                          : move.word}
-                      </strong>{" "}
-                      {moveLocation(move)}
+                      <strong>{move.word}</strong> {moveLocation(move)}
                       {limit && <small title={limit}> · Limit reached</small>}
                     </dt>
                     <TimingValue elapsed={elapsed} total={total} />

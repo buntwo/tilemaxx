@@ -148,7 +148,6 @@ export function useEndgameLines(
           id: move.id,
           word: move.word,
           row: move.row,
-          tiles: move.tiles,
           col: move.col,
           direction: move.direction,
         },

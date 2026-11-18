@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyBoard, type Move } from "../shared/model";
 import {
-  lineNotation,
   moveLocation,
   moveNotation,
   recordedMoveNotation,
@@ -80,23 +79,4 @@ test("recorded notation recovers a played-through word but does not invent missi
     "CORRECTED",
   );
   assert.equal(recordedMoveNotation(move, undefined, 15), "CATS");
-});
-
-test("continuations keep old blanks and distinguish letters placed on earlier turns", () => {
-  const board = emptyBoard(15);
-  board[112] = "A";
-  const reply: Move = {
-    ...move,
-    word: "TO",
-    row: 7,
-    col: 8,
-    direction: "down",
-    tiles: [{ index: 128, letter: "O" }],
-  };
-  assert.deepEqual(lineNotation([move, reply, null], board, 15), [
-    "C(A)tS",
-    "(t)O",
-    "Pass",
-  ]);
-  assert.equal(board[113], "");
 });

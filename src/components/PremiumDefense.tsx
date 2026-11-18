@@ -115,7 +115,7 @@ export default function PremiumDefense({
     <Modal
       title={
         <>
-          Reply risk · <MoveWord move={move} rules={game.template} board={game.board} />
+          Reply risk · <MoveWord move={move} rules={game.template} />
         </>
       }
       subtitle={
@@ -191,7 +191,6 @@ export function PremiumDefenseContent({
               <MoveWord
                 move={reply}
                 rules={template}
-                board={defense.opened ? placeTiles(game.board, move) : game.board}
               />{" "}
               · {reply.score} pts
             </strong>

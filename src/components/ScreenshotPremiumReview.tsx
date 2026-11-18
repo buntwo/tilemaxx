@@ -1,4 +1,4 @@
-import { moveLocation, moveNotation } from "../../shared/notation";
+import { moveLocation } from "../../shared/notation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   openingSequences,
@@ -186,7 +186,7 @@ export default function ScreenshotPremiumReview({
                     {history
                       .map(
                         (turn) =>
-                          `${moveNotation({ ...turn, tiles: turn.tiles.map((index) => ({ index, letter: turn.after[index] })) }, template.size, turn.before)} (${moveLocation({ row: Math.floor(turn.start / template.size), col: turn.start % template.size, direction: turn.direction })})${isBingo(template, turn.tiles.length) ? " 🏆" : ""}`,
+                          `${turn.word} (${moveLocation({ row: Math.floor(turn.start / template.size), col: turn.start % template.size, direction: turn.direction })})${isBingo(template, turn.tiles.length) ? " 🏆" : ""}`,
                       )
                       .join(" → ")}
                   </option>
@@ -197,17 +197,7 @@ export default function ScreenshotPremiumReview({
           {turns.map((turn, i) => (
             <label key={i}>
               {i === 0 ? "First" : "Second"} play points ·{" "}
-              <MoveWord
-                move={{
-                  ...turn,
-                  tiles: turn.tiles.map((index) => ({
-                    index,
-                    letter: turn.after[index],
-                  })),
-                }}
-                rules={template}
-                board={turn.before}
-              />
+              <MoveWord move={turn} rules={template} />
               <input
                 type="number"
                 min={0}

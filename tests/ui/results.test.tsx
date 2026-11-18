@@ -93,7 +93,7 @@ test("timing bars use total elapsed time for both stages and exact solves", asyn
     },
   };
   const user = userEvent.setup();
-  const { rerender } = render(<MoveTimingButton size={15} timing={timing} />);
+  const { rerender } = render(<MoveTimingButton timing={timing} />);
   await user.click(screen.getByRole("button", { name: "Calculation timing, 2.00 s" }));
   const dialog = screen.getByRole("dialog", { name: "Calculation timing" });
   const bars = () =>
@@ -102,10 +102,10 @@ test("timing bars use total elapsed time for both stages and exact solves", asyn
     );
   expect(bars()).toEqual(["100%", "10%", "0%", "75%", "25%", "40%"]);
 
-  rerender(<MoveTimingButton size={15} timing={{ ...timing, total: 0 }} />);
+  rerender(<MoveTimingButton timing={{ ...timing, total: 0 }} />);
   expect(bars()).toEqual(Array(6).fill("0%"));
 
-  rerender(<MoveTimingButton size={15} timing={{
+  rerender(<MoveTimingButton timing={{
     total: 2000,
     batches: [
       { checked: 500, elapsed: 500 },
@@ -661,7 +661,7 @@ test("reply rows resolve individually and compare against the highest score afte
   const scoreBreakdown = screen.getByRole("tooltip");
   expect(within(scoreBreakdown).getByText("10 pts − (−4.0 Δ Reply) = 14 reply-adjusted pts")).toBeTruthy();
   await user.keyboard("{Escape}");
-  expect(within(inline).getByText("Reference · After CATs")).toBeTruthy();
+  expect(within(inline).getByText("Reference · After CATS")).toBeTruthy();
   expect(worker!.request?.kind).toBe("reply-summary");
   await user.click(within(inline).getByRole("button", { name: "Heatmap" }));
   const dialog = screen.getByRole("dialog");
@@ -686,7 +686,7 @@ test("reply rows resolve individually and compare against the highest score afte
     dialog.querySelector('[data-cell="0"]')?.classList.contains("ghost"),
   ).toBe(true);
   await user.click(
-    within(dialog).getByRole("button", { name: "Change vs. CATs" }),
+    within(dialog).getByRole("button", { name: "Change vs. CATS" }),
   );
   await user.click(within(dialog).getByRole("button", { name: /^B1$/ }));
   const hotspot = within(dialog).getByText("0%");
@@ -961,7 +961,7 @@ test("a completed reply line replaces the immediate warning and replays each tur
   expect(playerLeave.textContent).toBe("T");
   expect(playerLeave.querySelector(".mini-tiles.opponent")).toBeNull();
   expect(openingTurn.querySelector(".result-letter.played:not(.assigned-blank)")?.textContent).toBe("C");
-  expect(openingTurn.querySelector(".result-letter.assigned-blank")?.textContent).toBe("s");
+  expect(openingTurn.querySelector(".result-letter.assigned-blank")?.textContent).toBe("S");
   const replyTurn = details.getByRole("button", { name: /^ZA Opponent/ });
   const replyScore = replyTurn.closest("tr")!.querySelector(".optimal-reply-step-score")!;
   expect(replyScore.querySelector("strong")?.textContent).toBe("120–141");
@@ -989,7 +989,7 @@ test("a completed reply line replaces the immediate warning and replays each tur
   expect(within(lastPlay.closest("tr")!).getByRole("img", { name: "Goes out" }).textContent).toBe("(Goes out)");
   expect(lastPlay.closest("tr")!.querySelector(".optimal-reply-step-score small")?.textContent).toBe("0");
   await user.click(lastPlay);
-  expect(details.getByText("Board after T(A)")).toBeTruthy();
+  expect(details.getByText("Board after TA")).toBeTruthy();
   expect(details.getByRole("button", { name: /^G8: T/ }).classList.contains("ghost")).toBe(true);
   const adjustment = details.getByRole("button", { name: "Final score" });
   expect(adjustment.closest("tr")?.classList.contains("optimal-reply-adjustment-row")).toBe(true);
@@ -1355,9 +1355,9 @@ test.each(["across", "down"] as const)(
       [...row.querySelectorAll(".result-letter.played")]
         .map((el) => el.textContent)
         .join(""),
-    ).toBe("tRANERS");
+    ).toBe("TRANERS");
     expect(row.querySelector(".result-letter.existing")?.textContent).toBe("I");
-    expect(row.querySelector(".assigned-blank")?.textContent).toBe("t");
+    expect(row.querySelector(".assigned-blank")?.textContent).toBe("T");
   },
 );
 
@@ -1525,7 +1525,7 @@ test("endgame table labels its columns, opening margin, opponent and final adjus
   const table = screen.getByRole("table", { name: "Optimal endgame line" });
   expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent))
     .toEqual(["Move", "Leave", "Pts", "Score"]);
-  const before = within(table).getByText("Before CATs").closest("tr")!;
+  const before = within(table).getByText("Before CATS").closest("tr")!;
   expect(before.querySelector(".optimal-reply-score strong")?.textContent).toBe("100–110");
   expect(before.querySelector(".value-bad")?.textContent).toBe("−10");
   const opponent = within(table).getByRole("button", { name: /^CAT Opponent/ }).closest("tr")!;

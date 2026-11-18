@@ -127,18 +127,3 @@ export function recordedMoveNotation(
   }
   return move.word;
 }
-
-/** Format a continuation against the board before each play, including older blanks. */
-export function lineNotation(
-  line: readonly (Move | null)[],
-  board: Board,
-  size: number,
-) {
-  const current = [...board];
-  return line.map((move) => {
-    if (!move) return "Pass";
-    const word = moveNotation(move, size, current);
-    for (const tile of move.tiles ?? []) current[tile.index] = tile.letter;
-    return word;
-  });
-}
