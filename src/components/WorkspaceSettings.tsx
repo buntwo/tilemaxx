@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Monitor, Moon, Sun } from "lucide-react";
 import { computeWorkerLimit, isWorkerCount } from "../compute-workers";
 import Modal from "./Modal";
 
@@ -62,12 +63,16 @@ export function useWorkspacePreferences() {
 }
 
 export default function WorkspaceSettings({
+  theme,
+  onThemeChange,
   preferences,
   concurrencyHint,
   workerLimit,
   onChange,
   onClose,
 }: {
+  theme: string;
+  onThemeChange: (theme: string) => void;
   preferences: Preferences;
   concurrencyHint: number | undefined;
   workerLimit: number;
@@ -84,6 +89,28 @@ export default function WorkspaceSettings({
       onClose={onClose}
     >
       <div className="workspace-preference-list">
+        <fieldset>
+          <legend>Appearance</legend>
+          <div className="theme-switch" role="group" aria-label="Color theme">
+            {([
+              ["light", "Light", Sun],
+              ["dark", "Dark", Moon],
+              ["system", "System", Monitor],
+            ] as const).map(([value, label, Icon]) => (
+              <button
+                key={value}
+                type="button"
+                aria-label={`${value} theme`}
+                aria-pressed={theme === value}
+                className={theme === value ? "active" : ""}
+                onClick={() => onThemeChange(value)}
+              >
+                <Icon size={15} aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
         {sections.map(({ title, options }) => (
           <fieldset key={title}>
             <legend>{title}</legend>
