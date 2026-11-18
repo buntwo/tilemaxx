@@ -39,7 +39,13 @@ export default function LayoutThumbnail(
       {[...cells].map(([premium, path]) => (
         <path
           key={premium}
-          className={premium === "played" ? "thumbnail-played" : undefined}
+          className={
+            premium === "played"
+              ? "thumbnail-played"
+              : premium
+                ? "thumbnail-premium"
+                : undefined
+          }
           fill={
             premium === "played"
               ? "var(--primary)"
