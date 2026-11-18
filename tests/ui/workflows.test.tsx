@@ -4688,6 +4688,108 @@ test("workspace shortcuts focus the rack and game filter, and the guide leaves r
   expect(guide()).toBeTruthy();
 });
 
+test("Alt+B selects a board square from a column or row and groups the entered word", async () => {
+  const user = await start();
+  const overlay = () => document.querySelector(".board-coordinate-grid");
+  const labels = () => [...overlay()!.querySelectorAll(".board-coordinate-label[data-match]")];
+  const rack = screen.getByRole("textbox", { name: "Rack letters" });
+  await user.click(rackTile(1));
+  fireEvent.keyDown(rack, { key: "∫", code: "KeyB", altKey: true });
+  expect(document.activeElement).toBe(entry());
+  expect(overlay()?.querySelectorAll(".board-coordinate-label")).toHaveLength(225);
+  expect(selectedCell()).toBeUndefined();
+
+  await user.keyboard("f{ArrowRight}{ArrowRight}{ArrowDown}");
+  expect(labels().map((label) => label.textContent)).toEqual(
+    Array.from({ length: 15 }, (_, row) => `H${row + 1}`),
+  );
+  await user.keyboard("6CAT");
+  expect(overlay()).toBeNull();
+  expect([82, 97, 112].map((index) => current().board[index])).toEqual(["C", "A", "T"]);
+  expect(current().rack).toBe("");
+  expect(current().past).toHaveLength(1);
+  await user.click(cell("Undo"));
+  expect(current().board.some(Boolean)).toBe(false);
+
+  await user.keyboard("{Alt>}b{/Alt}7{ArrowUp}{ArrowLeft}");
+  expect(labels()).toHaveLength(15);
+  expect(labels().map((label) => label.textContent).slice(0, 2)).toEqual(["A6", "B6"]);
+  await user.keyboard("hCAT");
+  expect(overlay()).toBeNull();
+  expect(current().board.slice(82, 85)).toEqual(["C", "A", "T"]);
+  expect(current().past).toHaveLength(1);
+});
+
+test("coordinate entry stops at edges, distinguishes two-digit rows, and can be cancelled", async () => {
+  const user = await start();
+  const overlay = () => document.querySelector(".board-coordinate-grid");
+  const status = () => screen.getByRole("status").textContent;
+  const startCoordinate = () => user.keyboard("{Alt>}b{/Alt}");
+  await startCoordinate();
+  await user.keyboard("a{ArrowLeft}{ArrowRight}{ArrowLeft}");
+  expect(status()).toContain("Column A");
+  await user.keyboard("1");
+  expect(status()).toContain("A1");
+  expect(overlay()?.querySelector("[data-target]")?.textContent).toBe("A1");
+  await user.keyboard("5");
+  expect(overlay()).toBeNull();
+  expect(selectedCell()).toBe("210");
+
+  await startCoordinate();
+  await user.keyboard("15{ArrowDown}");
+  expect(status()).toContain("Row 15");
+  await user.keyboard("{ArrowUp}{Backspace}");
+  expect(status()).toContain("Row 1");
+  await user.keyboard("{ArrowUp}o");
+  expect(selectedCell()).toBe("14");
+
+  await startCoordinate();
+  await user.keyboard("h1{Enter}");
+  expect(overlay()).toBeNull();
+  expect(selectedCell()).toBe("7");
+
+  await startCoordinate();
+  await user.keyboard("h0");
+  expect(status()).toContain("Use A1–O15");
+  await user.keyboard("{Escape}");
+  expect(overlay()).toBeNull();
+  expect(selectedCell()).toBeUndefined();
+
+  await startCoordinate();
+  await user.click(rackTile(1));
+  expect(overlay()).toBeNull();
+  expect(current().board.some(Boolean)).toBe(false);
+  expect(current().past).toHaveLength(0);
+
+  await user.click(cell("Keyboard shortcuts"));
+  expect(screen.getByText("Alt / Option + B")).toBeTruthy();
+  fireEvent.keyDown(document.activeElement!, { key: "∫", code: "KeyB", altKey: true });
+  expect(overlay()).toBeNull();
+});
+
+test("coordinate entry follows the current custom board size", async () => {
+  const template = {
+    ...game().template,
+    id: "large-custom",
+    builtin: false,
+    name: "Large custom board",
+    size: 25,
+    premiums: Array(625).fill(""),
+    start: 312,
+  };
+  remote.games[0] = { ...game(), template, board: emptyBoard(25), revision: 1 };
+  const user = await start();
+  await act(() => store.refresh());
+  await screen.findByRole("button", { name: "Y25: empty" });
+  await user.keyboard("{Alt>}b{/Alt}y{ArrowRight}2");
+  const overlay = () => document.querySelector(".board-coordinate-grid");
+  expect(overlay()?.querySelectorAll(".board-coordinate-label")).toHaveLength(625);
+  expect(overlay()?.querySelector("[data-target]")?.textContent).toBe("Y2");
+  await user.keyboard("5");
+  expect(overlay()).toBeNull();
+  expect(selectedCell()).toBe("624");
+});
+
 test("search games focuses the archived filter and can return there from an archived game", async () => {
   remote.games.push({ ...game(), id: "finished", name: "Jo Smith", archived: true });
   const user = await start();

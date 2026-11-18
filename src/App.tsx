@@ -37,7 +37,10 @@ import {
 } from "lucide-react";
 import { version } from "../package.json";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
-import BoardEntry, { BoardEntryHelp } from "./components/BoardEntry";
+import BoardEntry, {
+  BoardEntryHelp,
+  type BoardEntryHandle,
+} from "./components/BoardEntry";
 import BoardFinishOverlay from "./components/BoardFinishOverlay";
 import { useGameFinish } from "./useGameFinish";
 import {
@@ -263,6 +266,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const squareFilterButton = useRef<HTMLButtonElement>(null);
   const rackPanel = useRef<HTMLElement>(null);
   const rackEntry = useRef<RackEntryHandle>(null);
+  const boardEntry = useRef<BoardEntryHandle>(null);
   const gamePicker = useRef<GamePickerHandle>(null);
   const archiveFilter = useRef<HTMLInputElement>(null);
   const pendingGameSearch = useRef<Workspace>(undefined);
@@ -357,6 +361,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       setSidebarDrawerOpen(false);
       editPosition();
       rackEntry.current.focusEntry();
+      return true;
+    },
+    selectBoardSquare() {
+      if (!boardEntry.current?.openCoordinateOverlay()) return false;
+      setSidebarDrawerOpen(false);
+      boardPanel.current?.scrollIntoView?.({ block: "nearest" });
       return true;
     },
     searchGames() {
@@ -1281,6 +1291,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 }}
               >
                 <BoardEntry
+                  ref={boardEntry}
                   key={game.id}
                   game={game}
                   hideHelp

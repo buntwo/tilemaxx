@@ -2,12 +2,16 @@ import {
   useCallback,
   useEffect,
   useId,
+  useImperativeHandle,
   useRef,
   useState,
+  type KeyboardEvent,
   type ReactNode,
+  type Ref,
 } from "react";
 import { ArrowDown, ArrowRight, Trash2 } from "lucide-react";
 import Board from "./Board";
+import { parseBoardCoordinate } from "./BoardCoordinates";
 import { BoardEditHistory } from "../../shared/board-entry";
 import { boardWordsAt } from "../../shared/game-scoring";
 import {
@@ -28,7 +32,12 @@ type MoveFilterSelection = {
   onToggle?: (index: number) => void;
 };
 
+export type BoardEntryHandle = {
+  openCoordinateOverlay: () => boolean;
+};
+
 export default function BoardEntry({
+  ref,
   game,
   hideHelp,
   readOnly,
@@ -41,6 +50,7 @@ export default function BoardEntry({
   historyControls,
   overlay,
 }: {
+  ref?: Ref<BoardEntryHandle>;
   game: Game;
   hideHelp?: boolean;
   readOnly?: boolean;
@@ -60,6 +70,7 @@ export default function BoardEntry({
   );
   return (
     <BoardInput
+      ref={displayBoard ? undefined : ref}
       board={displayBoard ?? game.board}
       hideHelp={hideHelp}
       readOnly={readOnly}
@@ -83,6 +94,7 @@ export default function BoardEntry({
 }
 
 export function BoardInput({
+  ref,
   board,
   archivedBoard,
   template,
@@ -102,6 +114,7 @@ export function BoardInput({
   historyControls,
   overlay,
 }: {
+  ref?: Ref<BoardEntryHandle>;
   board: BoardState;
   archivedBoard?: BoardState;
   template: BoardTemplate;
@@ -126,6 +139,7 @@ export function BoardInput({
   const [direction, setDirection] = useState<Direction>("across");
   const [pendingBlank, setPendingBlank] = useState(false);
   const [atEnd, setAtEnd] = useState(false);
+  const [coordinateQuery, setCoordinateQuery] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const focusing = useRef(false);
   const shiftHeld = useRef(false);
@@ -138,6 +152,7 @@ export function BoardInput({
       shiftHeld.current = false;
       setFocused(false);
       setPendingBlank(false);
+      setCoordinateQuery(null);
     };
     const restore = () => setFocused(document.activeElement === input.current);
     const visibility = () => {
@@ -164,6 +179,9 @@ export function BoardInput({
   const tile = selected === null ? "" : board[selected];
   const isBlank = Boolean(tile && tile === tile.toLowerCase());
   const cursor = focused && selected !== null ? coordinate(selected, n) : "";
+  const toggleMark = readOnly ? undefined : moveFilter?.onToggle;
+  const locating = coordinateQuery !== null && !readOnly && !toggleMark;
+  const target = locating ? parseBoardCoordinate(coordinateQuery, n) : null;
   const instruction = pendingBlank
     ? "Type a blank’s letter"
     : atEnd
@@ -171,13 +189,83 @@ export function BoardInput({
         ? "Board edge"
         : "Board edge — choose another square"
       : "Type to enter";
-  const status = readOnly
-    ? "Board locked"
-    : cursor
-      ? `${cursor} · ${instruction}`
-      : "Tap a square and type";
+  const status = locating
+    ? coordinateStatus()
+    : readOnly
+      ? "Board locked"
+      : cursor
+        ? `${cursor} · ${instruction}`
+        : "Tap a square and type";
   const help = <BoardEntryHelp id={helpId} hidden={hideHelp} />;
-  const toggleMark = readOnly ? undefined : moveFilter?.onToggle;
+
+  useImperativeHandle(ref, () => ({
+    openCoordinateOverlay() {
+      if (readOnly || toggleMark) return false;
+      resetHistory();
+      setPendingBlank(false);
+      setCoordinateQuery("");
+      // Clear any pinned move before focusing the board keyboard.
+      if (document.activeElement === input.current) onSelect?.();
+      focus();
+      return true;
+    },
+  }));
+
+  useEffect(() => {
+    if (readOnly || toggleMark) setCoordinateQuery(null);
+  }, [readOnly, toggleMark]);
+
+  function coordinateStatus() {
+    if (!target)
+      return coordinateQuery
+        ? `Use A1–${coordinate(n * n - 1, n)}`
+        : "Type a coordinate";
+    if (target.row === null && target.column !== null)
+      return `Column ${coordinate(target.column, n)[0]} · ← →`;
+    if (target.column === null && target.row !== null)
+      return `Row ${target.row + 1} · ↑ ↓`;
+    return `${coordinateQuery} · Enter ↵`;
+  }
+
+  function chooseCoordinate(match: typeof target) {
+    if (!match || match.row === null || match.column === null) return false;
+    select(match.row * n + match.column, false);
+    setDirection(match.direction);
+    return true;
+  }
+
+  function appendCoordinate(text: string) {
+    const typed = text.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const next = ((coordinateQuery ?? "") + typed).slice(0, 3);
+    const match = parseBoardCoordinate(next, n);
+    if (!match || match.ambiguous || !chooseCoordinate(match))
+      setCoordinateQuery(next);
+  }
+
+  function coordinateKey(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      setCoordinateQuery(null);
+      event.currentTarget.blur();
+    } else if (event.key === "Backspace" || event.key === "Delete") {
+      setCoordinateQuery(coordinateQuery?.slice(0, -1) ?? "");
+    } else if (event.key === "Enter") {
+      chooseCoordinate(target);
+    } else if (event.key.startsWith("Arrow")) {
+      if (target?.row === null && target.column !== null) {
+        const column =
+          target.column +
+          Number(event.key === "ArrowRight") -
+          Number(event.key === "ArrowLeft");
+        if (column >= 0 && column < n)
+          setCoordinateQuery(coordinate(column, n)[0]);
+      } else if (target?.column === null && target.row !== null) {
+        const row =
+          target.row + Number(event.key === "ArrowDown") - Number(event.key === "ArrowUp");
+        if (row >= 0 && row < n) setCoordinateQuery(String(row + 1));
+      }
+    } else return;
+    event.preventDefault();
+  }
 
   function focus() {
     setFocused(true);
@@ -188,7 +276,8 @@ export function BoardInput({
   }
   function select(i: number, repeatTap?: boolean) {
     resetHistory();
-    if (repeatTap ?? (focused && i === selected)) toggleDirection();
+    setCoordinateQuery(null);
+    if (!locating && (repeatTap ?? (focused && i === selected))) toggleDirection();
     else {
       setSelected(i);
       setPendingBlank(false);
@@ -292,7 +381,7 @@ export function BoardInput({
         preview={preview}
         disabled={readOnly}
         selected={
-          !readOnly && (focused || onCursorChange) && !preview && !toggleMark
+          !readOnly && (focused || onCursorChange) && !preview && !toggleMark && !locating
             ? selected
             : null
         }
@@ -302,8 +391,11 @@ export function BoardInput({
         entryDirection={direction}
         pendingBlank={pendingBlank}
         uncertain={uncertain}
-        wordScores={readOnly || toggleMark ? undefined : wordScores}
+        wordScores={readOnly || toggleMark || locating ? undefined : wordScores}
         keepInputFocus={!toggleMark}
+        coordinateSelection={
+          locating ? (target ?? { row: null, column: null }) : undefined
+        }
         overlay={overlay}
       />
       <input
@@ -311,6 +403,7 @@ export function BoardInput({
         className="board-keyboard-input"
         aria-label={inputLabel}
         aria-describedby={helpId}
+        aria-keyshortcuts={ref && !readOnly && !toggleMark ? "Alt+B" : undefined}
         disabled={readOnly || !!toggleMark}
         value={SENTINEL}
         autoComplete="off"
@@ -327,19 +420,23 @@ export function BoardInput({
         onBlur={() => {
           resetHistory();
           shiftHeld.current = false;
+          setCoordinateQuery(null);
           setFocused(false);
           setPendingBlank(false);
         }}
         onChange={(e) => {
           const text = e.currentTarget.value.replaceAll(SENTINEL, "");
-          if (!e.currentTarget.value) erase(true);
+          if (locating) appendCoordinate(text);
+          else if (!e.currentTarget.value) erase(true);
           else enter(text);
           e.currentTarget.value = SENTINEL;
           e.currentTarget.setSelectionRange(1, 1);
         }}
         onPaste={(e) => {
           e.preventDefault();
-          enter(e.clipboardData.getData("text"));
+          const text = e.clipboardData.getData("text");
+          if (locating) appendCoordinate(text);
+          else enter(text);
         }}
         onKeyUp={(e) => {
           if (e.key === "Shift") shiftHeld.current = false;
@@ -349,6 +446,10 @@ export function BoardInput({
           if (e.key === "Shift") shiftHeld.current = true;
           if (e.nativeEvent.isComposing || e.metaKey || e.ctrlKey || e.altKey)
             return;
+          if (locating) {
+            coordinateKey(e);
+            return;
+          }
           if (
             ![
               "ArrowRight",
@@ -416,7 +517,7 @@ export function BoardInput({
         <div className="direct-entry-actions">
           <button
             className="text-button direction-button"
-            disabled={readOnly}
+            disabled={readOnly || locating}
             aria-label="Toggle entry direction"
             title="Right/Down switches direction; Shift+Enter also toggles"
             onPointerDown={(e) => e.preventDefault()}
@@ -434,7 +535,7 @@ export function BoardInput({
           </button>
           <button
             className={`text-button ${pendingBlank || isBlank ? "active" : ""}`}
-            disabled={readOnly || selected === null}
+            disabled={readOnly || locating || selected === null}
             aria-label={`Blank tile: ${pendingBlank || isBlank ? "on" : "off"}`}
             aria-pressed={pendingBlank || isBlank}
             onPointerDown={(e) => e.preventDefault()}
@@ -448,7 +549,7 @@ export function BoardInput({
             className="icon-button"
             aria-label="Erase selected tile"
             title="Erase selected tile"
-            disabled={readOnly || selected === null || (!tile && !pendingBlank)}
+            disabled={readOnly || locating || selected === null || (!tile && !pendingBlank)}
             onPointerDown={(e) => e.preventDefault()}
             onClick={() => {
               erase();

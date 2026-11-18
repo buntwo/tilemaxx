@@ -1680,9 +1680,11 @@ label + label {
   container-type: inline-size;
 }
 .board-grid {
+  --axis-width: 16px;
+  --board-gap: 3px;
   display: grid;
-  grid-template-columns: 16px repeat(var(--size), minmax(0, 1fr));
-  gap: 3px;
+  grid-template-columns: var(--axis-width) repeat(var(--size), minmax(0, 1fr));
+  gap: var(--board-gap);
   background: var(--surface);
   user-select: none;
   -webkit-user-select: none;
@@ -3684,7 +3686,7 @@ label + label {
     padding: 18px 23px 9px 14px;
   }
   .board-grid {
-    gap: 4px;
+    --board-gap: 4px;
   }
   .results-empty {
     min-height: 440px;
@@ -3722,8 +3724,8 @@ label + label {
     padding: 12px 12px 4px 6px;
   }
   .board-grid {
-    gap: 2px;
-    grid-template-columns: 13px repeat(var(--size), minmax(0, 1fr));
+    --axis-width: 13px;
+    --board-gap: 2px;
   }
   .axis {
     font-size: 7px;
@@ -3939,8 +3941,8 @@ label + label {
     padding: 11px 12px 4px 5px;
   }
   .board-grid {
-    gap: 2px;
-    grid-template-columns: 13px repeat(var(--size), minmax(0, 1fr));
+    --axis-width: 13px;
+    --board-gap: 2px;
   }
   .axis {
     font-size: 7px;
@@ -4396,6 +4398,52 @@ label + label {
 }
 .button.danger:hover {
   background: #8b2b28;
+}
+
+.board-wrap.selecting-coordinate {
+  display: grid;
+}
+.selecting-coordinate > .board-grid {
+  grid-area: 1 / 1;
+}
+.selecting-coordinate > .board-grid:not(.board-coordinate-grid) {
+  filter: saturate(0.65) blur(0.5px);
+}
+.selecting-coordinate > .board-grid:not(.board-coordinate-grid) > .axis {
+  visibility: hidden;
+}
+.board-grid.board-coordinate-grid {
+  --coordinate-highlight: #50bd9f54;
+  background: transparent;
+  pointer-events: none;
+  z-index: 1;
+}
+.board-coordinate-label {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 0;
+  background: #17251e66;
+  color: #f3f7f3;
+  font: 700 10px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  /* Fit a three-character coordinate when custom boards have narrow squares. */
+  font-size: min(10px, calc((100cqw - var(--axis-width) - var(--size) * var(--board-gap)) / var(--size) / 1.82));
+  text-shadow: 0 1px 2px #07130e;
+}
+.board-coordinate-label[data-match] {
+  background:
+    linear-gradient(var(--coordinate-highlight), var(--coordinate-highlight)),
+    #17251e66;
+}
+.board-coordinate-grid .axis[data-match] {
+  background: var(--coordinate-highlight);
+  color: var(--text);
+  font-weight: 700;
+}
+.board-coordinate-label[data-target] {
+  outline: 2px solid #50bd9f;
+  outline-offset: -2px;
 }
 
 /* One persistent input receives both physical and iOS keyboard events. */
