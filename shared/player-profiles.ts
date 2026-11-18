@@ -28,6 +28,8 @@ const presets = {
     cross: 1.5,
     length: 3,
     leave: 0.15,
+    premiumLane: 0,
+    finalists: 1,
   },
   learner: {
     focus: 0.38,
@@ -43,6 +45,8 @@ const presets = {
     cross: 0.85,
     length: 1.5,
     leave: 0.4,
+    premiumLane: 1,
+    finalists: 3,
   },
   strong: {
     focus: 0.75,
@@ -58,6 +62,8 @@ const presets = {
     cross: 0.4,
     length: 0.75,
     leave: 0.85,
+    premiumLane: 3,
+    finalists: 4,
   },
 };
 
@@ -102,6 +108,7 @@ export type ProfileUtility = {
   leave: number;
   goingOut: number;
   defense?: number;
+  premiumLane?: number;
 };
 
 export type RankedProfileMove = { move: Move; utility: ProfileUtility };
@@ -262,8 +269,7 @@ export function createPlayerProfiles(
       return { bingoFound: false, considered: options.all ? [] : undefined };
     const preset = presets[profile];
     const { bagSize, board, seed, playerSeed, rack } = position;
-    const canDefend = profile === "strong" && bagSize > 0;
-    const shortlistSize = canDefend ? 4 : 1;
+    const shortlistSize = bagSize > 0 ? preset.finalists : 1;
     const shortlist: {
       move: Move;
       value: number;
@@ -428,16 +434,23 @@ export function createPlayerProfiles(
     scan(attention(position, profile));
     if (!shortlist.length) scan();
     const beforeDefense = shortlist[0]?.move;
-    if (canDefend && shortlist.length > 1) {
+    if (shortlist.length > 1) {
       const risk = (defense ??= createProfileDefense(lexicon, template))(
         position,
         bagSize,
+        profile === "strong",
       );
       for (const entry of shortlist) {
-        const adjustment = -0.65 * risk(entry.move);
-        entry.value += adjustment;
+        const { hook, lane } = risk(entry.move);
+        const hookAdjustment = hook === undefined ? undefined : -0.65 * hook;
+        const laneAdjustment =
+          lane === undefined ? undefined : -preset.premiumLane * lane;
+        entry.value += (hookAdjustment ?? 0) + (laneAdjustment ?? 0);
         if (entry.utility) {
-          entry.utility.defense = adjustment;
+          if (hookAdjustment !== undefined)
+            entry.utility.defense = hookAdjustment;
+          if (laneAdjustment !== undefined)
+            entry.utility.premiumLane = laneAdjustment;
           entry.utility.total = entry.value;
         }
       }

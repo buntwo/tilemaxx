@@ -4,6 +4,7 @@ import { scorePlacement } from "../../shared/game-scoring";
 import type { Game, Move } from "../../shared/model";
 import { placeTiles } from "../../shared/move-analysis";
 import { ScoreBreakdownContent } from "./ScoreBreakdown";
+import { scoreTone } from "../score-tone";
 
 import type { MoveUtility } from "../../shared/move-results";
 import {
@@ -33,6 +34,11 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
     { label: "Rack leave", value: utility.leave },
     { label: "Going out", value: utility.goingOut },
     {
+      label: "Premium lane risk",
+      value: utility.premiumLane,
+      tone: scoreTone(utility.premiumLane),
+    },
+    {
       label: "Defense",
       value: utility.defense,
       show: utility.defense !== undefined,
@@ -45,11 +51,11 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
       </div>
       <ul>
         {factors.map(
-          ({ label, value, show }) =>
+          ({ label, value, show, tone }) =>
             (value || show) && (
               <li className="score-breakdown-line" key={label}>
                 <span>{label}</span>
-                <span>{formatUtility(value || 0)}</span>
+                <span className={tone}>{formatUtility(value || 0)}</span>
               </li>
             ),
         )}
@@ -60,7 +66,7 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
       </div>
       {checksDefense && (
         <div className="move-score-adjustment">
-          Leading candidates are ranked first and checked for defense.
+          Leading candidates are ranked first and checked for premium threats.
         </div>
       )}
     </div>
