@@ -270,6 +270,65 @@ test("playing style requests ranked pages and All moves restores the full list",
   expect(screen.getAllByRole("button", { name: /^Score breakdown for/ }).length).toBeGreaterThan(0);
 });
 
+test("Bingo hunter runs only on demand, supports cancel and shows bingo utility", async () => {
+  let runs = 0;
+  let cancellations = 0;
+  class HunterWorker extends SolverWorker {
+    postMessage(request: SolverRequest) {
+      if (request.kind === "bingo-hunter") {
+        runs++;
+        if (runs < 3) {
+          this.onmessage?.({ data: {
+            id: request.id, kind: "bingo-hunter-progress",
+            progress: { phase: "sample", done: 1, total: 8 },
+          } });
+          return;
+        }
+        const result = this.results.get(request.searchId)!;
+        result.setProfile({ profile: "bingo-hunter", profileBagSize: request.bagSize, profileSeed: request.id },
+          result.moves.slice(0, 1).map((move) => ({
+            move, utility: {
+              total: 21, bingoNow: 0, nextBingoPoints: 21, bingoChance: 0.3,
+              meanBingoScore: 70, samples: 192, exact: false, close: false,
+            },
+          })));
+        this.onmessage?.({ data: {
+          id: request.id, kind: "bingo-hunter", summary: { checked: 1, limited: false },
+        } });
+        return;
+      }
+      if (request.kind === "cancel-bingo-hunter") {
+        cancellations++;
+        return;
+      }
+      super.postMessage(request);
+    }
+  }
+  vi.stubGlobal("Worker", HunterWorker);
+  const user = await start();
+  await typeRack(user, "CATS");
+  await user.keyboard("{Enter}");
+  await user.selectOptions(await screen.findByRole("combobox", { name: "Playing style" }), "bingo-hunter");
+  expect(runs).toBe(0);
+  const button = () => screen.getByRole("button", { name: "Run Bingo hunter" });
+  await user.click(button());
+  expect(await screen.findByText("Simulating replies · 1/8 moves")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
+  expect(cancellations).toBe(1);
+  await user.click(button());
+  await user.click(screen.getByRole("button", { name: "All moves" }));
+  expect(cancellations).toBe(2);
+  await user.selectOptions(screen.getByRole("combobox", { name: "Playing style" }), "bingo-hunter");
+  expect(runs).toBe(2);
+  await user.click(button());
+  expect(await screen.findByText("U 21")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: /^Utility breakdown for/ }));
+  const tooltip = within(screen.getByRole("tooltip"));
+  expect(tooltip.getByText("Bingo hunter · Rank 1")).toBeTruthy();
+  expect(tooltip.getByText("Expected bingo points next turn")).toBeTruthy();
+  expect(tooltip.getByText("30%")).toBeTruthy();
+});
+
 test("phone analysis taps preview and select a move without offering Play", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === "(max-width: 650px)",

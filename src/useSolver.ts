@@ -1,3 +1,4 @@
+import type { HunterProgress } from "./parallel-bingo-hunter";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Game, Move } from "../shared/model";
 import type { BoardOddsResult, RackOdds } from "../shared/bingo-odds";
@@ -14,7 +15,7 @@ import type {
 } from "../shared/move-results";
 import { MOVE_CACHE_LIMIT } from "../shared/move-results";
 import type { ShortlistEntry } from "../shared/move-shortlist";
-import type { SolverMessage, SolverRequest } from "./solver-messages";
+import type { HunterOptions, SolverMessage, SolverRequest } from "./solver-messages";
 import type { EndgameSettings } from "../shared/endgame";
 import type { MoveTiming, SolverStages } from "./move-timing";
 import type { ReplyCandidate } from "../shared/reply-candidates";
@@ -34,7 +35,7 @@ type Snapshot = {
 const emptySnapshot: Snapshot = { results: null, warnings: [] };
 type QueryReply = Extract<
   SolverMessage,
-  { kind: "page" | "shortlist" | "endgame" }
+  { kind: "page" | "shortlist" | "endgame" | "bingo-hunter" }
 >;
 export type RankEndgame = (
   searchId: number,
@@ -42,6 +43,10 @@ export type RankEndgame = (
   settings: EndgameSettings,
   signal: AbortSignal,
 ) => Promise<EndgameRanking | undefined>;
+export type RunBingoHunter = (
+  searchId: number, options: HunterOptions, signal: AbortSignal,
+  progress: (value: HunterProgress) => void,
+) => Promise<Extract<SolverMessage, { kind: "bingo-hunter" }> | undefined>;
 export type BoardOddsProgress = Omit<BoardOddsResult, "byMove">;
 
 export function useSolver(positionKey: string, game: Game | undefined) {
@@ -65,6 +70,7 @@ export function useSolver(positionKey: string, game: Game | undefined) {
   const startedAt = useRef(0);
   const visibleSearch = useRef<number | undefined>(undefined);
   const queries = useRef(new Map<number, (message?: QueryReply) => void>());
+  const hunterProgress = useRef(new Map<number, (value: HunterProgress) => void>());
   const saved = useRef(new Map<string, Snapshot>());
   const restore = useRef<string | null>(null);
 
@@ -218,7 +224,12 @@ export function useSolver(positionKey: string, game: Game | undefined) {
     worker.current = active;
     active.onmessage = ({ data: message }: MessageEvent<SolverMessage>) => {
       if (worker.current !== active) return;
+      if (message.kind === "bingo-hunter-progress") {
+        hunterProgress.current.get(message.id)?.(message.progress);
+        return;
+      }
       if (
+        message.kind === "bingo-hunter" ||
         message.kind === "page" ||
         message.kind === "shortlist" ||
         message.kind === "endgame"
@@ -431,14 +442,17 @@ export function useSolver(positionKey: string, game: Game | undefined) {
       request:
         | Omit<Extract<SolverRequest, { kind: "page" }>, "id">
         | Omit<Extract<SolverRequest, { kind: "shortlist" }>, "id">
-        | Omit<Extract<SolverRequest, { kind: "endgame" }>, "id">,
+        | Omit<Extract<SolverRequest, { kind: "endgame" }>, "id">
+        | Omit<Extract<SolverRequest, { kind: "bingo-hunter" }>, "id">,
       signal?: AbortSignal,
+      progress?: (value: HunterProgress) => void,
     ) =>
       new Promise<QueryReply | undefined>((resolve) => {
         const active = worker.current;
         if (!active || signal?.aborted) return resolve(undefined);
         const id = ++nextId.current;
         function complete(message?: QueryReply) {
+          hunterProgress.current.delete(id);
           signal?.removeEventListener("abort", onAbort);
           resolve(message);
         }
@@ -447,11 +461,12 @@ export function useSolver(positionKey: string, game: Game | undefined) {
           if (!queries.current.size) setQueriesPending(false);
           complete();
           active?.postMessage({
-            kind: "cancel-endgame",
+            kind: request.kind === "bingo-hunter" ? "cancel-bingo-hunter" : "cancel-endgame",
             id,
           } satisfies SolverRequest);
         }
         queries.current.set(id, complete);
+        if (progress) hunterProgress.current.set(id, progress);
         signal?.addEventListener("abort", onAbort, { once: true });
         setQueriesPending(true);
         try {
@@ -503,6 +518,11 @@ export function useSolver(positionKey: string, game: Game | undefined) {
     },
     [query],
   );
+
+  const runBingoHunter = useCallback<RunBingoHunter>(async (searchId, options, signal, progress) => {
+    const result = await query({ kind: "bingo-hunter", searchId, ...options }, signal, progress);
+    return result?.kind === "bingo-hunter" ? result : undefined;
+  }, [query]);
 
   function rememberResults() {
     if (!snapshot.results) return;
@@ -585,6 +605,7 @@ export function useSolver(positionKey: string, game: Game | undefined) {
     page,
     shortlist,
     rankEndgame,
+    runBingoHunter,
     runBoardOdds,
     finishTiming,
     cancelBoardOdds: stopBoardOdds,

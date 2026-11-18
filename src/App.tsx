@@ -1438,6 +1438,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   }
                   fetchPage={solver.page}
                   fetchShortlist={solver.shortlist}
+                  runBingoHunter={solver.runBingoHunter}
                   busy={busy}
                   calculating={solver.calculating}
                   timing={solver.timing}

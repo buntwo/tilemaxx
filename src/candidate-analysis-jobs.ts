@@ -1,3 +1,4 @@
+import { createHunterEvaluator, type HunterDeal, type HunterPosition } from "../shared/bingo-hunter";
 import { checkBoardBingoMove, type BoardOdds } from "../shared/bingo-odds";
 import { EndgameSearchLimitError, type EndgameLine } from "../shared/endgame";
 import type { Lexicon } from "../shared/lexicon";
@@ -27,6 +28,15 @@ export type CandidateJob =
       kind: "histogram";
       samples: ReturnType<typeof sampleReplyRacks>;
     })
+  | {
+      kind: "bingo-hunter";
+      position: HunterPosition;
+      move: Move;
+      deals: HunterDeal[];
+      beforeReply: boolean;
+      deadline: number;
+      wavesRemaining: number;
+    }
   | (CandidateMove & { kind: "endgame"; timeLimitMs?: 5_000 | 10_000 })
   | {
       kind: "opponent-endgame";
@@ -60,6 +70,7 @@ export type CandidateJob =
 
 export type CandidateResult =
   | { kind: "histogram"; board: ReturnType<typeof summarizeReplyBoard> }
+  | { kind: "bingo-hunter"; outcomes: number[] }
   | { kind: "endgame"; line: EndgameLine; elapsed: number }
   | { kind: "opponent-endgame"; line?: EndgameLine }
   | { kind: "board-bingo"; odds?: BoardOdds }
@@ -86,11 +97,30 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
     | { key: string; session: ReturnType<typeof createReplyEndgameSession> }
     | undefined;
   // An Optimal Exchange pool checks one immutable board across both phases.
+  let hunter: { key: string; evaluate: ReturnType<typeof createHunterEvaluator> } | undefined;
   let exchangeSolver: ReturnType<typeof prepareSolver> | undefined;
   return (job: CandidateJob): CandidateResult => {
     const started = performance.now();
     try {
       switch (job.kind) {
+        case "bingo-hunter": {
+          const deadline = started + (job.deadline - performance.timeOrigin - started) / job.wavesRemaining;
+          const outcomes: number[] = [];
+          if (deadline <= started) return { kind: "bingo-hunter", outcomes };
+          const key = job.move.id;
+          if (hunter?.key !== key)
+            hunter = { key, evaluate: createHunterEvaluator(lexicon, job.position, job.move) };
+          for (const deal of job.deals) {
+            if (performance.now() >= deadline) break;
+            try {
+              outcomes.push(hunter.evaluate(deal, job.beforeReply, deadline));
+            } catch (error) {
+              if (error instanceof SearchLimitError) break;
+              throw error;
+            }
+          }
+          return { kind: "bingo-hunter", outcomes };
+        }
         case "histogram":
           return {
             kind: "histogram",
