@@ -24,7 +24,7 @@ export default function OpponentRack({
             key={index}
             aria-hidden="true"
           >
-            {tile}
+            {tile === "?" ? "" : tile}
           </span>
         ))}
       </div>
