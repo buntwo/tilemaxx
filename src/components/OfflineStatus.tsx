@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HardDriveDownload, Info, LoaderCircle } from "lucide-react";
+import { HardDriveDownload, LoaderCircle, TriangleAlert } from "lucide-react";
 import type { Game } from "../../shared/model";
 import { prepareOfflineApp } from "../offline";
 import {
@@ -73,7 +73,7 @@ export default function OfflineStatus({
   return (
     <details className="offline-status">
       <summary className="offline-status-label">
-        <Info size={15} aria-hidden="true" />
+        <TriangleAlert size={15} aria-hidden="true" />
         <span>Offline setup</span>
       </summary>
       <div>
