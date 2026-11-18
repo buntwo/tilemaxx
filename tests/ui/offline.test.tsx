@@ -49,7 +49,12 @@ test("offline readiness waits for assets and persisted word lists", async () => 
   render(<OfflineStatus game={game} online />);
   expect(screen.getByText("Preparing offline…")).toBeTruthy();
   await act(async () => finish());
-  expect(await screen.findByText("Available offline")).toBeTruthy();
+  const ready = await screen.findByText("Available offline");
+  expect(ready.closest("details")).toBeNull();
+  fireEvent.click(ready);
+  expect(
+    screen.queryByText(/Edits sync when Tilemaxx is reachable again/),
+  ).toBeNull();
   expect(loadWordList).toHaveBeenCalledWith("/api/dictionaries/words", {
     refresh: true,
   });

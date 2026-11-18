@@ -1036,6 +1036,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         </button>
         <div className="sidebar-bottom">
           <div className="workspace-controls">
+            <OfflineStatus game={game} online={state.online} storageError={state.storageError} />
             {sidebarVisible && syncStatus}
             <div className="theme-switch" role="group" aria-label="Color theme">
               {[
@@ -1085,7 +1086,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 )}
               </span>
             </div>
-            <OfflineStatus game={game} online={state.online} storageError={state.storageError} />
           </div>
           <div className="profile-picker">
             {profile && (

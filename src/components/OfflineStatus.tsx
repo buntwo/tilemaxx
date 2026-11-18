@@ -69,27 +69,20 @@ export default function OfflineStatus({
   const message = storageError
     ? "This game could not be saved on this device. Keep this page open and restore browser storage before going offline."
     : status.message;
+  if (busy || !message)
+    return (
+      <span className="offline-status">
+        {busy ? "Preparing offline…" : "Available offline"}
+      </span>
+    );
   return (
     <details className="offline-status">
-      <summary>
-        {busy
-          ? "Preparing offline…"
-          : message
-            ? "Offline setup"
-            : "Available offline"}
-      </summary>
+      <summary>Offline setup</summary>
       <div>
-        <p>
-          {busy
-            ? "Downloading this game’s word lists and screenshot tools for offline use."
-            : message ||
-              "This game, analysis tools, and screenshot import are available offline. Edits sync when Tilemaxx is reachable again."}
-        </p>
-        {!busy && message && (
-          <button type="button" onClick={() => setRetry((value) => value + 1)}>
-            Retry offline setup
-          </button>
-        )}
+        <p>{message}</p>
+        <button type="button" onClick={() => setRetry((value) => value + 1)}>
+          Retry offline setup
+        </button>
       </div>
     </details>
   );
