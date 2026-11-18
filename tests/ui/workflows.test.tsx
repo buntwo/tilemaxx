@@ -2622,8 +2622,10 @@ test("multiple games retain separate racks and word lists", async () => {
   expect(remote.games.find((g) => g.name === "Second game")?.dictionaryId).toBe(
     "other",
   );
+  await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(screen.getByRole("button", { name: "dark theme" }));
   expect(localStorage.getItem("tilewise:theme")).toBe("dark");
+  await user.click(screen.getByRole("button", { name: "Close dialog" }));
   expect(
     Object.values(store.snapshot.games).find((g) => g.name === "Second game")!
       .rack,
@@ -3243,13 +3245,17 @@ test("the phone layout keeps settings, the build version, board help and move fi
   expect(main.queryByRole("button", { name: "dark theme" })).toBeNull();
   await user.click(menu);
   const sidebar = within(screen.getByRole("complementary"));
-  const theme = sidebar.getByRole("group", { name: "Color theme" });
+  expect(sidebar.queryByRole("group", { name: "Color theme" })).toBeNull();
   const settingsButton = sidebar.getByRole("button", { name: "Settings" });
   expect(settingsButton.textContent).toBe("");
-  expect(settingsButton.parentElement).toBe(theme.nextElementSibling);
   expect(settingsButton.nextElementSibling).toBe(sidebar.getByText(`v${version}`));
+  await user.click(settingsButton);
+  const settings = within(screen.getByRole("dialog", { name: "Settings" }));
+  const theme = settings.getByRole("group", { name: "Color theme" });
   await user.click(within(theme).getByRole("button", { name: "dark theme" }));
   expect(document.documentElement.dataset.theme).toBe("dark");
+  await user.click(settings.getByRole("button", { name: "Close dialog" }));
+  await user.click(main.getByRole("button", { name: "Open sidebar" }));
   await user.click(sidebar.getByRole("button", { name: "My games" }));
 
   expect(document.querySelector(".board-toolbar")).toBeNull();
@@ -4414,6 +4420,11 @@ test("workspace settings keep board previews visible with plain rack tiles and p
 
   await openSettings();
   expect(dialog().getByText("Applies to all games in this browser only.")).toBeTruthy();
+  for (const theme of ["light", "system", "dark"]) {
+    await user.click(dialog().getByRole("button", { name: `${theme} theme` }));
+    expect(document.documentElement.dataset.theme).toBe(theme);
+    expect(localStorage.getItem("tilewise:theme")).toBe(theme);
+  }
   expect(
     ["Move previews", "Gameplay", "Updates"].map(
       (name) =>
@@ -4455,6 +4466,7 @@ test("workspace settings keep board previews visible with plain rack tiles and p
   render(<App />);
   await screen.findByRole("heading", { name: /First game/ });
   await openSettings();
+  expect(dialog().getByRole("button", { name: "dark theme" }).getAttribute("aria-pressed")).toBe("true");
   for (const name of [rackHighlight, pulse, playAnimation, autoUpdate]) {
     expect(option(name).checked).toBe(false);
   }

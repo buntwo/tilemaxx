@@ -21,7 +21,6 @@ import {
   Map,
   Menu,
   Monitor,
-  Moon,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -30,7 +29,6 @@ import {
   Search,
   Settings,
   Smartphone,
-  Sun,
   Undo2,
   Wifi,
   X,
@@ -1038,27 +1036,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           <div className="workspace-controls">
             <OfflineStatus game={game} online={state.online} storageError={state.storageError} />
             {sidebarVisible && syncStatus}
-            <div className="theme-switch" role="group" aria-label="Color theme">
-              {[
-                ["light", Sun],
-                ["dark", Moon],
-                ["system", Monitor],
-              ].map(([value, Icon]) => {
-                const I = Icon as typeof Sun;
-                return (
-                  <button
-                    key={value as string}
-                    aria-label={`${value} theme`}
-                    aria-pressed={theme === value}
-                    title={`${value} theme`}
-                    className={theme === value ? "active" : ""}
-                    onClick={() => setTheme(value as string)}
-                  >
-                    <I size={15} />
-                  </button>
-                );
-              })}
-            </div>
             <div className="workspace-settings-row">
               <button
                 className="icon-button workspace-settings-button"
@@ -1973,6 +1950,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       )}
       {dialog === "workspace-settings" && (
         <WorkspaceSettings
+          theme={theme}
+          onThemeChange={setTheme}
           preferences={preferences}
           concurrencyHint={concurrencyHint}
           workerLimit={workerLimit}
