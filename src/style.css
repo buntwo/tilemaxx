@@ -1020,23 +1020,40 @@ label + label {
 .game-heading .game-title-score[data-outcome="playing"] .game-score-totals {
   padding-inline: 9px;
 }
-.game-score-player { position: relative; }
-.game-title-score[data-turn="you"] .game-score-player:first-child::after,
-.game-title-score[data-turn="opponent"] .game-score-player:last-child::after {
-  content: "";
+.game-heading .game-title-score[data-turn] .game-score-totals {
+  position: relative;
+  align-self: stretch;
+  justify-content: center;
+  padding-inline: 18px;
+}
+.game-score-turn-marker {
   position: absolute;
   top: 50%;
-  transform: translateY(-50%);
-  width: 5px;
-  height: 5px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
+}
+/* The badge has 8px horizontal padding: 8 + 5 = 13px to each marker's center. */
+.game-score-turn-marker[data-player="you"] {
+  inset-inline-start: 5px;
+  transform: translate(-50%, -50%);
+}
+.game-score-turn-marker[data-player="opponent"] {
+  inset-inline-end: 5px;
+  transform: translate(50%, -50%);
+}
+.game-score-turn-marker[data-status="turn"] {
+  width: 8px;
+  height: 8px;
   background: light-dark(#41677a, #add2e3);
 }
-.game-title-score[data-turn="you"] .game-score-player:first-child::after {
-  inset-inline-end: calc(100% + 2px);
-}
-.game-title-score[data-turn="opponent"] .game-score-player:last-child::after {
-  inset-inline-start: calc(100% + 2px);
+.game-score-turn-marker > span {
+  position: absolute;
+  width: 1.6px;
+  height: 1.6px;
+  border-radius: 50%;
+  background: light-dark(#7c8386, #b5b8bd);
+  transform: translate(-50%, -50%);
 }
 .game-score-separator {
   opacity: 0.7;
@@ -5739,6 +5756,13 @@ label + label {
   min-height: 39px;
   padding-inline: 6px;
   font-size: 16px;
+}
+/* Phone badges have 6px horizontal padding: 6 + 7 = 13px. */
+.phone-layout .game-heading .game-title-score:not(.game-scoreboard) .game-score-turn-marker[data-player="you"] {
+  inset-inline-start: 7px;
+}
+.phone-layout .game-heading .game-title-score:not(.game-scoreboard) .game-score-turn-marker[data-player="opponent"] {
+  inset-inline-end: 7px;
 }
 .phone-layout .game-heading .game-score-replay { min-height: 44px; }
 .phone-layout .game-title-meta { margin-top: 0; }
