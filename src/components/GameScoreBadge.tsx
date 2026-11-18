@@ -42,14 +42,14 @@ export default function GameScoreBadge({
   score,
   turn,
   prominent = false,
-  inHeader = false,
+  showMargin = false,
   showNoScore = false,
   onReplay,
 }: {
   score: GameScoreSummary | null;
   turn?: Player;
   prominent?: boolean;
-  inHeader?: boolean;
+  showMargin?: boolean;
   showNoScore?: boolean;
   onReplay?: () => void;
 }) {
@@ -76,7 +76,7 @@ export default function GameScoreBadge({
         : margin < 0
           ? `You trail by ${-margin}`
           : "Tied"
-      : inHeader && margin
+      : showMargin && margin
         ? `${status[score.outcome]}. ${Math.abs(margin)}-point ${margin > 0 ? "lead" : "deficit"}.`
         : status[score.outcome];
   const marginTone =
@@ -90,7 +90,7 @@ export default function GameScoreBadge({
   const Container = onReplay ? "button" : "span";
   return (
     <Container
-      className={[badgeClass, !inHeader && tone, onReplay && "game-score-replay"]
+      className={[badgeClass, tone, onReplay && "game-score-replay"]
         .filter(Boolean)
         .join(" ")}
       type={onReplay ? "button" : undefined}
@@ -104,10 +104,7 @@ export default function GameScoreBadge({
     >
       <span className="game-score-totals">
         {currentTurn && <TurnMarker player="you" turn={currentTurn} />}
-        <span
-          className={`game-score-player${inHeader && tone ? ` ${tone}` : ""}`}
-          aria-label="Your score"
-        >
+        <span className="game-score-player" aria-label="Your score">
           {score.you}
         </span>
         <span className="game-score-separator" aria-hidden="true">
@@ -118,7 +115,7 @@ export default function GameScoreBadge({
         </span>
         {currentTurn && <TurnMarker player="opponent" turn={currentTurn} />}
       </span>
-      {inHeader && (
+      {showMargin && (
         <span
           className={`game-score-delta${marginTone ? ` ${marginTone}` : ""}`}
           aria-hidden="true"
