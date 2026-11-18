@@ -2260,7 +2260,6 @@ label + label {
 @container (max-width: 390px) {
   .result-columns, .result-row, .result-slot {
     --result-points: var(--result-adjusted-points, 29px);
-    --result-reply: 42px;
     --result-leave: 63px;
     --result-position: 29px;
     --result-gap: 4px;
@@ -2718,7 +2717,6 @@ label + label {
   padding: 0 18px 12px;
   font-size: 10px;
 }
-.move-parenthesis { color: var(--existing-letter); font-weight: 400; }
 .result-letter.played {
   color: var(--primary);
   font-weight: 750;

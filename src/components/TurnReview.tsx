@@ -113,8 +113,6 @@ export default function TurnReview({
             <MoveWord
               word={turn.move.word}
               bingo={turnBingo(turn, template)}
-              position={position}
-              size={template.size}
             />
           </>
         ) : (
@@ -206,7 +204,6 @@ export default function TurnReview({
                                 <MoveWord
                                   move={move}
                                   rules={template}
-                                  board={position.board}
                                 />
                               </strong>{" "}
                               ·{" "}
@@ -279,8 +276,6 @@ export default function TurnReview({
                           Move {item.index + 1} ·{" "}
                           <MoveWord
                             word={item.word}
-                            position={turns[item.index].position}
-                            size={template.size}
                             bingo={turnBingo(turns[item.index], template)}
                           />
                         </button>
@@ -291,7 +286,6 @@ export default function TurnReview({
                               <MoveWord
                                 move={item.bingo}
                                 rules={template}
-                                board={turns[item.index].position?.board}
                               />
                             </strong>{" "}
                             for {item.bingo.score}
@@ -307,7 +301,6 @@ export default function TurnReview({
                               <MoveWord
                                 move={item.best}
                                 rules={template}
-                                board={turns[item.index].position?.board}
                               />
                             </strong>{" "}
                             for {item.best.score} vs. {item.score}

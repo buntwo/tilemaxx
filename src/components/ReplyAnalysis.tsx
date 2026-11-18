@@ -348,7 +348,7 @@ function DistributionChart({
           {compare && (
             <span>
               <i />
-              Reference · After <MoveWord move={reference} rules={rules} board={board} />
+              Reference · After <MoveWord move={reference} rules={rules} />
             </span>
           )}
           <span>
@@ -436,7 +436,7 @@ function ExactReplyDetails({
           <div>
             <dt>You go out</dt>
             <dd>
-              <MoveWord move={move} rules={game.template} board={game.board} /> ·{" "}
+              <MoveWord move={move} rules={game.template} /> ·{" "}
               <span className={scoreTone(move.score)}>{move.score} pts</span>
             </dd>
           </div>
@@ -462,7 +462,7 @@ function ExactReplyDetails({
             <dd>
               {reply ? (
                 <>
-                  <MoveWord move={reply} rules={game.template} board={placeTiles(game.board, move)} /> ·{" "}
+                  <MoveWord move={reply} rules={game.template} /> ·{" "}
                   <span className={scoreTone(-reply.score)}>
                     {reply.score} pts
                   </span>{" "}
@@ -479,7 +479,7 @@ function ExactReplyDetails({
           <div>
             <dt>Highest raw reply score</dt>
             <dd>
-              <MoveWord move={highest} rules={game.template} board={placeTiles(game.board, move)} /> ·{" "}
+              <MoveWord move={highest} rules={game.template} /> ·{" "}
               <span className={scoreTone(-highest.score)}>
                 {highest.score} pts
               </span>
@@ -490,7 +490,7 @@ function ExactReplyDetails({
           <div>
             <dt>
               Raw reply vs.{" "}
-              <MoveWord move={analysis.reference} rules={game.template} board={game.board} />
+              <MoveWord move={analysis.reference} rules={game.template} />
             </dt>
             <dd className={scoreTone(-result.difference)}>
               {signedPoints(result.difference)} pts
@@ -662,7 +662,7 @@ export default function ReplyHeatmapDialog({
     <Modal
       title={
         <>
-          Reply heatmap after <MoveWord move={move} rules={game.template} board={game.board} />
+          Reply heatmap after <MoveWord move={move} rules={game.template} />
         </>
       }
       onClose={onClose}

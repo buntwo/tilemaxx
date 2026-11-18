@@ -186,7 +186,7 @@ export default function PolicyTimeline({
                       data-policy-turn={index}
                       onClick={() => onSelect(index)}
                     >
-                      {index + 1} · <MoveWord word={move.word} bingo={bingo} position={input?.position} size={input?.template.size} />
+                      {index + 1} · <MoveWord word={move.word} bingo={bingo} />
                     </button>
                   </th>
                   <td>{move.score}</td>

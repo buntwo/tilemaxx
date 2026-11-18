@@ -3722,7 +3722,7 @@ test("finish overlay waits for the last tile, dismisses outside the card, and ar
       const outcome = board.getByRole("heading", { name: "You win!" });
       expect(outcome.closest(".board-grid")).toBeTruthy();
       expect(board.getByText("Won by 11")).toBeTruthy();
-      expect(board.getByText(/You went out/).textContent).toContain("(CAT)S +6");
+      expect(board.getByText(/You went out/).textContent).toContain("CATS +6");
       await act(async () => vi.advanceTimersByTimeAsync(10_000));
       expect(board.getByRole("heading", { name: "You win!" })).toBe(outcome);
     } finally {
@@ -3784,7 +3784,7 @@ test("typing the opponent's last tile shows the adjusted loss and locks the boar
   expect(badge.querySelector("svg")).toBeNull();
   expect(result.getByText("–", { selector: ".game-score-separator" }).textContent)
     .toBe(badge.querySelector(".game-score-separator")?.textContent);
-  expect(board.getByText(/First game went out/).textContent).toContain("(CA)TS +6");
+  expect(board.getByText(/First game went out/).textContent).toContain("CATS +6");
   expect(document.activeElement).not.toBe(entry());
 
   const square = board.getByRole("button", { name: /^H8: C/ });
@@ -4385,7 +4385,7 @@ test("hovering a move highlights the first available copy of each rack tile it u
   const blankMove = (
     await screen.findAllByRole("button", { name: /^CAT, / })
   )[0];
-  expect(blankMove.querySelector(".assigned-blank")?.textContent).toBe("a");
+  expect(blankMove.querySelector(".assigned-blank")?.textContent).toBe("A");
   await user.hover(blankMove);
   expect(highlighted()).toEqual([1, 2, 3]);
 });

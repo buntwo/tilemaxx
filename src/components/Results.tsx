@@ -1578,7 +1578,7 @@ export default function Results({
         ) : defenseProgress ? (
           <span title="Checking premium replies">Risk {defenseProgress}</span>
         ) : (
-          timing && <MoveTimingButton timing={timing} size={size} board={analysisGame?.board} />
+          timing && <MoveTimingButton timing={timing} />
         )}
       </footer>
       {analysisGame && replyMove && (replyLine || replyDetail || requestedHistogram) && (
@@ -1588,7 +1588,7 @@ export default function Results({
           data-move-preview-action
         >
           <h3 className={replyLine ? "optimal-reply-title" : undefined}>
-            <span>Reply after <MoveWord move={replyMove} rules={analysisGame.template} board={analysisGame.board} /></span>
+            <span>Reply after <MoveWord move={replyMove} rules={analysisGame.template} /></span>
             {replyLength && (
               <span className="exact-reply-metadata">
                 <span className="optimal-reply-badge"><Check size={13} aria-hidden="true" /> Exact line</span>

@@ -1,11 +1,7 @@
-import { recordedMoveNotation, wordNotation } from "../../shared/notation";
+import { recordedMoveNotation } from "../../shared/notation";
 import { Fragment, useMemo, useState } from "react";
 import { ChevronDown, Pencil, Plus, Trophy } from "lucide-react";
-import {
-  isBingo,
-  type Game,
-  type Player,
-} from "../../shared/model";
+import { isBingo, type Game, type Player } from "../../shared/model";
 import {
   correctTrackedMove,
   displayedGameScoring,
@@ -106,7 +102,7 @@ export default function GameScores({
   const tone = scoreTone(margin);
   const totals = { you: 0, opponent: 0 };
   const turns = useMemo(() => reviewTurns(game), [game]);
-  const history = turns.map(turn => turn.move);
+  const history = turns.map((turn) => turn.move);
   const historyKey = JSON.stringify(history);
   const [editor, setEditor] = useState<{
     insert: boolean;
@@ -135,7 +131,11 @@ export default function GameScores({
   const moves = history
     .map((move, index) => ({
       ...move,
-      notation: recordedMoveNotation(move, turns[index].position, game.template.size),
+      notation: recordedMoveNotation(
+        move,
+        turns[index].position,
+        game.template.size,
+      ),
       bingo:
         move.bingo ??
         (move.review !== undefined &&
@@ -220,7 +220,7 @@ export default function GameScores({
                     <p>
                       Opponent move{multiplePending ? ` ${index + 1}` : ""} ·{" "}
                       <strong>
-                        <MoveWord word={wordNotation(play.words[0].tiles)} bingo={play.bingo} /> ·{" "}
+                        <MoveWord word={play.word} bingo={play.bingo} /> ·{" "}
                         {play.score} pts
                       </strong>
                     </p>
@@ -431,7 +431,7 @@ export default function GameScores({
                   <option value={history.length}>After the latest move</option>
                   {moves.map((move) => (
                     <option key={move.number} value={move.number - 1}>
-                      Before #{move.number} {move.notation}
+                      Before #{move.number} {move.word}
                       {move.bingo ? " · 🏆 Bingo" : ""}
                     </option>
                   ))}

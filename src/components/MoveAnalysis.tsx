@@ -1,4 +1,4 @@
-import { moveLocation, lineNotation } from "../../shared/notation";
+import { moveLocation } from "../../shared/notation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChartNoAxesCombined, X } from "lucide-react";
 import {
@@ -7,7 +7,7 @@ import {
   type EndgameSettings,
 } from "../../shared/endgame";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
-import { isBingo, type Game, type Move } from "../../shared/model";
+import { type Game, type Move } from "../../shared/model";
 import { unseenTiles } from "../../shared/tile-pool";
 import { rackLetters } from "../../shared/rack-entry";
 import {
@@ -104,15 +104,20 @@ export default function MoveAnalysis({
     bagSize === endgameSettings.bagSize &&
     scoreless === endgameSettings.scorelessTurns &&
     opponentHasFinalTurn === endgameSettings.opponentHasFinalTurn;
-  const result = useCachedLines && analysisResult?.bagSize === 0
-    ? {
-        ...analysisResult,
-        forecasts: analysisResult.forecasts.map((forecast) => {
-          const line = !forecast.endgame && endgameSettings.cachedEndgame(forecast.move.id);
-          return line ? { ...forecast, endgame: line, endgameLimit: undefined } : forecast;
-        }),
-      }
-    : analysisResult;
+  const result =
+    useCachedLines && analysisResult?.bagSize === 0
+      ? {
+          ...analysisResult,
+          forecasts: analysisResult.forecasts.map((forecast) => {
+            const line =
+              !forecast.endgame &&
+              endgameSettings.cachedEndgame(forecast.move.id);
+            return line
+              ? { ...forecast, endgame: line, endgameLimit: undefined }
+              : forecast;
+          }),
+        }
+      : analysisResult;
   const totals = result?.forecasts.some(({ endgame }) => endgame)
     ? scoreTotalsAtPosition(game)
     : undefined;
@@ -122,8 +127,7 @@ export default function MoveAnalysis({
     endgameBudget,
     candidates.length,
   );
-  const position = (move: Move) =>
-    moveLocation(move);
+  const position = (move: Move) => moveLocation(move);
 
   function stop() {
     worker.current?.terminate();
@@ -135,17 +139,25 @@ export default function MoveAnalysis({
     setError("");
     setExample(undefined);
     return stop;
-  }, [key, bagText, inferenceKey, scoreless, opponentHasFinalTurn, endgameBudget]);
+  }, [
+    key,
+    bagText,
+    inferenceKey,
+    scoreless,
+    opponentHasFinalTurn,
+    endgameBudget,
+  ]);
 
   function run(trials: number) {
     setError("");
     setProgress({ phase: "scenarios", completed: 0, total: trials });
     if (trials === ANALYSIS_TRIALS)
       seed.current = Math.floor(Math.random() * 0x1_0000_0000);
-    const active = worker.current ?? new Worker(
-        new URL("../analysis.worker.ts", import.meta.url),
-        { type: "module" },
-    );
+    const active =
+      worker.current ??
+      new Worker(new URL("../analysis.worker.ts", import.meta.url), {
+        type: "module",
+      });
     worker.current = active;
     active.onmessage = (event: MessageEvent<WorkerMessage>) => {
       if (worker.current !== active) return;
@@ -171,13 +183,14 @@ export default function MoveAnalysis({
       setProgress(undefined);
       setError("The analysis stopped unexpectedly. Try again.");
     };
-    const cachedEndgames =
-      useCachedLines
-        ? Object.fromEntries(candidates.flatMap(({ id }) => {
+    const cachedEndgames = useCachedLines
+      ? Object.fromEntries(
+          candidates.flatMap(({ id }) => {
             const line = endgameSettings.cachedEndgame(id);
             return line ? [[id, line]] : [];
-          }))
-        : undefined;
+          }),
+        )
+      : undefined;
     active.postMessage({
       dictionaryId: game.dictionaryId,
       board: game.board,
@@ -215,7 +228,7 @@ export default function MoveAnalysis({
             onClick={() => onRemove(move)}
             aria-label={`Remove ${move.word} at ${position(move)} from comparison`}
           >
-            <MoveWord move={move} rules={game.template} board={game.board} /> {position(move)}{" "}
+            <MoveWord move={move} rules={game.template} /> {position(move)}{" "}
             <X size={12} />
           </button>
         ))}
@@ -307,7 +320,9 @@ export default function MoveAnalysis({
               <input
                 type="checkbox"
                 checked={opponentHasFinalTurn}
-                onChange={(event) => setOpponentHasFinalTurn(event.target.checked)}
+                onChange={(event) =>
+                  setOpponentHasFinalTurn(event.target.checked)
+                }
               />
               Opponent has a final turn
             </label>
@@ -378,12 +393,10 @@ export default function MoveAnalysis({
             position={position}
             totals={totals}
             rules={game.template}
-            board={game.board}
           />
           <div className="analysis-cards">
             {result.forecasts.map((forecast) => {
               const { move } = forecast;
-              const endgameWords = forecast.endgame && lineNotation(forecast.endgame.line, game.board, game.template.size);
               const finalScore = formatFinalScore(forecast.endgame, totals);
               const reply = forecast.models[model];
               const exampleReply = reply.example ?? forecast.availableExample;
@@ -395,7 +408,7 @@ export default function MoveAnalysis({
                 >
                   <details>
                     <summary>
-                      <MoveWord move={move} rules={game.template} board={game.board} />{" "}
+                      <MoveWord move={move} rules={game.template} />{" "}
                       {position(move)} details
                     </summary>
                     {!!forecast.bingoDraws.length && (
@@ -441,8 +454,8 @@ export default function MoveAnalysis({
                                 <td>
                                   {step ? (
                                     <MoveWord
-                                      word={endgameWords![turn]}
-                                      bingo={isBingo(game.template, step.tiles.length)}
+                                      move={step}
+                                      rules={game.template}
                                     />
                                   ) : (
                                     "Pass"
@@ -470,7 +483,7 @@ export default function MoveAnalysis({
                       >
                         Preview{" "}
                         {reply.example ? "modeled reply" : "available threat"}{" "}
-                        <MoveWord move={exampleReply} rules={game.template} board={placeTiles(game.board, move)} /> ·{" "}
+                        <MoveWord move={exampleReply} rules={game.template} /> ·{" "}
                         <span className={scoreTone(-exampleReply.score)}>
                           {exampleReply.score} pts
                         </span>
@@ -505,7 +518,7 @@ export default function MoveAnalysis({
         <Modal
           title={
             <>
-              <MoveWord move={example.reply} rules={game.template} board={placeTiles(game.board, example.move)} /> ·{" "}
+              <MoveWord move={example.reply} rules={game.template} /> ·{" "}
               <span className={scoreTone(-example.reply.score)}>
                 {example.reply.score} points
               </span>
@@ -514,7 +527,7 @@ export default function MoveAnalysis({
           subtitle={
             <>
               Example opponent reply after{" "}
-              <MoveWord move={example.move} rules={game.template} board={game.board} /> at{" "}
+              <MoveWord move={example.move} rules={game.template} /> at{" "}
               {position(example.move)}.
             </>
           }
@@ -538,14 +551,12 @@ function Comparison({
   position,
   totals,
   rules,
-  board,
 }: {
   result: AnalysisResult;
   model: OpponentModel;
   position: (move: Move) => string;
   totals: ReturnType<typeof scoreTotalsAtPosition>;
   rules: Game["template"];
-  board: Game["board"];
 }) {
   const rows: {
     label: string;
@@ -654,7 +665,7 @@ function Comparison({
             <th scope="col">Metric</th>
             {result.forecasts.map(({ move }, i) => (
               <th key={move.id} scope="col">
-                <MoveWord move={move} rules={rules} board={board} />
+                <MoveWord move={move} rules={rules} />
                 <small>
                   {position(move)} · {move.score} pts
                 </small>

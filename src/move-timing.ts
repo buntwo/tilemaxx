@@ -11,7 +11,7 @@ export type SolverStages = {
 };
 
 export type ExactLineTiming = {
-  move: Pick<Move, "id" | "word" | "row" | "col" | "direction"> & Partial<Pick<Move, "tiles">>;
+  move: Pick<Move, "id" | "word" | "row" | "col" | "direction">;
   elapsed: number;
   limit?: string;
 };

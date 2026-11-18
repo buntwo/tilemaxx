@@ -88,14 +88,14 @@ export default function ReplyHeatmap({
             aria-pressed={!difference}
             onClick={() => toggle(false)}
           >
-            After <MoveWord move={move} rules={template} board={game.board} />
+            After <MoveWord move={move} rules={template} />
           </button>
           <button
             type="button"
             aria-pressed={difference}
             onClick={() => toggle(true)}
           >
-            Change vs. <MoveWord move={reference} rules={template} board={game.board} />
+            Change vs. <MoveWord move={reference} rules={template} />
           </button>
         </div>
       )}
@@ -108,7 +108,7 @@ export default function ReplyHeatmap({
       </p>
       {difference && (
         <p className="defense-help">
-          Reference · After <MoveWord move={reference} rules={template} board={game.board} />
+          Reference · After <MoveWord move={reference} rules={template} />
         </p>
       )}
       {!ranked.length ? (
@@ -197,7 +197,6 @@ export default function ReplyHeatmap({
                           <MoveWord
                             move={play}
                             rules={template}
-                            board={placeTiles(game.board, move)}
                           />
                         </strong>
                         <span>
@@ -220,7 +219,7 @@ export default function ReplyHeatmap({
               ) : (
                 <p className="defense-help">
                   No best {BIG_REPLY_SCORE}+ point reply uses this square after{" "}
-                  <MoveWord move={move} rules={template} board={game.board} />.
+                  <MoveWord move={move} rules={template} />.
                 </p>
               )}
             </div>
