@@ -654,7 +654,14 @@ export default function Results({
     return () => document.removeEventListener("click", dismissPreview, true);
   }, [locked, histogramSelection, onPreview]);
   function togglePin(move: Move) {
-    if (histogramSelection) setInspectedReply(undefined);
+    if (histogramSelection) {
+      setInspectedReply(undefined);
+      setFollowHistogram(undefined);
+      if (histogramSelection.id === move.id) {
+        onPreview(null);
+        return;
+      }
+    }
     setLocked((current) => (current === move.id ? null : move.id));
     onPreview(move);
   }
@@ -1289,6 +1296,11 @@ export default function Results({
                     key={m.id}
                     ref={pinned ? pinnedRow : undefined}
                     style={{ top: (start + offset) * moveRowHeight }}
+                    onContextMenu={(event) => {
+                      if (analyzing) return;
+                      event.preventDefault();
+                      togglePin(m);
+                    }}
                     onPointerEnter={(e) => {
                       if (locked || histogramSelection || !canHoverWithMouse(e.pointerType)) return;
                       onPreview(m, analyzing);
@@ -1326,11 +1338,6 @@ export default function Results({
                       }}
                       onFocus={() => {
                         if (!locked && !histogramSelection) onPreview(m, analyzing);
-                      }}
-                      onContextMenu={(event) => {
-                        if (analyzing) return;
-                        event.preventDefault();
-                        togglePin(m);
                       }}
                       onKeyDown={(event) => {
                         if (analyzing || event.key.toLowerCase() !== "p")
