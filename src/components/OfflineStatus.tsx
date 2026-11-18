@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { HardDriveDownload, Info, LoaderCircle } from "lucide-react";
 import type { Game } from "../../shared/model";
 import { prepareOfflineApp } from "../offline";
 import {
@@ -71,13 +72,21 @@ export default function OfflineStatus({
     : status.message;
   if (busy || !message)
     return (
-      <span className="offline-status">
-        {busy ? "Preparing offline…" : "Available offline"}
+      <span className="offline-status offline-status-label">
+        {busy ? (
+          <LoaderCircle size={15} className="spin" aria-hidden="true" />
+        ) : (
+          <HardDriveDownload size={15} aria-hidden="true" />
+        )}
+        <span>{busy ? "Preparing offline…" : "Available offline"}</span>
       </span>
     );
   return (
     <details className="offline-status">
-      <summary>Offline setup</summary>
+      <summary className="offline-status-label">
+        <Info size={15} aria-hidden="true" />
+        <span>Offline setup</span>
+      </summary>
       <div>
         <p>{message}</p>
         <button type="button" onClick={() => setRetry((value) => value + 1)}>
