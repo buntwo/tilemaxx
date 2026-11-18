@@ -367,6 +367,41 @@ export function reviewTurns(game: Game) {
   });
 }
 
+export function lastRecordedBoardPlay(game: Game) {
+  const moves = trackedMoveHistory(game);
+  const index = moves.length - 1;
+  const move = moves[index];
+  if (
+    !move ||
+    index < currentScoreStart(game, moves) ||
+    !game.board.some(Boolean)
+  )
+    return;
+  const position = move.review ?? reviewTurns(game)[index]?.position;
+  if (!position) return { move, bingo: move.bingo };
+  if (position.tiles.some(({ index, letter }) => game.board[index] !== letter))
+    return;
+
+  const after = [...position.board];
+  for (const { index, letter } of position.tiles) after[index] = letter;
+  const breakdown = scorePlacement(
+    position.board,
+    after,
+    { ...game.template, premiums: position.premiums ?? game.template.premiums },
+    position.direction,
+  );
+  // Either word can be the main word of a single-tile play.
+  const main = breakdown?.words.find(
+    ({ word }) => word === move.word.toUpperCase(),
+  );
+  return {
+    move,
+    bingo: move.bingo ?? breakdown?.bingo,
+    main,
+    breakdown: main && breakdown?.score === move.score ? breakdown : undefined,
+  };
+}
+
 // Find the last time a previous edit broke the connection to a recorded tile.
 function replacementBoundaries(game: Game, cells: Set<number>, start: number) {
   const firstEligible = new Map<number, number>();

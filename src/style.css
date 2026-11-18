@@ -6180,6 +6180,75 @@ label + label {
 .board-panel {
   --board-strip-control-height: 32px;
 }
+.app-shell:not(.phone-layout) .board-panel:has(> .last-play-lane) { padding-top: 0; }
+.last-play-lane {
+  position: relative;
+}
+.last-play-summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  width: 100%;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 10px 10px 0 0;
+  background: color-mix(in srgb, var(--surface) 80%, var(--soft));
+  color: var(--existing-letter);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+button.last-play-summary { cursor: pointer; }
+button.last-play-summary:focus-visible { outline-offset: -2px; }
+.last-play-word {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.last-play-word .bingo-badge {
+  justify-content: center;
+  flex: none;
+  width: 13px;
+  height: 12px;
+  padding: 0;
+  border-radius: 3px;
+}
+.last-play-word .bingo-badge svg { flex: none; }
+.last-play-points { color: var(--text); white-space: nowrap; }
+.last-play-breakdown {
+  position: absolute;
+  z-index: 4;
+  inset-block-start: 100%;
+  inset-inline: 8px;
+  width: fit-content;
+  min-width: min(202px, calc(100% - 16px));
+  max-width: calc(100% - 16px);
+  margin-inline: auto;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 7px 20px light-dark(#182c2429, #0005);
+  font-size: 12px;
+  line-height: 1.2;
+}
+.last-play-breakdown table { width: 100%; border-collapse: collapse; }
+.last-play-breakdown :is(th, td) { padding-block: 2px; vertical-align: top; }
+.last-play-breakdown th { text-align: start; overflow-wrap: anywhere; }
+.last-play-breakdown td { padding-inline-start: 7px; font-variant-numeric: tabular-nums; }
+.last-play-breakdown :is(.last-play-notation, .last-play-multiplier) {
+  color: var(--existing-letter);
+  font-size: 11px;
+}
+.last-play-breakdown .last-play-points { text-align: end; }
+.last-play-breakdown tfoot { border-top: 1px solid var(--line); font-weight: 600; }
+.last-play-breakdown tbody tr:last-child > * { padding-bottom: 6px; }
+.last-play-breakdown tfoot tr > * { padding-top: 5px; }
 .board-panel :is(.with-board-history, .move-square-controls, .board-review-actions) {
   margin-block: 0;
   padding-block: 0;
