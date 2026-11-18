@@ -4,6 +4,7 @@ const sections = [
   {
     title: "Workspace",
     shortcuts: [
+      ["Alt / Option + B", "Select a board square by coordinate"],
       ["Alt / Option + R", "Focus the rack"],
       ["Alt / Option + F", "Search games by opponent"],
       ["?", "Open this guide outside text fields"],
@@ -12,6 +13,8 @@ const sections = [
   {
     title: "Board and rack",
     shortcuts: [
+      ["H6 / 6H", "Select a square and type down or across. Press Enter if H1 could start a two-digit row."],
+      ["← / → or ↑ / ↓", "Adjust the column or row after typing the first part of a coordinate"],
       ["Enter", "Find moves from the board or rack"],
       ["Shift + Enter", "Switch board entry direction"],
       ["→ / ↓", "Switch board direction or advance the cursor"],

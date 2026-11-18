@@ -17,6 +17,7 @@ import {
   tileScore,
 } from "../../shared/model";
 import { BingoBadge } from "./MoveWord";
+import BoardCoordinates, { type CoordinateSelection } from "./BoardCoordinates";
 
 const WORD_SCORE_HOLD_MS = 450;
 
@@ -38,6 +39,7 @@ export default function Board({
   uncertain,
   highlight,
   cellOverlay,
+  coordinateSelection,
   overlay,
   wordScores,
 }: {
@@ -60,6 +62,7 @@ export default function Board({
   cellOverlay?: (
     index: number,
   ) => { style: CSSProperties; label: string } | undefined;
+  coordinateSelection?: CoordinateSelection;
   overlay?: ReactNode;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
 }) {
@@ -96,10 +99,12 @@ export default function Board({
   const n = template.size,
     placed = new Map(preview?.tiles.map((t) => [t.index, t.letter]) || []);
   return (
-    <div className={`board-wrap ${compact ? "compact" : ""}`}>
+    <div
+      className={`board-wrap${compact ? " compact" : ""}${coordinateSelection ? " selecting-coordinate" : ""}`}
+      style={{ "--size": n } as CSSProperties}
+    >
       <div
         className={`board-grid ${paint ? "paint-board" : ""} ${placed.size ? "has-move-preview" : ""}${wordScores ? " with-word-scores" : ""}`}
-        style={{ "--size": n } as CSSProperties}
         aria-label={`${template.name} board`}
         onPointerOver={
           wordScores &&
@@ -300,6 +305,9 @@ export default function Board({
         ))}
         {overlay}
       </div>
+      {coordinateSelection && (
+        <BoardCoordinates size={n} selection={coordinateSelection} />
+      )}
     </div>
   );
 }

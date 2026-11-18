@@ -3,11 +3,13 @@ import { useEffect, useEffectEvent } from "react";
 export default function useKeyboardShortcuts({
   enabled,
   focusRack,
+  selectBoardSquare,
   searchGames,
   showGuide,
 }: {
   enabled: boolean;
   focusRack: () => boolean;
+  selectBoardSquare: () => boolean;
   searchGames: () => boolean;
   showGuide: () => void;
 }) {
@@ -27,6 +29,8 @@ export default function useKeyboardShortcuts({
     // Option generates a symbol instead of a letter on macOS.
     if (event.altKey && !event.shiftKey) {
       if ((key === "r" || event.code === "KeyR") && focusRack())
+        event.preventDefault();
+      else if ((key === "b" || event.code === "KeyB") && selectBoardSquare())
         event.preventDefault();
       else if ((key === "f" || event.code === "KeyF") && searchGames())
         event.preventDefault();
