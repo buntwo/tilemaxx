@@ -65,8 +65,8 @@ test("failed preparation reports the reason and can be retried", async () => {
     new Error("Offline reopening needs an HTTPS address."),
   );
   render(<OfflineStatus game={game} online />);
-  expect(await screen.findByText("Offline setup")).toBeTruthy();
-  fireEvent.click(screen.getByText("Offline setup"));
+  expect(await screen.findByText("Offline unavailable")).toBeTruthy();
+  fireEvent.click(screen.getByText("Offline unavailable"));
   expect(
     screen.getByText("Offline reopening needs an HTTPS address."),
   ).toBeTruthy();
@@ -87,14 +87,14 @@ test("changing dictionaries ignores a stale preparation response", async () => {
   view.rerender(
     <OfflineStatus game={{ ...game, dictionaryId: "new" }} online={false} />,
   );
-  expect(await screen.findByText("Offline setup")).toBeTruthy();
+  expect(await screen.findByText("Offline unavailable")).toBeTruthy();
   await act(async () => finish({ text: "CAT", persisted: true }));
   expect(screen.queryByText("Available offline")).toBeNull();
 });
 
 test("failed game storage cannot be presented as ready for offline use", async () => {
   render(<OfflineStatus game={game} online storageError />);
-  await waitFor(() => expect(screen.getByText("Offline setup")).toBeTruthy());
+  await waitFor(() => expect(screen.getByText("Offline unavailable")).toBeTruthy());
   expect(screen.queryByText("Available offline")).toBeNull();
 });
 

@@ -74,7 +74,7 @@ export default function OfflineStatus({
     <details className="offline-status">
       <summary className="offline-status-label">
         <TriangleAlert size={15} aria-hidden="true" />
-        <span>Offline setup</span>
+        <span>Offline unavailable</span>
       </summary>
       <div>
         <p>{message}</p>
