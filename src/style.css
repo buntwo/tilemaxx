@@ -802,7 +802,8 @@ label + label {
   gap: 6px;
   margin: 0 4px 12px;
 }
-.sync-status {
+.sync-status,
+.offline-status-label {
   font-size: 10px;
   color: var(--muted);
   display: flex;
@@ -810,7 +811,8 @@ label + label {
   gap: 6px;
   white-space: nowrap;
 }
-.sync-status svg {
+.sync-status svg,
+.offline-status-label > svg {
   color: var(--primary);
 }
 .sync-status.offline {
@@ -3571,7 +3573,8 @@ label + label {
     width: calc(100% - 190px);
     padding: 0 24px;
   }
-  .sync-status {
+  .sync-status,
+  .offline-status-label {
     font-size: 9px;
   }
   .board-size {
@@ -3751,7 +3754,8 @@ label + label {
   .sync-status span {
     display: inline;
   }
-  .sync-status {
+  .sync-status,
+  .offline-status-label {
     font-size: 9px;
   }
   .workspace-footer {
@@ -6145,11 +6149,14 @@ label + label {
 
 .offline-status {
   position: relative;
-  font-size: 0.7rem;
   color: var(--muted);
 }
 .offline-status summary {
   cursor: pointer;
+  list-style: none;
+}
+.offline-status summary::-webkit-details-marker {
+  display: none;
 }
 .offline-status > div {
   position: absolute;
