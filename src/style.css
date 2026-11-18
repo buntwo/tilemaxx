@@ -2186,6 +2186,17 @@ label + label {
   gap: 4px;
   font-size: 11px;
 }
+.move-playing-style {
+  width: clamp(86px, 24cqi, 116px);
+  min-width: 0;
+  height: 26px;
+  padding: 0 3px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+}
 @container (max-width: 380px) {
   .compact-game .move-list-controls .solve-endgame-action span { display: none; }
 }

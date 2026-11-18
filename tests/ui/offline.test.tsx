@@ -15,7 +15,6 @@ import { PRESETS } from "../../shared/presets";
 vi.mock("../../src/offline", () => ({ prepareOfflineApp: vi.fn() }));
 vi.mock("../../src/word-list-cache", () => ({
   dictionaryUrl: (id: string) => `/api/dictionaries/${id}`,
-  familiarWordsUrl: "/dictionaries/moby-frequent.txt",
   loadWordList: vi.fn(),
 }));
 const game: Game = {
@@ -112,6 +111,6 @@ test("a removed historical word list does not block current-game offline readine
   }} online />);
   expect(await screen.findByText("Available offline")).toBeTruthy();
   expect(vi.mocked(loadWordList).mock.calls.map(([url]) => url)).toEqual([
-    "/api/dictionaries/words", "/dictionaries/moby-frequent.txt",
+    "/api/dictionaries/words",
   ]);
 });

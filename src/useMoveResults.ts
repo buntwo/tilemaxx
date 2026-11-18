@@ -22,6 +22,9 @@ export function useMoveResults(
 ) {
   const {
     filter,
+    profile,
+    profileBagSize,
+    profileSeed,
     requiredSquares,
     sort,
     reversed,
@@ -39,12 +42,15 @@ export function useMoveResults(
       JSON.stringify([
         searchId,
         filter,
+        profile,
+        profileBagSize,
+        profileSeed,
         requiredSquares,
         sort,
         reversed,
         endgameId,
       ]),
-    [searchId, filter, requiredSquares, sort, reversed, endgameId],
+    [searchId, filter, profile, profileBagSize, profileSeed, requiredSquares, sort, reversed, endgameId],
   );
   const orderData = useMemo(
     () => ({ rackOdds, boardOdds, replyDeltas, exactEndgameSpreads }),
@@ -59,7 +65,7 @@ export function useMoveResults(
   const response = received?.key === key ? received : undefined;
   const page = response?.page;
   const initialHead = useMemo(() => {
-    if (!results || filter.trim() || requiredSquares?.indices.length || endgameId !== undefined)
+    if (!results || profile || filter.trim() || requiredSquares?.indices.length || endgameId !== undefined)
       return undefined;
     if (sort === "score" && !reversed) return results.head;
     if (sort !== "reply-adjusted") return undefined;
@@ -69,7 +75,7 @@ export function useMoveResults(
     const ids = new Set(results.head.map(({ id }) => id));
     if (Object.keys(replyDeltas ?? {}).some((id) => !ids.has(id))) return undefined;
     return [...results.head].sort(moveComparator({ sort, reversed, replyDeltas }));
-  }, [results, filter, requiredSquares, endgameId, sort, reversed, replyDeltas]);
+  }, [results, filter, profile, requiredSquares, endgameId, sort, reversed, replyDeltas]);
   const head = page?.head ?? initialHead ?? [];
   const total = page?.total ?? (initialHead ? results?.total : 0) ?? 0;
   const start = Math.min(offset, Math.max(0, total - visibleMoveRows));
@@ -105,6 +111,9 @@ export function useMoveResults(
     };
     void fetchPage(searchId, {
       filter,
+      profile,
+      profileBagSize,
+      profileSeed,
       requiredSquares,
       sort,
       reversed,
@@ -123,6 +132,9 @@ export function useMoveResults(
     target,
     fetchPage,
     filter,
+    profile,
+    profileBagSize,
+    profileSeed,
     requiredSquares,
     sort,
     reversed,
@@ -146,5 +158,6 @@ export function useMoveResults(
       : undefined,
     pending: needsPage && !page && !initialHead,
     unavailable,
+    error: page?.error,
   };
 }

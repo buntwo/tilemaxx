@@ -9,6 +9,8 @@ import {
   type Position,
 } from "./model";
 import { rackLetters } from "./rack-entry";
+import { leaveValue } from "./rack-leave";
+import { createPlayerProfiles, PLAYER_PROFILES, type PlayerProfile } from "./player-profiles";
 import { SEARCH_LIMITS, SearchLimitError, createSolverFactory } from "./solver";
 import { unseenTiles } from "./tile-pool";
 import {
@@ -27,8 +29,7 @@ export const ANALYSIS_TRIALS = 200;
 export const REFINED_TRIALS = 800;
 export const MAX_ENDGAME_BUDGET_MULTIPLIER = 100;
 const ANALYSIS_ENDGAME_TIME_MS = 1_500;
-export type OpponentModel = "strong" | "casual";
-const MODELS = ["strong", "casual"] as const;
+export type OpponentModel = PlayerProfile;
 
 export function isEndgameBudgetMultiplier(value: number) {
   return (
@@ -116,28 +117,7 @@ export function addedTiles(
   return added.length <= rackSize ? added : [];
 }
 
-/** Approximate point value of a leave, for ranking moves before simulation. */
-export function leaveValue(leave: string): number {
-  let value = 0,
-    vowels = 0,
-    consonants = 0;
-  const used = new Set<string>();
-  for (const letter of leave) {
-    if (letter === "?") {
-      value += 12;
-      continue;
-    }
-    if ("AEIOU".includes(letter)) vowels++;
-    else consonants++;
-    if (used.has(letter)) value -= 2;
-    used.add(letter);
-    if (letter === "S") value += 5;
-    else if ("AERNT".includes(letter)) value += 1;
-    else if ("QVW".includes(letter)) value -= 3;
-    else if ("JUXZ".includes(letter)) value -= 1;
-  }
-  return value - 1.4 * Math.max(0, Math.abs(vowels - consonants) - 1);
-}
+export { leaveValue } from "./rack-leave";
 
 export function bestStrongReply(moves: Move[], bagSize: number): Move | null {
   let best: Move | null = null,
@@ -150,51 +130,6 @@ export function bestStrongReply(moves: Move[], bagSize: number): Move | null {
     }
   }
   return best;
-}
-
-export function bestReply(
-  moves: Move[],
-  model: OpponentModel,
-  familiar: ReadonlySet<string>,
-  random: number,
-  bagSize: number,
-): Move | null {
-  if (model === "strong") return bestStrongReply(moves, bagSize);
-
-  // A casual player favors familiar words and chooses among a few strong
-  // candidates. Keep one placement per word in that shortlist.
-  const shortlist: { move: Move; value: number }[] = [];
-  for (const move of moves) {
-    const known =
-      isFamiliar(move.word, familiar) &&
-      move.crosses.every((word) => isFamiliar(word, familiar));
-    const value =
-      move.score - (known ? 0 : 18) - Math.max(0, move.word.length - 5);
-    const sameWord = shortlist.findIndex(
-      (entry) => entry.move.word === move.word,
-    );
-    if (sameWord >= 0 && shortlist[sameWord].value >= value) continue;
-    if (sameWord >= 0) shortlist.splice(sameWord, 1);
-    const ahead = shortlist.findIndex((entry) => value > entry.value);
-    if (ahead === -1) {
-      if (shortlist.length < 3) shortlist.push({ move, value });
-    } else {
-      shortlist.splice(ahead, 0, { move, value });
-      if (shortlist.length > 3) shortlist.pop();
-    }
-  }
-  const index = random < 0.65 ? 0 : random < 0.9 ? 1 : 2;
-  return shortlist[Math.min(index, shortlist.length - 1)]?.move ?? null;
-}
-
-function isFamiliar(word: string, familiar: ReadonlySet<string>) {
-  if (familiar.has(word)) return true;
-  if (word.length < 4) return false;
-  return ["S", "ES", "ED", "ING"].some((ending) => {
-    if (!word.endsWith(ending)) return false;
-    const stem = word.slice(0, -ending.length);
-    return stem.length >= 2 && (familiar.has(stem) || familiar.has(stem + "E"));
-  });
 }
 
 export function randomGenerator(seed: number) {
@@ -270,7 +205,7 @@ function recordReply(
 export function analyzeMoves(
   lexicon: Lexicon,
   request: AnalysisRequest,
-  familiar: ReadonlySet<string>,
+  chooseReply: ReturnType<typeof createPlayerProfiles> | undefined,
   progress: (update: AnalysisProgress) => void = () => {},
   maxMs = request.trials > ANALYSIS_TRIALS ? 12_000 : 8_000,
 ): AnalysisResult {
@@ -400,7 +335,7 @@ export function analyzeMoves(
       availableExamples: new Map<string, { move: Move; count: number }>(),
       bigThreatRemoved: 0,
       bigThreatOpened: 0,
-      models: { strong: replyTotals(), casual: replyTotals() },
+      models: { strong: replyTotals(), casual: replyTotals(), learner: replyTotals() },
       knownReplies: undefined as Move[] | undefined,
       knownFollowups: new Map<string, { bingo: boolean; score: number }>(),
       replyBoards: new Map<string, Board>(),
@@ -474,7 +409,7 @@ export function analyzeMoves(
     const order = sampleTiles(pool, opponentRackSize + maxDraw, random);
     const opponent = order.slice(0, opponentRackSize);
     const bag = order.slice(opponentRackSize);
-    const choice = random();
+    const choice = Math.floor(random() * 2 ** 32);
     try {
       if (performance.now() >= deadline) throw new SearchLimitError();
       const weight = inferWeight?.(opponent) ?? 1;
@@ -497,8 +432,12 @@ export function analyzeMoves(
         const forecasts = bagSize
           ? new Map<string, { bingo: boolean; score: number }>()
           : entry.knownFollowups;
-        const models = MODELS.map((model) => {
-          const reply = bestReply(replies, model, familiar, choice, bagAfter);
+        const replyPosition = { board: entry.board, rack: opponent, bagSize: bagAfter, seed: choice, playerSeed: choice ^ 0x583e4ad1 };
+        const defaultReply = chooseReply ? null : bestStrongReply(replies, bagAfter);
+        const models = PLAYER_PROFILES.map((model) => {
+          const reply = chooseReply
+            ? chooseReply(replies, model, replyPosition).move ?? null
+            : defaultReply;
           const key = reply?.id ?? "";
           let forecast = forecasts.get(key);
           if (!forecast) {
@@ -675,6 +614,7 @@ export function analyzeMoves(
         models: {
           strong: forecast(entry.models.strong),
           casual: forecast(entry.models.casual),
+          learner: forecast(entry.models.learner),
         },
       };
     }),

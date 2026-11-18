@@ -4,9 +4,13 @@
 
 Bundled `public/dictionaries/wordnik.txt` is the 2021-07-29 word list from https://github.com/wordnik/wordlist, downloaded 2026-11-12. Copyright (c) 2020 Wordnik; MIT license. The complete license is included in `public/dictionaries/WORDNIK-LICENSE.txt`. The application strips quote delimiters and normalizes case when loading the unmodified source file.
 
+## wordfreq
+
+The playing styles use the unmodified English frequency asset from Robyn Speer's [wordfreq 3.1.1](https://pypi.org/project/wordfreq/3.1.1/). The data is distributed under CC BY-SA 4.0. See the [license and source attributions](public/dictionaries/WORDFREQ-NOTICE.md). The [MessagePack decoder](https://github.com/msgpack/msgpack-javascript) is ISC licensed.
+
 ## Moby Words II
 
-The Casual reply model uses the public-domain Moby Words II frequency list by Grady Ward (`freq.txt`), obtained from https://github.com/fordsfords/moby_words_2. It is a familiarity hint and does not affect legal word selection.
+The bundled public-domain Moby Words II frequency list by Grady Ward (`freq.txt`) comes from [Moby Words II](https://github.com/fordsfords/moby_words_2).
 
 ## ENABLE
 

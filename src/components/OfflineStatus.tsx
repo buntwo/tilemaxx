@@ -4,7 +4,6 @@ import type { Game } from "../../shared/model";
 import { prepareOfflineApp } from "../offline";
 import {
   dictionaryUrl,
-  familiarWordsUrl,
   loadWordList,
 } from "../word-list-cache";
 
@@ -25,16 +24,11 @@ export default function OfflineStatus({
     let cancelled = false;
     setStatus({ key: dictionaryId, busy: true, message: "" });
     const words = async () => {
-      for (const url of [
-        dictionaryUrl(dictionaryId),
-        familiarWordsUrl,
-      ]) {
-        const result = await loadWordList(url, { refresh: online });
-        if (!result.persisted)
-          throw new Error(
-            "Word lists could not be stored on this device. Free some browser storage and retry.",
-          );
-      }
+      const result = await loadWordList(dictionaryUrl(dictionaryId), { refresh: online });
+      if (!result.persisted)
+        throw new Error(
+          "Word lists could not be stored on this device. Free some browser storage and retry.",
+        );
     };
     void Promise.allSettled([words(), prepareOfflineApp()]).then((results) => {
       if (cancelled) return;

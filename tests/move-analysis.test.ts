@@ -9,7 +9,6 @@ import { TILE_SYMBOLS } from "../shared/tile-pool";
 import {
   analyzeMoves,
   type AnalysisProgress,
-  bestReply,
   placeTiles,
   weightedDraws,
 } from "../shared/move-analysis";
@@ -53,7 +52,7 @@ test("bingo odds weight the refill and preserve the input position", (t) => {
     seed: 14,
   };
   const updates: AnalysisProgress[] = [];
-  const result = analyzeMoves(dict, request, new Set(), (progress) =>
+  const result = analyzeMoves(dict, request, undefined, (progress) =>
     updates.push(progress),
   );
   assert.deepEqual(updates[0], { phase: "draws", completed: 0, total: 2 });
@@ -69,7 +68,7 @@ test("bingo odds weight the refill and preserve the input position", (t) => {
   assert.equal(result.opponentRackSize, 2);
   assert.equal(result.trials, 30);
   assert.equal(board.filter(Boolean).join(""), "A");
-  assert.deepEqual(analyzeMoves(dict, request, new Set()), result);
+  assert.deepEqual(analyzeMoves(dict, request, undefined), result);
 
   const next = placeTiles(board, at);
   const bingos = solve(dict, next, "XE", layout, {}, { bingoOnly: true });
@@ -84,7 +83,7 @@ test("bingo odds weight the refill and preserve the input position", (t) => {
   // A coarse clock can return the same value across multiple reads. At this
   // timestamp, adding and subtracting the search cap rounds above the cap.
   t.mock.method(performance, "now", () => 913 / 19);
-  assert.deepEqual(analyzeMoves(dict, request, new Set()), result);
+  assert.deepEqual(analyzeMoves(dict, request, undefined), result);
 });
 
 test("paired opponent racks reveal a blocked 40+ threat and an exact endgame line", () => {
@@ -108,7 +107,7 @@ test("paired opponent racks reveal a blocked 40+ threat and an exact endgame lin
     trials: 10,
     seed: 18,
   };
-  const result = analyzeMoves(dict, request, new Set());
+  const result = analyzeMoves(dict, request, undefined);
   const [open, block] = result.forecasts;
   assert.equal(open.bigAvailable, 1);
   assert.equal(open.availableExample?.score, 44);
@@ -123,7 +122,7 @@ test("paired opponent racks reveal a blocked 40+ threat and an exact endgame lin
   const [cached, searched] = analyzeMoves(
     dict,
     { ...request, cachedEndgames: { [across.id]: open.endgame! } },
-    new Set(),
+    undefined,
   ).forecasts;
   assert.strictEqual(cached.endgame, open.endgame);
   assert.deepEqual(searched.endgame, block.endgame);
@@ -151,7 +150,7 @@ test("Analyze returns a full line for every ruleset with an empty bag", () => {
       trials: 5,
       seed: 4,
     };
-    const [forecast] = analyzeMoves(dict, request, new Set()).forecasts;
+    const [forecast] = analyzeMoves(dict, request, undefined).forecasts;
     const result = forecast.endgame;
     assert.ok(result, rules);
     if (rules === "crossplay") {
@@ -160,7 +159,7 @@ test("Analyze returns a full line for every ruleset with an empty bag", () => {
       const [last] = analyzeMoves(
         dict,
         { ...request, opponentHasFinalTurn: false },
-        new Set(),
+        undefined,
       ).forecasts;
       assert.deepEqual(last.endgame?.line, [candidate]);
       assert.equal(last.models.strong.swing, candidate.score);
@@ -173,28 +172,6 @@ test("Analyze returns a full line for every ruleset with an empty bag", () => {
       });
     }
   }
-});
-
-test("Strong and Casual rank familiar replies differently", () => {
-  const board = emptyBoard(5);
-  const layout = template({ A: 1, T: 1, X: 1 });
-  const dict = new Lexicon(["AT", "AX"]);
-  const base = solve(dict, board, "AT", layout)[0];
-  const ordinary = { ...base, word: "AT", score: 24, leave: "T" };
-  const obscure = { ...base, word: "AX", score: 31, leave: "S" };
-  const familiar = new Set(["AT"]);
-  assert.equal(
-    bestReply([ordinary, obscure], "strong", familiar, 0, 8),
-    obscure,
-  );
-  assert.equal(
-    bestReply([ordinary, obscure], "casual", familiar, 0, 8),
-    ordinary,
-  );
-  assert.equal(
-    bestReply([ordinary, obscure], "casual", familiar, 0.7, 8),
-    obscure,
-  );
 });
 
 test("last-play weighting uses a legal recorded move and disables unweighted exact odds", () => {
@@ -216,14 +193,14 @@ test("last-play weighting uses a legal recorded move and disables unweighted exa
     seed: 14,
     previousBoard,
   };
-  const result = analyzeMoves(dict, request, new Set());
+  const result = analyzeMoves(dict, request, undefined);
   assert.equal(result.inferred, true);
   assert.equal(result.forecasts[0].exact, false);
   assert.equal(result.effectiveTrials, result.trials);
   const invalid = [...previousBoard];
   invalid[0] = "A";
   assert.throws(
-    () => analyzeMoves(dict, { ...request, previousBoard: invalid }, new Set()),
+    () => analyzeMoves(dict, { ...request, previousBoard: invalid }, undefined),
     /last board edit/,
   );
 });

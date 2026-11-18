@@ -1,10 +1,13 @@
 import { readFileSync, existsSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { solve } from "../shared/solver";
 import { analyzeMoves, placeTiles } from "../shared/move-analysis";
 import { PRESETS } from "../shared/presets";
 import { emptyBoard } from "../shared/model";
 import { getTileCounts } from "../shared/tile-pool";
+import { createPlayerProfiles } from "../shared/player-profiles";
+import { decodeWordFrequencies, WORD_FREQUENCY_URL } from "../shared/word-familiarity";
 
 const source = existsSync("data/dictionaries/WOW24.txt")
   ? "data/dictionaries/WOW24.txt"
@@ -66,9 +69,8 @@ const alternatives = [
   moves[0],
   moves.find((move) => move.id !== moves[0].id && move.tiles.length <= 2),
 ];
-const familiar = new Set(
-  parseWords(readFileSync("public/dictionaries/moby-frequent.txt", "utf8")),
-);
+const frequencies = decodeWordFrequencies(gunzipSync(readFileSync(`public${WORD_FREQUENCY_URL}`)));
+const profiles = createPlayerProfiles(dict, template, frequencies);
 const { result, ms } = medianMs(
   () =>
     analyzeMoves(
@@ -82,7 +84,7 @@ const { result, ms } = medianMs(
         trials: 200,
         seed: 98765,
       },
-      familiar,
+      profiles,
       undefined,
       60_000,
     ),

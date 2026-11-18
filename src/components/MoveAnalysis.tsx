@@ -10,6 +10,7 @@ import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type Game, type Move } from "../../shared/model";
 import { unseenTiles } from "../../shared/tile-pool";
 import { rackLetters } from "../../shared/rack-entry";
+import { PLAYER_PROFILES, PLAYER_PROFILE_LABELS } from "../../shared/player-profiles";
 import {
   ANALYSIS_TRIALS,
   MAX_ENDGAME_BUDGET_MULTIPLIER,
@@ -251,8 +252,9 @@ export default function MoveAnalysis({
             value={model}
             onChange={(event) => setModel(event.target.value as OpponentModel)}
           >
-            <option value="strong">Strong</option>
-            <option value="casual">Casual</option>
+            {PLAYER_PROFILES.map((profile) => (
+              <option key={profile} value={profile}>{PLAYER_PROFILE_LABELS[profile]}</option>
+            ))}
           </select>
         </label>
         {progress ? (
@@ -506,9 +508,10 @@ export default function MoveAnalysis({
           weights possible racks toward those where that play makes sense.
         </p>
         <p>
-          Strong picks by score plus estimated leave value while the bag has
-          tiles. Casual favors familiar words and chooses among three replies.
-          Both pass if no play is available. The simulation omits exchanges.
+          Each player style spots a subset of legal placements based on word
+          familiarity and where it looks on the board. It ranks those plays using
+          points, ease of placement, and estimated rack leave. The simulation
+          passes when a style spots no play and omits exchanges.
           Expected point swing is this move’s score minus the modeled reply plus
           your highest available next score. Empty-bag search assumes optimal
           play on both sides and applies the game's final-scoring rules.

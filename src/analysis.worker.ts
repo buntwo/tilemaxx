@@ -1,6 +1,8 @@
 import { loadWordList } from "./word-list-cache";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { analyzeMoves, type AnalysisRequest } from "../shared/move-analysis";
+import { createPlayerProfiles } from "../shared/player-profiles";
+import { loadWordFrequencies } from "./word-frequencies";
 import { createEndgamePrecompute } from "./endgame-precompute";
 import {
   parallelOpponentEndgame,
@@ -16,7 +18,6 @@ let dictionary: { id: string; lexicon: Lexicon } | undefined;
 let endgames:
   | { key: string; pool: ReturnType<typeof createEndgamePrecompute> }
   | undefined;
-let familiar: Set<string> | undefined;
 
 async function words(url: string) {
   return parseWords((await loadWordList(url)).text);
@@ -116,13 +117,12 @@ self.onmessage = async (
     return;
   }
   try {
-    const [lexicon, common] = await Promise.all([
+    const [lexicon, frequencies] = await Promise.all([
       loadDictionary(request.dictionaryId),
-      familiar ??
-        words("/dictionaries/moby-frequent.txt").then((list) => new Set(list)),
+      loadWordFrequencies(),
     ]);
-    familiar = common;
-    const result = analyzeMoves(lexicon, request, common, (progress) => {
+    const profiles = createPlayerProfiles(lexicon, request.template, frequencies);
+    const result = analyzeMoves(lexicon, request, profiles, (progress) => {
       self.postMessage({ progress });
     });
     self.postMessage({ result });
