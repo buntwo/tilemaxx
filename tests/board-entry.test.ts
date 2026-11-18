@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BoardEditHistory } from "../shared/board-entry";
+import { BoardEditHistory, inferBoardEntryDirection } from "../shared/board-entry";
 import { emptyBoard, undo, redo, type Game } from "../shared/model";
 import { PRESETS } from "../shared/presets";
 
@@ -30,6 +30,26 @@ function write(
   board[index] = letter;
   return history.apply(game, board, letter ? "enter" : "erase");
 }
+test("board entry starts down only if another tile shares the column and none share the row", () => {
+  const board = emptyBoard(5);
+  const at = (row: number, column: number) => row * 5 + column;
+  const direction = (row: number, column: number) =>
+    inferBoardEntryDirection(board, at(row, column), 5);
+
+  assert.equal(direction(2, 2), "across");
+  board[at(2, 2)] = "C";
+  assert.equal(direction(2, 2), "across"); // The selected tile itself does not count.
+  assert.equal(direction(2, 0), "across");
+  assert.equal(direction(2, 4), "across");
+  assert.equal(direction(0, 2), "down");
+  assert.equal(direction(4, 2), "down");
+
+  board[at(4, 4)] = "a";
+  assert.equal(direction(4, 2), "across"); // Both axes touch.
+  assert.equal(direction(1, 4), "down"); // An assigned blank still occupies a square.
+  assert.equal(direction(1, 1), "across"); // Diagonal tiles do not count.
+});
+
 test("typing and deletion form separate whole-word undo/redo steps across save acknowledgments", () => {
   const history = new BoardEditHistory();
   let game = fixture();
