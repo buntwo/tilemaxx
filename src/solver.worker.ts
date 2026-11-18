@@ -1,3 +1,4 @@
+import { runBingoHunter } from "./parallel-bingo-hunter";
 import { dictionaryText } from "./word-list-cache";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import {
@@ -30,8 +31,9 @@ import { createPlayerProfiles, profileWordHash } from "../shared/player-profiles
 import { loadWordFrequencies } from "./word-frequencies";
 import { rackComposition } from "../shared/rack-entry";
 
+let activeHunter: { id: number; searchId: number; abort: AbortController } | undefined;
 type SolveRequest = Extract<SolverRequest, { kind: "solve" }>;
-const results = new Map<number, MoveResultIndex & { position: SolveRequest; lexicon: Lexicon }>();
+const results = new Map<number, MoveResultIndex & { position: SolveRequest; lexicon: Lexicon; odds?: ReturnType<RackBingoIndex["calculate"]> }>();
 let models: { lexicon: Lexicon; templateKey: string; choose: ReturnType<typeof createPlayerProfiles> } | undefined;
 let activeSolve: { id: number; abort: AbortController } | undefined;
 let activeEndgame: { id: number; abort: AbortController } | undefined;
@@ -49,7 +51,7 @@ const ENDGAME_ESTIMATE_MOVE_MS = 80;
 async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind: "page" }>) {
   const result = results.get(searchId);
   const { profile, profileBagSize = 0, profileSeed = 0 } = query;
-  if (result && profile && !result.hasProfile(query)) {
+  if (result && profile && profile !== "bingo-hunter" && !result.hasProfile(query)) {
     try {
       const frequencies = await loadWordFrequencies();
       if (results.get(searchId) !== result) return post({ id, kind: "page" });
@@ -144,10 +146,43 @@ async function boardBingoOdds(
   return { byMove, checked, total, bagSize };
 }
 
+async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
+  const { id, searchId, bagSize, workerLimit } = request;
+  const result = results.get(searchId);
+  if (!result) {
+    post({ id, kind: "bingo-hunter", error: "Find moves again to reload this position." });
+    return;
+  }
+  activeHunter?.abort.abort();
+  const abort = new AbortController();
+  activeHunter = { id, searchId, abort };
+  try {
+    const { ranked, summary } = await runBingoHunter(
+      result.lexicon, { ...result.position, ...request }, result.moves, result.odds,
+      computeWorkerLimit(workerLimit), abort.signal,
+      (progress) => post({ id, kind: "bingo-hunter-progress", progress }),
+    );
+    if (abort.signal.aborted) return;
+    result.setProfile({ profile: "bingo-hunter", profileBagSize: bagSize, profileSeed: id }, ranked);
+    post({ id, kind: "bingo-hunter", summary });
+  } catch (error) {
+    if (!abort.signal.aborted)
+      post({ id, kind: "bingo-hunter", error: error instanceof Error ? error.message : "Bingo hunter stopped unexpectedly." });
+  } finally {
+    if (activeHunter?.id === id) activeHunter = undefined;
+  }
+}
+
 self.onmessage = async (event: MessageEvent<SolverRequest>) => {
   const request = event.data;
   switch (request.kind) {
+    case "bingo-hunter":
+      return hunt(request);
+    case "cancel-bingo-hunter":
+      if (activeHunter?.id === request.id) activeHunter.abort.abort();
+      return;
     case "discard":
+      if (activeHunter?.searchId === request.searchId) activeHunter.abort.abort();
       results.delete(request.searchId);
       return;
     case "cancel":
@@ -289,6 +324,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
         error: "Bingo draw odds could not be calculated.",
       };
     }
+    Object.assign(result, { odds });
     post({ id, kind: "rack-odds", odds, elapsed: performance.now() - oddsStart });
   } catch (error) {
     if (abort?.signal.aborted) return;

@@ -1,3 +1,6 @@
+import { useBingoHunter } from "../useBingoHunter";
+import type { RunBingoHunter } from "../useSolver";
+import type { MoveStyle } from "../../shared/move-results";
 import { moveLocation } from "../../shared/notation";
 import {
   useContext,
@@ -35,7 +38,7 @@ import {
   REPLY_SAMPLES,
 } from "../../shared/reply-analysis";
 import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
-import { PLAYER_PROFILES, PLAYER_PROFILE_LABELS, profileWordHash, type PlayerProfile } from "../../shared/player-profiles";
+import { PLAYER_PROFILES, PLAYER_PROFILE_LABELS, profileWordHash } from "../../shared/player-profiles";
 import { endgameAfterRefill } from "../../shared/endgame-refill";
 import { rackLetters } from "../../shared/rack-entry";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
@@ -181,6 +184,7 @@ export default function Results({
   collapsibleSearch = compact,
   fetchPage,
   fetchShortlist,
+  runBingoHunter,
   busy,
   calculating = false,
   timing,
@@ -218,6 +222,7 @@ export default function Results({
   compact?: boolean;
   collapsibleSearch?: boolean;
   fetchPage: FetchMovePage;
+  runBingoHunter?: RunBingoHunter;
   fetchShortlist: (
     searchId: number,
     options: ShortlistOptions,
@@ -335,11 +340,18 @@ export default function Results({
   const replyMetricId = useId();
   const [candidates, setCandidates] = useState<Move[]>([]);
   const [shortlistSearch, setShortlistSearch] = useState<number>();
-  const [playingStyle, setPlayingStyle] = useState<{ gameId: string; profile: PlayerProfile }>();
+  const [playingStyle, setPlayingStyle] = useState<{ gameId: string; profile: MoveStyle }>();
   const shortlistActive =
     !!analysisGame && !!resultSet && shortlistSearch === resultSet.searchId;
   const profile = resultSet && playingStyle && playingStyle.gameId === analysisGame?.id && !shortlistActive
     ? playingStyle.profile : undefined;
+  const hunterSelected = profile === "bingo-hunter";
+  const hunterKey = hunterSelected && !busy && !error && !invalid
+    ? JSON.stringify([analysisKey, resultSet?.searchId, bagSize, scorelessTurns, replyAnalysis.opponentHasFinalTurn])
+    : undefined;
+  const hunter = useBingoHunter(hunterKey, runBingoHunter);
+  const hunterResult = hunter.current?.result;
+  const hunterProgress = hunter.current?.progress;
   const totalMoves = resultSet?.total ?? 0;
   const endgame = !!analysisGame && replyAnalysis.bagSize === 0;
   const rackOdds = endgame ? undefined : calculatedRackOdds;
@@ -556,7 +568,8 @@ export default function Results({
       filter,
       profile,
       profileBagSize: profile ? bagSize : undefined,
-      profileSeed: profile && analysisGame ? profileWordHash(analysisGame.id) : undefined,
+      profileSeed: hunterSelected ? hunterResult?.id :
+        profile && analysisGame ? profileWordHash(analysisGame.id) : undefined,
       requiredSquares,
       sort: shortlistActive || sort === "shortlist" ? "score" : sort,
       reversed: !shortlistActive && reversed,
@@ -572,7 +585,7 @@ export default function Results({
       exactEndgameSpreads: sort === "endgame" ? replyAnalysis.exactEndgameSpreads : undefined,
     },
     fetchPage,
-    !busy && !error && !waitingForEndgame,
+    !busy && !error && !waitingForEndgame && (!hunterSelected || !!hunterResult),
   );
   const scoreTooltip = useMoveScoreTooltip(analysisGame, (move) => {
     const delta = replyDeltas[move.id];
@@ -582,7 +595,7 @@ export default function Results({
   }, (move) => {
     const utility = page.utilities?.[move.id];
     return profile && utility
-      ? { profile, utility, checksDefense: profile !== "casual" && bagSize > 0 }
+      ? { profile, utility, checksDefense: profile !== "casual" && !hunterSelected && bagSize > 0 }
       : undefined;
   });
   const total = shortlistActive ? filteredShortlist.length : page.total;
@@ -763,10 +776,10 @@ export default function Results({
       <select
         className="move-playing-style"
         aria-label="Playing style"
-        title="Show the moves a player is likely to spot, ranked by their playing style"
+        title="Rank moves by a playing style"
         value={profile ?? ""}
         onChange={(event) => {
-          const value = event.target.value as PlayerProfile | "";
+          const value = event.target.value as MoveStyle | "";
           setPlayingStyle(value && analysisGame ? { gameId: analysisGame.id, profile: value } : undefined);
           setShortlistSearch(undefined);
           setOrdering(undefined);
@@ -778,6 +791,7 @@ export default function Results({
         {PLAYER_PROFILES.map((profile) => (
           <option key={profile} value={profile}>{PLAYER_PROFILE_LABELS[profile]}</option>
         ))}
+        {runBingoHunter && <option value="bingo-hunter">Bingo hunter</option>}
       </select>
     </div>
   );
@@ -1103,6 +1117,39 @@ export default function Results({
             Skip endgame analysis
           </button>
         </div>
+      ) : hunterSelected && !hunterResult ? (
+        <div className="results-empty">
+          {hunterProgress ? (
+            <>
+              <LoaderCircle className="spin" size={24} aria-hidden="true" />
+              <p role="status">
+                {hunterProgress.phase === "screen" ? "Screening bingo setups" :
+                  hunterProgress.phase === "sample" ? "Simulating replies" : "Refining bingo estimates"}
+                {hunterProgress.total > 0 && ` · ${hunterProgress.done}/${hunterProgress.total} moves`}
+              </p>
+              <button type="button" className="button secondary" onClick={hunter.cancel}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <p role="status">{hunter.current?.error ?? (invalid
+                ? "Check tile counts before running Bingo hunter."
+                : "Rank moves by bingo points now and expected bingo points after the reply.")}</p>
+              <button
+                type="button"
+                className="button primary"
+                disabled={!hunterKey}
+                onClick={() => {
+                  if (searchId !== undefined)
+                    hunter.start(searchId, { bagSize, scorelessTurns, opponentHasFinalTurn: replyAnalysis.opponentHasFinalTurn, workerLimit });
+                }}
+              >
+                Run Bingo hunter
+              </button>
+            </>
+          )}
+        </div>
       ) : profile && page.error ? (
         <div className="results-empty" role="status"><p>{page.error}</p></div>
       ) : !shortlistActive && page.unavailable ? (
@@ -1172,6 +1219,13 @@ export default function Results({
           {replyEnabled && analysisGame && !onBoardOdds && (
             <div className="reply-controls">
               <ReplySettings analysis={replyAnalysis} />
+            </div>
+          )}
+          {hunterResult && (
+            <div className="reply-controls" role="status">
+              {hunterResult.checked} candidates checked
+              {hunterResult.finalistsFirst && " · Finalists ranked first"}
+              {hunterResult.limited && " · Search limit reached"}
             </div>
           )}
           <div className="result-columns">

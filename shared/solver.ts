@@ -709,7 +709,7 @@ function prepareBoardSolver(
             available,
             blanks,
           );
-          if (bingoOnly && moveCount) return true;
+          if (bingoOnly && !summaryOnly && moveCount) return true;
         }
         if (atEdge) return false;
         if (letters[cell]) {
@@ -850,6 +850,8 @@ function prepareBoardSolver(
   return {
     solve: (rack: string, limits: Limits = {}, options: Options = {}) =>
       run(rack, limits, options, "moves").moves,
+    bestBingoScore: (rack: string, limits: Limits = {}) =>
+      run(rack, limits, { bingoOnly: true }, "score").bestScore,
     bestScore: (rack: string, limits: Limits = {}) =>
       run(rack, limits, {}, "score").bestScore,
     summarize: (rack: string, limits: Limits = {}) => {

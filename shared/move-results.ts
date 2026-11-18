@@ -4,6 +4,9 @@ import { isBingo, type BingoRules, type Move } from "./model";
 import { leaveValue } from "./move-analysis";
 import { shortlistMoves } from "./move-shortlist";
 import type { PlayerProfile, ProfileUtility, RankedProfileMove } from "./player-profiles";
+import type { HunterUtility, RankedHunterMove } from "./bingo-hunter";
+
+export type MoveStyle = PlayerProfile | "bingo-hunter";
 
 export const MOVE_HEAD_SIZE = 30;
 export const MOVE_PAGE_SIZE = 64;
@@ -41,7 +44,7 @@ export interface RequiredSquares {
 
 export interface MoveQuery {
   filter: string;
-  profile?: PlayerProfile;
+  profile?: MoveStyle;
   profileBagSize?: number;
   profileSeed?: number;
   requiredSquares?: RequiredSquares;
@@ -66,7 +69,8 @@ function utilityKey({ profile, profileBagSize = 0, profileSeed = 0 }: Pick<MoveQ
   return JSON.stringify([profile, profileBagSize, profileSeed]);
 }
 
-export type MoveUtility = ProfileUtility & { rank: number };
+type RankedMove = RankedProfileMove | RankedHunterMove;
+export type MoveUtility = (ProfileUtility | HunterUtility) & { rank: number };
 
 export interface MovePage {
   offset: number;
@@ -214,9 +218,11 @@ export class MoveResultIndex {
   private profileOrder?: {
     key: string;
     moves: readonly Move[];
-    ranked: readonly RankedProfileMove[];
+    ranked: readonly RankedMove[];
     ranks: Map<string, number>;
   };
+
+  private hunterOrder?: MoveResultIndex["profileOrder"];
 
   constructor(
     readonly moves: readonly Move[],
@@ -260,13 +266,15 @@ export class MoveResultIndex {
     return this.profileOrder?.key === utilityKey(query);
   }
 
-  setProfile(query: MoveQuery, ranked: readonly RankedProfileMove[]) {
-    this.profileOrder = {
+  setProfile(query: Pick<MoveQuery, "profile" | "profileBagSize" | "profileSeed">, ranked: readonly RankedMove[]) {
+    const order = {
       key: utilityKey(query),
       moves: ranked.map(({ move }) => move),
       ranked,
       ranks: new Map(ranked.map(({ move }, index) => [move.id, index + 1])),
     };
+    if (query.profile === "bingo-hunter") this.hunterOrder = order;
+    else this.profileOrder = order;
     this.ordered = undefined;
   }
 
@@ -297,8 +305,9 @@ export class MoveResultIndex {
     const word = filter.trim().toUpperCase();
     const estimates =
       this.endgame?.id === endgameId ? this.endgame?.estimates : undefined;
-    const ranked = profile && this.profileOrder?.key === utilityKey({ profile, profileBagSize, profileSeed })
-      ? this.profileOrder : undefined;
+    const profileOrder = profile === "bingo-hunter" ? this.hunterOrder : this.profileOrder;
+    const ranked = profile && profileOrder?.key === utilityKey({ profile, profileBagSize, profileSeed })
+      ? profileOrder : undefined;
     const source = profile ? ranked?.moves ?? [] : this.moves;
     const key = JSON.stringify([word, profile, profileBagSize, profileSeed, requiredSquares, order, endgameId]);
     if (this.ordered?.key !== key) {

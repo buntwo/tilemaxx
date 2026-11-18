@@ -6,10 +6,9 @@ import { placeTiles } from "../../shared/move-analysis";
 import { ScoreBreakdownContent } from "./ScoreBreakdown";
 import { scoreTone } from "../score-tone";
 
-import type { MoveUtility } from "../../shared/move-results";
+import type { MoveStyle, MoveUtility } from "../../shared/move-results";
 import {
   PLAYER_PROFILE_LABELS,
-  type PlayerProfile,
 } from "../../shared/player-profiles";
 
 const utilityNumber = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
@@ -19,12 +18,42 @@ export function formatUtility(value: number) {
 }
 
 type UtilityDetails = {
-  profile: PlayerProfile;
+  profile: MoveStyle;
   utility: MoveUtility;
   checksDefense: boolean;
 };
 
 function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
+  if ("bingoNow" in utility) {
+    return (
+      <div className="score-breakdown-content">
+        <div>Bingo hunter · Rank {utility.rank}</div>
+        <ul>
+          <li className="score-breakdown-line">
+            <span>Bingo points now</span><span>{utility.bingoNow}</span>
+          </li>
+          <li className="score-breakdown-line">
+            <span>Expected bingo points next turn</span><span>{formatUtility(utility.nextBingoPoints)}</span>
+          </li>
+          <li className="score-breakdown-line">
+            <span>Bingo chance after reply</span><span>{formatUtility(utility.bingoChance * 100)}%</span>
+          </li>
+          {utility.bingoChance > 0 && (
+            <li className="score-breakdown-line">
+              <span>Average best bingo when available</span><span>{formatUtility(utility.meanBingoScore)}</span>
+            </li>
+          )}
+        </ul>
+        <div className="score-breakdown-line score-breakdown-total">
+          <strong>Utility</strong><strong>{formatUtility(utility.total)}</strong>
+        </div>
+        <div className="move-score-adjustment">
+          {utility.exact ? "Exact over tile deals" : `${utility.samples} sampled deals`} · Replies favor points and rack leave.
+          {utility.close && " Too close to call against the leading finalists."}
+        </div>
+      </div>
+    );
+  }
   const factors = [
     { label: "Weighted points", value: utility.points, show: true },
     { label: "Premium squares", value: utility.premium },
@@ -47,7 +76,7 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
   return (
     <div className="score-breakdown-content">
       <div>
-        {PLAYER_PROFILE_LABELS[profile]} · Rank {utility.rank}
+        {profile !== "bingo-hunter" && PLAYER_PROFILE_LABELS[profile]} · Rank {utility.rank}
       </div>
       <ul>
         {factors.map(

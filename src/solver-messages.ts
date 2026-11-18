@@ -1,3 +1,4 @@
+import type { HunterProgress, HunterSummary } from "./parallel-bingo-hunter";
 import type { BoardOdds, BoardOddsResult, RackOdds } from "../shared/bingo-odds";
 import type { BoardTemplate, Move, Position } from "../shared/model";
 import type {
@@ -19,7 +20,11 @@ type PositionRequest = Position & {
   dictionaryId: string;
   template: BoardTemplate;
 };
+export type HunterOptions = EndgameSettings & { bagSize: number; workerLimit: number };
+
 export type SolverRequest =
+  | ({ kind: "bingo-hunter"; id: number; searchId: number } & HunterOptions)
+  | { kind: "cancel-bingo-hunter"; id: number }
   | (PositionRequest & { kind: "solve" })
   | (PositionRequest & {
       kind: "board-odds";
@@ -70,6 +75,8 @@ type SolverUpdate =
   | { kind: "board-odds"; odds?: BoardOddsResult; error?: string };
 
 export type SolverMessage =
+  | { kind: "bingo-hunter"; id: number; summary?: HunterSummary; error?: string }
+  | { kind: "bingo-hunter-progress"; id: number; progress: HunterProgress }
   | (SolverUpdate & { id: number })
   | { kind: "page"; id: number; page?: MovePage }
   | { kind: "shortlist"; id: number; shortlist?: ShortlistEntry[] }
