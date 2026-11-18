@@ -9,7 +9,7 @@ test.each(["you", "opponent"] as const)(
   "the header marks %s's turn and shows a waiting ring for the other player",
   (turn) => {
     const { container } = render(
-      <GameScoreBadge score={score} turn={turn} showMargin />,
+      <GameScoreBadge score={score} turn={turn} inHeader />,
     );
     const badge = screen.getByRole("group", { name: "Tracked score" });
     expect(badge.getAttribute("aria-description")).toContain(
@@ -49,4 +49,23 @@ test("unknown turns and completed games do not guess an active player", () => {
         .hasAttribute("data-turn"),
     ).toBe(false);
   }
+});
+
+test.each([
+  { outcome: "win", you: 346, opponent: 340, tone: "value-good", margin: "+6" },
+  { outcome: "loss", you: 340, opponent: 346, tone: "value-bad", margin: "−6" },
+] as const)("only your score gets the $outcome color in the header", ({ tone, margin, ...final }) => {
+  const { container, rerender } = render(<GameScoreBadge score={final} inHeader />);
+  const badge = () => screen.getByRole("group", { name: "Tracked score" });
+  expect(badge().classList.contains(tone)).toBe(false);
+  expect(screen.getByLabelText("Your score").classList.contains(tone)).toBe(true);
+  expect(screen.getByLabelText("Opponent score").className).toBe("game-score-player");
+  const delta = container.querySelector(".game-score-delta");
+  expect(delta?.className).toBe("game-score-delta");
+  expect(delta?.textContent).toBe(margin);
+
+  rerender(<GameScoreBadge score={final} />);
+  expect(badge().classList.contains(tone)).toBe(true);
+  expect(screen.getByLabelText("Your score").className).toBe("game-score-player");
+  expect(container.querySelector(".game-score-delta")).toBeNull();
 });
