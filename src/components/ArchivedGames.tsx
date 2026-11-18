@@ -58,9 +58,9 @@ export default function ArchivedGames({
             {count}
           </output>
         </div>
-        <button className="button secondary archive-back" onClick={onBack}>
-          <ArrowLeft size={16} />
-          Back to games
+        <button className="button secondary archive-back" aria-label="Back to games" title="Back to games" onClick={onBack}>
+          <ArrowLeft size={16} aria-hidden="true" />
+          <span>Back to games</span>
         </button>
       </div>
       <div className="panel archive-panel">

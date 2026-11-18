@@ -99,14 +99,14 @@ import {
   treatBoardEditAsCorrection,
 } from "../shared/game-scoring";
 import { CLEARED_BOARD } from "../shared/score-recovery";
-import { defaultDictionary } from "../shared/dictionaries";
 import { DEFENSE_LIMIT } from "../shared/premium-defense";
 import { useSolver } from "./useSolver";
 import OfflineStatus from "./components/OfflineStatus";
 import { useAutoUpdate } from "./useAutoUpdate";
 import { useWorkspaceWidth } from "./useWorkspaceWidth";
 import { store, useStore } from "./store";
-import { defaultPlatformBoard, premiumPalette } from "./premium-palettes";
+import { premiumPalette } from "./premium-palettes";
+import NewGameDialog from "./components/NewGameDialog";
 import {
   type BoardTemplate,
   type Game,
@@ -293,11 +293,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   } | null>(null);
   const preview = movePreview?.move ?? null;
   const [formName, setFormName] = useState(""),
-    [formTrackScores, setFormTrackScores] = useState(true),
-    [formTemplate, setFormTemplate] = useState("scrabble"),
-    [formDictionary, setFormDictionary] = useState(""),
     [formBusy, setFormBusy] = useState(false);
-  const templateChosen = useRef(false);
   const [editProfileId, setEditProfileId] = useState("");
   const [workspace, setWorkspace] = useState(currentWorkspace);
   useLayoutEffect(() => {
@@ -571,15 +567,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     setDialog(next);
     setSidebarDrawerOpen(false);
     if (next === "screenshot") importBase.current = game || null;
-    if (next === "new") {
-      setFormTrackScores(true);
-      templateChosen.current = false;
-      setFormTemplate("scrabble");
-      setFormDictionary(
-        defaultDictionary(data?.dictionaries ?? [], game?.dictionaryId)?.id ??
-          "",
-      );
-    }
     if (next === "rename") setArchiveEditId(undefined);
     if (next === "profile") setFormName("");
     if (next === "rename-profile" && profile) {
@@ -1591,117 +1578,21 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         />
       )}
       {dialog === "new" && (
-        <Modal title="New game" onClose={() => setDialog(null)}>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const details = readGameDetails(e.currentTarget);
-              void action(async () => {
-                const template = data.templates.find(
-                  (t) => t.id === formTemplate,
-                );
-                if (!template)
-                  throw new Error(
-                    "That board template was deleted. Choose another board.",
-                  );
-                const created = await store.createGame({
-                  profileId,
-                  ...details,
-                  template,
-                  dictionaryId: formDictionary,
-                  board: emptyBoard(template.size),
-                  rack: "",
-                  excludedRackSlots: undefined,
-                  requiredRackSlots: undefined,
-                  past: [],
-                  future: [],
-                  archived: false,
-                  trackScores: formTrackScores,
-                });
-                chooseGame(created.id);
-                setDialog(null);
-              });
-            }}
-          >
-            <GameDetailFields
-              opponentSuggestions={recentOpponentNames(data.games, profileId)}
-              onPlatformChange={(platform) => {
-                const board = defaultPlatformBoard(platform);
-                if (
-                  !templateChosen.current &&
-                  board &&
-                  data.templates.some(({ id }) => id === board)
-                )
-                  setFormTemplate(board);
-              }}
-            />
-            <label>
-              <span id="new-game-board-layout-label">Board layout</span>
-              <small id="new-game-board-layout-help" className="muted">
-                Sets the game rules, board and rack sizes, tile bag counts, and
-                scoring bonuses.
-              </small>
-              <select
-                aria-labelledby="new-game-board-layout-label"
-                aria-describedby="new-game-board-layout-help"
-                value={formTemplate}
-                onChange={(e) => {
-                  templateChosen.current = true;
-                  setFormTemplate(e.target.value);
-                }}
-              >
-                {data.templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} · {t.size} × {t.size}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Word list
-              <select
-                value={formDictionary}
-                onChange={(e) => setFormDictionary(e.target.value)}
-              >
-                {data.dictionaries.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} · {d.count.toLocaleString()} words
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="score-checkbox">
-              <input
-                type="checkbox"
-                checked={formTrackScores}
-                onChange={(e) => setFormTrackScores(e.target.checked)}
-              />
-              Track scores
-            </label>
-            <p className="small muted">
-              Saved under {profile?.name}. Custom layouts are available in Board
-              studio.
-            </p>
-            {error && (
-              <p className="error" role="alert">
-                {error}
-              </p>
-            )}
-            <footer className="modal-footer">
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => setDialog(null)}
-              >
-                Cancel
-              </button>
-              <button className="button primary" disabled={formBusy}>
-                {formBusy ? "Creating…" : "Create game"}
-                <ArrowRight size={16} />
-              </button>
-            </footer>
-          </form>
-        </Modal>
+        <NewGameDialog
+          profileId={profileId}
+          profileName={profile?.name}
+          templates={data.templates}
+          dictionaries={data.dictionaries}
+          currentDictionaryId={game?.dictionaryId}
+          opponentSuggestions={recentOpponentNames(data.games, profileId)}
+          phoneLayout={phoneLayout}
+          onCreate={async (input) => {
+            const created = await store.createGame(input);
+            chooseGame(created.id);
+            setDialog(null);
+          }}
+          onClose={() => setDialog(null)}
+        />
       )}
       {(dialog === "profile" ||
         (dialog === "rename-profile" && editProfile)) && (

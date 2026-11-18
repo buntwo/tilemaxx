@@ -856,6 +856,38 @@ test("new game suggests distinct opponents by the end date or start date within 
   await screen.findByRole("heading", { name: "A new opponent" });
 });
 
+test("new game keeps optional details collapsed and saves their edits", async () => {
+  const user = await start();
+  await user.click(screen.getByRole("button", { name: "New game" }));
+  const dialog = screen.getByRole("dialog", { name: "New game" });
+  const setup = within(dialog);
+  const opponent = setup.getByRole("combobox", { name: "Opponent" });
+  expect(document.activeElement).toBe(opponent);
+  const details = dialog.querySelector("details")!;
+  expect(details.open).toBe(false);
+
+  await user.type(opponent, "Club opponent");
+  await user.selectOptions(setup.getByRole("combobox", { name: "Platform" }), "Wordfeud");
+  await user.selectOptions(setup.getByRole("combobox", { name: "Platform" }), "");
+  expect(setup.getByRole("combobox", { name: "Board layout" })).toHaveProperty("value", "wordfeud");
+  await user.click(setup.getByText("Game details", { selector: "summary" }));
+  fireEvent.change(setup.getByLabelText("Date"), {
+    target: { value: "2026-11-01" },
+  });
+  await user.type(setup.getByLabelText("Notes"), "Saturday club game");
+  await user.click(setup.getByText("Game details", { selector: "summary" }));
+  expect(details.open).toBe(false);
+  await user.click(setup.getByRole("button", { name: "Create game" }));
+  await screen.findByRole("heading", { name: "Club opponent" });
+  const created = remote.games.find(({ name }) => name === "Club opponent");
+  expect(created?.platform).toBeUndefined();
+  expect(created).toMatchObject({
+    startedOn: "2026-11-01",
+    notes: "Saturday club game",
+    template: { id: "wordfeud" },
+  });
+});
+
 test("new game board follows the platform until the board is picked manually", async () => {
   const user = await start();
   const openSetup = async () => {
