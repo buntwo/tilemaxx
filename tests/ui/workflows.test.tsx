@@ -4782,7 +4782,8 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
     expect(opponent.nextElementSibling).toBe(opponentRack());
     expect(you.parentElement?.nextElementSibling).toBe(opponent.parentElement);
   };
-  await panel.findByRole("img", { name: "Opponent rack: J, J, blank" });
+  const visibleRack = await panel.findByRole("img", { name: "Opponent rack: J, J, blank" });
+  expect([...visibleRack.children].map((tile) => tile.textContent)).toEqual(["J", "J", ""]);
   expectLabeledRacks();
   expect(panel.getByText("Rack tools").closest(".rack-lane")).toBe(opponentRack()?.parentElement);
   expect(panel.queryByRole("button", { name: "Optimal exchange" })).toBeNull();
