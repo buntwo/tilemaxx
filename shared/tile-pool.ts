@@ -34,6 +34,11 @@ const distributions = {
     8, 2, 2, 3, 11, 2, 2, 2, 8, 1, 1, 3, 2, 5, 7, 2, 1, 5, 3, 5, 3, 2, 2, 1, 3,
     1, 2,
   ],
+  // Full bag, including the eight grey rack tiles in the reference screenshot.
+  "super-lexulous": [
+    14, 4, 6, 6, 22, 4, 3, 5, 12, 2, 2, 5, 6, 10, 14, 4, 2, 10, 8, 12, 6, 3, 4,
+    2, 6, 2, 4,
+  ],
 };
 
 export function getTileCounts(
@@ -41,7 +46,11 @@ export function getTileCounts(
 ) {
   if (template.tileCounts) return template.tileCounts;
   const counts =
-    distributions[template.id === "super" ? "super" : template.rules];
+    distributions[
+      template.id === "super" || template.id === "super-lexulous"
+        ? template.id
+        : template.rules
+    ];
   return Object.fromEntries(
     TILE_SYMBOLS.map((symbol, i) => [symbol, counts[i]]),
   );

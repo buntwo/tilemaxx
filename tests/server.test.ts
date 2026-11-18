@@ -100,6 +100,7 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
         profileId: state.profiles[0].id,
         trackScores: false,
         template,
+        board: Array<string>(template.size ** 2).fill(""),
         rack: "ABCDEFGH".slice(0, template.rackSize),
       });
       assert.equal(created.status, 201);

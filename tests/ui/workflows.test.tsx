@@ -886,6 +886,29 @@ test("new game board follows the platform until the board is picked manually", a
   expect(next.getByRole("combobox", { name: "Board layout" })).toHaveProperty("value", "wwf");
 });
 
+test("Super Lexulous can be created under the Lexulous platform", async () => {
+  const user = await start();
+  await user.click(screen.getByRole("button", { name: "New game" }));
+  const setup = within(screen.getByRole("dialog", { name: "New game" }));
+  const platform = setup.getByRole("combobox", { name: "Platform" });
+  const layout = setup.getByRole("combobox", { name: "Board layout" });
+  await user.selectOptions(platform, "Lexulous");
+  expect(layout).toHaveProperty("value", "lexulous");
+  await user.selectOptions(layout, "super-lexulous");
+  expect(platform).toHaveProperty("value", "Lexulous");
+  await user.type(setup.getByLabelText("Opponent"), "Super opponent");
+  await user.click(setup.getByRole("button", { name: "Create game" }));
+  await screen.findByRole("heading", { name: "Super opponent" });
+  const created = remote.games.find(({ name }) => name === "Super opponent")!;
+  expect(created.platform).toBe("Lexulous");
+  expect(created.template.id).toBe("super-lexulous");
+  expect(created.template.rules).toBe("lexulous");
+  expect(created.board).toHaveLength(441);
+  expect(created.template.rackSize).toBe(8);
+  expect(Object.values(created.template.tileCounts!).reduce((a, b) => a + b, 0)).toBe(178);
+  expect(screen.getAllByRole("button", { name: /^Rack tile \d:/ })).toHaveLength(8);
+});
+
 test("calculation timing waits for reply histograms and stays fixed for follow-up requests", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query !== "(max-width: 650px)",
