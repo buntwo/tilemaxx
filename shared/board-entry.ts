@@ -17,15 +17,21 @@ export function inferBoardEntryDirection(
   board: readonly string[],
   index: number,
   size: number,
+  rackTiles: number,
 ): "across" | "down" {
+  if (rackTiles === 0) return "across";
   const row = Math.floor(index / size);
   const column = index % size;
-  let touchesColumn = false;
-  for (let offset = 0; offset < size; offset++) {
-    if (offset !== column && board[row * size + offset]) return "across";
-    if (offset !== row && board[offset * size + column]) touchesColumn = true;
-  }
-  return touchesColumn ? "down" : "across";
+  // Each empty square before the first played tile costs one rack tile.
+  const reach = rackTiles + Number(Boolean(board[index]));
+  const right = Math.min(reach, size - column - 1);
+  const below = Math.min(reach, size - row - 1);
+
+  for (let step = 1; step <= right; step++)
+    if (board[index + step]) return "across";
+  for (let step = 1; step <= below; step++)
+    if (board[index + step * size]) return "down";
+  return "across";
 }
 
 // Local save acknowledgments retain the position and history references.
