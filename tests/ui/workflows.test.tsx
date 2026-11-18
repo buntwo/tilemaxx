@@ -1724,12 +1724,14 @@ test("board selection uses tiles ahead within the physical rack size and leaves 
   await user.click(cell("H6: empty"));
   expect(direction()).toBe("Across"); // Both the row and column have tiles.
   await user.click(cell("I5: empty"));
-  expect(direction()).toBe("Down");
+  expect(direction()).toBe("Across"); // I6 is also a side connection for Across.
   await user.click(cell("A1: TW"));
-  expect(direction()).toBe("Across"); // Neither axis has tiles.
+  expect(direction()).toBe("Across"); // Neither path connects.
+  await user.click(cell("I4: empty"));
+  expect(direction()).toBe("Down");
 
-  await user.keyboard("{Alt>}b{/Alt}i5");
-  expect(selectedCell()).toBe("68");
+  await user.keyboard("{Alt>}b{/Alt}i4");
+  expect(selectedCell()).toBe("53");
   expect(direction()).toBe("Across");
 });
 
@@ -2050,26 +2052,26 @@ test("undo does not restore a played move list from a different dictionary", asy
 test("focus moves between board, rack and moves without leaving an inactive cursor", async () => {
   const user = await start();
   await user.click(cell("H8: DW, start"));
-  await user.keyboard("A");
-  expect(selectedCell()).toBe("113");
+  await user.keyboard("A{ArrowRight}");
+  expect(selectedCell()).toBe("114");
   await user.click(rackTile(1));
   expect(selectedCell()).toBeUndefined();
   expect(document.querySelector(".entry-arrow")).toBeNull();
   expect(rackTile(1).getAttribute("aria-pressed")).toBe("true");
   await user.keyboard("CAT");
-  await user.click(cell("I8: empty"));
+  await user.click(cell("J8: empty"));
   expect(document.querySelector(".rack-tile.selected")).toBeNull();
-  expect(selectedCell()).toBe("113");
+  expect(selectedCell()).toBe("114");
   // Returning to the same square after blur must not turn the direction.
   expect(cell("Toggle entry direction").textContent).toContain("Across");
   await user.click(screen.getByRole("heading", { name: "Possible moves" }));
   expect(selectedCell()).toBeUndefined();
-  await user.click(cell("I8: empty"));
+  await user.click(cell("J8: empty"));
   await user.keyboard(" ");
   expect(document.querySelector(".pending-blank")).toBeTruthy();
   await user.click(rackTile(2));
   expect(document.querySelector(".pending-blank")).toBeNull();
-  expect(current().board[113]).toBe("");
+  expect(current().board[114]).toBe("");
 });
 
 test("direct rack entry supports Space blanks, replacement, paste, full-rack bounds and deletion", async () => {
@@ -3918,7 +3920,8 @@ test("typing the opponent's last tile shows the adjusted loss and locks the boar
   const board = within(screen.getByRole("region", { name: "Game board" }));
   await board.findByRole("button", { name: /^H8: C/ });
   await user.click(board.getByRole("button", { name: /^J8:/ }));
-  await user.keyboard("T");
+  // The adjacent A is a side connection for Down. Enter the intended Across play.
+  await user.keyboard("{ArrowRight}T");
   expect(board.queryByRole("heading", { name: "You lose" })).toBeNull();
   expect(document.activeElement).toBe(entry());
 
