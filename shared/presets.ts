@@ -197,4 +197,39 @@ export const PRESETS: BoardTemplate[] = [
     },
     { rules: "lexulous", rackSize: 8, additionalBonuses: { 7: 40 } },
   ),
+  // Premium positions and tile bag verified from the user's 2026-11-17 screenshots.
+  board(
+    "super-lexulous",
+    "Super Lexulous",
+    21,
+    {
+      QW: reflect(21, [[0, 0]]),
+      TW: reflect(21, [
+        [0, 7],
+        [3, 3],
+        [3, 10],
+      ]),
+      DW: reflect(21, [
+        [1, 1],
+        [1, 8],
+        [2, 2],
+        [2, 9],
+        [4, 5],
+        [6, 7],
+      ]),
+      QL: reflect(21, [[2, 5]]),
+      TL: reflect(21, [
+        [1, 4],
+        [5, 8],
+      ]),
+      DL: reflect(21, [
+        [0, 3],
+        [0, 10],
+        [3, 6],
+        [4, 9],
+        [8, 9],
+      ]),
+    },
+    { rules: "lexulous", rackSize: 8, additionalBonuses: { 7: 40 } },
+  ),
 ];

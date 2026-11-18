@@ -16,6 +16,7 @@ test("starting counts cover every preset and snapshots without explicit counts",
     [3, 104, 2, 12],
     [4, 100, 3, 12],
     [5, 89, 2, 11],
+    [6, 178, 4, 22],
   ]) {
     const template = { ...PRESETS[index], tileCounts: undefined };
     const pool = unseenTiles({ board: [], rack: "" }, template);
