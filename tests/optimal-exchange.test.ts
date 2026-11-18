@@ -3,9 +3,9 @@ import { test } from "node:test";
 import { RackBingoIndex } from "../shared/bingo-odds";
 import { Lexicon } from "../shared/lexicon";
 import { emptyBoard } from "../shared/model";
-import { optimizeExchange } from "../shared/optimal-exchange";
+import { optimizeExchange, planOptimalExchange } from "../shared/optimal-exchange";
 import { PRESETS } from "../shared/presets";
-import { TILE_SYMBOLS } from "../shared/tile-pool";
+import { TILE_SYMBOLS, unseenTiles } from "../shared/tile-pool";
 
 const counts: Record<string, number> = { A: 1, V: 2, T: 10 };
 const template = {
@@ -30,14 +30,11 @@ test("optimal exchange finds the useful swap size and deduplicates equivalent co
     { slots: [0, 1], chance: 0, close: false },
     { slots: [0, 1, 2], chance: 0, close: false },
   ]);
-  const held = optimizeExchange(lexicon, new RackBingoIndex(words), {
-    ...request,
-    excludedRackSlots: [2],
-  });
-  assert.ok(
-    held.bestSwaps.every(
-      ({ slots, chance }) => !slots.includes(2) && chance === 0,
-    ),
+  assert.throws(
+    () => optimizeExchange(lexicon, new RackBingoIndex(words), {
+      ...request, excludedRackSlots: [2],
+    }),
+    /at least 3 playable rack tiles/,
   );
   assert.throws(
     () =>
@@ -107,4 +104,27 @@ test("the same exchange odds depend on placement and cross words on the board", 
     bag: 8,
   });
   assert.equal(keep.keepBingo, true);
+});
+
+
+test("optimal exchange requires the minimum bingo rack, including Lexulous seven-tile bingos", () => {
+  const scrabble = PRESETS[0];
+  const lexulous = PRESETS.find(t => t.rules === "lexulous")!;
+  for (const [rules, rack, excludedRackSlots, allowed] of [
+    [scrabble, "AEINRS", [], false],
+    [scrabble, "AEINRS?", [], true],
+    [scrabble, "AE.INRS", [], false],
+    [scrabble, "AEINRST", [0], false],
+    [lexulous, "AEINRS", [], false],
+    [lexulous, "AEINRST", [], true],
+    [lexulous, "AEINRST?", [], true],
+    [lexulous, "AEINRST?", [0], true],
+    [{ ...scrabble, rackSize: 4, additionalBonuses: { 3: 20 } }, "CAT", [], true],
+  ] as const) {
+    const position = { board: emptyBoard(15), rack, excludedRackSlots: [...excludedRackSlots] };
+    const request = { ...position, template: rules, bag: unseenTiles(position, rules).total - rules.rackSize };
+    const plan = planOptimalExchange(new Lexicon([]), new RackBingoIndex([]), request, () => {});
+    if (allowed) assert.equal(plan.next().done, false, `${rules.rules}: ${rack}`);
+    else assert.throws(() => plan.next(), /playable rack tiles for a bingo/);
+  }
 });

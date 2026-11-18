@@ -16,8 +16,9 @@ import {
   reorderRack,
   rackSlotsForMove,
   sortedRackSlots,
+  splitRack,
 } from "../../shared/rack-entry";
-import { tileScore, type Game, type Move } from "../../shared/model";
+import { minimumBingoTiles, tileScore, type Game, type Move } from "../../shared/model";
 import type { ExchangeAdvice } from "../../shared/exchange-advice";
 import type { ExchangeResult } from "../../shared/exchange";
 import type { OptimalExchangeResult } from "../../shared/optimal-exchange";
@@ -139,7 +140,9 @@ export default function RackEntry({
   const activeSimulation =
     simulation?.key === exchangeKey ? simulation : undefined;
   const canOpenOptimal = !opponentRack && exchangeBag > 0;
-  const showingOptimal = canOpenOptimal && optimalOpen?.key === optimalKey;
+  const bingoMinimum = minimumBingoTiles(game.template);
+  const enoughBingoTiles = splitRack(game).available.length >= bingoMinimum;
+  const showingOptimal = canOpenOptimal && enoughBingoTiles && optimalOpen?.key === optimalKey;
   const reorder = useRackReorder({
     rack,
     letters: game.rack,
@@ -790,6 +793,10 @@ export default function RackEntry({
               ref={optimalButton}
               type="button"
               className="text-button rack-optimal-exchange"
+              disabled={!enoughBingoTiles}
+              title={!enoughBingoTiles
+                ? `Optimal exchange needs at least ${bingoMinimum} playable rack tiles for a bingo.`
+                : undefined}
               aria-expanded={showingOptimal}
               onClick={() => {
                 chooseMode("entry");

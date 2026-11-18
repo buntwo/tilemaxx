@@ -4915,6 +4915,8 @@ test("Optimal exchange shows a 100% keep or swap bingo chance in green", () => {
 });
 
 test("Optimal exchange restores the rankings and caches each completed simulation", async () => {
+  remote.games[0].template = { ...remote.games[0].template, rackSize: 3 };
+  remote.games[0].revision = 1;
   const searches: Extract<PracticeRequest, { kind: "optimal-exchange" }>[] = [];
   const simulations: Extract<PracticeRequest, { kind: "exchange" }>[] = [];
   let pendingSimulation: SolverWorker | undefined;
@@ -4970,6 +4972,7 @@ test("Optimal exchange restores the rankings and caches each completed simulatio
     });
   }
   const user = await start();
+  await waitFor(() => expect(current().template.rackSize).toBe(3));
   await typeRack(user, "CAT");
   const openOptimal = screen.getByRole("button", { name: "Optimal exchange" });
   expect(openOptimal.closest(".rack-entry-actions")).toBeTruthy();
@@ -5612,4 +5615,33 @@ test.each([false, true])("closing Possible moves clears its preview and returns 
   await user.click(find);
   expect(await possible().findByRole("button", { name: "Close possible moves" })).toBeTruthy();
   expect(await possible().findAllByRole("button", { name: /^CATS, / })).not.toHaveLength(0);
+});
+
+
+test.each([
+  ["scrabble", "AEINRS", true],
+  ["scrabble", "AEINRS?", false],
+  ["lexulous", "AEINRS", true],
+  ["lexulous", "AEINRST", false],
+  ["lexulous", "AEINRST?", false],
+] as const)("Optimal exchange eligibility follows %s bingo rules for %s", async (rules, rack, disabled) => {
+  remote.games[0] = { ...game(), revision: 1, rack, template: PRESETS.find(t => t.rules === rules)! };
+  const user = await start();
+  await waitFor(() => expect(current().rack).toBe(rack));
+  const button = screen.getByRole<HTMLButtonElement>("button", { name: "Optimal exchange" });
+  expect(button.disabled).toBe(disabled);
+  if (disabled) {
+    expect(button.title).toContain("at least 7 playable rack tiles");
+    await user.click(button);
+    expect(screen.queryByRole("region", { name: "Optimal exchange" })).toBeNull();
+  }
+});
+
+test("an undersized rack cannot start an Optimal exchange worker directly", () => {
+  const worker = vi.fn();
+  vi.stubGlobal("Worker", worker);
+  render(<OptimalExchange game={{ ...game(), rack: "CAT" }} bag={90} assumed
+    onClose={() => {}} onUse={() => {}} />);
+  expect(screen.getByText(/at least 7 playable rack tiles for a bingo/)).toBeTruthy();
+  expect(worker).not.toHaveBeenCalled();
 });
