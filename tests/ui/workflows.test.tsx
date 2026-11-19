@@ -4883,7 +4883,8 @@ test("coordinate entry stops at edges, distinguishes two-digit rows, and can be 
   expect(status()).toContain("Column A");
   await user.keyboard("1");
   expect(status()).toContain("A1");
-  expect(overlay()?.querySelector("[data-target]")?.textContent).toBe("A1");
+  expect(overlay()).toBeNull();
+  expect(selectedCell()).toBe("0");
   await user.keyboard("5");
   expect(overlay()).toBeNull();
   expect(selectedCell()).toBe("210");
@@ -4897,7 +4898,7 @@ test("coordinate entry stops at edges, distinguishes two-digit rows, and can be 
   expect(selectedCell()).toBe("14");
 
   await startCoordinate();
-  await user.keyboard("h1{Enter}");
+  await user.keyboard("h1");
   expect(overlay()).toBeNull();
   expect(selectedCell()).toBe("7");
   expect(cell("Toggle entry direction").textContent).toBe("Across");
@@ -4930,6 +4931,35 @@ test("coordinate entry stops at edges, distinguishes two-digit rows, and can be 
   expect(overlay()).toBeNull();
 });
 
+test("letter-first row one selects immediately and accepts tile entry", async () => {
+  const user = await start();
+  await typeRack(user, "CAT");
+  const overlay = () => document.querySelector(".board-coordinate-grid");
+  const startCoordinate = () => user.keyboard("{Alt>}b{/Alt}");
+  await startCoordinate();
+  await user.keyboard("h1");
+  expect(overlay()).toBeNull();
+  expect(selectedCell()).toBe("7");
+  expect(document.activeElement).toBe(entry());
+
+  await user.keyboard("{Backspace}");
+  expect(overlay()).toBeTruthy();
+  expect(screen.getByRole("status").textContent).toContain("Column H");
+  await user.keyboard("1{Enter}");
+  expect(overlay()).toBeNull();
+  expect(selectedCell()).toBe("7");
+  expect(document.activeElement).toBe(entry());
+
+  await startCoordinate();
+  await user.keyboard("h1cat");
+  expect(current().board.slice(7, 10)).toEqual(["C", "A", "T"]);
+  expect(current().board.slice(142, 145)).toEqual(["", "", ""]);
+
+  await startCoordinate();
+  await user.keyboard("h10cat");
+  expect(current().board.slice(142, 145)).toEqual(["C", "A", "T"]);
+});
+
 test("coordinate entry follows the current custom board size", async () => {
   const template = {
     ...game().template,
@@ -4946,8 +4976,8 @@ test("coordinate entry follows the current custom board size", async () => {
   await screen.findByRole("button", { name: "Y25: empty" });
   await user.keyboard("{Alt>}b{/Alt}y{ArrowRight}2");
   const overlay = () => document.querySelector(".board-coordinate-grid");
-  expect(overlay()?.querySelectorAll(".board-coordinate-label")).toHaveLength(625);
-  expect(overlay()?.querySelector("[data-target]")?.textContent).toBe("Y2");
+  expect(overlay()).toBeNull();
+  expect(selectedCell()).toBe("49");
   await user.keyboard("5");
   expect(overlay()).toBeNull();
   expect(selectedCell()).toBe("624");
