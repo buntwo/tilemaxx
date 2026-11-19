@@ -30,28 +30,31 @@ function write(
   board[index] = letter;
   return history.apply(game, board, letter ? "enter" : "erase");
 }
-test("board entry checks forward within the rack budget, with across taking priority", () => {
+const layout = { size: 5, start: 12 };
+
+test("across wins even when down has a more direct connection", () => {
   const board = emptyBoard(5);
-  const direction = (row: number, column: number, rackTiles: number) =>
-    inferBoardEntryDirection(board, row * 5 + column, 5, rackTiles);
+  board[7] = "t";
+  assert.equal(inferBoardEntryDirection(board, 12, layout, 1), "down");
+  assert.equal(inferBoardEntryDirection(board, 12, layout, 2), "across");
+  board[11] = "A";
+  assert.equal(inferBoardEntryDirection(board, 12, layout, 1), "across");
+  assert.equal(inferBoardEntryDirection(board, 12, layout, 0), "across");
+});
 
-  board[2] = "C"; // Above the selected square.
-  board[10] = "A"; // Left of the selected square.
-  board[22] = "t"; // Below, after two empty squares.
-  assert.equal(direction(2, 2, 1), "across");
-  assert.equal(direction(2, 2, 2), "down");
-
-  board[14] = "S"; // Right is also in reach.
-  assert.equal(direction(2, 2, 2), "across");
-  board[14] = "";
-  board[12] = "T"; // Starting on a played tile saves space in the rack.
-  assert.equal(direction(2, 2, 1), "down");
-  assert.equal(direction(2, 2, 0), "across");
-
+test("board entry stays on the selected row or column at the edges", () => {
   const edge = emptyBoard(5);
   edge[5] = "R"; // Next row, outside the rightward path.
   edge[14] = "Y";
-  assert.equal(inferBoardEntryDirection(edge, 4, 5, 2), "down");
+  assert.equal(inferBoardEntryDirection(edge, 4, layout, 2), "down");
+  edge[3] = "B"; // An across extension still fits in the last column.
+  assert.equal(inferBoardEntryDirection(edge, 4, layout, 2), "across");
+
+  const left = emptyBoard(5);
+  left[4] = "X"; // Previous row, outside the leftward prefix.
+  left[15] = "D";
+  assert.equal(inferBoardEntryDirection(left, 5, layout, 2), "down");
+  assert.equal(inferBoardEntryDirection(left, 20, layout, 1), "down");
 });
 
 test("reachable side connections count for parallel plays in either direction", () => {
@@ -59,34 +62,39 @@ test("reachable side connections count for parallel plays in either direction", 
   const j13 = 12 * 15 + 9;
   board[j13 + 15] = "G";
   board[j13 + 16] = "I";
-  assert.equal(inferBoardEntryDirection(board, j13, 15, 2), "across");
-  assert.equal(inferBoardEntryDirection(board, j13, 15, 1), "down");
+  assert.equal(inferBoardEntryDirection(board, j13, PRESETS[0], 2), "across");
+  assert.equal(inferBoardEntryDirection(board, j13, PRESETS[0], 1), "down");
 
   const column = emptyBoard(5);
   column[17] = "A";
   column[22] = "T";
-  assert.equal(inferBoardEntryDirection(column, 6, 5, 2), "across");
-  assert.equal(inferBoardEntryDirection(column, 6, 5, 3), "down");
+  assert.equal(inferBoardEntryDirection(column, 6, layout, 2), "across");
+  assert.equal(inferBoardEntryDirection(column, 6, layout, 3), "down");
 });
 
-test("adjacent tiles above and left count as word extensions", () => {
+test("played tiles extend the word without using rack tiles", () => {
   const board = emptyBoard(5);
-  board[7] = "t";
-  assert.equal(inferBoardEntryDirection(board, 12, 5, 1), "down");
-  board[11] = "A";
-  assert.equal(inferBoardEntryDirection(board, 12, 5, 1), "across");
-  board[7] = "";
-  assert.equal(inferBoardEntryDirection(board, 12, 5, 1), "across");
-
   board[12] = "R";
   board[13] = "E";
   board[14] = "D";
-  assert.equal(inferBoardEntryDirection(board, 12, 5, 1), "down");
+  assert.equal(inferBoardEntryDirection(board, 12, layout, 1), "down");
+  board[14] = "";
+  assert.equal(inferBoardEntryDirection(board, 12, layout, 1), "across");
+  assert.equal(inferBoardEntryDirection(board, 14, layout, 1), "across");
+});
 
-  const edge = emptyBoard(5);
-  edge[4] = "X";
-  edge[15] = "D";
-  assert.equal(inferBoardEntryDirection(edge, 5, 5, 2), "down");
+test("only a reachable opening square or an orthogonal connection counts", () => {
+  const board = emptyBoard(5);
+  assert.equal(inferBoardEntryDirection(board, 7, layout, 2), "down");
+  assert.equal(inferBoardEntryDirection(board, 7, layout, 1), "across");
+  assert.equal(inferBoardEntryDirection(board, 12, layout, 2), "across");
+  assert.equal(inferBoardEntryDirection(board, 2, { ...layout, start: 7 }, 2), "down");
+
+  board[20] = "X";
+  assert.equal(inferBoardEntryDirection(board, 7, layout, 2), "across");
+  // The tile at A5 is diagonal from the end of the attempted down play.
+  assert.equal(inferBoardEntryDirection(board, 16, layout, 1), "across");
+  assert.equal(inferBoardEntryDirection(board, 16, layout, 2), "down");
 });
 
 test("typing and deletion form separate whole-word undo/redo steps across save acknowledgments", () => {
