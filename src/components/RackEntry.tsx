@@ -19,7 +19,6 @@ import {
   splitRack,
 } from "../../shared/rack-entry";
 import { minimumBingoTiles, tileScore, type Game, type Move } from "../../shared/model";
-import type { ExchangeAdvice } from "../../shared/exchange-advice";
 import type { ExchangeResult } from "../../shared/exchange";
 import type { OptimalExchangeResult } from "../../shared/optimal-exchange";
 import {
@@ -35,7 +34,7 @@ import { useRackKeyboard } from "./useRackKeyboard";
 import { useRackReorder } from "./useRackReorder";
 import ExchangeAnalysis from "./ExchangeAnalysis";
 import OptimalExchange from "./OptimalExchange";
-import ExchangeSuggestion, { exchangeAdviceDetail } from "./ExchangeSuggestion";
+import ExchangeSuggestion, { exchangeAdviceDetail, type SwapAdvice } from "./ExchangeSuggestion";
 import OpponentRack from "./OpponentRack";
 
 const SENTINEL = "\u200b";
@@ -68,7 +67,7 @@ export default function RackEntry({
   phoneLayout: boolean;
   onReviewEdit?: () => void;
   positionKey: string;
-  exchangeAdvice?: ExchangeAdvice;
+  exchangeAdvice?: SwapAdvice;
   exchangeBag: number;
   exchangeBagConfirmed: boolean;
   opponentRack: string;

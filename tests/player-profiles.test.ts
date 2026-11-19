@@ -147,6 +147,7 @@ test("profile paging preserves style order and the raw points rank", () => {
   assert.equal(byPoints.utilities?.[high.id].rank, 2);
   const filtered = index.page({ ...query, filter: high.word });
   assert.deepEqual(filtered.rows, [high]);
+  assert.equal(filtered.styleChoice?.move, low);
   assert.deepEqual(Object.keys(filtered.utilities ?? {}), [high.id]);
   assert.equal(filtered.utilities?.[high.id].rank, 2);
   assert.equal(

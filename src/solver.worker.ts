@@ -55,6 +55,7 @@ async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind:
     try {
       const frequencies = await loadWordFrequencies();
       if (results.get(searchId) !== result) return post({ id, kind: "page" });
+      if (result.hasProfile(query)) return post({ id, kind: "page", page: result.page(query) });
       const { position, lexicon } = result;
       const templateKey = JSON.stringify(position.template);
       if (models?.lexicon !== lexicon || models.templateKey !== templateKey) {

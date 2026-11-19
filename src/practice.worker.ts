@@ -1,3 +1,11 @@
+import {
+  samplePlayerExchange,
+  screenPlayerExchange,
+  type PlayerExchangeAdvice,
+  type PlayerExchangePosition,
+} from "../shared/player-exchange";
+import { createPlayerProfiles } from "../shared/player-profiles";
+import { loadWordFrequencies } from "./word-frequencies";
 import { dictionaryText } from "./word-list-cache";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { RackBingoIndex } from "../shared/bingo-odds";
@@ -61,6 +69,7 @@ export type PracticeRequest =
       dictionaryId: string;
       exchange: ExchangeAdviceRequest;
     }
+  | { kind: "style-exchange"; dictionaryId: string; exchange: PlayerExchangePosition }
   | {
       kind: "opponent-policy";
       dictionaryId: string;
@@ -77,6 +86,8 @@ export type PracticeRequest =
 export type OpponentPolicyMessage =
   | { result: OpponentPolicyResult }
   | { error: string };
+
+export type StyleExchangeMessage = { result?: PlayerExchangeAdvice } | { error: string };
 
 export type ExchangeAdviceMessage =
   | { result: ExchangeAdvice | undefined }
@@ -115,6 +126,21 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
         data.workerLimit ?? computeWorkerLimit(),
       );
       self.postMessage({ result } satisfies OptimalExchangeMessage);
+      return;
+    }
+    if (data.kind === "style-exchange") {
+      const { comparison, advice } = screenPlayerExchange(data.exchange);
+      if (comparison) {
+        const [lexicon, frequencies] = await Promise.all([
+          dictionary(data.dictionaryId),
+          loadWordFrequencies(),
+        ]);
+        const choose = createPlayerProfiles(lexicon, data.exchange.template, frequencies);
+        const sampled = samplePlayerExchange(lexicon, choose, comparison);
+        self.postMessage({ result: sampled ? sampled.advice : advice } satisfies StyleExchangeMessage);
+      } else {
+        self.postMessage({ result: advice } satisfies StyleExchangeMessage);
+      }
       return;
     }
     if (data.kind === "exchange-advice") {

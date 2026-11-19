@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Game, Move } from "../shared/model";
 import type { BoardOddsResult, RackOdds } from "../shared/bingo-odds";
 import type { DefenseResults } from "../shared/premium-defense";
+import type { PlayerProfile } from "../shared/player-profiles";
 import type { ExchangeAdvice } from "../shared/exchange-advice";
 import { rackSlotsForLetters } from "../shared/rack-entry";
 import type { ExchangeAdviceMessage, PracticeRequest } from "./practice.worker";
@@ -32,6 +33,9 @@ type Snapshot = {
   boardOdds?: BoardOddsResult;
   exchangeAdvice?: Omit<ExchangeAdvice, "slots"> & { tiles: string };
 };
+const styleChoiceKey = (searchId: number, profile: PlayerProfile, bag: number, seed: number) =>
+  `${searchId}:${profile}:${bag}:${seed}`;
+
 const emptySnapshot: Snapshot = { results: null, warnings: [] };
 type QueryReply = Extract<
   SolverMessage,
@@ -53,6 +57,7 @@ export function useSolver(positionKey: string, game: Game | undefined) {
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [snapshotKey, setSnapshotKey] = useState(positionKey);
   const [resultsClosed, setResultsClosed] = useState(false);
+  const [styleChoices, setStyleChoices] = useState(new Map<string, NonNullable<MovePage["styleChoice"]>>());
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [rackOddsPending, setRackOddsPending] = useState(false);
@@ -485,7 +490,20 @@ export function useSolver(positionKey: string, game: Game | undefined) {
       options: MoveQuery,
     ): Promise<MovePage | undefined> => {
       const result = await query({ kind: "page", searchId, query: options });
-      return result?.kind === "page" ? result.page : undefined;
+      const page = result?.kind === "page" ? result.page : undefined;
+      const { profile, profileBagSize = 0, profileSeed = 0 } = options;
+      const choice = !page?.error && page?.styleChoice;
+      if (profile && profile !== "bingo-hunter" && choice) {
+        const key = styleChoiceKey(searchId, profile, profileBagSize, profileSeed);
+        setStyleChoices((current) => {
+          if (current.has(key)) return current;
+          const next = new Map(current);
+          next.set(key, choice);
+          if (next.size > 3 * MOVE_CACHE_LIMIT) next.delete(next.keys().next().value!);
+          return next;
+        });
+      }
+      return page;
     },
     [query],
   );
@@ -603,6 +621,9 @@ export function useSolver(positionKey: string, game: Game | undefined) {
       else replaceResults();
     },
     page,
+    styleChoice(searchId: number, profile: PlayerProfile, bag: number, seed: number) {
+      return styleChoices.get(styleChoiceKey(searchId, profile, bag, seed));
+    },
     shortlist,
     rankEndgame,
     runBingoHunter,

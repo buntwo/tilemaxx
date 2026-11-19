@@ -5586,6 +5586,70 @@ test.each(["rack", "results"])("the %s exchange suggestion preserves holds and o
   expect(screen.queryByRole("button", { name: /^Swap .* pts/ })).toBeNull();
 });
 
+test("style exchanges replace general advice and ignore stale worker replies", async () => {
+  let slow: SolverWorker | undefined;
+  let simulation: Extract<PracticeRequest, { kind: "exchange" }> | undefined;
+  const styles: string[] = [];
+  vi.stubGlobal("Worker", class extends SolverWorker {
+    override exchangeRequest(request: Extract<SolverRequest, { kind: "solve" }>) {
+      return { ...request, plays: [] };
+    }
+    override postMessage(request: SolverRequest | PracticeRequest) {
+      if (request.kind === "exchange-advice") {
+        queueMicrotask(() => this.onmessage?.({ data: { result: { slots: [5], edge: 6, comparedWith: "CATS" } } }));
+        return;
+      }
+      if (request.kind === "style-exchange") {
+        const { profile, move } = request.exchange;
+        styles.push(profile);
+        expect(move?.word).toBe("AT");
+        if (profile === "strong") slow = this;
+        else queueMicrotask(() => this.onmessage?.({ data: { result: {
+          slots: [4, 5], profile, problem: "awkward", comparedWith: { word: move!.word, score: move!.score },
+        } } }));
+        return;
+      }
+      if (request.kind === "exchange") {
+        simulation = request;
+        return;
+      }
+      if (request.kind === "page" && request.query.profile) {
+        const result = this.results.get(request.searchId);
+        const move = result?.moves.find(({ word }) => word === "AT");
+        if (move) result!.setProfile(request.query, [{ move, utility: {
+          total: 5, points: 5, premium: 0, familiarity: 0, crosswords: 0, length: 0, leave: 0, goingOut: 0,
+        } }]);
+      }
+      if (["solve", "page", "shortlist", "endgame", "discard", "cancel"].includes(request.kind))
+        super.postMessage(request as SolverRequest);
+    }
+  });
+  const user = await start();
+  await typeRack(user, "CATSUVW");
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  const header = within(screen.getByRole("heading", { name: "Possible moves" }).closest("header")!);
+  await header.findByRole("button", { name: "Swap V · +6 pts" });
+  const picker = screen.getByRole("combobox", { name: "Playing style" });
+  await user.selectOptions(picker, "casual");
+  const styled = await header.findByRole("button", { name: "Swap UV" });
+  expect(header.queryByRole("button", { name: "Swap V · +6 pts" })).toBeNull();
+  expect(screen.getAllByRole("button", { name: "Swap UV" })).toHaveLength(2);
+  await user.click(styled);
+  const panel = screen.getByRole("region", { name: "Simulate exchange" });
+  expect(within(panel).getByText(/Casual would exchange to shed awkward tiles. Its best spotted play is AT for/)).toBeTruthy();
+  expect(simulation?.exchange.slots).toEqual([4, 5]);
+
+  await user.selectOptions(picker, "strong");
+  await waitFor(() => expect(slow).toBeTruthy());
+  expect(header.queryByRole("button", { name: /^Swap/ })).toBeNull();
+  await user.selectOptions(picker, "");
+  expect(slow?.terminate).toHaveBeenCalled();
+  await act(() => slow?.onmessage?.({ data: { result: { slots: [6], profile: "strong", edge: 5 } } }));
+  expect(header.queryByRole("button", { name: "Swap W" })).toBeNull();
+  expect(header.getByRole("button", { name: "Swap V · +6 pts" })).toBeTruthy();
+  expect(styles).toEqual(["casual", "strong"]);
+});
+
 test("a new search after playing starts with highest points", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query !== "(max-width: 650px)",
