@@ -2827,6 +2827,21 @@ test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters
   ).toBeTruthy();
 });
 
+test("the Lexulous bag icon and Optimal exchange both subtract an eight-tile opponent rack", async () => {
+  const template = PRESETS.find(({ id }) => id === "lexulous")!;
+  const tiles = Object.entries(template.tileCounts!).flatMap(([tile, count]) => Array<string>(count).fill(tile));
+  const board = emptyBoard(template.size);
+  board.splice(0, 51, ...tiles.slice(0, 51));
+  remote.games[0] = { ...game(), revision: 1, template, board, rack: tiles.slice(51, 59).join("") };
+  const user = await start();
+  const bag = await screen.findByRole("img", { name: "22 estimated tiles in the bag" });
+  expect(bag.textContent).toBe("22");
+  expect(screen.queryByRole("img", { name: "23 estimated tiles in the bag" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Optimal exchange" }));
+  const exchange = within(screen.getByRole("region", { name: "Optimal exchange" }));
+  expect(exchange.getByText(/22 estimated in bag/)).toBeTruthy();
+});
+
 test("existing games and their thumbnails use platform palettes independently of layout", async () => {
   const template = PRESETS.find(({ id }) => id === "wordfeud")!;
   const first = { ...game(), revision: 1, template, platform: "WWF" };
