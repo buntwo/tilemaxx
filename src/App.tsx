@@ -1440,6 +1440,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   onReviewEdit={moveReview.showing ? editPosition : undefined}
                   positionKey={signature}
                   exchangeAdvice={exchangeAdvice}
+                  bagCount={Math.max(0, replyAnalysis.unseen - 7)}
                   exchangeBag={replyAnalysis.bagSize}
                   exchangeBagConfirmed={replyAnalysis.bagConfirmed}
                   opponentRack={replyAnalysis.opponentRack}
