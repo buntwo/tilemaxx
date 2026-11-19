@@ -710,3 +710,72 @@ test("empty rack slots never become playable tiles, blanks or bingo bonuses", ()
   assert.equal(played.rack, "");
   assert.equal(undo(played).rack, "C.A.T..");
 });
+
+test("anchor prefixes preserve premium scores, blanks, edge plays and unique placements", () => {
+  const words = [
+    "AB",
+    "BA",
+    "AC",
+    "CA",
+    "BC",
+    "CB",
+    "ABC",
+    "BAC",
+    "CAB",
+    "ABCAB",
+    "ABCA",
+    "CABA",
+  ];
+  const dict = new Lexicon(words);
+  const template: BoardTemplate = {
+    ...PRESETS[0],
+    size: 5,
+    start: 12,
+    rackSize: 3,
+    bingo: 15,
+    premiums: Array(25).fill(""),
+  };
+  template.premiums[11] = "TW";
+  template.premiums[12] = "DL";
+  template.premiums[6] = "QW";
+  for (const fixed of [
+    [[13, "C"]],
+    [
+      [11, "A"],
+      [12, "b"],
+    ],
+    [
+      [1, "A"],
+      [2, "B"],
+    ],
+    [
+      [6, "C"],
+      [8, "A"],
+      [12, "B"],
+    ],
+  ] as [number, string][][]) {
+    const board = emptyBoard(5);
+    for (const [index, tile] of fixed) board[index] = tile;
+    for (const rack of ["AB?", "A??", "ABC"]) {
+      const expected = brute(words, board, rack, template);
+      const solver = prepareSolver(dict, board, template);
+      const moves = solver.solve(rack);
+      assert.equal(new Set(moves.map((m) => m.id)).size, moves.length);
+      assert.deepEqual(new Map(moves.map((m) => [m.id, m.score])), expected);
+      const counts = Array<number>(27).fill(0);
+      for (const tile of rack)
+        counts[tile === "?" ? 26 : tile.charCodeAt(0) - 65]++;
+      const targets = new Set([6, 11, 12]);
+      const replies = solver.premiumReplies(counts, targets, {});
+      for (const target of targets) {
+        const scores = moves
+          .filter((m) => m.tiles.some((t) => t.index === target))
+          .map((m) => m.score);
+        assert.equal(
+          replies.get(target)?.score,
+          scores.length ? Math.max(...scores) : undefined,
+        );
+      }
+    }
+  }
+});

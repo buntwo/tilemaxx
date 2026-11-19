@@ -17,7 +17,10 @@ export function popcount(bits: number): number {
   return (((bits + (bits >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
 }
 
-/** Each node's children occupy a contiguous range, in descending letter order. */
+/** A DAWG with shared outgoing blocks, in descending letter order.
+ * Each array entry describes an incoming edge's target; index zero is the root.
+ * Terminal flags stay on entries so otherwise identical continuations can share.
+ */
 export class Lexicon {
   readonly first: Int32Array;
   readonly mask: Int32Array;
@@ -57,32 +60,65 @@ export class Lexicon {
       terminal[path[word.length]] = 1;
       previous = word;
     }
-    this.first = new Int32Array(used);
-    this.mask = new Int32Array(used);
-    this.terminal = new Uint8Array(used);
-    this.maxTail = new Uint8Array(used);
-    this.count = words.length;
-    // Remap in breadth-first order so every set of siblings is adjacent.
-    const original = new Int32Array(used);
-    let free = 1;
-    for (let node = 0; node < used; node++) {
-      const old = original[node];
-      this.terminal[node] = terminal[old];
-      this.first[node] = free;
-      for (let child = first[old]; child; child = next[child]) {
-        this.mask[node] |= 1 << letters[child];
-        original[free++] = child;
-      }
-    }
+    // Intern identical suffix states, from leaves toward the root. Terminal
+    // status belongs to the incoming edge, so accepting/nonaccepting states
+    // can share the same outgoing block (Appel & Jacobson, 1988).
+    const groups = new Map<string, number>();
+    const canonical = new Int32Array(used);
+    const representatives: number[] = [];
+    const tails: number[] = [];
+    const offsets: number[] = [];
+    let edges = 1; // Reserve index zero for the root / missing-child sentinel.
     for (let node = used - 1; node >= 0; node--) {
-      const start = this.first[node],
-        end = start + popcount(this.mask[node]);
-      for (let child = start; child < end; child++) {
-        this.maxTail[node] = Math.max(
-          this.maxTail[node],
-          1 + this.maxTail[child],
-        );
+      let signature = "",
+        tail = 0,
+        count = 0;
+      for (let child = first[node]; child; child = next[child]) {
+        signature += `${letters[child]}:${terminal[child]}:${canonical[child]},`;
+        tail = Math.max(tail, 1 + tails[canonical[child]]);
+        count++;
       }
+      let group = groups.get(signature);
+      if (group === undefined) {
+        group = representatives.length;
+        groups.set(signature, group);
+        representatives.push(node);
+        tails.push(tail);
+        offsets.push(edges);
+        edges += count;
+      }
+      canonical[node] = group;
+    }
+    this.first = new Int32Array(edges);
+    this.mask = new Int32Array(edges);
+    this.terminal = new Uint8Array(edges);
+    this.maxTail = new Uint8Array(edges);
+    this.count = words.length;
+    const masks = new Int32Array(representatives.length);
+    for (let group = 0; group < representatives.length; group++) {
+      for (
+        let child = first[representatives[group]];
+        child;
+        child = next[child]
+      )
+        masks[group] |= 1 << letters[child];
+    }
+    const write = (index: number, node: number) => {
+      const group = canonical[node];
+      this.first[index] = offsets[group];
+      this.mask[index] = masks[group];
+      this.terminal[index] = terminal[node];
+      this.maxTail[index] = tails[group];
+    };
+    write(0, 0);
+    for (let group = 0; group < representatives.length; group++) {
+      let index = offsets[group];
+      for (
+        let child = first[representatives[group]];
+        child;
+        child = next[child]
+      )
+        write(index++, child);
     }
   }
 
