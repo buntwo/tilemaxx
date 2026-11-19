@@ -24,11 +24,12 @@ export const HUNTER_MAX = 512;
 export const HUNTER_SCREEN = 96;
 export const HUNTER_CANDIDATES = 36;
 export const HUNTER_FINALISTS = 12;
+export const HUNTER_SCORE_LEADERS = 6;
 
 export type HunterPosition = Position &
   EndgameSettings & { template: BoardTemplate; bagSize: number };
 export type HunterUtility = {
-  bingoNow: number;
+  playPoints: number;
   nextBingoPoints: number;
   bingoChance: number;
   meanBingoScore: number;
@@ -41,10 +42,6 @@ export type HunterUtility = {
 export type RankedHunterMove = { move: Move; utility: HunterUtility };
 
 const sortTiles = (rack: string) => [...rack].sort().join("");
-
-export function bingoNow(move: Move, template: BoardTemplate) {
-  return isBingo(template, move.tiles.length) ? move.score : 0;
-}
 
 export function hunterPool(position: HunterPosition) {
   const { tiles, total, excess } = unseenTiles(position, position.template);
@@ -184,7 +181,7 @@ export function hunterScreen(
   let limited = false;
   for (const [i, move] of moves.entries()) {
     if ((i & 63) === 0 && performance.now() >= deadline) limited = true;
-    if (bingoNow(move, template) && bingos.length < 12) bingos.push(move);
+    if (bingos.length < 12 && isBingo(template, move.tiles.length)) bingos.push(move);
     const lane = limited ? 0 : lanes(move);
     if (lane > 1) openings.set(move, lane);
     if (move.tiles.length === 1 && lane >= 9) premiumAnchors.push(move);
@@ -198,7 +195,7 @@ export function hunterScreen(
   const prior = (move: Move) => {
     const chance = odds?.byLeave[move.leave];
     return (
-      bingoNow(move, template) +
+      (isBingo(template, move.tiles.length) ? move.score : 0) +
       (chance === undefined ? 2 * leaveValue(move.leave) : 75 * chance)
     );
   };
@@ -219,6 +216,7 @@ export function hunterScreen(
   ];
   const screen = [
     ...new Set([
+      ...moves.slice(0, HUNTER_SCORE_LEADERS),
       ...base,
       // Same-leave hooks can make very different words through two premiums.
       ...premiumAnchors
@@ -244,8 +242,9 @@ export function chooseHunterCandidates(
   after: readonly Move[],
   peaks: readonly Move[],
   lanes: readonly Move[],
+  scoreLeaders: readonly Move[],
 ) {
-  // Preserve the board-first picks before spending the extra slots on new leads.
+  // Keep a mix of strong scores and board-first picks before adding new leads.
   const oldPicks = new Set(base.slice(0, 12));
   const oldLeaves = new Set<string>();
   for (const move of base) {
@@ -254,12 +253,10 @@ export function chooseHunterCandidates(
     oldPicks.add(move);
     if (oldLeaves.size === 8) break;
   }
+  const boardLeaders = [...new Set([...scoreLeaders, ...oldPicks, ...base])].slice(0, 20);
   return [
     ...new Set([
-      ...[...oldPicks, ...base.filter((move) => !oldPicks.has(move))].slice(
-        0,
-        20,
-      ),
+      ...boardLeaders,
       ...peaks.slice(0, 4),
       ...lanes.slice(0, 4),
       ...after,
@@ -318,7 +315,7 @@ export function createHunterEvaluator(
 }
 
 export function hunterUtility(
-  now: number,
+  playPoints: number,
   outcomes: readonly number[],
   deals: readonly BingoDeal[],
   exact = false,
@@ -336,12 +333,12 @@ export function hunterUtility(
   }
   const expected = weight ? sum / weight : 0;
   return {
-    bingoNow: now,
+    playPoints,
     nextBingoPoints: expected,
     bingoChance: weight ? hits / weight : 0,
     meanBingoScore: hits ? sum / hits : 0,
     highestBingo,
-    total: now + expected,
+    total: playPoints + expected,
     exact,
     samples: outcomes.length,
     close: false,

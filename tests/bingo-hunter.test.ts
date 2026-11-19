@@ -48,6 +48,7 @@ test("shared deals conserve tiles and exact deals weight duplicate physical copi
     return 0;
   });
   const utility = hunterUtility(50, scores, exact, true);
+  assert.equal(utility.playPoints, 50);
   assert.equal(utility.nextBingoPoints, 34);
   assert.equal(utility.total, 84);
   assert.equal(utility.bingoChance, 5 / 12);
@@ -144,7 +145,7 @@ test("the same refill can bingo after a reply opens an anchor", () => {
   assert.equal(atEnd({ ...deal, opponent: "S" }, false, Infinity), 0);
 });
 
-test("an exhausted bag gives credit for a bingo now and zero for ordinary points", async () => {
+test("an exhausted bag ranks plays by their full score when no follow-up bingo is possible", async () => {
   const template = {
     ...PRESETS[0],
     tileCounts: Object.fromEntries(
@@ -186,7 +187,8 @@ test("an exhausted bag gives credit for a bingo now and zero for ordinary points
   assert.equal(summary.checked, selected.length);
   assert.equal(ranked[0].move.word, "READING");
   assert.equal(ranked[0].utility.total, ranked[0].move.score);
-  assert.equal(ranked[1].utility.total, 0);
+  assert.equal(ranked[1].utility.total, ordinary.score);
+  assert.equal(ranked[1].utility.nextBingoPoints, 0);
   assert.equal(ranked[0].utility.exact, true);
   assert.deepEqual([...new Set(phases)], ["1.exact"]);
 });
@@ -231,20 +233,22 @@ test("a lower-scoring setup survives by leaving a two-triple bingo lane", () => 
   assert.equal(evaluate({ opponent: "", bag: "T" }, true, Infinity), 140);
 });
 
-test("board leaders, reply leaders and rare high scores all earn more samples", () => {
+test("score, board and reply leaders and rare high scores earn more samples", () => {
   const before = Array.from({ length: 36 }, (_, i) => setup(i, 1));
   const after = Array.from({ length: 36 }, (_, i) => setup(i + 40, 1));
   const lane = setup(100, 1),
-    peak = setup(101, 1);
+    peak = setup(101, 1),
+    scoreLeader = setup(102, 50);
   const candidates = chooseHunterCandidates(
     before,
     before,
     after,
     [peak],
     [lane],
+    [scoreLeader],
   );
   assert.equal(candidates.length, 36);
-  assert.deepEqual(candidates.slice(0, 20), before.slice(0, 20));
+  assert.deepEqual(candidates.slice(0, 20), [scoreLeader, ...before.slice(0, 19)]);
   for (const expected of [before[0], after[0], lane, peak])
     assert.ok(candidates.includes(expected));
 
@@ -262,6 +266,40 @@ test("board leaders, reply leaders and rare high scores all earn more samples", 
   assert.ok(finalists.includes(rare));
   assert.equal(rare.utility.total, 7);
   assert.equal(rare.utility.highestBingo, 140);
+});
+
+test("sampled rankings account for the play's score across different sample depths", async (t) => {
+  const high = setup(1, 30);
+  const rare = setup(2, 3);
+  const moves = [high, ...Array.from({ length: 12 }, (_, i) => setup(i + 3, 20)), rare];
+  const original = globalThis.Worker;
+  const advanced = new Set<string>();
+  class SimulatedHunterWorker {
+    onmessage?: (event: { data: { kind: string; outcomes: number[] } }) => void;
+    terminate() {}
+    postMessage({ job }: { job: { move: Move; deals: unknown[] } }) {
+      const { id } = job.move;
+      const hits = advanced.has(id) || id === high.id ? 0 : id === rare.id ? 3 : 11;
+      advanced.add(id);
+      const outcomes = job.deals.map((_, i) => i < hits ? 100 : 0);
+      queueMicrotask(() => this.onmessage?.({ data: { kind: "bingo-hunter", outcomes } }));
+    }
+  }
+  globalThis.Worker = SimulatedHunterWorker as unknown as typeof Worker;
+  t.after(() => { globalThis.Worker = original; });
+
+  const template = PRESETS[0];
+  const position = { template, board: emptyBoard(template.size), rack: "AGIINNR", bagSize: 86, scorelessTurns: 0 };
+  const { ranked, summary } = await runBingoHunter(new Lexicon(["RA"]), position, moves, undefined, 1,
+    new AbortController().signal, () => {});
+  assert.equal(summary.finalistsRefined, true);
+  assert.equal(ranked[0].move, high);
+  assert.equal(ranked[0].utility.total, 30);
+  assert.equal(ranked[0].utility.samples, 80);
+  const longShot = ranked.find(({ move }) => move === rare)!;
+  assert.equal(longShot.utility.playPoints, 3);
+  assert.equal(longShot.utility.nextBingoPoints, 3.75);
+  assert.equal(longShot.utility.total, 6.75);
 });
 
 test("another slice resumes the exact deal sequence without replaying completed deals", async (t) => {

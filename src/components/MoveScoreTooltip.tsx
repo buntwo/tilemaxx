@@ -24,13 +24,13 @@ type UtilityDetails = {
 };
 
 function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
-  if ("bingoNow" in utility) {
+  if ("playPoints" in utility) {
     return (
       <div className="score-breakdown-content">
         <div>Bingo hunter · Rank {utility.rank}</div>
         <ul>
           <li className="score-breakdown-line">
-            <span>Bingo points now</span><span>{utility.bingoNow}</span>
+            <span>Play points now</span><span>{utility.playPoints}</span>
           </li>
           <li className="score-breakdown-line">
             <span>Expected bingo points next turn</span><span>{formatUtility(utility.nextBingoPoints)}</span>
@@ -54,7 +54,7 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
         </div>
         <div className="move-score-adjustment">
           {utility.exact ? "Exact over tile deals" : `${utility.samples} sampled deals`} · Replies favor points and rack leave.
-          {utility.close && " Too close to call against the leading finalists."}
+          {utility.close && " Too close to call among the top moves."}
         </div>
       </div>
     );
