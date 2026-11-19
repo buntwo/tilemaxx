@@ -11,7 +11,7 @@ import {
   type Move,
   type Position,
 } from "./model";
-import { bestStrongReply, sampleTiles } from "./move-analysis";
+import { sampleTiles } from "./move-analysis";
 import { leaveValue } from "./rack-leave";
 import { createSolverFactory, SEARCH_LIMITS, SearchLimitError } from "./solver";
 import { unseenTiles } from "./tile-pool";
@@ -190,10 +190,7 @@ export function createHunterEvaluator(
       if (!replies.has(deal.opponent)) {
         replies.set(
           deal.opponent,
-          bestStrongReply(
-            solver.solve(deal.opponent, limits(), { unsorted: true }),
-            bagAfter,
-          ),
+          solver.bestReply(deal.opponent, bagAfter > 0, limits()),
         );
       }
       reply = replies.get(deal.opponent) ?? null;
