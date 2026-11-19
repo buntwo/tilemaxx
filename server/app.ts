@@ -2,7 +2,7 @@ import express from "express";
 import compression from "compression";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { version } from "../package.json";
+import { version } from "../version.json";
 import { createStore } from "./store";
 import {
   gameSchema,

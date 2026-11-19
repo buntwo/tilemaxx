@@ -1,15 +1,20 @@
-FROM node:24-bookworm-slim AS build
+FROM node:24-bookworm-slim AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
+
+FROM dependencies AS production-dependencies
+RUN npm prune --omit=dev --no-audit --no-fund
+
+FROM dependencies AS build
 COPY . .
-RUN npm run build && npm prune --omit=dev
+RUN npm run build
 
 FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production PORT=4173 HOST=0.0.0.0 DATA_DIR=/app/data
-COPY --from=build /app/package.json ./
-COPY --from=build /app/node_modules ./node_modules
+COPY --from=production-dependencies /app/package.json ./
+COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/dist-server ./dist-server
 COPY --from=build /app/public/dictionaries ./public/dictionaries

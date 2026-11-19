@@ -3,11 +3,16 @@ node_modules
 dist
 dist-server
 data
+appdata
 .local
 .env
+.env.*
 compose.yaml
 compose.yaml.backup.*
 *.log
 .DS_Store
 public/ocr
 coverage
+.github
+AGENTS.md
+README.md

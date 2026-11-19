@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { version } from "../package.json";
+import { version } from "../version.json";
 import { activateOfflineUpdate } from "./offline";
 import { preserveBrandForUpdate } from "./components/Brand";
 

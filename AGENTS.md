@@ -18,7 +18,7 @@
 
 ## Git and deployment
 
-- Bump the Tilemaxx patch version by one in every commit, starting at `0.0.1` in the commit that introduces versioning. Run `npm version patch --no-git-tag-version` before staging and include both package files in the same commit. Bump major or minor only when the user explicitly asks. A minor bump resets the patch to `0`. A major bump sets the patch to `1`.
+- Bump the Tilemaxx patch version by one in `version.json` before staging each commit. Bump major or minor only when the user explicitly asks, and set the patch to `1` for either bump. Keep `package.json` and `package-lock.json` stable for app version bumps so Docker can reuse installed dependencies.
 - Git commits are signed through Secretive without fingerprint approval. Run Git non-interactively and never allocate a PTY for commit or push commands. If signing unexpectedly blocks, diagnose the process instead of assuming user approval is pending.
 - After verifying and committing Tilemaxx changes, push them to GitHub's `origin/main` with a fast-forward push. The NAS pulls updates from that branch.
 - Regenerate the illustrated UI guide screenshots and their callout positions only when preparing a new GitHub release.
