@@ -1,0 +1,169 @@
+.score-chart {
+  container: score-chart / inline-size;
+  margin: 16px 0 0;
+}
+
+.score-chart-heading,
+.score-chart-legend,
+.score-chart-player {
+  display: flex;
+  align-items: center;
+}
+
+.score-chart-heading {
+  justify-content: space-between;
+  gap: 6px 10px;
+  flex-wrap: wrap;
+}
+
+.score-chart-heading h3 { font-size: 13px; }
+.score-chart-legend {
+  gap: 12px;
+  color: var(--existing-letter);
+  font-size: 11px;
+}
+
+.score-chart-player {
+  justify-content: flex-start;
+  gap: 6px;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.score-chart-you { --series-color: var(--value-good); }
+.score-chart-opponent { --series-color: var(--value-bad); }
+
+.score-chart-swatch {
+  flex: 0 0 15px;
+  border-top: 2px solid var(--series-color);
+}
+
+.score-chart-swatch.score-chart-opponent { border-top-style: dashed; }
+
+.score-chart-plot {
+  position: relative;
+  margin-top: 5px;
+}
+
+.score-chart-plot:has(.score-chart-range:focus-visible) {
+  border-radius: 4px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.score-chart-graph {
+  display: block;
+  width: 100%;
+  height: 206px;
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.score-chart-graph text {
+  fill: var(--existing-letter);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-chart-grid { stroke: var(--line); }
+.score-chart-cursor { stroke: var(--muted); }
+.score-chart-line {
+  fill: none;
+  stroke: var(--series-color);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.score-chart-line.score-chart-opponent { stroke-dasharray: 4 3; }
+
+.score-chart-graph :is(circle, rect) { fill: var(--series-color); }
+.score-chart-active :is(circle, rect) {
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
+.score-chart-graph [data-outline] {
+  fill: none;
+  stroke: var(--series-color);
+  stroke-width: 1.5;
+}
+
+.score-chart-range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 206px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.score-chart-tooltip {
+  position: absolute;
+  width: max-content;
+  max-width: calc(100% - var(--score-axis-inset));
+  z-index: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: 0 4px 12px #0002;
+  pointer-events: none;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.score-chart-tooltip > strong { font-size: 12px; }
+.score-chart-tooltip dl {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 5px;
+  margin: 7px 0 0;
+}
+.score-chart-tooltip dl > div { display: contents; }
+.score-chart-tooltip dd { margin: 0; }
+
+.score-chart-total {
+  text-align: right;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-chart-play {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  padding-inline-start: 6px;
+  border-inline-start: 1px solid var(--line);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.score-chart-play .bingo-badge {
+  flex: none;
+  justify-content: center;
+  width: 13px;
+  height: 12px;
+  margin: 0;
+  padding: 0;
+  border-radius: 3px;
+}
+
+.score-chart-points {
+  color: var(--existing-letter);
+  font-weight: 400;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@container score-chart (max-width: 420px) {
+  .score-chart-tooltip {
+    position: static;
+    margin-block-start: 5px;
+    margin-inline-start: var(--score-axis-inset);
+  }
+}
