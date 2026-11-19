@@ -4,12 +4,14 @@ export default function useKeyboardShortcuts({
   enabled,
   focusRack,
   toggleBoardCoordinates,
+  changeGameHistory,
   searchGames,
   showGuide,
 }: {
   enabled: boolean;
   focusRack: () => boolean;
   toggleBoardCoordinates: () => boolean;
+  changeGameHistory: (action: "undo" | "redo") => boolean;
   searchGames: () => boolean;
   showGuide: () => void;
 }) {
@@ -31,6 +33,10 @@ export default function useKeyboardShortcuts({
       if ((key === "r" || event.code === "KeyR") && focusRack())
         event.preventDefault();
       else if ((key === "b" || event.code === "KeyB") && toggleBoardCoordinates())
+        event.preventDefault();
+      else if ((key === "u" || event.code === "KeyU") && changeGameHistory("undo"))
+        event.preventDefault();
+      else if ((key === "y" || event.code === "KeyY") && changeGameHistory("redo"))
         event.preventDefault();
       else if ((key === "f" || event.code === "KeyF") && searchGames())
         event.preventDefault();

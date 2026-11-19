@@ -4837,6 +4837,38 @@ test("workspace shortcuts focus the rack and game filter, and the guide leaves r
   expect(guide()).toBeTruthy();
 });
 
+test("Option+U and Option+Y undo and redo game history", async () => {
+  const user = await start();
+  const placed = () => current().board.slice(112, 115).join("");
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT");
+  expect(placed()).toBe("CAT");
+
+  expect(fireEvent.keyDown(entry(), { key: "Dead", code: "KeyU", altKey: true })).toBe(false);
+  expect(placed()).toBe("");
+  expect(document.activeElement).toBe(entry());
+
+  await user.click(rackTile(1));
+  const rack = screen.getByRole("textbox", { name: "Rack letters" });
+  expect(fireEvent.keyDown(rack, { key: "¥", code: "KeyY", altKey: true })).toBe(false);
+  expect(placed()).toBe("CAT");
+  await user.keyboard("{Alt>}u{/Alt}{Alt>}u{/Alt}");
+  expect(placed()).toBe("");
+  expect(current().future).toHaveLength(1);
+
+  await user.click(cell("Keyboard shortcuts"));
+  const guide = within(screen.getByRole("dialog", { name: "Keyboard shortcuts" }));
+  expect(guide.getByText("Alt / Option + U")).toBeTruthy();
+  expect(guide.getByText("Alt / Option + Y")).toBeTruthy();
+  fireEvent.keyDown(guide.getByRole("button", { name: "Close dialog" }), {
+    key: "¥", code: "KeyY", altKey: true,
+  });
+  expect(placed()).toBe("");
+  await user.click(guide.getByRole("button", { name: "Close dialog" }));
+  await user.keyboard("{Alt>}y{/Alt}");
+  expect(placed()).toBe("CAT");
+});
+
 test("Alt+B starts across for either coordinate order and groups the entered word", async () => {
   const user = await start();
   const overlay = () => document.querySelector(".board-coordinate-grid");

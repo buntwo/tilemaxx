@@ -373,6 +373,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       }
       return true;
     },
+    changeGameHistory(action) {
+      if (workspace !== "games" || !game) return false;
+      if (action === "undo") undoGame();
+      else redoGame();
+      return true;
+    },
     searchGames() {
       setSidebarDrawerOpen(false);
       if (workspace === "archive") {
@@ -547,6 +553,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     if (previousSignature !== signature)
       solver.restoreOnUndo(previousSignature);
     update(previous);
+  }
+  function redoGame() {
+    if (boardLocked || !game?.future.length) return;
+    update(redo(game));
   }
   function notify(text: string) {
     setToast(text);
@@ -867,7 +877,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         className="icon-button board-undo"
         disabled={boardLocked || !game.past.length}
         aria-label="Undo"
-        title="Undo"
+        aria-keyshortcuts="Alt+U"
+        title="Undo (Alt/Option+U)"
         onClick={undoGame}
       >
         <Undo2 size={17} />
@@ -876,8 +887,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         className="icon-button board-redo"
         disabled={boardLocked || !game.future.length}
         aria-label="Redo"
-        title="Redo"
-        onClick={() => update(redo(game))}
+        aria-keyshortcuts="Alt+Y"
+        title="Redo (Alt/Option+Y)"
+        onClick={redoGame}
       >
         <Redo2 size={17} />
       </button>
@@ -1832,7 +1844,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             <button
               className="button secondary"
               disabled={boardLocked || !game.future.length}
-              onClick={() => update(redo(game))}
+              onClick={redoGame}
             >
               <Redo2 size={16} />
               Redo

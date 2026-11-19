@@ -13,6 +13,8 @@ const sections = [
   {
     title: "Board and rack",
     shortcuts: [
+      ["Alt / Option + U", "Undo the last change"],
+      ["Alt / Option + Y", "Redo the last undone change"],
       ["H6 / 6H", "Select a square and start typing across. Type a second digit after H1 for a two-digit row."],
       ["← / → or ↑ / ↓", "Adjust the column or row after typing the first part of a coordinate"],
       ["Enter", "Find moves from the board or rack"],
