@@ -979,6 +979,41 @@ test("a French game without Grammalecte requires an explicit choice of word list
   expect(create.disabled).toBe(false);
 });
 
+test("Classic Lexulous alone offers a language picker and saves the selected tile set", async () => {
+  remote.dictionaries.push(
+    { id: "csw", name: "CSW24", count: 8, builtin: false, description: "" },
+    { id: "grammalecte", name: "Grammalecte 7.7", count: 8, builtin: false, description: "" },
+    { id: "morph-it", name: "italian_it_it_morphit", count: 8, builtin: false, description: "" },
+  );
+  const user = await start();
+  await user.click(screen.getByRole("button", { name: "New game" }));
+  const dialog = within(screen.getByRole("dialog", { name: "New game" }));
+  const layout = dialog.getByRole<HTMLSelectElement>("combobox", { name: "Board layout" });
+  const dictionary = dialog.getByRole<HTMLSelectElement>("combobox", { name: "Word list" });
+  const language = { name: "Language" };
+  expect(dialog.queryByRole("combobox", language)).toBeNull();
+  await user.selectOptions(layout, "super-lexulous");
+  expect(dialog.queryByRole("combobox", language)).toBeNull();
+  await user.selectOptions(layout, "lexulous");
+  const picker = dialog.getByRole<HTMLSelectElement>("combobox", language);
+  expect(picker.value).toBe("en-US");
+  expect(dictionary.value).toBe("test");
+  await user.selectOptions(picker, "en-GB");
+  expect(dictionary.value).toBe("csw");
+  await user.selectOptions(picker, "fr");
+  expect(dictionary.value).toBe("grammalecte");
+  await user.selectOptions(picker, "it");
+  expect(dictionary.value).toBe("morph-it");
+
+  await user.click(dialog.getByRole("button", { name: "Create game" }));
+  await waitFor(() => expect(remote.games).toHaveLength(2));
+  const saved = remote.games[1];
+  expect(saved.dictionaryId).toBe("morph-it");
+  expect(saved.template.id).toBe("lexulous");
+  expect(saved.template.rules).toBe("lexulous-it");
+  expect(saved.template.tileCounts?.O).toBe(15);
+});
+
 test("new game suggests distinct opponents by the end date or start date within two weeks", async () => {
   function daysAgo(days: number) {
     const date = new Date();

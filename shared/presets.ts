@@ -1,5 +1,33 @@
-import { RULE_NAMES, type BoardTemplate, type Premium } from "./model";
+import {
+  RULE_NAMES,
+  type BoardTemplate,
+  type Premium,
+  type Rules,
+} from "./model";
 import { getTileCounts } from "./tile-pool";
+
+export const CLASSIC_LEXULOUS_ID = "lexulous";
+export const LEXULOUS_LANGUAGES = {
+  "en-US": { label: "US English", rules: "lexulous" },
+  "en-GB": { label: "UK English", rules: "lexulous" },
+  fr: { label: "French", rules: "lexulous-fr" },
+  it: { label: "Italian", rules: "lexulous-it" },
+} as const satisfies Record<string, { label: string; rules: Rules }>;
+export type LexulousLanguage = keyof typeof LEXULOUS_LANGUAGES;
+
+export function lexulousTemplateForLanguage(
+  template: BoardTemplate,
+  language: LexulousLanguage,
+): BoardTemplate {
+  const { rules } = LEXULOUS_LANGUAGES[language];
+  if (template.id !== CLASSIC_LEXULOUS_ID || rules === template.rules)
+    return template;
+  return {
+    ...template,
+    rules,
+    tileCounts: getTileCounts({ id: template.id, rules }),
+  };
+}
 
 function board(
   id: string,
@@ -177,7 +205,7 @@ export const PRESETS: BoardTemplate[] = [
     { rules: "crossplay", bingo: 40 },
   ),
   board(
-    "lexulous",
+    CLASSIC_LEXULOUS_ID,
     RULE_NAMES.lexulous,
     15,
     {

@@ -62,6 +62,7 @@ Tilemaxx ships with **Wordnik (2021)** and **ENABLE**, so you can try it right a
 
 - **WOW24.** Download the [WGPO Official Words 2024 list](https://wordgameplayers.org/wgpo-official-words/) and import it under **Word lists**. You can also save it as `data/dictionaries/WOW24.txt` and restart. New games prefer WOW24 when available.
 - **French Scrabble.** Download the [Grammalecte 7.7 word list prepared by LetterUnmix](https://letterunmix.com/words/fr.d61940ba.txt) and import it under **Word lists**. You can also save it as `data/dictionaries/Grammalecte 7.7.txt` and restart. The **French Scrabble** layout selects Grammalecte by default and uses the 102-tile French bag and scoring. Grammalecte is a casual-play list. French tournaments use ODS.
+- **Classic Lexulous.** Choose **Lexulous** as the **Board layout**, then select a **Language**. US and UK English share a tile bag. French and Italian have their own bags and letter values. Import any compatible word list manually. For Italian casual play, the [Morph-it!-derived Italian text list](https://github.com/FredrikBorgstrom/dict-it-it/blob/main/output/italian_it_it_morphit.txt) is one option. Word validity can differ from Lexulous.
 - **CSW24, NWL, and other lists.** Use **Word lists → Import word list** with a text file you have permission to use, with one word per line. Tilemaxx accepts words from 2 to 25 letters and removes duplicates.
 - **Words With Friends.** The layout is available as a preset. The bundled ENABLE list differs from the current Words With Friends lexicon.
 

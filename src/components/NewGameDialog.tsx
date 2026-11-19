@@ -7,9 +7,22 @@ import {
   type Dictionary,
   type Game,
 } from "../../shared/model";
+import {
+  CLASSIC_LEXULOUS_ID,
+  LEXULOUS_LANGUAGES,
+  lexulousTemplateForLanguage,
+  type LexulousLanguage,
+} from "../../shared/presets";
 import { defaultPlatformBoard } from "../premium-palettes";
 import { GameDetailFields, readGameDetails } from "./GameDetails";
 import Modal from "./Modal";
+
+const lexulousWordLists: Record<LexulousLanguage, string> = {
+  "en-US": "a US English word list",
+  "en-GB": "a UK English word list",
+  fr: "Grammalecte or a French word list",
+  it: "an Italian word list",
+};
 
 export default function NewGameDialog({
   profileId,
@@ -35,8 +48,10 @@ export default function NewGameDialog({
   onClose: () => void;
 }) {
   const [templateId, setTemplateId] = useState("scrabble");
+  const [lexulousLanguage, setLexulousLanguage] =
+    useState<LexulousLanguage>("en-US");
   const [dictionaryChoices, setDictionaryChoices] = useState<
-    Partial<Record<"french" | "other", string>>
+    Partial<Record<"french" | "other" | LexulousLanguage, string>>
   >({});
   const [trackScores, setTrackScores] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -47,14 +62,28 @@ export default function NewGameDialog({
   const layoutHelpId = useId();
   const dictionaryLabelId = useId();
   const dictionaryHelpId = useId();
-  const template = templates.find(({ id }) => id === templateId);
+  const boardLayout = templates.find(({ id }) => id === templateId);
+  const classicLexulous = boardLayout?.id === CLASSIC_LEXULOUS_ID;
+  const template = classicLexulous
+    ? lexulousTemplateForLanguage(boardLayout, lexulousLanguage)
+    : boardLayout;
   const french = template?.rules === "scrabble-fr";
-  const dictionaryGroup = french ? "french" : "other";
+  const dictionaryGroup = classicLexulous
+    ? lexulousLanguage
+    : french
+      ? "french"
+      : "other";
   const preferred = defaultDictionary(
     dictionaries,
     currentDictionaryId,
     template?.rules,
+    classicLexulous ? lexulousLanguage : undefined,
   );
+  const missingWordList =
+    !preferred &&
+    (classicLexulous
+      ? lexulousWordLists[lexulousLanguage]
+      : french && "Grammalecte");
   const chosen = dictionaryChoices[dictionaryGroup];
   const dictionaryId =
     dictionaries.find(({ id }) => id === chosen)?.id ?? preferred?.id ?? "";
@@ -138,12 +167,33 @@ export default function NewGameDialog({
                 ))}
               </select>
             </label>
+            {classicLexulous && (
+              <label>
+                Language
+                <select
+                  value={lexulousLanguage}
+                  onChange={(event) =>
+                    setLexulousLanguage(
+                      event.currentTarget.value as LexulousLanguage,
+                    )
+                  }
+                >
+                  {Object.entries(LEXULOUS_LANGUAGES).map(
+                    ([code, { label }]) => (
+                      <option key={code} value={code}>
+                        {label}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+            )}
             <label>
               <span id={dictionaryLabelId}>Word list</span>
               <select
                 aria-labelledby={dictionaryLabelId}
                 aria-describedby={
-                  french && !preferred ? dictionaryHelpId : undefined
+                  missingWordList ? dictionaryHelpId : undefined
                 }
                 required
                 value={dictionaryId}
@@ -166,10 +216,10 @@ export default function NewGameDialog({
                   </option>
                 ))}
               </select>
-              {french && !preferred && (
+              {missingWordList && (
                 <small id={dictionaryHelpId} className="muted">
-                  Import Grammalecte under Word lists, or choose an installed
-                  list for this game.
+                  Import {missingWordList} under Word lists, or choose an
+                  installed list for this game.
                 </small>
               )}
             </label>
