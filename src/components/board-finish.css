@@ -31,6 +31,8 @@
   --finish-wash: light-dark(#e6f2e5, #354d3e);
   --finish-paper: light-dark(#f8fbf5, #24352a);
   --finish-line: light-dark(#c1d7bc, #51745b);
+  --finish-x: 50%;
+  --finish-y: 50%;
 }
 
 .board-finish[data-outcome="loss"] {
@@ -69,6 +71,7 @@
   top: var(--finish-y);
   width: var(--fleck-size);
   aspect-ratio: 1.5;
+  translate: -50% -50%;
   border-radius: 1.5px;
   background: var(--finish-fleck-gold);
   animation: board-finish-fleck 960ms cubic-bezier(.13, .67, .26, 1) var(--fleck-delay) both;

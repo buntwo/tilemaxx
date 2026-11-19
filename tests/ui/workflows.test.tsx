@@ -3920,6 +3920,9 @@ test("finish overlay waits for the last tile, dismisses outside the card, and ar
   const rect = HTMLElement.prototype.getBoundingClientRect;
   const geometry = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
     .mockImplementation(function (this: HTMLElement) {
+      if (this.matches(".board-finish")) return new DOMRect(10, 20, 500, 530);
+      if (this.matches('[data-cell="0"]')) return new DOMRect(40, 70, 24, 24);
+      if (this.matches('[data-cell="224"]')) return new DOMRect(480, 510, 24, 24);
       return this.matches(".rack-slot, .square")
         ? new DOMRect(60, 80, 24, 24)
         : rect.call(this);
@@ -3955,8 +3958,20 @@ test("finish overlay waits for the last tile, dismisses outside the card, and ar
     const replay = screen.getByRole("button", { name: "Replay finish animation" });
     await user.click(replay);
     const firstReplay = board.getByRole("heading", { name: "You win!" });
+    const overlay = firstReplay.closest<HTMLElement>(".board-finish")!;
+    expect(overlay.style.getPropertyValue("--finish-x")).toBe("262px");
+    expect(overlay.style.getPropertyValue("--finish-y")).toBe("282px");
+    const particlePattern = () =>
+      Array.from(document.querySelectorAll(".board-finish-fleck"), (particle) =>
+        particle.getAttribute("style"),
+      );
+    const firstBurst = particlePattern();
+    expect(firstBurst).toHaveLength(16);
     await user.click(replay);
     expect(board.getByRole("heading", { name: "You win!" })).not.toBe(firstReplay);
+    const secondBurst = particlePattern();
+    expect(secondBurst).toHaveLength(16);
+    expect(secondBurst).not.toEqual(firstBurst);
     await user.keyboard("{Escape}");
     expect(board.queryByRole("heading", { name: "You win!" })).toBeNull();
     await user.click(board.getByRole("button", { name: "Undo" }));
