@@ -1,6 +1,5 @@
 import { sampleBingoDeals, type BingoDeal } from "../shared/bingo-replies";
 import {
-  bingoNow,
   chooseHunterCandidates,
   chooseHunterFinalists,
   exactHunterDeals,
@@ -12,6 +11,7 @@ import {
   HUNTER_CHECKPOINT,
   HUNTER_INITIAL,
   HUNTER_MAX,
+  HUNTER_SCORE_LEADERS,
   type HunterPosition,
   type RankedHunterMove,
 } from "../shared/bingo-hunter";
@@ -36,7 +36,7 @@ export type HunterSummary = {
   checked: number;
   limited: boolean;
   canContinue?: boolean;
-  finalistsFirst?: boolean;
+  finalistsRefined?: boolean;
   ceilingPass?: boolean;
   ceilings?: BingoCeilingResult[];
 };
@@ -50,6 +50,8 @@ const MAX_EXACT_EVALUATIONS = 750_000;
 const now = () => performance.timeOrigin + performance.now();
 
 type Scores = Map<Move, number[]>;
+const compareUtility = (a: RankedHunterMove, b: RankedHunterMove) =>
+  b.utility.total - a.utility.total || b.utility.playPoints - a.utility.playPoints;
 type Phase =
   | "exact"
   | "screen"
@@ -148,14 +150,14 @@ export function createBingoHunterSession(
         (move): RankedHunterMove => ({
           move,
           utility: hunterUtility(
-            bingoNow(move, template),
+            move.score,
             scores.get(move)?.slice(0, count) ?? [],
             deals,
             enumerate,
           ),
         }),
       )
-      .sort((a, b) => b.utility.total - a.utility.total);
+      .sort(compareUtility);
   }
 
   function shortlist() {
@@ -176,6 +178,7 @@ export function createBingoHunterSession(
         .sort(([, a], [, b]) => b - a)
         .map(([move]) => move),
       wide.laneOrder,
+      moves.slice(0, HUNTER_SCORE_LEADERS),
     );
   }
 
@@ -195,14 +198,18 @@ export function createBingoHunterSession(
     const count = sharedCount(comparable, scores);
     const rows = rank(comparable, scores, deals, count, !!exact);
     const finalistSet = new Set(finalists);
-    const compared = finalists.length
-      ? rank(finalists, scores, deals, sharedCount(finalists, scores))
+    const finalistCount = sharedCount(finalists, scores);
+    const ranked = finalists.length
+      ? [
+          ...rank(finalists, scores, deals, finalistCount),
+          ...rows.filter(({ move }) => !finalistSet.has(move)),
+        ].sort(compareUtility)
       : rows;
-    const [best, ...others] = compared;
+    const [best, ...others] = ranked;
     if (best && !exact) {
       for (const item of others) {
         item.utility.close = hunterClose(
-          best.utility.bingoNow - item.utility.bingoNow,
+          best.utility.playPoints - item.utility.playPoints,
           scores.get(best.move)!.slice(0, best.utility.samples),
           scores.get(item.move)!.slice(0, item.utility.samples),
         );
@@ -210,20 +217,15 @@ export function createBingoHunterSession(
       }
     }
     return {
-      ranked: [
-        ...compared,
-        ...rows.filter(
-          ({ move }) => finalists.length && !finalistSet.has(move),
-        ),
-      ].slice(0, HUNTER_CANDIDATES),
+      ranked: ranked.slice(0, HUNTER_CANDIDATES),
       summary: {
         checked: comparable.length,
         limited,
         canContinue: phase !== "done",
         ceilingPass: phase === "ceilings",
         ceilings: ceilingSearch?.results(),
-        finalistsFirst:
-          finalists.length > 0 && finalists.length < comparable.length,
+        finalistsRefined:
+          finalistCount > count && finalists.length < comparable.length,
       } satisfies HunterSummary,
     };
   }

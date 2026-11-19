@@ -1175,7 +1175,7 @@ export default function Results({
                   ? "Search paused before enough moves could be compared."
                   : hunterResult?.limited
                     ? "The search reached its complexity limit."
-                    : "Rank moves by bingo points now and expected bingo points after the reply.")}</p>
+                    : "Rank moves by play points now and expected bingo points after the reply.")}</p>
               {hunterAction ?? (
                 <button type="button" className="button primary" disabled={!hunterKey} onClick={() => hunter.start()}>
                   Run Bingo hunter
@@ -1262,7 +1262,7 @@ export default function Results({
                   {hunterResult.checked} candidates checked
                   {hunterResult.canContinue && (hunterResult.ceilingPass ? " · High-ceiling setups ready to check" : " · Provisional")}
                   {hunterResult.ceilings?.length === 0 && !hunterResult.canContinue && " · No high-ceiling setups found"}
-                  {hunterResult.finalistsFirst && " · Finalists ranked first"}
+                  {hunterResult.finalistsRefined && " · Finalists checked more deeply"}
                   {hunterResult.limited && " · Search limit reached"}
                   {hunter.current?.error && ` · ${hunter.current.error}`}
                 </span>

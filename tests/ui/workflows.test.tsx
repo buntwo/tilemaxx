@@ -279,6 +279,8 @@ test("Bingo hunter starts on demand, then follows new move searches", async () =
   let cancellations = 0;
   let firstResultId: number | undefined;
   let ceilingMove: string;
+  let playPoints = 0;
+  const utilityText = () => `U ${playPoints + 21}`;
   class HunterWorker extends SolverWorker {
     postMessage(request: SolverRequest) {
       if (request.kind === "bingo-hunter") {
@@ -303,10 +305,11 @@ test("Bingo hunter starts on demand, then follows new move searches", async () =
         const result = this.results.get(request.searchId)!;
         const move = runs === 7 ? result.moves.find(({ word }) => word === "CAT")! : result.moves[0];
         ceilingMove = move.word;
+        playPoints = move.score;
         result.setProfile({ profile: "bingo-hunter", profileBagSize: request.bagSize, profileSeed: request.id },
           [{
             move, utility: {
-              total: 21, bingoNow: 0, nextBingoPoints: 21, bingoChance: 0.3,
+              total: playPoints + 21, playPoints, nextBingoPoints: 21, bingoChance: 0.3,
               meanBingoScore: 70, highestBingo: 104, samples: 192, exact: false, close: false,
             },
           }]);
@@ -348,20 +351,22 @@ test("Bingo hunter starts on demand, then follows new move searches", async () =
   await user.selectOptions(screen.getByRole("combobox", { name: "Playing style" }), "bingo-hunter");
   expect(runs).toBe(2);
   await user.click(button());
-  expect(await screen.findByText("U 21")).toBeTruthy();
+  expect(await screen.findByText(new RegExp("^U [0-9]+$"))).toBeTruthy();
   await user.click(screen.getByRole("button", { name: /^Utility breakdown for/ }));
   const tooltip = within(screen.getByRole("tooltip"));
   expect(tooltip.getByText("Bingo hunter · Rank 1")).toBeTruthy();
-  expect(tooltip.getByText("Expected bingo points next turn")).toBeTruthy();
+  expect(tooltip.getByText("Play points now").parentElement?.lastChild?.textContent).toBe(String(playPoints));
+  expect(tooltip.getByText("Expected bingo points next turn").parentElement?.lastChild?.textContent).toBe("21");
+  expect(tooltip.getByText("Utility").parentElement?.lastChild?.textContent).toBe(String(playPoints + 21));
   expect(tooltip.getByText("Highest bingo found")).toBeTruthy();
   expect(tooltip.getByText("104")).toBeTruthy();
   expect(tooltip.getByText("30%")).toBeTruthy();
   expect(screen.getByText(/High-ceiling setups ready to check/)).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Run another 10 seconds" }));
   expect(await screen.findByText("4. Finding high-scoring bingo setups · 1/8 moves")).toBeTruthy();
-  expect(screen.getByText("U 21")).toBeTruthy();
+  expect(screen.getByText(utilityText())).toBeTruthy();
   await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
-  expect(screen.getByText("U 21")).toBeTruthy();
+  expect(screen.getByText(utilityText())).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Run another 10 seconds" }));
   await user.click(await screen.findByText("High-ceiling setups (1)"));
   expect(screen.getByText("BANJAXES 338")).toBeTruthy();
@@ -370,7 +375,7 @@ test("Bingo hunter starts on demand, then follows new move searches", async () =
   await user.click(screen.getByRole("button", { name: new RegExp(`^Preview ${ceilingMove!} at`) }));
   expect(document.querySelectorAll(".board-entry .ghost").length).toBeGreaterThan(0);
   expect(screen.getByRole("button", { name: `Play ${ceilingMove!}` })).toBeTruthy();
-  expect(screen.getByText("U 21")).toBeTruthy();
+  expect(screen.getByText(utilityText())).toBeTruthy();
 
   await user.click(rackTile(1));
   await user.keyboard("{Enter}");
@@ -388,7 +393,7 @@ test("Bingo hunter starts on demand, then follows new move searches", async () =
   expect(runs).toBe(6);
   expect(button()).toBeTruthy();
   await user.click(button());
-  expect(await screen.findByText("U 21")).toBeTruthy();
+  expect(await screen.findByText(new RegExp("^U [0-9]+$"))).toBeTruthy();
   expect(screen.getByRole("img", { name: "8 bingos" })).toBe(bingoBadge);
   expect(bingoBadge.nextElementSibling?.textContent).toBe("1");
 });
