@@ -32,6 +32,7 @@ export default function NewGameDialog({
   currentDictionaryId,
   opponentSuggestions,
   phoneLayout,
+  online,
   onCreate,
   onClose,
 }: {
@@ -42,6 +43,7 @@ export default function NewGameDialog({
   currentDictionaryId?: string;
   opponentSuggestions: readonly string[];
   phoneLayout: boolean;
+  online: boolean;
   onCreate: (
     game: Omit<Game, "id" | "revision" | "updatedAt">,
   ) => Promise<void>;
@@ -101,7 +103,7 @@ export default function NewGameDialog({
         aria-busy={busy}
         onSubmit={async (event) => {
           event.preventDefault();
-          if (submitting.current) return;
+          if (submitting.current || !online) return;
           const details = readGameDetails(event.currentTarget);
           if (!template) {
             setError("That board template was deleted. Choose another board.");
@@ -244,6 +246,7 @@ export default function NewGameDialog({
               {error}
             </p>
           )}
+          {!online && <p className="small muted">Connect to the server to create a game.</p>}
         </div>
         <footer className="modal-footer">
           <button
@@ -254,7 +257,7 @@ export default function NewGameDialog({
           >
             Cancel
           </button>
-          <button className="button primary" disabled={busy || !dictionaryId}>
+          <button className="button primary" disabled={busy || !online || !dictionaryId}>
             {busy ? "Creating…" : "Create game"}
             <ArrowRight size={16} />
           </button>

@@ -711,7 +711,7 @@ test("the game index backfills old SQLite saves and leaves full history on the d
   }
 });
 
-test("offline game creation uses a stable identity and rejects duplicate overwrites", async () => {
+test("game creation assigns a server ID, recognizes retries, and preserves legacy IDs", async () => {
   const dir = mkdtempSync(join(tmpdir(), "tilemaxx-create-"));
   const store = createStore(dir, process.cwd());
   const server = createApp(store).listen(0, "127.0.0.1");
@@ -736,6 +736,25 @@ test("offline game creation uses a stable identity and rejects duplicate overwri
     const game = (await created.json()) as Game;
     assert.equal(game.id, id);
     assert.equal(game.revision, 0);
+    const creationToken = "123456789abcdef0123456789abcdef0";
+    const online = await post({ ...source, name: "Online", creationToken });
+    assert.equal(online.status, 201);
+    const assigned: Game = await online.json();
+    assert.match(assigned.id, /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+    assert.notEqual(assigned.id, source.id);
+    const edited = store.saveGame({ ...assigned, rack: "DOG" })!;
+    assert.deepEqual(await (await post({ ...source, name: "Online", creationToken })).json(), edited);
+    assert.equal(store.state().games.filter((g) => g.name === "Online").length, 1);
+    const order = [id, assigned.id, source.id];
+    const reordered = await fetch(`${base}/profiles/${source.profileId}/game-order`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gameIds: order }),
+    });
+    assert.equal(reordered.status, 200);
+    assert.deepEqual((await reordered.json()).gameOrder, order);
+    store.deleteGame(assigned.id);
+    assert.equal((await post({ ...source, creationToken })).status, 410);
     const duplicate = await post({ ...source, creationId: id, rack: "DOG" });
     assert.equal(duplicate.status, 409);
     assert.deepEqual((await duplicate.json()).game, game);

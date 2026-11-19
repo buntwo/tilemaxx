@@ -21,7 +21,6 @@ import {
   type GameSummary,
 } from "../shared/game-index";
 import {
-  localDate,
   type Game,
   type Profile,
   type BoardTemplate,
@@ -89,6 +88,7 @@ export class GameStore {
   private recentGames = new Set<string>();
   private lastCachedIndex?: string;
   private cacheError = false;
+  private creationRetry?: { payload: string; token: string };
   listeners = new Set<() => void>();
   deletedGames = new Set<string>();
   deletedProfiles = new Set<string>();
@@ -565,26 +565,6 @@ export class GameStore {
           if (this.deletedGames.has(id)) continue;
           if (err.status === 404) {
             this.forgetGame(id);
-          } else if (
-            err.status === 409 &&
-            err.game &&
-            draft.revision < 0 &&
-            err.game.id === id &&
-            err.game.profileId === draft.profileId &&
-            err.game.revision === 0
-          ) {
-            // A creation response was lost. Adopt its revision, then PUT the
-            // latest local draft; normal revision checking protects concurrent edits.
-            this.snapshot.online = true;
-            const newer = {
-              ...this.drafts.get(id)!,
-              revision: 0,
-              updatedAt: err.game.updatedAt,
-            };
-            this.confirmGame(err.game);
-            this.drafts.set(id, newer);
-            this.replace(newer);
-            this.persistDraft(newer);
           } else if (err.status === 409 && err.game) {
             this.snapshot.conflicts = {
               ...this.snapshot.conflicts,
@@ -625,18 +605,28 @@ export class GameStore {
   async createGame(game: Omit<Game, "id" | "revision" | "updatedAt">) {
     if (this.deletedProfiles.has(game.profileId))
       throw new Error("This profile was deleted.");
-    const local: Game = {
+    if (!this.snapshot.online)
+      throw new Error("Connect to the server to create a game.");
+    const payload = JSON.stringify(game);
+    const request = this.creationRetry?.payload === payload
+      ? this.creationRetry
+      : { payload, token: draftToken() };
+    this.creationRetry = request;
+    const saved = await api<Game>("/games", "POST", {
       ...game,
-      id: draftToken(),
-      revision: -1,
-      trackScores: game.trackScores ?? true,
-      updatedAt: new Date().toISOString(),
-      startedOn: game.startedOn ?? localDate(),
-    };
-    this.update(local);
+      creationToken: request.token,
+    }).catch((error: Error & { status?: number }) => {
+      if (error.status && error.status < 500 &&
+          ![408, 425, 429].includes(error.status) && this.creationRetry === request)
+        this.creationRetry = undefined;
+      if (!error.status) void this.refresh();
+      throw error;
+    });
+    if (this.creationRetry === request) this.creationRetry = undefined;
+    this.recordCreatedGame(saved);
     this.persist();
-    void this.flush();
-    return local;
+    this.emit();
+    return saved;
   }
   private recordCreatedGame(saved: Game) {
     if (this.deletedProfiles.has(saved.profileId))

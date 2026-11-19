@@ -89,7 +89,7 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
   });
   app.put("/api/profiles/:id/game-order", (req, res) => {
-    const gameIds = z.array(z.uuid()).parse(req.body.gameIds);
+    const gameIds = z.array(z.string().min(1).max(100)).parse(req.body.gameIds);
     const status = store.reorderGames(req.params.id, gameIds);
     if (status === "missing") {
       res.status(404).json({ error: "Profile not found." });
@@ -102,12 +102,16 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
   });
   app.post("/api/games", (req, res) => {
-    // An optional client-generated identity makes offline creation retryable.
-    const creationId = z
-      .string()
-      .regex(/^[a-f0-9]{32}$/)
-      .optional()
-      .parse(req.body.creationId);
+    // Accept the old ID only for clients syncing games drafted before this change.
+    const token = z.string().regex(/^[a-f0-9]{32}$/).optional();
+    const { creationId, creationToken } = z.object({
+      creationId: token,
+      creationToken: token,
+    }).parse(req.body);
+    if (creationId && creationToken) {
+      res.status(400).json({ error: "Provide one creation identifier." });
+      return;
+    }
     const game = gameSchema.parse({
       ...req.body,
       id: randomUUID(),
@@ -137,7 +141,14 @@ export function createApp(store: ReturnType<typeof createStore>) {
         .json({ error: "This game was already created.", game: existing });
       return;
     }
-    res.status(201).json(store.createGame(game, creationId));
+    const saved = creationToken
+      ? store.createGameOnce(game, creationToken)
+      : store.createGame(game, creationId);
+    if (!saved) {
+      res.status(410).json({ error: "This game was deleted on the server." });
+      return;
+    }
+    res.status(201).json(saved);
   });
   app.get("/api/games/:id", (req, res) => {
     const game = store.getGame(req.params.id);
