@@ -47,12 +47,24 @@ test("shared deals conserve tiles and exact deals weight duplicate physical copi
     if (bag[0] === "E") return 88;
     return 0;
   });
-  const utility = hunterUtility(50, scores, exact, true);
+  const utility = hunterUtility(setup(1, 50), PRESETS[0], scores, exact, true);
   assert.equal(utility.playPoints, 50);
+  assert.equal(utility.weightedPlayPoints, 37.5);
   assert.equal(utility.nextBingoPoints, 34);
-  assert.equal(utility.total, 84);
+  assert.equal(utility.total, 71.5);
   assert.equal(utility.bingoChance, 5 / 12);
   assert.equal(utility.meanBingoScore, 81.6);
+});
+
+test("the active board's additional bingo lengths receive full play points", () => {
+  const rules = { ...PRESETS[0], additionalBonuses: { 6: 35 } };
+  const move = {
+    score: 75,
+    tiles: [..."READIN"].map((letter, index) => ({ letter, index })),
+  };
+  const utility = hunterUtility(move, rules, [80], [{ opponent: "", bag: "" }]);
+  assert.equal(utility.playWeight, 1);
+  assert.equal(utility.total, 155);
 });
 
 test("best bingo scoring agrees with full move generation for blanks and different rules", () => {
@@ -145,7 +157,7 @@ test("the same refill can bingo after a reply opens an anchor", () => {
   assert.equal(atEnd({ ...deal, opponent: "S" }, false, Infinity), 0);
 });
 
-test("an exhausted bag ranks plays by their full score when no follow-up bingo is possible", async () => {
+test("an exhausted bag weights ordinary plays and gives full credit to bingos", async () => {
   const template = {
     ...PRESETS[0],
     tileCounts: Object.fromEntries(
@@ -186,8 +198,10 @@ test("an exhausted bag ranks plays by their full score when no follow-up bingo i
   );
   assert.equal(summary.checked, selected.length);
   assert.equal(ranked[0].move.word, "READING");
+  assert.equal(ranked[0].utility.playWeight, 1);
   assert.equal(ranked[0].utility.total, ranked[0].move.score);
-  assert.equal(ranked[1].utility.total, ordinary.score);
+  assert.equal(ranked[1].utility.playWeight, 0.75);
+  assert.equal(ranked[1].utility.total, ordinary.score * 0.75);
   assert.equal(ranked[1].utility.nextBingoPoints, 0);
   assert.equal(ranked[0].utility.exact, true);
   assert.deepEqual([...new Set(phases)], ["1.exact"]);
@@ -255,16 +269,16 @@ test("score, board and reply leaders and rare high scores earn more samples", ()
   const deals = Array.from({ length: 20 }, () => ({ opponent: "", bag: "" }));
   const ranked = before.map((move) => ({
     move,
-    utility: hunterUtility(0, Array(20).fill(60), deals),
+    utility: hunterUtility(move, PRESETS[0], Array(20).fill(60), deals),
   }));
   const rare = {
     move: peak,
-    utility: hunterUtility(0, [140, ...Array(19).fill(0)], deals),
+    utility: hunterUtility(peak, PRESETS[0], [140, ...Array(19).fill(0)], deals),
   };
   const finalists = chooseHunterFinalists([...ranked, rare]);
   assert.equal(finalists.length, 12);
   assert.ok(finalists.includes(rare));
-  assert.equal(rare.utility.total, 7);
+  assert.equal(rare.utility.total, 7.75);
   assert.equal(rare.utility.highestBingo, 140);
 });
 
@@ -294,12 +308,12 @@ test("sampled rankings account for the play's score across different sample dept
     new AbortController().signal, () => {});
   assert.equal(summary.finalistsRefined, true);
   assert.equal(ranked[0].move, high);
-  assert.equal(ranked[0].utility.total, 30);
+  assert.equal(ranked[0].utility.total, 22.5);
   assert.equal(ranked[0].utility.samples, 80);
   const longShot = ranked.find(({ move }) => move === rare)!;
   assert.equal(longShot.utility.playPoints, 3);
   assert.equal(longShot.utility.nextBingoPoints, 3.75);
-  assert.equal(longShot.utility.total, 6.75);
+  assert.equal(longShot.utility.total, 6);
 });
 
 test("another slice resumes the exact deal sequence without replaying completed deals", async (t) => {

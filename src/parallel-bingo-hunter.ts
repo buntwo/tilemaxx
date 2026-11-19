@@ -150,7 +150,8 @@ export function createBingoHunterSession(
         (move): RankedHunterMove => ({
           move,
           utility: hunterUtility(
-            move.score,
+            move,
+            template,
             scores.get(move)?.slice(0, count) ?? [],
             deals,
             enumerate,
@@ -209,7 +210,7 @@ export function createBingoHunterSession(
     if (best && !exact) {
       for (const item of others) {
         item.utility.close = hunterClose(
-          best.utility.playPoints - item.utility.playPoints,
+          best.utility.weightedPlayPoints - item.utility.weightedPlayPoints,
           scores.get(best.move)!.slice(0, best.utility.samples),
           scores.get(item.move)!.slice(0, item.utility.samples),
         );

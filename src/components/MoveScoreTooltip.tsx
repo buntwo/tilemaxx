@@ -30,7 +30,10 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
         <div>Bingo hunter · Rank {utility.rank}</div>
         <ul>
           <li className="score-breakdown-line">
-            <span>Play points now</span><span>{utility.playPoints}</span>
+            <span>Play points now</span>
+            <span>{utility.playWeight === 1
+              ? utility.playPoints
+              : `${utility.playPoints} × ${utility.playWeight} = ${formatUtility(utility.weightedPlayPoints)}`}</span>
           </li>
           <li className="score-breakdown-line">
             <span>Expected bingo points next turn</span><span>{formatUtility(utility.nextBingoPoints)}</span>

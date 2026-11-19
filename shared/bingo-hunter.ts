@@ -8,6 +8,7 @@ import {
   isBingo,
   minimumBingoTiles,
   wordBonuses,
+  type BingoRules,
   type BoardTemplate,
   type Move,
   type Position,
@@ -25,11 +26,14 @@ export const HUNTER_SCREEN = 96;
 export const HUNTER_CANDIDATES = 36;
 export const HUNTER_FINALISTS = 12;
 export const HUNTER_SCORE_LEADERS = 6;
+const ORDINARY_PLAY_WEIGHT = 0.75;
 
 export type HunterPosition = Position &
   EndgameSettings & { template: BoardTemplate; bagSize: number };
 export type HunterUtility = {
   playPoints: number;
+  playWeight: number;
+  weightedPlayPoints: number;
   nextBingoPoints: number;
   bingoChance: number;
   meanBingoScore: number;
@@ -315,11 +319,15 @@ export function createHunterEvaluator(
 }
 
 export function hunterUtility(
-  playPoints: number,
+  move: Pick<Move, "score" | "tiles">,
+  rules: BingoRules,
   outcomes: readonly number[],
   deals: readonly BingoDeal[],
   exact = false,
 ): HunterUtility {
+  const playPoints = move.score;
+  const playWeight = isBingo(rules, move.tiles.length) ? 1 : ORDINARY_PLAY_WEIGHT;
+  const weightedPlayPoints = playPoints * playWeight;
   let sum = 0,
     hits = 0,
     weight = 0,
@@ -334,11 +342,13 @@ export function hunterUtility(
   const expected = weight ? sum / weight : 0;
   return {
     playPoints,
+    playWeight,
+    weightedPlayPoints,
     nextBingoPoints: expected,
     bingoChance: weight ? hits / weight : 0,
     meanBingoScore: hits ? sum / hits : 0,
     highestBingo,
-    total: playPoints + expected,
+    total: weightedPlayPoints + expected,
     exact,
     samples: outcomes.length,
     close: false,
