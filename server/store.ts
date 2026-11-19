@@ -26,7 +26,10 @@ import {
   type GameIndex,
   type GameSummary,
 } from "../shared/game-index";
-import { backfillGameResult } from "../shared/game-scoring";
+import {
+  backfillGameResult,
+  correctSuperLexulousCenter,
+} from "../shared/game-scoring";
 import { PRESETS } from "../shared/presets";
 import { parseWords } from "../shared/lexicon";
 import { defaultDictionary } from "../shared/dictionaries";
@@ -226,14 +229,14 @@ export function createStore(directory: string, root: string) {
     input: Omit<Game, "id" | "revision" | "updatedAt">,
     id: string = randomUUID(),
   ): Game {
-    const game = {
+    const game = correctSuperLexulousCenter({
       ...input,
       startedOn: input.startedOn ?? localDate(),
       trackScores: input.trackScores ?? true,
       id,
       revision: 0,
       updatedAt: new Date().toISOString(),
-    };
+    });
     db.prepare("INSERT INTO games VALUES (?,?,?)").run(
       game.id,
       game.revision,
@@ -249,11 +252,11 @@ export function createStore(directory: string, root: string) {
     game: Game,
     updatedAt = new Date().toISOString(),
   ): Game | undefined {
-    const saved = {
+    const saved = correctSuperLexulousCenter({
       ...game,
       revision: game.revision + 1,
       updatedAt,
-    };
+    });
     const result = db
       .prepare("UPDATE games SET revision=?,data=? WHERE id=? AND revision=?")
       .run(saved.revision, JSON.stringify(saved), game.id, game.revision);
@@ -287,6 +290,20 @@ export function createStore(directory: string, root: string) {
         if (updated !== game) writeGame(updated, game.updatedAt);
       }
       db.exec("PRAGMA user_version=2");
+    });
+  }
+  if (db.prepare("PRAGMA user_version").get()?.user_version === 2) {
+    transaction(() => {
+      if (db.prepare("PRAGMA user_version").get()?.user_version !== 2) return;
+      const superLexulousSaves = db.prepare(
+        "SELECT data FROM games WHERE json_extract(data, '$.template.id') = 'super-lexulous'",
+      );
+      for (const row of superLexulousSaves.all()) {
+        const game = JSON.parse(row.data as string) as Game;
+        const updated = correctSuperLexulousCenter(game);
+        if (updated !== game) writeGame(updated, game.updatedAt);
+      }
+      db.exec("PRAGMA user_version=3");
     });
   }
   return {

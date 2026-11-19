@@ -12,20 +12,24 @@ import {
   trackedMoveHistory,
   tileScore,
   undo,
+  redo,
   wordBonuses,
   type Board,
   type BoardTemplate,
   type Game,
   type GameOutcome,
   type GameScoring,
+  type HistoryEntry,
   type ManualGameEnd,
   type Move,
   type Player,
+  type Premium,
   type TrackedMove,
   type TurnPosition,
 } from "./model";
 import { rackLetters, rackSlotsForMove } from "./rack-entry";
 import { unseenTiles } from "./tile-pool";
+import { PRESETS } from "./presets";
 import {
   boardEditLabels,
   historyPremiums,
@@ -1079,6 +1083,156 @@ export function backfillGameResult(game: Game): Game {
   return finished === baseline
     ? current
     : { ...current, archivedState: archiveGame(finished).archivedState };
+}
+
+export function correctSuperLexulousCenter(game: Game): Game {
+  if (game.template.id !== "super-lexulous") return game;
+  const preset = PRESETS.find(({ id }) => id === game.template.id)!;
+  const { start } = preset;
+  if (game.template.size !== preset.size || game.template.start !== start)
+    return game;
+
+  // Match the old built-in layout exactly so custom premiums stay intact.
+  function oldLayout(premiums?: Premium[]): boolean {
+    return (
+      premiums?.[start] === "" &&
+      premiums.length === preset.premiums.length &&
+      premiums.every(
+        (square, i) => i === start || square === preset.premiums[i],
+      )
+    );
+  }
+  function correctedPremiums(premiums: Premium[] | undefined) {
+    return oldLayout(premiums) ? preset.premiums : premiums;
+  }
+  function oldReview(move: Pick<TrackedMove, "review">) {
+    return oldLayout(move.review?.premiums);
+  }
+  function oldStep(entry: HistoryEntry) {
+    return (
+      oldLayout(entry.premiums) ||
+      oldReview(entry) ||
+      entry.trackedMoves?.some(oldReview)
+    );
+  }
+  function correctedPlay(
+    word: string,
+    score: number | undefined,
+    review: TurnPosition | undefined,
+  ) {
+    if (!review?.premiums || !oldLayout(review.premiums))
+      return { score, review };
+    if (
+      review.tiles.some(({ index }) => index === start) &&
+      !review.board[start]
+    ) {
+      const after = [...review.board];
+      for (const { index, letter } of review.tiles) after[index] = letter;
+      const beforeFix = scorePlacement(
+        review.board,
+        after,
+        { ...game.template, premiums: review.premiums },
+        review.direction,
+      );
+      if (
+        beforeFix?.score === score &&
+        beforeFix?.words.some((entry) => entry.word === word)
+      ) {
+        score =
+          scorePlacement(
+            review.board,
+            after,
+            { ...game.template, premiums: preset.premiums },
+            review.direction,
+          )?.score ?? score;
+      }
+    }
+    return { score, review: { ...review, premiums: preset.premiums } };
+  }
+  function correctedPosition(position: Game) {
+    const premiums = correctedPremiums(position.template.premiums);
+    const saved = trackedMoveHistory(position);
+    const moves = saved.map((move) => {
+      const corrected = correctedPlay(move.word, move.score, move.review);
+      return corrected.review === move.review
+        ? move
+        : { ...move, ...corrected, score: corrected.score ?? move.score };
+    });
+    const start = currentScoreStart(position, saved);
+    const scoring =
+      position.scoring &&
+      moves.some(
+        (move, index) => index >= start && move.score !== saved[index].score,
+      )
+        ? updateScoreTotals(position, saved, moves)
+        : position.scoring;
+    return {
+      ...position,
+      template:
+        premiums && premiums !== position.template.premiums
+          ? { ...position.template, premiums }
+          : position.template,
+      scoring,
+      trackedMoves: position.trackedMoves && moves,
+    };
+  }
+  function correctedStep(entry: HistoryEntry, position: Game): HistoryEntry {
+    const after = correctedPosition(position);
+    return {
+      ...entry,
+      ...correctedPlay(entry.label, entry.score, entry.review),
+      premiums: correctedPremiums(entry.premiums),
+      scoring: after.scoring,
+      trackedMoves: entry.trackedMoves && after.trackedMoves,
+    };
+  }
+  function correctedTimeline(position: Game): Game {
+    if (
+      !oldLayout(position.template.premiums) &&
+      !position.trackedMoves?.some(oldReview) &&
+      !position.past.some(oldStep) &&
+      !position.future.some(oldStep)
+    )
+      return position;
+
+    // Each undo entry stores the position before its move, and each redo entry
+    // stores the position after it. Reuse the game model to recover those logs.
+    const past = [...position.past];
+    const future = [...position.future];
+    let cursor = position;
+    for (let i = past.length - 1; i >= 0; i--) {
+      cursor = undo(cursor);
+      past[i] = correctedStep(past[i], cursor);
+    }
+    cursor = position;
+    for (let i = future.length - 1; i >= 0; i--) {
+      cursor = redo(cursor);
+      future[i] = correctedStep(future[i], cursor);
+    }
+    return { ...correctedPosition(position), past, future };
+  }
+
+  const current = correctedTimeline(game);
+  const originalPremiums = correctedPremiums(game.originalPremiums);
+  const archived = game.archivedState ? restoreArchivedGame(game) : game;
+  const correctedArchive =
+    game.archivedState && archived !== game
+      ? correctedTimeline(archived)
+      : archived;
+  if (
+    current === game &&
+    originalPremiums === game.originalPremiums &&
+    correctedArchive === archived
+  )
+    return game;
+  return {
+    ...current,
+    originalPremiums,
+    archivedState:
+      correctedArchive !== archived
+        ? archiveGame(correctedArchive).archivedState
+        : current.archivedState,
+  };
 }
 
 export function correctTrackedMove(
