@@ -3,7 +3,6 @@ import { minimumExchangeBag } from "./exchange";
 import type { Lexicon } from "./lexicon";
 import type { Board, BoardTemplate, Move, Position } from "./model";
 import {
-  bestStrongReply,
   leaveValue,
   placeTiles,
   randomGenerator,
@@ -185,10 +184,11 @@ export function recommendExchange(
     return prepared;
   }
   function forecast(position: Board, opponent: string, bagAfter: number) {
-    const moves = solver(position).solve(opponent, limits(deadline), {
-      unsorted: true,
-    });
-    const reply = bestStrongReply(moves, bagAfter);
+    const reply = solver(position).bestReply(
+      opponent,
+      bagAfter > 0,
+      limits(deadline),
+    );
     if (!reply) return { next: solver(position), score: 0 };
     if (!bagAfter && !reply.leave) return { score: reply.score };
     let cache = replyBoards.get(position);

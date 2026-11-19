@@ -304,10 +304,11 @@ export function analyzeMoves(
       const cached = weights.get(leave);
       if (cached !== undefined) return cached;
       const observed = recorded.score + leaveValue(leave);
-      let best = observed;
-      for (const move of search(previous, leave + played, deadline)) {
-        best = Math.max(best, move.score + leaveValue(move.leave));
-      }
+      const { solver, limits } = prepare(previous, deadline);
+      const reply = solver.bestReply(leave + played, true, limits);
+      const best = reply
+        ? Math.max(observed, reply.score + leaveValue(reply.leave))
+        : observed;
       const weight = Math.exp(-(best - observed) / 12);
       weights.set(leave, weight);
       return weight;

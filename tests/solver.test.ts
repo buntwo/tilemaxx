@@ -10,6 +10,7 @@ import {
   solvePosition,
   solvePositionWithBaseline,
 } from "../shared/solver";
+import { bestStrongReply } from "../shared/move-analysis";
 import { PRESETS } from "../shared/presets";
 import { scorePlacement } from "../shared/game-scoring";
 import {
@@ -778,4 +779,65 @@ test("anchor prefixes preserve premium scores, blanks, edge plays and unique pla
       }
     }
   }
+});
+
+test("direct replies preserve score-and-leave choices and ties on every preset", () => {
+  const dictionary = lex(
+    "AT AS CAT CATS ACT SAT RATE RATES RATED READ READING READINGS TEARING",
+  );
+  for (const template of PRESETS) {
+    const board = emptyBoard(template.size);
+    const open = prepareSolver(dictionary, board, template);
+    const [opening] = open.solve("CATS");
+    const connected = board.slice();
+    for (const { index, letter } of opening.tiles) connected[index] = letter;
+    for (const solver of [
+      open,
+      prepareSolver(dictionary, connected, template),
+    ]) {
+      for (const rack of ["ACERST?", "AT??S", "SSTT", "READING", "VV", ""]) {
+        const all = solver.solve(rack, {}, { unsorted: true });
+        for (const rankLeave of [false, true]) {
+          assert.deepEqual(
+            solver.bestReply(rack, rankLeave),
+            bestStrongReply(all, Number(rankLeave)),
+            `${template.id} ${rack} ${rankLeave}`,
+          );
+        }
+      }
+    }
+  }
+});
+
+test("bingo lanes stop at impossible crossings and can contain many fixed letters", () => {
+  const template = PRESETS[0];
+  const dictionary = lex("AR AT TRAINING ABSTRACT ABSTRACTIONISMS");
+  const board = emptyBoard(template.size);
+  board[1] = "R";
+  const open = prepareSolver(dictionary, board, template);
+  assert.equal(open.bestBingoScore("AGIINNT"), 140);
+  assert.equal(
+    open.solve("AGIINNT", {}, { bingoOnly: true })[0]?.word,
+    "TRAINING",
+  );
+  board[template.size + 3] = "X";
+  const closed = prepareSolver(dictionary, board, template);
+  assert.equal(closed.bestBingoScore("AGIINNT"), 0);
+  assert.equal(closed.solve("AGIINNT", {}, { bingoOnly: true }).length, 0);
+
+  // Running the blank bingo pass first must leave ordinary ranked starts available.
+  const rack = "AGIINN?";
+  assert.equal(closed.bestBingoScore(rack), 0);
+  assert.equal(closed.bestScore(rack), closed.solve(rack)[0].score);
+
+  const long = emptyBoard(template.size);
+  [..."ABSTRACT"].forEach((letter, index) => {
+    long[index] = letter;
+  });
+  const extension = prepareSolver(dictionary, long, template);
+  assert.equal(extension.bestBingoScore("IIMNOSS"), 116);
+  assert.equal(
+    extension.solve("IIMNOSS", {}, { bingoOnly: true })[0]?.word,
+    "ABSTRACTIONISMS",
+  );
 });
