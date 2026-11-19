@@ -834,10 +834,16 @@ test("bingo lanes stop at impossible crossings and can contain many fixed letter
   [..."ABSTRACT"].forEach((letter, index) => {
     long[index] = letter;
   });
-  const extension = prepareSolver(dictionary, long, template);
-  assert.equal(extension.bestBingoScore("IIMNOSS"), 116);
-  assert.equal(
-    extension.solve("IIMNOSS", {}, { bingoOnly: true })[0]?.word,
-    "ABSTRACTIONISMS",
-  );
+  // Eight occupied squares use the basic search. A ninth tile elsewhere
+  // activates the lane filter without changing the legal play in the top row.
+  const crowded = long.slice();
+  crowded[crowded.length - 1] = "X";
+  for (const position of [long, crowded]) {
+    const extension = prepareSolver(dictionary, position, template);
+    assert.equal(extension.bestBingoScore("IIMNOSS"), 116);
+    assert.equal(
+      extension.solve("IIMNOSS", {}, { bingoOnly: true })[0]?.word,
+      "ABSTRACTIONISMS",
+    );
+  }
 });

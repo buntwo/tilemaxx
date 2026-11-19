@@ -16,6 +16,9 @@ import {
 import { splitRack } from "./rack-entry";
 import { leaveTileValue, leaveValue } from "./rack-leave";
 
+// Paired bingo searches start consistently benefiting around this density.
+const MIN_BINGO_LANE_DENSITY = 0.04;
+
 const ALL = (1 << 26) - 1;
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 export const SEARCH_LIMITS = {
@@ -395,7 +398,23 @@ function prepareBoardSolver(
   const boundStride = rackSize + 1;
   const scoreBounds: ReturnType<typeof prepareScoreBounds>[] = [];
   let bonusBounds: Uint16Array | undefined;
-  let bingoLanes: { space: Uint8Array; possible: boolean }[] | undefined;
+  let bingoLanes: { space: Uint8Array; possible: boolean }[] | null | undefined;
+  function prepareBingoLanes() {
+    let needed = Math.ceil(letters.length * MIN_BINGO_LANE_DENSITY);
+    for (const letter of letters) {
+      if (letter && --needed === 0) break;
+    }
+    if (needed > 0) return null;
+    return directions.map((direction) => {
+      const space = direction.mask.includes(0)
+        ? bingoLaneSpace(direction, letters, size)
+        : direction.space;
+      return {
+        space,
+        possible: direction.starts.some(({ cell }) => space[cell] >= bingoTiles),
+      };
+    });
+  }
   let startOrders:
     | {
         rackLength: number;
@@ -462,21 +481,9 @@ function prepareBoardSolver(
       }
     }
     const bingoOnly = options.bingoOnly === true;
-    if (bingoOnly) {
-      bingoLanes ??= directions.map((direction) => {
-        const space = direction.mask.includes(0)
-          ? bingoLaneSpace(direction, letters, size)
-          : direction.space;
-        return {
-          space,
-          possible: direction.starts.some(
-            ({ cell }) => space[cell] >= bingoTiles,
-          ),
-        };
-      });
-      if (!bingoLanes.some(({ possible }) => possible))
-        return { moves, bestScore, hasBingo };
-    }
+    if (bingoOnly && bingoLanes === undefined) bingoLanes = prepareBingoLanes();
+    if (bingoOnly && bingoLanes && !bingoLanes.some(({ possible }) => possible))
+      return { moves, bestScore, hasBingo };
     const pruneScore = (mode === "score" || replyOnly) && blankCount > 0;
     // Keep the traversal order for tied example plays in a heatmap.
     const prioritizeStarts = pruneScore && !bigReplies && !replyOnly;
@@ -590,6 +597,7 @@ function prepareBoardSolver(
       const bingoLane = bingoOnly ? bingoLanes?.[axis] : undefined;
       if (bingoLane && !bingoLane.possible) continue;
       const lane = bingoLane?.space;
+      const bingoSpace = lane ?? space;
       const bounds = pruneScore
         ? (scoreBounds[axis] ??= prepareScoreBounds(
             geometry, size, rackSize, points, codes, lm, wm,
@@ -772,7 +780,9 @@ function prepareBoardSolver(
         connected: boolean,
         hitsPremium = false,
       ) {
-        visitNode();
+        if (++nodes > budget.maxNodes) throw new SearchLimitError("nodes");
+        if ((nodes & 255) === 0 && performance.now() >= deadline)
+          throw new SearchLimitError("time");
         const position = startPosition + length;
         const atEdge = position === size;
         if (
@@ -782,9 +792,9 @@ function prepareBoardSolver(
         )
           return false;
         if (
-          lane &&
+          bingoOnly &&
           (maxTail[node] < bingoTiles - used ||
-            (atEdge ? used < bingoTiles : lane[cell] < bingoTiles - used))
+            (atEdge ? used < bingoTiles : bingoSpace[cell] < bingoTiles - used))
         )
           return false;
         if (!connected && (atEdge || toAnchor[cell] > rackLength - used))
@@ -855,8 +865,10 @@ function prepareBoardSolver(
             const left = --counts[code] ? available : available ^ bit;
             tileCodes[used] = code;
             if (bounds) remainingPoints -= value;
-            if (weights) leaveKey -= weights[code];
-            if (leaveCeilings) leaveCeiling -= leaveCeilings[code];
+            if (weights) {
+              leaveKey -= weights[code];
+              if (leaveCeilings) leaveCeiling -= leaveCeilings[code];
+            }
             const found = walk(
               cell + step,
               length + 1,
@@ -871,8 +883,10 @@ function prepareBoardSolver(
               nextHitsPremium,
             );
             if (bounds) remainingPoints += value;
-            if (weights) leaveKey += weights[code];
-            if (leaveCeilings) leaveCeiling += leaveCeilings[code];
+            if (weights) {
+              leaveKey += weights[code];
+              if (leaveCeilings) leaveCeiling += leaveCeilings[code];
+            }
             counts[code]++;
             if (found) return true;
           }
@@ -998,12 +1012,16 @@ function prepareBoardSolver(
                 const left = --counts[code] ? available : available ^ bit;
                 leftCodes[length] = code;
                 if (bounds) remainingPoints -= letterPoints[code];
-                if (weights) leaveKey -= weights[code];
-                if (leaveCeilings) leaveCeiling -= leaveCeilings[code];
+                if (weights) {
+                  leaveKey -= weights[code];
+                  if (leaveCeilings) leaveCeiling -= leaveCeilings[code];
+                }
                 const found = leftPart(child, length + 1, left, blanks);
                 if (bounds) remainingPoints += letterPoints[code];
-                if (weights) leaveKey += weights[code];
-                if (leaveCeilings) leaveCeiling += leaveCeilings[code];
+                if (weights) {
+                  leaveKey += weights[code];
+                  if (leaveCeilings) leaveCeiling += leaveCeilings[code];
+                }
                 counts[code]++;
                 if (found) return true;
               }
@@ -1038,7 +1056,7 @@ function prepareBoardSolver(
         ? startOrders?.byDirection[axis]
         : undefined;
       // Bingo orders can omit blocked lanes and have a separate cache key.
-      const orderKey = bingoOnly ? ~remainingPoints : remainingPoints;
+      const orderKey = lane ? ~remainingPoints : remainingPoints;
       let ranked = ordering?.get(orderKey);
       if (ordering && upperBound && !ranked) {
         const priorities = starts
@@ -1070,7 +1088,7 @@ function prepareBoardSolver(
         if (
           toAnchor[start.cell] > rackLength ||
           (toPremium && toPremium[start.cell] > rackLength) ||
-          (lane && lane[start.cell] < bingoTiles)
+          (bingoOnly && bingoSpace[start.cell] < bingoTiles)
         )
           continue;
         startLine = start.line;
