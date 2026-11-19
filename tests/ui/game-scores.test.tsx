@@ -110,6 +110,13 @@ test("the score chart pairs adjacent plays and carries forward the score for a m
   ];
   show(game);
   const chart = screen.getByRole("figure", { name: "Score by move" });
+  const graph = within(chart).getByRole("img", { name: /Running scores/ });
+  fireEvent.pointerMove(graph);
+  const hoverTooltip = chart.querySelector(".score-chart-tooltip")!;
+  expect([...hoverTooltip.querySelectorAll("dt")].map((label) => label.textContent))
+    .toEqual(["You", "Opp"]);
+  fireEvent.pointerLeave(graph);
+
   const slider = within(chart).getByRole("slider");
   expect(slider).toHaveProperty("max", "2");
   fireEvent.focus(slider);
