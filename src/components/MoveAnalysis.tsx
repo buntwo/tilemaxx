@@ -541,6 +541,7 @@ export default function MoveAnalysis({
             template={game.template}
             board={placeTiles(game.board, example.move)}
             preview={example.reply}
+            previewPlayer="opponent"
           />
         </Modal>
       )}

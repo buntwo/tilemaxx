@@ -125,6 +125,7 @@ export default function ReplyHeatmap({
               template={template}
               board={board}
               preview={currentPreview}
+              previewPlayer="opponent"
               highlight={hotspot}
               cellOverlay={(index) =>
                 counts[index]

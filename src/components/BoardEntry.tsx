@@ -24,6 +24,7 @@ import {
   type BoardTemplate,
   type Game,
   type Move,
+  type Player,
 } from "../../shared/model";
 
 // A sentinel lets mobile keyboards send deletion even when no text is waiting.
@@ -47,6 +48,7 @@ export default function BoardEntry({
   readOnly,
   displayBoard,
   preview,
+  previewPlayer,
   onChange,
   onSelect,
   onSolve,
@@ -60,6 +62,7 @@ export default function BoardEntry({
   readOnly?: boolean;
   displayBoard?: BoardState;
   preview: Move | null;
+  previewPlayer?: Player;
   onChange: (game: Game) => void;
   onSelect: () => void;
   onSolve?: () => void;
@@ -90,6 +93,7 @@ export default function BoardEntry({
       archivedBoard={game.archived ? game.archivedBoard : undefined}
       template={game.template}
       preview={preview}
+      previewPlayer={previewPlayer}
       wordScores={displayBoard ? undefined : wordScores}
       onSelect={onSelect}
       onSolve={onSolve}
@@ -112,6 +116,7 @@ export function BoardInput({
   archivedBoard,
   template,
   preview,
+  previewPlayer,
   onChange,
   onSelect,
   onSolve,
@@ -133,6 +138,7 @@ export function BoardInput({
   archivedBoard?: BoardState;
   template: BoardTemplate;
   preview?: Move | null;
+  previewPlayer?: Player;
   onChange: (board: BoardState, kind: EditKind) => void;
   onSelect?: () => void;
   onSolve?: () => void;
@@ -438,6 +444,7 @@ export function BoardInput({
         board={board}
         archivedBoard={archivedBoard}
         preview={preview}
+        previewPlayer={previewPlayer}
         disabled={readOnly}
         selected={
           !readOnly && (focused || onCursorChange) && !preview && !toggleMark && !locating

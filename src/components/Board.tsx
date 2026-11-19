@@ -13,6 +13,7 @@ import {
   type Board as BoardState,
   type BoardTemplate,
   type Move,
+  type Player,
   coordinate,
   tileScore,
 } from "../../shared/model";
@@ -26,6 +27,7 @@ export default function Board({
   board,
   archivedBoard,
   preview,
+  previewPlayer = "you",
   selected,
   markedSquares,
   selectingSquares = false,
@@ -47,6 +49,7 @@ export default function Board({
   board: BoardState;
   archivedBoard?: BoardState;
   preview?: Pick<Move, "tiles"> | null;
+  previewPlayer?: Player;
   selected?: number | null;
   markedSquares?: ReadonlySet<number>;
   selectingSquares?: boolean;
@@ -106,6 +109,7 @@ export default function Board({
       <div
         className={`board-grid ${paint ? "paint-board" : ""} ${placed.size ? "has-move-preview" : ""}${wordScores ? " with-word-scores" : ""}`}
         aria-label={`${template.name} board`}
+        data-preview-player={placed.size ? previewPlayer : undefined}
         onPointerOver={
           wordScores &&
           ((event) => {

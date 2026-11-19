@@ -318,6 +318,7 @@ export default function OptimalReplyDetails({
             template={game.template}
             board={step?.board ?? game.board}
             preview={step?.kind === "turn" ? step.move : undefined}
+            previewPlayer={step?.kind === "turn" ? step.player : undefined}
           />
         </figure>
       </div>

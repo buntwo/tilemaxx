@@ -161,6 +161,7 @@ export default function TurnReview({
                     board={position.board}
                     template={template}
                     preview={{ tiles: tiles ?? [] }}
+                    previewPlayer={turn.move.player}
                     compact
                   />
                 </div>

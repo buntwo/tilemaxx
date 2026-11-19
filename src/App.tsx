@@ -1342,6 +1342,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   game={game}
                   hideHelp
                   preview={boardLocked ? null : activeFlight?.move ?? preview}
+                  previewPlayer={activeFlight ? "you" : movePreview?.player}
                   readOnly={boardLocked}
                   displayBoard={activeFlight?.before.board}
                   onChange={updateAfterTurn}
