@@ -11,21 +11,84 @@ import type { GameFinish } from "../useGameFinish";
 import MoveWord from "./MoveWord";
 import "./board-finish.css";
 
-function randomFlecks(): CSSProperties[] {
+function randomFlecks() {
   const count = 16;
   const sector = (2 * Math.PI) / count;
   const rotation = Math.random() * 2 * Math.PI;
   return Array.from({ length: count }, (_, index) => {
     const angle = rotation + (index + Math.random()) * sector;
     const radius = 22 + Math.random() * 21;
+    const delay = Math.random() * 70;
     return {
-      "--fleck-x": `${Math.cos(angle) * radius}cqw`,
-      "--fleck-y": `${Math.sin(angle) * radius}cqw`,
-      "--fleck-turn": `${Math.random() * 900 - 450}deg`,
-      "--fleck-size": `${4 + Math.floor(Math.random() * 4)}px`,
-      "--fleck-delay": `${Math.random() * 70}ms`,
-    } as CSSProperties;
-  });
+      delay,
+      style: {
+        "--fleck-x": `${Math.cos(angle) * radius}cqw`,
+        "--fleck-y": `${Math.sin(angle) * radius}cqw`,
+        "--fleck-turn": `${Math.random() * 900 - 450}deg`,
+        "--fleck-size": `${4 + Math.floor(Math.random() * 4)}px`,
+        "--fleck-delay": `${delay}ms`,
+      } as CSSProperties,
+    };
+  }).sort((a, b) => a.delay - b.delay);
+}
+
+function nextBurstDelay() {
+  // Box–Muller transform for a normal sample with a 2 s mean and 1 s SD.
+  const radius = Math.sqrt(-2 * Math.log1p(-Math.random()));
+  const angle = 2 * Math.PI * Math.random();
+  return Math.max(100, 2000 + 1000 * radius * Math.cos(angle));
+}
+
+function WinFireworks() {
+  const [bursts, setBursts] = useState(() => [{ id: 0, flecks: randomFlecks() }]);
+  const nextId = useRef(1);
+
+  useEffect(() => {
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let timer: ReturnType<typeof setTimeout>;
+
+    function schedule() {
+      timer = setTimeout(launch, nextBurstDelay());
+    }
+    function launch() {
+      schedule();
+      const burst = { id: nextId.current++, flecks: randomFlecks() };
+      setBursts((current) => [...current, burst]);
+    }
+    function motionChanged() {
+      clearTimeout(timer);
+      if (motion.matches) setBursts([]);
+      else launch();
+    }
+
+    if (motion.matches) setBursts([]);
+    else schedule();
+    motion.addEventListener("change", motionChanged);
+    return () => {
+      clearTimeout(timer);
+      motion.removeEventListener("change", motionChanged);
+    };
+  }, []);
+
+  return bursts.map(({ id, flecks }) => (
+    <div key={id} className="board-finish-burst">
+      {flecks.map(({ style }, index) => (
+        <span
+          key={index}
+          className="board-finish-fleck"
+          style={style}
+          onAnimationEnd={
+            index === flecks.length - 1
+              ? () =>
+                  setBursts((current) =>
+                    current.filter((burst) => burst.id !== id),
+                  )
+              : undefined
+          }
+        />
+      ))}
+    </div>
+  ));
 }
 
 const results = {
@@ -45,7 +108,6 @@ export default function BoardFinishOverlay({
 }) {
   const { outcome, out, opponent, scores, square, size, move } = finish;
   const { Icon, label, margin } = results[outcome];
-  const [flecks] = useState(() => (outcome === "win" ? randomFlecks() : []));
   const overlay = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -131,9 +193,7 @@ export default function BoardFinishOverlay({
       />
       <div className="board-finish-effects" aria-hidden="true">
         {outcome !== "tie" && <div className="board-finish-wave" />}
-        {flecks.map((style, index) => (
-          <span key={index} className="board-finish-fleck" style={style} />
-        ))}
+        {outcome === "win" && <WinFireworks />}
       </div>
       <div className="board-finish-card">
         <div className="board-finish-emblem">
