@@ -3,6 +3,7 @@ import {
   remember,
   trackedMoveHistory,
   type Board,
+  type BoardTemplate,
   type Game,
 } from "./model";
 import {
@@ -16,44 +17,51 @@ type EditKind = keyof typeof BOARD_EDIT_LABELS;
 export function inferBoardEntryDirection(
   board: readonly string[],
   index: number,
-  size: number,
+  { size, start }: Pick<BoardTemplate, "size" | "start">,
   rackTiles: number,
 ): "across" | "down" {
   if (rackTiles === 0) return "across";
   const row = Math.floor(index / size);
   const column = index % size;
+  const opening = !board.some(Boolean);
 
-  function connectionStrength(across: boolean) {
+  function canPlay(across: boolean) {
     const coordinate = across ? column : row;
     const stride = across ? 1 : size;
     const crossStride = across ? size : 1;
     const crossCoordinate = across ? row : column;
-    let direct = coordinate > 0 && !!board[index - stride];
-    let hooks = 0;
+    let length = 0;
     let remaining = rackTiles;
+    let connected = false;
+
+    // A contiguous played prefix is part of the word. New tiles can only
+    // be entered from the selected square onward.
+    while (length < coordinate && board[index - (length + 1) * stride]) {
+      length++;
+      connected = true;
+    }
 
     for (let offset = 0; offset < size - coordinate; offset++) {
       const square = index + offset * stride;
       if (board[square]) {
-        direct ||= offset > 0;
+        connected = true;
       } else {
         if (remaining === 0) break;
         remaining--;
-        if (
-          (crossCoordinate > 0 && board[square - crossStride]) ||
-          (crossCoordinate + 1 < size && board[square + crossStride])
-        )
-          hooks++;
+        connected ||= opening
+          ? square === start
+          : !!(
+              (crossCoordinate > 0 && board[square - crossStride]) ||
+              (crossCoordinate + 1 < size && board[square + crossStride])
+            );
       }
-      // A word extension or a play parallel to several tiles is stronger
-      // evidence than a single perpendicular hook.
-      if (remaining < rackTiles && (direct || hooks >= 2)) return 2;
+      length++;
+      if (length >= 2 && remaining < rackTiles && connected) return true;
     }
-    if (remaining === rackTiles) return 0;
-    return hooks || board[index] ? 1 : 0;
+    return false;
   }
 
-  return connectionStrength(false) > connectionStrength(true) ? "down" : "across";
+  return !canPlay(true) && canPlay(false) ? "down" : "across";
 }
 
 // Local save acknowledgments retain the position and history references.

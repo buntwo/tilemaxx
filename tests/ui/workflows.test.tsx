@@ -1985,7 +1985,10 @@ test("click and Alt+B share direction detection within the physical rack size", 
   await user.click(cell("H6: empty"));
   expect(direction()).toBe("Across"); // Both the row and column have tiles.
   await user.click(cell("I5: empty"));
-  expect(direction()).toBe("Down"); // A direct connection beats a single side hook.
+  expect(direction()).toBe("Across"); // Across can hook onto the tile below.
+  await user.keyboard("{Alt>}b{/Alt}i5");
+  expect(selectedCell()).toBe("68");
+  expect(direction()).toBe("Across");
   await user.click(cell("A1: TW"));
   expect(direction()).toBe("Across"); // Neither path connects.
   await user.click(cell("I4: empty"));

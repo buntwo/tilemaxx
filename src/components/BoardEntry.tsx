@@ -84,7 +84,7 @@ export default function BoardEntry({
         inferBoardEntryDirection(
           board,
           index,
-          game.template.size,
+          game.template,
           rackLetters(game.rack).length,
         )
       }
