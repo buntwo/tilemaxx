@@ -11,6 +11,7 @@ import type {
 import type { OpponentEndgameTiming } from "../move-timing";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import { endgameLength } from "../endgame-line-format";
+import { canHoverWithMouse } from "../move-preview";
 import CalculationIndicator from "./CalculationIndicator";
 import MoveTimingButton from "./MoveTimingButton";
 import { BingoBadge, MoveLetters } from "./MoveWord";
@@ -42,6 +43,11 @@ export default function OpponentEndgameResults({
       panel.current?.querySelector<HTMLButtonElement>(".opponent-endgame-close")
     )?.focus({ preventScroll: true });
   }, []);
+  function toggleSelection(line: EndgameLine) {
+    const next = selected === line ? undefined : line;
+    setSelected(next);
+    onPreview(next?.line[0] ?? null);
+  }
   const totals = scoreTotalsAtPosition(game);
   const complete = result.checked === result.total;
   return (
@@ -103,10 +109,18 @@ export default function OpponentEndgameResults({
                     type="button"
                     aria-expanded={selected === line}
                     aria-controls={selected === line ? detailId : undefined}
-                    onClick={() => {
-                      const next = selected === line ? undefined : line;
-                      setSelected(next);
-                      onPreview(next?.line[0] ?? null);
+                    onPointerEnter={(event) => {
+                      if (move && !selected && canHoverWithMouse(event.pointerType))
+                        onPreview(move);
+                    }}
+                    onPointerLeave={(event) => {
+                      if (move && !selected && canHoverWithMouse(event.pointerType))
+                        onPreview(null);
+                    }}
+                    onClick={() => toggleSelection(line)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      toggleSelection(line);
                     }}
                   >
                     <span className="result-word result-stack">

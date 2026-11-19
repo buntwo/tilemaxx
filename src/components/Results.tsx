@@ -45,6 +45,7 @@ import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import { endgameLength } from "../endgame-line-format";
+import { canHoverWithMouse } from "../move-preview";
 import MoveAnalysis from "./MoveAnalysis";
 import EmptyMoveTiles from "./EmptyMoveTiles";
 import MoveWord, { BingoBadge, MoveLetters } from "./MoveWord";
@@ -100,10 +101,6 @@ function formatOdds(chance: number, exact: boolean) {
         ? ">99%"
         : `${Math.round(chance * 100)}%`;
   return exact ? value : `≈${value}`;
-}
-
-function canHoverWithMouse(pointerType: string) {
-  return pointerType === "mouse" && matchMedia("(any-hover: hover)").matches;
 }
 
 function ResultSortMenu({
