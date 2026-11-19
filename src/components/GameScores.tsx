@@ -18,6 +18,7 @@ import { scoreTone, signedPoints } from "../score-tone";
 import Modal from "./Modal";
 import MoveWord, { BingoBadge } from "./MoveWord";
 import ScoreBreakdown from "./ScoreBreakdown";
+import ScoreChart from "./ScoreChart";
 import TurnReview from "./TurnReview";
 
 const ringDots = Array.from({ length: 8 }, (_, index) => {
@@ -128,22 +129,16 @@ export default function GameScores({
     });
     setError("");
   }
-  const moves = history
-    .map((move, index) => ({
-      ...move,
-      notation: recordedMoveNotation(
-        move,
-        turns[index].position,
-        game.template.size,
-      ),
-      bingo:
-        move.bingo ??
-        (move.review !== undefined &&
-          isBingo(game.template, move.review.tiles.length)),
-      number: index + 1,
-      total: (totals[move.player] += move.score),
-    }))
-    .reverse();
+  const moves = turns.map(({ move, position }, index) => ({
+    ...move,
+    notation: recordedMoveNotation(move, position, game.template.size),
+    bingo:
+      move.bingo ??
+      (position !== undefined && isBingo(game.template, position.tiles.length)),
+    number: index + 1,
+    total: (totals[move.player] += move.score),
+  }));
+  const newestMoves = [...moves].reverse();
   return (
     <section className="panel score-panel" aria-label="Game scores">
       <div className="score-header">
@@ -275,6 +270,7 @@ export default function GameScores({
           )}
         </div>
       )}
+      {!!moves.length && <ScoreChart moves={moves} />}
       <details className="score-history">
         <summary>
           <span>
@@ -295,7 +291,7 @@ export default function GameScores({
               </tr>
             </thead>
             <tbody>
-              {moves.map((move) => (
+              {newestMoves.map((move) => (
                 <tr key={move.number}>
                   <td className="score-move-number">
                     <button
@@ -429,7 +425,7 @@ export default function GameScores({
                   }
                 >
                   <option value={history.length}>After the latest move</option>
-                  {moves.map((move) => (
+                  {newestMoves.map((move) => (
                     <option key={move.number} value={move.number - 1}>
                       Before #{move.number} {move.word}
                       {move.bingo ? " · 🏆 Bingo" : ""}

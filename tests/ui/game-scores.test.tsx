@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { emptyScoring } from "../../shared/game-scoring";
 import { emptyBoard, type Game } from "../../shared/model";
@@ -99,4 +99,67 @@ test("archived score markers follow the saved final result while the board is be
   show(game);
   expect(screen.getByRole("img", { name: "Opponent won" })).toBeTruthy();
   expect(screen.queryByRole("img", { name: "You won" })).toBeNull();
+});
+
+test("the score chart pairs adjacent plays and carries forward the score for a missing reply", () => {
+  const game = gameWithScores(107, 67);
+  game.trackedMoves = [
+    { player: "opponent", word: "RATION", score: 67, at: "2026-11-17" },
+    { player: "you", word: "PLANTED", score: 80, bingo: true, at: "2026-11-17" },
+    { player: "you", word: "OX", score: 27, at: "2026-11-17" },
+  ];
+  show(game);
+  const chart = screen.getByRole("figure", { name: "Score by move" });
+  const slider = within(chart).getByRole("slider");
+  expect(slider).toHaveProperty("max", "2");
+  fireEvent.focus(slider);
+  expect(slider.getAttribute("aria-valuetext")).toBe(
+    "Move 3. You 107 points, OX for 27 points. Opponent 67 points",
+  );
+
+  const tooltip = chart.querySelector(".score-chart-tooltip")!;
+  const plays = () => [...tooltip.querySelectorAll(".score-chart-play")]
+    .map((play) => play.textContent);
+  expect(plays()).toEqual(["OX+27 pts"]);
+  const line = (player: string) =>
+    chart.querySelector(`.score-chart-line.score-chart-${player}`)
+      ?.getAttribute("points")
+      ?.split(" ")
+      .map((point) => point.split(","));
+  const you = line("you")!;
+  const opponent = line("opponent")!;
+  expect(you.map(([x]) => x)).toEqual(opponent.map(([x]) => x));
+  expect(opponent[2][1]).toBe(opponent[1][1]);
+
+  fireEvent.change(slider, { target: { value: "1" } });
+  expect(slider.getAttribute("aria-valuetext")).toBe(
+    "Moves 1–2. You 80 points, PLANTED for 80 points, bingo. Opponent 67 points, RATION for 67 points",
+  );
+  expect(plays()).toEqual(["PLANTED+80 pts", "RATION+67 pts"]);
+  expect(tooltip.querySelectorAll('.score-chart-play [aria-label="Bingo"]')).toHaveLength(1);
+});
+
+test("consecutive plays by one player stay distinct in an older archived history", () => {
+  const game = gameWithScores(54, 32);
+  game.archived = true;
+  game.past = ([
+    { player: "opponent", label: "RAT", score: 12 },
+    { player: "opponent", label: "STAIN", score: 20 },
+    { player: "you", label: "RAISED", score: 54 },
+  ] as const).map((move) => ({
+    ...move,
+    at: "2026-11-17",
+    board: game.board,
+    rack: "",
+  }));
+  show(game);
+  const chart = screen.getByRole("figure", { name: "Score by move" });
+  const slider = within(chart).getByRole("slider");
+  expect(slider.getAttribute("aria-valuetext")).toBe(
+    "Moves 2–3. You 54 points, RAISED for 54 points. Opponent 32 points, STAIN for 20 points",
+  );
+  fireEvent.change(slider, { target: { value: "1" } });
+  expect(slider.getAttribute("aria-valuetext")).toBe(
+    "Move 1. You 0 points. Opponent 12 points, RAT for 12 points",
+  );
 });
