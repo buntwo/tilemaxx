@@ -1,4 +1,5 @@
 import { useBingoHunter } from "../useBingoHunter";
+import type { HunterProgress } from "../parallel-bingo-hunter";
 import type { RunBingoHunter } from "../useSolver";
 import type { MoveStyle } from "../../shared/move-results";
 import { moveLocation } from "../../shared/notation";
@@ -93,6 +94,17 @@ import ReplyHeatmapDialog, {
   ReplyPreview,
   ReplySettings,
 } from "./ReplyAnalysis";
+
+const hunterStageLabels: Record<HunterProgress["phase"], string> = {
+  exact: "Checking exact tile deals",
+  screen: "Screening bingo setups",
+  "screen-replies": "Screening opponent replies",
+  sample: "Simulating replies",
+  checkpoint: "Comparing bingo finalists",
+  refine: "Refining bingo estimates",
+  "ceiling-discovery": "Finding high-scoring bingo setups",
+  "ceiling-replies": "Checking replies to high-scoring setups",
+};
 
 function formatOdds(chance: number, exact: boolean) {
   const value =
@@ -346,12 +358,21 @@ export default function Results({
     !!analysisGame && !!resultSet && shortlistSearch === resultSet.searchId;
   const profile = resultSet && !shortlistActive ? playingStyle : undefined;
   const hunterSelected = profile === "bingo-hunter";
-  const hunterKey = hunterSelected && !busy && !error && !invalid
-    ? JSON.stringify([analysisKey, resultSet?.searchId, bagSize, scorelessTurns, replyAnalysis.opponentHasFinalTurn])
+  const hunterKey = hunterSelected && resultSet?.total && !busy && !error && !invalid
+    ? JSON.stringify([analysisKey, resultSet.searchId, bagSize, scorelessTurns, replyAnalysis.opponentHasFinalTurn])
     : undefined;
-  const hunter = useBingoHunter(hunterKey, runBingoHunter);
+  const hunter = useBingoHunter(hunterKey, runBingoHunter, {
+    gameId: analysisGame?.id,
+    searchId: resultSet?.searchId,
+    findMovesRequest,
+    bagSize,
+    scorelessTurns,
+    opponentHasFinalTurn: replyAnalysis.opponentHasFinalTurn,
+    workerLimit,
+  });
   const hunterResult = hunter.current?.result;
   const hunterProgress = hunter.current?.progress;
+  const hunterPending = hunter.current?.pending;
   const totalMoves = resultSet?.total ?? 0;
   const endgame = !!analysisGame && replyAnalysis.bagSize === 0;
   const rackOdds = endgame ? undefined : calculatedRackOdds;
@@ -725,26 +746,19 @@ export default function Results({
   }
   const hasBingoControls = !!(analysisGame && onBoardOdds && onCancelBoardOdds);
   const showFilters = !!resultSet && !!(totalMoves || requiredSquares || analysisGame) && !busy && !error;
-  function runHunterSlice(resumeFrom?: number) {
-    if (searchId !== undefined)
-      hunter.start(searchId, { bagSize, scorelessTurns, opponentHasFinalTurn: replyAnalysis.opponentHasFinalTurn, workerLimit, resumeFrom });
-  }
-  const hunterStatus = hunterProgress && (
+  const hunterStatus = hunterPending && (
     <span role="status">
-      {hunterProgress.phase === "screen" ? "Screening bingo setups" :
-        hunterProgress.phase === "screen-replies" ? "Screening opponent replies" :
-        hunterProgress.phase === "sample" ? "Simulating replies" :
-        hunterProgress.phase === "ceiling-discovery" ? "Finding high-scoring bingo setups" :
-        hunterProgress.phase === "ceiling-replies" ? "Checking replies to high-scoring setups" :
-        "Refining bingo estimates"}
-      {hunterProgress.total > 0 && ` · ${hunterProgress.done}/${hunterProgress.total} moves`}
+      {hunterProgress
+        ? `${hunterProgress.stage}. ${hunterStageLabels[hunterProgress.phase]}`
+        : "Starting Bingo hunter…"}
+      {!!hunterProgress?.total && ` · ${hunterProgress.done}/${hunterProgress.total} moves`}
     </span>
   );
-  const hunterAction = hunterProgress ? (
+  const hunterAction = hunterPending ? (
     <button type="button" className="button secondary" onClick={hunter.cancel}>Cancel</button>
   ) : hunterResult?.canContinue ? (
     <button type="button" className="button secondary"
-      onClick={() => runHunterSlice(hunter.current?.error ? undefined : hunterResult.id)}>
+      onClick={() => hunter.start(hunter.current?.error ? undefined : hunterResult.id)}>
       {hunter.current?.error ? "Restart Bingo hunter" : "Run another 10 seconds"}
     </button>
   ) : undefined;
@@ -1142,7 +1156,7 @@ export default function Results({
         </div>
       ) : hunterSelected && !hunterResult?.checked ? (
         <div className="results-empty">
-          {hunterProgress ? (
+          {hunterPending ? (
             <>
               <LoaderCircle className="spin" size={24} aria-hidden="true" />
               {hunterStatus}
@@ -1158,7 +1172,7 @@ export default function Results({
                     ? "The search reached its complexity limit."
                     : "Rank moves by bingo points now and expected bingo points after the reply.")}</p>
               {hunterAction ?? (
-                <button type="button" className="button primary" disabled={!hunterKey} onClick={() => runHunterSlice()}>
+                <button type="button" className="button primary" disabled={!hunterKey} onClick={() => hunter.start()}>
                   Run Bingo hunter
                 </button>
               )}

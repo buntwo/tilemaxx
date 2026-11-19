@@ -94,13 +94,19 @@ test("a high-scoring bingo can survive the modeled reply when another legal play
 test("high ceilings use their own slice and preserve the completed utility ranking", async () => {
   const { lexicon, position, moves, azon } = azonFixture();
   const session = createBingoHunterSession(lexicon, position, moves, undefined, 1);
-  const run = () => session.run(new AbortController().signal, () => {});
+  const stages = new Set<string>();
+  const run = () => session.run(new AbortController().signal, ({ phase, stage }) => {
+    stages.add(`${stage}.${phase}`);
+  });
   const normal = await run();
   assert.ok(normal.summary.checked);
   assert.equal(normal.summary.ceilingPass, true);
   assert.equal(normal.summary.ceilings, undefined);
 
   const extra = await run();
+  assert.deepEqual([...stages], [
+    "1.sample", "2.checkpoint", "3.refine", "4.ceiling-discovery", "5.ceiling-replies",
+  ]);
   assert.deepEqual(extra.ranked, normal.ranked);
   const rare = extra.summary.ceilings?.find(({ move }) => move.id === azon.id);
   assert.equal(rare?.bingo.word, "BANJAXES");

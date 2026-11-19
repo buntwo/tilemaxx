@@ -27,11 +27,12 @@ import type { CandidateJob } from "./candidate-analysis-jobs";
 import { createCandidatePool } from "./candidate-analysis-pool";
 import { createBingoCeilingSearch } from "./parallel-bingo-ceilings";
 
-export type HunterProgress = {
-  phase: "screen" | "screen-replies" | "sample" | "refine" | "ceiling-discovery" | "ceiling-replies";
+export type HunterStageProgress = {
+  phase: "exact" | "screen" | "screen-replies" | "sample" | "checkpoint" | "refine" | "ceiling-discovery" | "ceiling-replies";
   done: number;
   total: number;
 };
+export type HunterProgress = HunterStageProgress & { stage: number };
 export type HunterSummary = {
   checked: number;
   limited: boolean;
@@ -104,12 +105,19 @@ export function createBingoHunterSession(
   const boardScores: Scores = new Map(),
     replyScores: Scores = new Map(),
     exactScores: Scores = new Map();
+  const needsScreen = wide.screen.length > HUNTER_CANDIDATES;
+  const stages: HunterProgress["phase"][] = [];
+  if (exact) stages.push("exact");
+  else {
+    if (needsScreen) stages.push("screen", "screen-replies");
+    stages.push("sample", "checkpoint", "refine", "ceiling-discovery", "ceiling-replies");
+  }
   let limited = wide.limited;
   let phase: Phase = !moves.length
     ? "done"
     : exact
       ? "exact"
-      : wide.screen.length > HUNTER_CANDIDATES
+      : needsScreen
         ? "screen"
         : "sample";
   let candidates: readonly Move[] = exactLimit !== undefined && !exactFits
@@ -232,6 +240,8 @@ export function createBingoHunterSession(
     const stop = () => workers.close();
     signal.addEventListener("abort", stop, { once: true });
     let madeProgress = false;
+    const report = (update: HunterStageProgress) =>
+      progress({ ...update, stage: stages.indexOf(update.phase) + 1 });
 
     async function batch(
       slate: readonly Move[],
@@ -246,7 +256,7 @@ export function createBingoHunterSession(
       let checked = slate.length - pending.length;
       let dispatched = 0;
       let blocked = false;
-      progress({ phase: label, done: checked, total: slate.length });
+      report({ phase: label, done: checked, total: slate.length });
       await workers.run(
         pending.map(
           (move): Extract<CandidateJob, { kind: "bingo-hunter" }> => ({
@@ -274,7 +284,7 @@ export function createBingoHunterSession(
           }
           blocked ||= !!result.blocked;
           if (saved.length >= target) checked++;
-          progress({ phase: label, done: checked, total: slate.length });
+          report({ phase: label, done: checked, total: slate.length });
         },
         (job) => {
           if (now() >= deadline || blocked) return undefined;
@@ -303,7 +313,7 @@ export function createBingoHunterSession(
                 exactScores,
                 exact!,
                 exact!.length,
-                "sample",
+                "exact",
               ))
             )
               return finish();
@@ -359,7 +369,7 @@ export function createBingoHunterSession(
                 replyScores,
                 common,
                 HUNTER_CHECKPOINT,
-                "refine",
+                "checkpoint",
               ))
             )
               return finish();
@@ -382,7 +392,7 @@ export function createBingoHunterSession(
           case "ceilings": {
             ceilingSearch ??= createBingoCeilingSearch(position,
               [...new Set([...wide.laneOrder, ...wide.screen])], pool, opponentSize);
-            const extra = await ceilingSearch.run(workers, deadline, signal, progress);
+            const extra = await ceilingSearch.run(workers, deadline, signal, report);
             madeProgress ||= extra.advanced;
             if (extra.done) phase = "done";
             return finish();
