@@ -17,7 +17,6 @@ import { usePractice } from "./usePractice";
 export default function OptimalExchange({
   game,
   bag,
-  assumed,
   scorelessTurns = 0,
   restoredResult,
   onClose,
@@ -25,7 +24,6 @@ export default function OptimalExchange({
 }: {
   game: Game;
   bag: number;
-  assumed: boolean;
   scorelessTurns?: number;
   restoredResult?: OptimalExchangeResult;
   onClose: () => void;
@@ -79,8 +77,7 @@ export default function OptimalExchange({
       <p className="small muted">
         {result && !result.refinementDraws
           ? "Bingo chance on the current board"
-          : "Bingo chance after the opponent’s turn"}{" "}
-        · {bag} {assumed ? "estimated in bag" : "in bag"}
+          : "Bingo chance after the opponent’s turn"}
       </p>
       {unavailable && <p className="small muted">{unavailable}</p>}
       {progress && (
