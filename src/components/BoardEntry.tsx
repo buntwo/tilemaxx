@@ -262,7 +262,7 @@ export function BoardInput({
 
   function chooseCoordinate(match: typeof target) {
     if (!match || match.row === null || match.column === null) return false;
-    select(match.row * n + match.column, false, "across");
+    select(match.row * n + match.column, false);
     return true;
   }
 
@@ -333,15 +333,12 @@ export function BoardInput({
     focusing.current = false;
     input.current?.setSelectionRange(SENTINEL.length, SENTINEL.length);
   }
-  function select(i: number, repeatTap?: boolean, directionOverride?: Direction) {
+  function select(i: number, repeatTap?: boolean) {
     resetHistory();
     setCoordinateQuery(null);
     if (!locating && (repeatTap ?? (focused && i === selected))) toggleDirection();
     else {
-      setDirection(
-        directionOverride ??
-          (locating ? "across" : (directionForSquare?.(i) ?? direction)),
-      );
+      setDirection(directionForSquare?.(i) ?? direction);
       setSelected(i);
       setPendingBlank(false);
       setAtEnd(false);

@@ -23,33 +23,37 @@ export function inferBoardEntryDirection(
   const row = Math.floor(index / size);
   const column = index % size;
 
-  function connects(across: boolean) {
-    const length = size - (across ? column : row);
+  function connectionStrength(across: boolean) {
+    const coordinate = across ? column : row;
     const stride = across ? 1 : size;
     const crossStride = across ? size : 1;
     const crossCoordinate = across ? row : column;
+    let direct = coordinate > 0 && !!board[index - stride];
+    let hooks = 0;
     let remaining = rackTiles;
 
-    for (let offset = 0; offset < length; offset++) {
+    for (let offset = 0; offset < size - coordinate; offset++) {
       const square = index + offset * stride;
       if (board[square]) {
-        if (offset > 0) return true;
-        continue;
+        direct ||= offset > 0;
+      } else {
+        if (remaining === 0) break;
+        remaining--;
+        if (
+          (crossCoordinate > 0 && board[square - crossStride]) ||
+          (crossCoordinate + 1 < size && board[square + crossStride])
+        )
+          hooks++;
       }
-
-      if (remaining === 0) return false;
-      remaining--;
-      // An empty square we can fill also connects via a perpendicular hook.
-      if (
-        (crossCoordinate > 0 && board[square - crossStride]) ||
-        (crossCoordinate + 1 < size && board[square + crossStride])
-      )
-        return true;
+      // A word extension or a play parallel to several tiles is stronger
+      // evidence than a single perpendicular hook.
+      if (remaining < rackTiles && (direct || hooks >= 2)) return 2;
     }
-    return false;
+    if (remaining === rackTiles) return 0;
+    return hooks || board[index] ? 1 : 0;
   }
 
-  return !connects(true) && connects(false) ? "down" : "across";
+  return connectionStrength(false) > connectionStrength(true) ? "down" : "across";
 }
 
 // Local save acknowledgments retain the position and history references.
