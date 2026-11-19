@@ -6,12 +6,16 @@ export const RULE_NAMES = {
   "scrabble-fr": "French Scrabble",
   wwf: "Words With Friends",
   wordfeud: "Wordfeud",
+  "wordfeud-fr": "Wordfeud (French)",
   crossplay: "NYT Crossplay",
   lexulous: "Lexulous",
   "lexulous-fr": "Lexulous (French)",
   "lexulous-it": "Lexulous (Italian)",
 } as const;
 export type Rules = keyof typeof RULE_NAMES;
+export const isWordfeudRules = (rules: Rules) =>
+  rules === "wordfeud" || rules === "wordfeud-fr";
+
 export interface BoardTemplate {
   id: string;
   name: string;
@@ -296,6 +300,10 @@ export const SCORES: Record<Rules, Record<string, number>> = {
   wordfeud: letterValues([
     1, 4, 4, 2, 1, 4, 3, 4, 1, 10, 5, 1, 3, 1, 1, 4, 10, 1, 1, 1, 2, 4, 4, 8, 4,
     10,
+  ]),
+  "wordfeud-fr": letterValues([
+    1, 3, 3, 2, 1, 4, 2, 4, 1, 8, 10, 2, 2, 1, 1, 3, 8, 1, 1, 1, 1, 5, 10,
+    10, 10, 10,
   ]),
   crossplay: letterValues([
     1, 4, 3, 2, 1, 4, 4, 3, 1, 10, 6, 2, 3, 1, 1, 3, 10, 1, 1, 1, 2, 6, 5, 8, 4,

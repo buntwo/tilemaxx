@@ -6,22 +6,37 @@ import {
 } from "./model";
 import { getTileCounts } from "./tile-pool";
 
-export const CLASSIC_LEXULOUS_ID = "lexulous";
-export const LEXULOUS_LANGUAGES = {
-  "en-US": { label: "US English", rules: "lexulous" },
-  "en-GB": { label: "UK English", rules: "lexulous" },
-  fr: { label: "French", rules: "lexulous-fr" },
-  it: { label: "Italian", rules: "lexulous-it" },
-} as const satisfies Record<string, { label: string; rules: Rules }>;
-export type LexulousLanguage = keyof typeof LEXULOUS_LANGUAGES;
+export type GameLanguage = "en" | "en-US" | "en-GB" | "fr" | "it";
+type LanguageOption = { id: GameLanguage; label: string; rules: Rules };
 
-export function lexulousTemplateForLanguage(
+export const boardLanguages: ReadonlyMap<string, readonly LanguageOption[]> =
+  new Map([
+    [
+      "lexulous",
+      [
+        { id: "en-US", label: "US English", rules: "lexulous" },
+        { id: "en-GB", label: "UK English", rules: "lexulous" },
+        { id: "fr", label: "French", rules: "lexulous-fr" },
+        { id: "it", label: "Italian", rules: "lexulous-it" },
+      ],
+    ],
+    [
+      "wordfeud",
+      [
+        { id: "en", label: "English", rules: "wordfeud" },
+        { id: "fr", label: "French", rules: "wordfeud-fr" },
+      ],
+    ],
+  ]);
+
+export function templateForLanguage(
   template: BoardTemplate,
-  language: LexulousLanguage,
+  language: GameLanguage,
 ): BoardTemplate {
-  const { rules } = LEXULOUS_LANGUAGES[language];
-  if (template.id !== CLASSIC_LEXULOUS_ID || rules === template.rules)
-    return template;
+  const rules = boardLanguages
+    .get(template.id)
+    ?.find(({ id }) => id === language)?.rules;
+  if (!rules || rules === template.rules) return template;
   return {
     ...template,
     rules,
@@ -205,7 +220,7 @@ export const PRESETS: BoardTemplate[] = [
     { rules: "crossplay", bingo: 40 },
   ),
   board(
-    CLASSIC_LEXULOUS_ID,
+    "lexulous",
     RULE_NAMES.lexulous,
     15,
     {

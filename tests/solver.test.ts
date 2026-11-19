@@ -11,7 +11,7 @@ import {
   solvePositionWithBaseline,
 } from "../shared/solver";
 import { bestStrongReply } from "../shared/move-analysis";
-import { lexulousTemplateForLanguage, PRESETS } from "../shared/presets";
+import { templateForLanguage, PRESETS } from "../shared/presets";
 import { scorePlacement } from "../shared/game-scoring";
 import {
   emptyBoard,
@@ -50,7 +50,7 @@ test("Classic Lexulous uses localized face values in solving and score tracking"
   const board = emptyBoard(classic.size);
   const dictionary = lex("QUOTA");
   for (const [language, score] of [["fr", 24], ["it", 34]] as const) {
-    const template = lexulousTemplateForLanguage(classic, language);
+    const template = templateForLanguage(classic, language);
     const move = solve(dictionary, board, "QUOTA", template).find(
       ({ row, col, direction }) => row === 7 && col === 5 && direction === "across",
     )!;
@@ -59,6 +59,19 @@ test("Classic Lexulous uses localized face values in solving and score tracking"
     for (const { index, letter } of move.tiles) played[index] = letter;
     assert.equal(scorePlacement(board, played, template)?.score, score);
   }
+});
+
+test("French Wordfeud uses French face values and the Wordfeud bingo bonus", () => {
+  const wordfeud = PRESETS.find(({ id }) => id === "wordfeud")!;
+  const french = templateForLanguage(wordfeud, "fr");
+  const board = emptyBoard(french.size);
+  const move = solve(lex("VIOLETS"), board, "VIOLETS", french).find(
+    ({ row, col, direction }) => row === 7 && col === 4 && direction === "across",
+  )!;
+  assert.equal(move.score, 52);
+  const played = [...board];
+  for (const { index, letter } of move.tiles) played[index] = letter;
+  assert.equal(scorePlacement(board, played, french)?.score, 52);
 });
 
 test("solver factories match independent board preparation across every preset", () => {

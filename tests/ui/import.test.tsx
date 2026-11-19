@@ -7,7 +7,7 @@ import { convertHeif } from "../../src/heif";
 import { recognizeBoard } from "../../src/recognize";
 import { saveScreenshotExample } from "../../src/screenshot-example";
 import { emptyBoard, type Premium } from "../../shared/model";
-import { PRESETS } from "../../shared/presets";
+import { PRESETS, templateForLanguage } from "../../shared/presets";
 vi.mock("../../src/detect-board", () => ({ findBoard: vi.fn(() => null) }));
 vi.mock("../../src/heif", () => ({ convertHeif: vi.fn() }));
 vi.mock("../../src/recognize", () => ({ recognizeBoard: vi.fn() }));
@@ -229,64 +229,71 @@ test("premium imports default to a cleared board with score tracking", async () 
   expect(onApply).toHaveBeenCalledWith(board, expect.any(Array), true);
 });
 
-test("premium review infers covered squares, accepts corrections, and applies the layout", async () => {
-  const template = PRESETS.find(({ id }) => id === "wordfeud")!;
-  const board = emptyBoard(15);
-  board[111] = "A";
-  board[112] = "T";
-  const squares: (Premium | null)[] = [...template.premiums];
-  squares[111] = squares[112] = null;
-  squares[0] = "DW";
-  vi.mocked(recognizeBoard).mockResolvedValue({
-    board,
-    uncertain: [],
-    candidates: 2,
-    premiums: { style: "wordfeud", squares },
-  });
-  const worker = {
-    onmessage: undefined as ((event: unknown) => void) | undefined,
-    postMessage: vi.fn(),
-    terminate: vi.fn(),
-  };
-  vi.stubGlobal(
-    "Worker",
-    class {
-      constructor() {
-        return worker;
-      }
-    },
-  );
-  const { user, onApply } = await setup(undefined, template);
-  await user.click(screen.getByRole("button", { name: "Read board" }));
-  await user.click(
-    await screen.findByRole("button", { name: "Premium squares" }),
-  );
-  expect(
-    screen.getByRole("button", { name: "G8: empty, unknown premium" }),
-  ).toBeTruthy();
-  await user.click(screen.getByText("Use opening play scores"));
-  await user.type(
-    screen.getByRole("spinbutton", { name: "First play points · AT" }),
-    "3",
-  );
-  await user.click(
-    screen.getByRole("button", { name: "Infer covered squares" }),
-  );
-  expect(worker.postMessage.mock.calls[0][0][3]).toEqual([3]);
-  worker.onmessage?.({ data: { matches: 1, certain: [[111, "DL"]] } });
-  expect(await screen.findByRole("button", { name: "G8: DL" })).toBeTruthy();
-  await user.click(screen.getByRole("button", { name: "TW" }));
-  await user.click(screen.getByRole("button", { name: "A1: DW" }));
-  await user.click(
-    screen.getByRole("checkbox", {
-      name: "Clear board and start score tracking",
-    }),
-  );
-  await user.click(screen.getByRole("button", { name: "Use this board" }));
-  const [appliedBoard, appliedPremiums, clearBoard] = onApply.mock.calls[0];
-  expect(appliedBoard).toEqual(board);
-  expect(clearBoard).toBe(false);
-  expect(appliedPremiums[0]).toBe("TW");
-  expect(appliedPremiums[111]).toBe("DL");
-  expect(appliedPremiums[112]).toBe("");
-});
+test.each(["en", "fr"] as const)(
+  "Wordfeud premium review infers and applies the layout for %s",
+  async (language) => {
+    const template = templateForLanguage(
+      PRESETS.find(({ id }) => id === "wordfeud")!,
+      language,
+    );
+    const board = emptyBoard(15);
+    board[111] = "A";
+    board[112] = "T";
+    const squares: (Premium | null)[] = [...template.premiums];
+    squares[111] = squares[112] = null;
+    squares[0] = "DW";
+    vi.mocked(recognizeBoard).mockResolvedValue({
+      board,
+      uncertain: [],
+      candidates: 2,
+      premiums: { style: "wordfeud", squares },
+    });
+    const worker = {
+      onmessage: undefined as ((event: unknown) => void) | undefined,
+      postMessage: vi.fn(),
+      terminate: vi.fn(),
+    };
+    vi.stubGlobal(
+      "Worker",
+      class {
+        constructor() {
+          return worker;
+        }
+      },
+    );
+    const { user, onApply } = await setup(undefined, template);
+    await user.click(screen.getByRole("button", { name: "Read board" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Premium squares" }),
+    );
+    expect(screen.queryByText(/For Wordfeud tile values/)).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "G8: empty, unknown premium" }),
+    ).toBeTruthy();
+    await user.click(screen.getByText("Use opening play scores"));
+    await user.type(
+      screen.getByRole("spinbutton", { name: "First play points · AT" }),
+      "3",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Infer covered squares" }),
+    );
+    expect(worker.postMessage.mock.calls[0][0][3]).toEqual([3]);
+    worker.onmessage?.({ data: { matches: 1, certain: [[111, "DL"]] } });
+    expect(await screen.findByRole("button", { name: "G8: DL" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "TW" }));
+    await user.click(screen.getByRole("button", { name: "A1: DW" }));
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Clear board and start score tracking",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Use this board" }));
+    const [appliedBoard, appliedPremiums, clearBoard] = onApply.mock.calls[0];
+    expect(appliedBoard).toEqual(board);
+    expect(clearBoard).toBe(false);
+    expect(appliedPremiums[0]).toBe("TW");
+    expect(appliedPremiums[111]).toBe("DL");
+    expect(appliedPremiums[112]).toBe("");
+  },
+);

@@ -996,7 +996,7 @@ test("a custom board using French Scrabble scoring still prompts for a French wo
   expect(create.disabled).toBe(false);
 });
 
-test("Classic Lexulous alone offers a language picker and saves the selected tile set", async () => {
+test("Classic Lexulous offers its own language choices and saves the selected tile set", async () => {
   remote.dictionaries.push(
     { id: "csw", name: "CSW24", count: 8, builtin: false, description: "" },
     { id: "grammalecte", name: "Grammalecte 7.7", count: 8, builtin: false, description: "" },
@@ -1029,6 +1029,41 @@ test("Classic Lexulous alone offers a language picker and saves the selected til
   expect(saved.template.id).toBe("lexulous");
   expect(saved.template.rules).toBe("lexulous-it");
   expect(saved.template.tileCounts?.O).toBe(15);
+});
+
+test("Wordfeud chooses a French list for its own tile set and allows an override", async () => {
+  const imported = (id: string, name: string) => ({
+    id, name, count: 8, builtin: false, description: "",
+  });
+  remote.dictionaries.push(imported("lexulous-fr", "Lexulous French"));
+  const user = await start();
+  await user.click(screen.getByRole("button", { name: "New game" }));
+  const dialog = within(screen.getByRole("dialog", { name: "New game" }));
+  const layout = dialog.getByRole("combobox", { name: "Board layout" });
+  const dictionary = dialog.getByRole<HTMLSelectElement>("combobox", { name: "Word list" });
+  await user.selectOptions(layout, "wordfeud");
+  const picker = dialog.getByRole<HTMLSelectElement>("combobox", { name: "Language" });
+  expect(picker.value).toBe("en");
+  expect(dictionary.value).toBe("test");
+  await user.selectOptions(picker, "fr");
+  expect(dictionary.value).toBe("");
+
+  remote.dictionaries.push(imported("grammalecte", "Grammalecte 7.7"));
+  await act(() => store.refresh());
+  expect(dictionary.value).toBe("grammalecte");
+  remote.dictionaries.push(imported("wordfeud-fr", "Wordfeud Français"));
+  await act(() => store.refresh());
+  expect(dictionary.value).toBe("wordfeud-fr");
+  await user.selectOptions(layout, "lexulous");
+  expect(dialog.getByRole<HTMLSelectElement>("combobox", { name: "Language" }).value).toBe("en-US");
+  await user.selectOptions(layout, "wordfeud");
+  expect(dialog.getByRole<HTMLSelectElement>("combobox", { name: "Language" }).value).toBe("fr");
+  await user.selectOptions(dictionary, "grammalecte");
+  await user.click(dialog.getByRole("button", { name: "Create game" }));
+  await waitFor(() => expect(remote.games).toHaveLength(2));
+  expect(remote.games[1].dictionaryId).toBe("grammalecte");
+  expect(remote.games[1].template.rules).toBe("wordfeud-fr");
+  expect(remote.games[1].template.tileCounts?.E).toBe(14);
 });
 
 test("new game suggests distinct opponents by the end date or start date within two weeks", async () => {
