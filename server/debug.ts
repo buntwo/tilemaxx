@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { createHash } from "node:crypto";
-import packageJson from "../package.json";
+import { version } from "../version.json";
 import type { createStore } from "./store";
 
 /** A separate read-only surface for developer tools. Mount before body parsing. */
@@ -36,7 +36,7 @@ export function createDebugRouter(store: ReturnType<typeof createStore>) {
     }
     res.json({
       schemaVersion: 1,
-      serverVersion: packageJson.version,
+      serverVersion: version,
       exportedAt: new Date().toISOString(),
       game,
       dictionary: {

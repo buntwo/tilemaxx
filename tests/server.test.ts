@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { version } from "../package.json";
+import { version } from "../version.json";
 import { createStore } from "../server/store";
 import { createApp } from "../server/app";
 import { archiveGame, emptyBoard, type AppState, type Game } from "../shared/model";

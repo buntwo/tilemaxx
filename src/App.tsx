@@ -35,7 +35,7 @@ import {
   Archive,
   Trash2,
 } from "lucide-react";
-import { version } from "../package.json";
+import { version } from "../version.json";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
 import BoardEntry, {
   BoardEntryHelp,

@@ -7,6 +7,7 @@ import { createServer } from "node:http";
 import { createApp } from "../server/app";
 import { createStore } from "../server/store";
 import { runDebug } from "../scripts/debug";
+import { version } from "../version.json";
 
 test("debug API and tools export reproducible snapshots without writes", async () => {
   const root = mkdtempSync(join(tmpdir(), "tilemaxx-debug-"));
@@ -88,10 +89,7 @@ test("debug API and tools export reproducible snapshots without writes", async (
     assert.deepEqual(snapshot.game, game);
     assert.equal(snapshot.source, base);
     assert.equal(snapshot.schemaVersion, 1);
-    assert.equal(
-      snapshot.serverVersion,
-      JSON.parse(readFileSync("package.json", "utf8")).version,
-    );
+    assert.equal(snapshot.serverVersion, version);
     assert.equal(
       readFileSync(join(folder, "dictionary.txt"), "utf8"),
       store.dictionaryText(game.dictionaryId),

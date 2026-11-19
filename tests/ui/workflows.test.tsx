@@ -9,7 +9,7 @@ import {
   fireEvent,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { version } from "../../package.json";
+import { version } from "../../version.json";
 import App from "../../src/App";
 import OptimalExchange from "../../src/components/OptimalExchange";
 import { GameStore, store } from "../../src/store";
