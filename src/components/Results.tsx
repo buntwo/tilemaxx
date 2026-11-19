@@ -47,6 +47,7 @@ import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import { endgameLength } from "../endgame-line-format";
 import { canHoverWithMouse } from "../move-preview";
 import MoveAnalysis from "./MoveAnalysis";
+import HighCeilingSetups from "./HighCeilingSetups";
 import EmptyMoveTiles from "./EmptyMoveTiles";
 import MoveWord, { BingoBadge, MoveLetters } from "./MoveWord";
 import BingoOddsControls from "./BingoOddsControls";
@@ -732,7 +733,10 @@ export default function Results({
     <span role="status">
       {hunterProgress.phase === "screen" ? "Screening bingo setups" :
         hunterProgress.phase === "screen-replies" ? "Screening opponent replies" :
-        hunterProgress.phase === "sample" ? "Simulating replies" : "Refining bingo estimates"}
+        hunterProgress.phase === "sample" ? "Simulating replies" :
+        hunterProgress.phase === "ceiling-discovery" ? "Finding high-scoring bingo setups" :
+        hunterProgress.phase === "ceiling-replies" ? "Checking replies to high-scoring setups" :
+        "Refining bingo estimates"}
       {hunterProgress.total > 0 && ` · ${hunterProgress.done}/${hunterProgress.total} moves`}
     </span>
   );
@@ -1237,7 +1241,8 @@ export default function Results({
               {hunterStatus ?? (
                 <span role="status">
                   {hunterResult.checked} candidates checked
-                  {hunterResult.canContinue && " · Provisional"}
+                  {hunterResult.canContinue && (hunterResult.ceilingPass ? " · High-ceiling setups ready to check" : " · Provisional")}
+                  {hunterResult.ceilings?.length === 0 && !hunterResult.canContinue && " · No high-ceiling setups found"}
                   {hunterResult.finalistsFirst && " · Finalists ranked first"}
                   {hunterResult.limited && " · Search limit reached"}
                   {hunter.current?.error && ` · ${hunter.current.error}`}
@@ -1245,6 +1250,10 @@ export default function Results({
               )}
               {hunterAction}
             </div>
+          )}
+          {!!hunterResult?.ceilings?.length && (
+            <HighCeilingSetups setups={hunterResult.ceilings} selected={locked}
+              onPreview={togglePin} onPlay={(move) => { setLocked(null); onPlay(move); }} />
           )}
           <div className="result-columns">
             <div className="result-word-heading">

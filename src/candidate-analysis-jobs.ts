@@ -1,4 +1,5 @@
 import { createHunterEvaluator, type HunterDeal, type HunterPosition } from "../shared/bingo-hunter";
+import { findBingoCeiling, prepareCeilingReplies, type BingoCeiling, type CeilingReply } from "../shared/bingo-ceilings";
 import { checkBoardBingoMove, type BoardOdds } from "../shared/bingo-odds";
 import { EndgameSearchLimitError, type EndgameLine } from "../shared/endgame";
 import type { Lexicon } from "../shared/lexicon";
@@ -37,6 +38,23 @@ export type CandidateJob =
       deadline: number;
       wavesRemaining: number;
     }
+  | {
+      kind: "bingo-ceiling";
+      position: HunterPosition;
+      move: Move;
+      pool: string[];
+      opponentSize: number;
+      scoutReplyOpenings: boolean;
+      deadline: number;
+    }
+  | {
+      kind: "bingo-ceiling-replies";
+      position: HunterPosition;
+      move: Move;
+      ceiling: BingoCeiling;
+      racks: string[];
+      deadline: number;
+    }
   | (CandidateMove & { kind: "endgame"; timeLimitMs?: 5_000 | 10_000 })
   | {
       kind: "opponent-endgame";
@@ -71,6 +89,8 @@ export type CandidateJob =
 export type CandidateResult =
   | { kind: "histogram"; board: ReturnType<typeof summarizeReplyBoard> }
   | { kind: "bingo-hunter"; outcomes: number[]; blocked?: boolean }
+  | { kind: "bingo-ceiling"; ceiling?: BingoCeiling }
+  | { kind: "bingo-ceiling-replies"; replies: CeilingReply[]; blocked?: boolean }
   | { kind: "endgame"; line: EndgameLine; elapsed: number }
   | { kind: "opponent-endgame"; line?: EndgameLine }
   | { kind: "board-bingo"; odds?: BoardOdds }
@@ -125,6 +145,29 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
             }
           }
           return { kind: "bingo-hunter", outcomes };
+        }
+        case "bingo-ceiling": {
+          const deadline = Math.min(started + 350, job.deadline - performance.timeOrigin);
+          const ceiling = findBingoCeiling(
+            lexicon, job.position, job.move, job.pool,
+            job.opponentSize, job.scoutReplyOpenings, deadline,
+          );
+          return { kind: job.kind, ceiling };
+        }
+        case "bingo-ceiling-replies": {
+          const evaluate = prepareCeilingReplies(lexicon, job.position, job.move, job.ceiling);
+          const deadline = job.deadline - performance.timeOrigin;
+          const replies: CeilingReply[] = [];
+          for (const rack of job.racks) {
+            if (performance.now() >= deadline) break;
+            try {
+              replies.push(evaluate(rack, deadline));
+            } catch (error) {
+              if (!(error instanceof SearchLimitError)) throw error;
+              return { kind: job.kind, replies, blocked: error.reason !== "time" };
+            }
+          }
+          return { kind: job.kind, replies };
         }
         case "histogram":
           return {

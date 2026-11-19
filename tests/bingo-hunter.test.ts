@@ -83,6 +83,7 @@ test("best bingo scoring agrees with full move generation for blanks and differe
           expected,
           `${template.id} ${anchor} ${rack}`,
         );
+        assert.equal(solver.bestBingo(rack)?.score ?? 0, expected);
       }
     }
   }

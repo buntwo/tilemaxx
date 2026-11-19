@@ -15,6 +15,7 @@ import {
 } from "./model";
 import { splitRack } from "./rack-entry";
 import { leaveTileValue, leaveValue } from "./rack-leave";
+import { searchBingoDrawLanes } from "./bingo-draw-lanes";
 
 // Paired bingo searches start consistently benefiting around this density.
 const MIN_BINGO_LANE_DENSITY = 0.04;
@@ -821,7 +822,7 @@ function prepareBoardSolver(
             available,
             blanks,
           );
-          if (bingoOnly && !summaryOnly && moveCount) return true;
+          if (bingoOnly && !summaryOnly && !replyOnly && moveCount) return true;
         }
         if (atEdge) return false;
         if (letters[cell]) {
@@ -1117,6 +1118,10 @@ function prepareBoardSolver(
       run(rack, limits, { rankLeave }, "reply").moves[0] ?? null,
     bestBingoScore: (rack: string, limits: Limits = {}) =>
       run(rack, limits, { bingoOnly: true }, "score").bestScore,
+    bestBingo: (rack: string, limits: Limits = {}) =>
+      run(rack, limits, { bingoOnly: true }, "reply").moves[0] ?? null,
+    bingoDrawLanes: (leave: string, pool: readonly string[], drawSize: number, deadline: number) =>
+      searchBingoDrawLanes(lexicon, { letters, points, anchors, directions }, layout, leave, pool, drawSize, deadline),
     bestScore: (rack: string, limits: Limits = {}) =>
       run(rack, limits, {}, "score").bestScore,
     summarize: (rack: string, limits: Limits = {}) => {
