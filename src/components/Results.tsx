@@ -627,11 +627,14 @@ export default function Results({
   const pagePending = shortlistActive
     ? shortlistResult?.searchId !== searchId
     : page.pending;
-  const bingoCount = profile ? page.bingoCount : requiredSquares
-    ? shortlistActive
+  // Bingo hunter ranks a subset. The base search already counted all legal bingos.
+  const bingoCount = hunterSelected || (!profile && !requiredSquares)
+    ? resultSet?.bingoCount ?? 0
+    : shortlistActive
       ? filteredShortlist.filter((move) => isBingo(bingoRules, move.tiles.length)).length
-      : page.bingoCount
-    : resultSet?.bingoCount ?? 0;
+      : page.bingoCount;
+  const showLegalMoveCount = hunterSelected && (!hunterResult?.checked || pagePending);
+  const showListCount = (requiredSquares || profile) && !showLegalMoveCount;
   const formattedBingoCount = bingoCount.toLocaleString();
   const bingoLabel = `${formattedBingoCount} ${bingoCount === 1 ? "bingo" : "bingos"}`;
   useEffect(() => {
@@ -970,14 +973,16 @@ export default function Results({
                 className="count-badge result-bingo-count"
                 role="img"
                 aria-label={bingoLabel}
-                title={bingoLabel}
+                title={hunterSelected ? `${bingoLabel} across all legal moves` : bingoLabel}
               >
                 <Trophy size={11} aria-hidden="true" />
                 {formattedBingoCount}
               </span>
             )}
-            <span className="count-badge" title={requiredSquares ? "Moves covering the selected squares" : undefined}>
-              {(requiredSquares || profile) && pagePending ? "…" : (requiredSquares || profile ? total : totalMoves).toLocaleString()}
+            <span className="count-badge" title={hunterSelected
+              ? showLegalMoveCount ? "All legal moves" : "Moves in the Bingo hunter list"
+              : requiredSquares ? "Moves covering the selected squares" : undefined}>
+              {showListCount && pagePending ? "…" : (showListCount ? total : totalMoves).toLocaleString()}
             </span>
           </div>
         )}
