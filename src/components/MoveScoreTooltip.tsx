@@ -43,6 +43,11 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
               <span>Average best bingo when available</span><span>{formatUtility(utility.meanBingoScore)}</span>
             </li>
           )}
+          {utility.highestBingo > 0 && (
+            <li className="score-breakdown-line">
+              <span>Highest bingo found</span><span>{utility.highestBingo}</span>
+            </li>
+          )}
         </ul>
         <div className="score-breakdown-line score-breakdown-total">
           <strong>Utility</strong><strong>{formatUtility(utility.total)}</strong>

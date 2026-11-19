@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  chooseHunterCandidates,
+  chooseHunterFinalists,
   createHunterEvaluator,
   exactHunterDeals,
+  hunterScreen,
   hunterUtility,
   sampleHunterDeals,
 } from "../shared/bingo-hunter";
 import { Lexicon } from "../shared/lexicon";
-import { emptyBoard, isBingo } from "../shared/model";
+import { emptyBoard, isBingo, type Move } from "../shared/model";
 import { randomGenerator } from "../shared/move-analysis";
 import { PRESETS } from "../shared/presets";
 import { TILE_SYMBOLS } from "../shared/tile-pool";
@@ -156,4 +159,77 @@ test("an exhausted bag gives credit for a bingo now and zero for ordinary points
   assert.equal(ranked[1].utility.total, 0);
   assert.equal(ranked[0].utility.exact, true);
   assert.deepEqual(phases, ["sample", "sample", "sample"]);
+});
+
+function setup(index: number, score: number, leave = "AGIINN"): Move {
+  return {
+    id: String(index),
+    direction: "down",
+    word: "RA",
+    row: Math.floor(index / 15),
+    col: index % 15,
+    score,
+    leave,
+    tiles: [{ index, letter: "R" }],
+    blanks: 0,
+    crosses: [],
+  };
+}
+
+test("a lower-scoring setup survives by leaving a two-triple bingo lane", () => {
+  const template = PRESETS[0];
+  const board = emptyBoard(template.size);
+  board[16] = "A";
+  const position = {
+    template,
+    board,
+    rack: "AGIINNR",
+    bagSize: 60,
+    scorelessTurns: 0,
+  };
+  const lane = setup(1, 4);
+  const moves = Array.from({ length: 120 }, (_, i) => ({
+    ...setup((4 + (i % 7)) * 15 + 4 + (Math.floor(i / 7) % 7), 99 - i),
+    id: `interior-${i}`,
+  }));
+  const { screen, laneOrder } = hunterScreen([...moves, lane], position);
+  assert.equal(screen.length, 96);
+  assert.ok(screen.includes(lane));
+  assert.equal(laneOrder[0], lane);
+  const dictionary = new Lexicon(["RA", "TRAINING"]);
+  const evaluate = createHunterEvaluator(dictionary, position, lane);
+  assert.equal(evaluate({ opponent: "", bag: "T" }, true, Infinity), 140);
+});
+
+test("board leaders, reply leaders and rare high scores all earn more samples", () => {
+  const before = Array.from({ length: 36 }, (_, i) => setup(i, 1));
+  const after = Array.from({ length: 36 }, (_, i) => setup(i + 40, 1));
+  const lane = setup(100, 1),
+    peak = setup(101, 1);
+  const candidates = chooseHunterCandidates(
+    before,
+    before,
+    after,
+    [peak],
+    [lane],
+  );
+  assert.equal(candidates.length, 36);
+  assert.deepEqual(candidates.slice(0, 20), before.slice(0, 20));
+  for (const expected of [before[0], after[0], lane, peak])
+    assert.ok(candidates.includes(expected));
+
+  const deals = Array.from({ length: 20 }, () => ({ opponent: "", bag: "" }));
+  const ranked = before.map((move) => ({
+    move,
+    utility: hunterUtility(0, Array(20).fill(60), deals),
+  }));
+  const rare = {
+    move: peak,
+    utility: hunterUtility(0, [140, ...Array(19).fill(0)], deals),
+  };
+  const finalists = chooseHunterFinalists([...ranked, rare]);
+  assert.equal(finalists.length, 12);
+  assert.ok(finalists.includes(rare));
+  assert.equal(rare.utility.total, 7);
+  assert.equal(rare.utility.highestBingo, 140);
 });
