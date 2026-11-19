@@ -206,12 +206,30 @@ function casualSwaps(rack: string, slots: number[], maxDraw: number) {
     Math.min(preferred, maxDraw),
     Math.min(preferred + 1, maxDraw),
   ]);
-  return [...sizes].map((size) =>
+  const candidates = [...sizes].map((size) =>
     order
       .slice(0, size)
       .map(({ slot }) => slot)
       .sort((a, b) => a - b),
   );
+  const first = candidates[0];
+  const rackCounts = letterCounts(rack);
+  const returned = letterCounts(first.map((slot) => rack[slot]).join(""));
+  // A big swap can discard every copy of a common letter. Compare one
+  // smaller swap that keeps a copy when the rack would otherwise lose it.
+  const keepOne = new Set(
+    Object.entries(returned)
+      .filter(
+        ([letter, count]) =>
+          count > 1 &&
+          count === rackCounts[letter] &&
+          "AENRST".includes(letter),
+      )
+      .map(([letter]) => letter),
+  );
+  if (keepOne.size)
+    candidates.push(first.filter((slot) => !keepOne.delete(rack[slot])));
+  return candidates;
 }
 
 function* subsets(slots: readonly number[], maxDraw: number) {

@@ -43,6 +43,36 @@ test("casual and learner exchange a poor rack using heuristics and keep held til
   }
 });
 
+test("casual can keep one copy of useful duplicates in a large swap", () => {
+  const profile = "casual" as const;
+  for (const [rack, held, expectedSwap, expectedKeep] of [
+    ["AAAEEET", [], "AAEE", "AET"],
+    ["EEETAAA", [], "AAEE", "AET"],
+    ["AAAEEET", [0], "AAEEE", "AT"],
+  ] as const) {
+    const position = fixture(rack, [...held]);
+    const result = screenPlayerExchange({ ...position, profile });
+    assert.ok(result.advice);
+    assert.equal(result.comparison, undefined);
+    const { slots } = result.advice;
+    assert.equal(
+      slots
+        .map((slot) => rack[slot])
+        .sort()
+        .join(""),
+      expectedSwap,
+    );
+    assert.equal(
+      [...rack]
+        .filter((_, slot) => !slots.includes(slot))
+        .sort()
+        .join(""),
+      expectedKeep,
+    );
+    assert.ok(held.every((slot) => !slots.includes(slot)));
+  }
+});
+
 test("exchange respects the active bag and rack constraints", () => {
   const position = { ...fixture("EIOOOUU"), profile: "learner" as const };
   assert.deepEqual(
