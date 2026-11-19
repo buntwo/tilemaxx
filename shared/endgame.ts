@@ -31,6 +31,7 @@ export const endgameStreaks: Record<
   EndgameStreak | undefined
 > = {
   scrabble: { limit: 6 },
+  "scrabble-fr": { limit: 6, passesOnly: true },
   wwf: { limit: 3 },
   wordfeud: { limit: 3, passesOnly: true },
   lexulous: { limit: 2, passesOnly: true },
@@ -38,7 +39,7 @@ export const endgameStreaks: Record<
 };
 
 export interface EndgameSettings {
-  // Wordfeud and Lexulous count only passes toward this streak.
+  // Some rulesets count only passes toward this streak.
   scorelessTurns: number;
   opponentHasFinalTurn?: boolean;
 }

@@ -26,6 +26,20 @@ import {
 const lex = (words: string) =>
   new Lexicon(parseWords(words.split(" ").join("\n")));
 
+test("French solver and score tracking agree on face values and blanks", () => {
+  const french = PRESETS.find(({ id }) => id === "scrabble-fr")!;
+  const board = emptyBoard(french.size);
+  for (const [rack, score] of [["KIWI", 44], ["KI?I", 24]] as const) {
+    const move = solve(lex("KIWI"), board, rack, french).find(
+      ({ row, col, direction }) => row === 7 && col === 5 && direction === "across",
+    )!;
+    assert.equal(move.score, score);
+    const played = [...board];
+    for (const { index, letter } of move.tiles) played[index] = letter;
+    assert.equal(scorePlacement(board, played, french)?.score, score);
+  }
+});
+
 test("solver factories match independent board preparation across every preset", () => {
   const dictionary = lex("AT CAT CATS ACT RAT ART TAR READING READINGS");
   for (const template of PRESETS) {

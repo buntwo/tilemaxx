@@ -132,8 +132,8 @@ export default function WordLists({
       <div className="import-box">
         <h3>Bring your own word list</h3>
         <p>
-          A .txt file with one English word per line. You can import NWL, other
-          Collins editions, or your own house dictionary.
+          Use a .txt file with one word per line in A–Z tile spelling. You can
+          import Grammalecte for French play or supply your own list.
         </p>
         <label
           className={`button secondary file-button ${busy ? "disabled" : ""}`}

@@ -17,6 +17,7 @@ test("starting counts cover every preset and snapshots without explicit counts",
     [4, 100, 3, 12],
     [5, 89, 2, 11],
     [6, 178, 4, 22],
+    [7, 102, 2, 15],
   ]) {
     const template = { ...PRESETS[index], tileCounts: undefined };
     const pool = unseenTiles({ board: [], rack: "" }, template);
@@ -24,6 +25,46 @@ test("starting counts cover every preset and snapshots without explicit counts",
     assert.equal(pool.totals.blank, blanks);
     assert.equal(getTileCounts(template).E, eCount);
   }
+});
+
+test("French Scrabble uses the classic board with French tile counts and values", () => {
+  const french = PRESETS.find(({ id }) => id === "scrabble-fr")!;
+  assert.deepEqual(french.premiums, PRESETS[0].premiums);
+  assert.equal(french.rackSize, 7);
+  assert.equal(french.bingo, 50);
+  const pool = unseenTiles({ board: [], rack: "" }, french);
+  const tiles = Object.fromEntries(
+    pool.tiles.map(({ symbol, count, score }) => [symbol, [count, score]]),
+  );
+  assert.deepEqual(tiles, {
+    A: [9, 1],
+    B: [2, 3],
+    C: [2, 3],
+    D: [3, 2],
+    E: [15, 1],
+    F: [2, 4],
+    G: [2, 2],
+    H: [2, 4],
+    I: [8, 1],
+    J: [1, 8],
+    K: [1, 10],
+    L: [5, 1],
+    M: [3, 2],
+    N: [6, 1],
+    O: [6, 1],
+    P: [2, 3],
+    Q: [1, 8],
+    R: [6, 1],
+    S: [6, 1],
+    T: [6, 1],
+    U: [6, 1],
+    V: [2, 4],
+    W: [1, 10],
+    X: [1, 10],
+    Y: [1, 10],
+    Z: [1, 10],
+    "?": [2, 0],
+  });
 });
 
 test("tile tracking subtracts placed letters, assigned blanks, and rack tiles", () => {

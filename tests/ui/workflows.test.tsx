@@ -941,6 +941,44 @@ test("a new game defaults to imported WOW24 even from another dictionary", async
   expect(current().dictionaryId).toBe("test");
 });
 
+test("French Scrabble selects an installed Grammalecte list ahead of WOW24", async () => {
+  remote.dictionaries.push(
+    { id: "wow24", name: "WOW24", count: 8, builtin: false, description: "" },
+    { id: "french", name: "Grammalecte 7.7", count: 8, builtin: false, description: "" },
+  );
+  const user = await start();
+  await user.click(screen.getByRole("button", { name: "New game" }));
+  const dialog = within(screen.getByRole("dialog", { name: "New game" }));
+  const layout = dialog.getByRole<HTMLSelectElement>("combobox", { name: "Board layout" });
+  const dictionary = dialog.getByRole<HTMLSelectElement>("combobox", { name: "Word list" });
+  expect(dictionary.value).toBe("wow24");
+  await user.selectOptions(layout, "scrabble-fr");
+  expect(dictionary.value).toBe("french");
+  await user.selectOptions(layout, "scrabble");
+  expect(dictionary.value).toBe("wow24");
+  await user.selectOptions(layout, "scrabble-fr");
+  await user.type(dialog.getByRole("combobox", { name: "Opponent" }), "Camille");
+  await user.click(dialog.getByRole("button", { name: "Create game" }));
+  await waitFor(() => expect(remote.games).toHaveLength(2));
+  expect(remote.games[1].dictionaryId).toBe("french");
+  expect(remote.games[1].template.rules).toBe("scrabble-fr");
+});
+
+test("a French game without Grammalecte requires an explicit choice of word list", async () => {
+  const user = await start();
+  await user.click(screen.getByRole("button", { name: "New game" }));
+  const dialog = within(screen.getByRole("dialog", { name: "New game" }));
+  const layout = dialog.getByRole("combobox", { name: "Board layout" });
+  const dictionary = dialog.getByRole<HTMLSelectElement>("combobox", { name: "Word list" });
+  const create = dialog.getByRole<HTMLButtonElement>("button", { name: "Create game" });
+  await user.selectOptions(layout, "scrabble-fr");
+  expect(dictionary.value).toBe("");
+  expect(create.disabled).toBe(true);
+  expect(dialog.getByText(/import Grammalecte under Word lists/i)).toBeTruthy();
+  await user.selectOptions(dictionary, "test");
+  expect(create.disabled).toBe(false);
+});
+
 test("new game suggests distinct opponents by the end date or start date within two weeks", async () => {
   function daysAgo(days: number) {
     const date = new Date();

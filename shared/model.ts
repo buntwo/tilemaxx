@@ -3,6 +3,7 @@ import { rackAfterMove } from "./rack-entry";
 export type Premium = "" | "DL" | "TL" | "QL" | "DW" | "TW" | "QW";
 export const RULE_NAMES = {
   scrabble: "Scrabble",
+  "scrabble-fr": "French Scrabble",
   wwf: "Words With Friends",
   wordfeud: "Wordfeud",
   crossplay: "NYT Crossplay",
@@ -281,6 +282,10 @@ export const SCORES: Record<Rules, Record<string, number>> = {
   scrabble: letterValues([
     1, 3, 3, 2, 1, 4, 2, 4, 1, 8, 5, 1, 3, 1, 1, 3, 10, 1, 1, 1, 1, 4, 4, 8, 4,
     10,
+  ]),
+  "scrabble-fr": letterValues([
+    1, 3, 3, 2, 1, 4, 2, 4, 1, 8, 10, 1, 2, 1, 1, 3, 8, 1, 1, 1, 1, 4, 10,
+    10, 10, 10,
   ]),
   wwf: letterValues([
     1, 4, 4, 2, 1, 4, 3, 3, 1, 10, 5, 2, 4, 2, 1, 4, 10, 1, 1, 1, 2, 5, 4, 8, 3,
