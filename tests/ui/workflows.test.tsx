@@ -2604,9 +2604,14 @@ test("custom template creation/editing persists one template and built-ins have 
 
 test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters", async () => {
   const user = await start();
+  const bag = (count: number) =>
+    screen.getByRole("img", { name: `${count} estimated tiles in the bag` }).textContent;
+  expect(bag(93)).toBe("93");
   await typeRack(user, "A ");
+  expect(bag(91)).toBe("91");
   await user.click(cell("H8: DW, start"));
   await user.keyboard(" Q");
+  expect(bag(90)).toBe("90");
   await user.click(
     screen.getByText(/unseen tiles?$/, {
       selector: ".tile-pool summary strong",
@@ -2625,6 +2630,7 @@ test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters
   expect(pool().queryByRole("listitem", { name: /^A:/ })).toBeNull();
   expect(pool().getByRole("listitem", { name: "Q: 1 unseen" })).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Undo" }));
+  expect(bag(91)).toBe("91");
   await user.selectOptions(filter, "all");
   expect(
     pool().getByRole("listitem", { name: "Blank: 1 unseen" }),
@@ -5146,6 +5152,7 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
   };
   const visibleRack = await panel.findByRole("img", { name: "Opponent rack: J, J, blank" });
   expect([...visibleRack.children].map((tile) => tile.textContent)).toEqual(["J", "J", ""]);
+  expect(panel.getByRole("img", { name: "0 estimated tiles in the bag" }).textContent).toBe("0");
   expectLabeledRacks();
   expect(panel.getByText("Rack tools").closest(".rack-lane")).toBe(opponentRack()?.parentElement);
   expect(panel.queryByRole("button", { name: "Optimal exchange" })).toBeNull();

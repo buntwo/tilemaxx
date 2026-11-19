@@ -54,6 +54,7 @@ export default function RackEntry({
   onReviewEdit,
   positionKey,
   exchangeAdvice,
+  bagCount,
   exchangeBag,
   exchangeBagConfirmed,
   opponentRack,
@@ -68,6 +69,7 @@ export default function RackEntry({
   onReviewEdit?: () => void;
   positionKey: string;
   exchangeAdvice?: SwapAdvice;
+  bagCount: number;
   exchangeBag: number;
   exchangeBagConfirmed: boolean;
   opponentRack: string;
@@ -99,6 +101,7 @@ export default function RackEntry({
   const requireMode = mode === "require";
   const exchangeMode = mode === "exchange";
   const reviewing = !!onReviewEdit;
+  const bagLabel = `${bagCount} estimated ${bagCount === 1 ? "tile" : "tiles"} in the bag`;
   const tools = useRef<HTMLDetailsElement>(null);
   const openExchange = useRef<{ reveal: boolean }>(null);
   const exchangeButton = useRef<HTMLButtonElement>(null);
@@ -637,16 +640,28 @@ export default function RackEntry({
         )}
         {playerTiles}
         {!reviewing && (
-          <button
-            type="button"
-            className="button secondary rack-shuffle"
-            aria-label="Shuffle rack"
-            title="Shuffle rack"
-            disabled={!canReorder || rackLetters(game.rack).length < 2}
-            onClick={reorder.shuffle}
-          >
-            <Shuffle size={16} aria-hidden="true" />
-          </button>
+          <>
+            <button
+              type="button"
+              className="button secondary rack-shuffle"
+              aria-label="Shuffle rack"
+              title="Shuffle rack"
+              disabled={!canReorder || rackLetters(game.rack).length < 2}
+              onClick={reorder.shuffle}
+            >
+              <Shuffle size={16} aria-hidden="true" />
+            </button>
+            <span
+              className="rack-bag"
+              role="img"
+              aria-label={bagLabel}
+              title={bagLabel}
+              data-empty={bagCount === 0 || undefined}
+              data-digits={String(bagCount).length}
+            >
+              {bagCount}
+            </span>
+          </>
         )}
       </div>
       {opponentRack && (
