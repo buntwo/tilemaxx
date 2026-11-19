@@ -11,7 +11,7 @@ import { randomGenerator } from "../shared/move-analysis";
 import { profileWordHash } from "../shared/player-profiles";
 import type { CandidateJob } from "./candidate-analysis-jobs";
 import type { createCandidatePool } from "./candidate-analysis-pool";
-import type { HunterProgress } from "./parallel-bingo-hunter";
+import type { HunterStageProgress } from "./parallel-bingo-hunter";
 
 const CEILING_SLOTS = 6;
 const REPLY_OPEN_SLOTS = 2;
@@ -66,7 +66,7 @@ export function createBingoCeilingSearch(
     workers: ReturnType<typeof createCandidatePool>,
     deadline: number,
     signal: AbortSignal,
-    progress: (value: HunterProgress) => void,
+    progress: (value: HunterStageProgress) => void,
   ) {
     let advanced = false;
     if (!reviews) {

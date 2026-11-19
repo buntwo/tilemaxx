@@ -271,7 +271,7 @@ test("playing style requests ranked pages and All moves restores the full list",
   expect(screen.getAllByRole("button", { name: /^Score breakdown for/ }).length).toBeGreaterThan(0);
 });
 
-test("Bingo hunter runs only on demand, supports cancel and shows bingo utility", async () => {
+test("Bingo hunter starts on demand, then follows new move searches", async () => {
   let runs = 0;
   let cancellations = 0;
   let firstResultId: number | undefined;
@@ -280,10 +280,11 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
     postMessage(request: SolverRequest) {
       if (request.kind === "bingo-hunter") {
         runs++;
-        if (runs < 3) {
+        if (runs < 3 || runs === 6) {
+          expect(request.resumeFrom).toBeUndefined();
           this.onmessage?.({ data: {
             id: request.id, kind: "bingo-hunter-progress",
-            progress: { phase: "sample", done: 1, total: 8 },
+            progress: { phase: "sample", stage: 1, done: 1, total: 8 },
           } });
           return;
         }
@@ -292,7 +293,7 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
           expect(request.resumeFrom).toBe(firstResultId);
           this.onmessage?.({ data: {
             id: request.id, kind: "bingo-hunter-progress",
-            progress: { phase: "ceiling-discovery", done: 1, total: 8 },
+            progress: { phase: "ceiling-discovery", stage: 4, done: 1, total: 8 },
           } });
           return;
         }
@@ -333,7 +334,7 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
   expect(runs).toBe(0);
   const button = () => screen.getByRole("button", { name: "Run Bingo hunter" });
   await user.click(button());
-  expect(await screen.findByText("Simulating replies · 1/8 moves")).toBeTruthy();
+  expect(await screen.findByText("1. Simulating replies · 1/8 moves")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
   expect(cancellations).toBe(1);
   await user.click(button());
@@ -352,7 +353,7 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
   expect(tooltip.getByText("30%")).toBeTruthy();
   expect(screen.getByText(/High-ceiling setups ready to check/)).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Run another 10 seconds" }));
-  expect(await screen.findByText("Finding high-scoring bingo setups · 1/8 moves")).toBeTruthy();
+  expect(await screen.findByText("4. Finding high-scoring bingo setups · 1/8 moves")).toBeTruthy();
   expect(screen.getByText("U 21")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
   expect(screen.getByText("U 21")).toBeTruthy();
@@ -365,6 +366,18 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
   expect(document.querySelectorAll(".board-entry .ghost").length).toBeGreaterThan(0);
   expect(screen.getByRole("button", { name: `Play ${ceilingMove!}` })).toBeTruthy();
   expect(screen.getByText("U 21")).toBeTruthy();
+
+  await user.click(rackTile(1));
+  await user.keyboard("{Enter}");
+  expect(runs).toBe(5);
+  await typeRack(user, "R");
+  expect(runs).toBe(5);
+  await user.keyboard("{Enter}");
+  expect(await screen.findByText("1. Simulating replies · 1/8 moves")).toBeTruthy();
+  expect(runs).toBe(6);
+  await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
+  expect(runs).toBe(6);
+  expect(button()).toBeTruthy();
 });
 
 test("phone analysis taps preview and select a move without offering Play", async () => {

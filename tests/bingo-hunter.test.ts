@@ -181,14 +181,14 @@ test("an exhausted bag gives credit for a bingo now and zero for ordinary points
     undefined,
     1,
     new AbortController().signal,
-    ({ phase }) => phases.push(phase),
+    ({ phase, stage }) => phases.push(`${stage}.${phase}`),
   );
   assert.equal(summary.checked, selected.length);
   assert.equal(ranked[0].move.word, "READING");
   assert.equal(ranked[0].utility.total, ranked[0].move.score);
   assert.equal(ranked[1].utility.total, 0);
   assert.equal(ranked[0].utility.exact, true);
-  assert.deepEqual([...new Set(phases)], ["sample"]);
+  assert.deepEqual([...new Set(phases)], ["1.exact"]);
 });
 
 function setup(index: number, score: number, leave = "AGIINN"): Move {
