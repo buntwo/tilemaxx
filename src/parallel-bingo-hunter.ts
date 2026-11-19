@@ -17,6 +17,7 @@ import {
   type RankedHunterMove,
 } from "../shared/bingo-hunter";
 import type { RackOdds } from "../shared/bingo-odds";
+import type { BingoCeilingResult } from "../shared/bingo-ceilings";
 import type { Lexicon } from "../shared/lexicon";
 import type { Move } from "../shared/model";
 import { randomGenerator } from "../shared/move-analysis";
@@ -24,9 +25,10 @@ import { profileWordHash } from "../shared/player-profiles";
 import { rackComposition } from "../shared/rack-entry";
 import type { CandidateJob } from "./candidate-analysis-jobs";
 import { createCandidatePool } from "./candidate-analysis-pool";
+import { createBingoCeilingSearch } from "./parallel-bingo-ceilings";
 
 export type HunterProgress = {
-  phase: "screen" | "screen-replies" | "sample" | "refine";
+  phase: "screen" | "screen-replies" | "sample" | "refine" | "ceiling-discovery" | "ceiling-replies";
   done: number;
   total: number;
 };
@@ -35,6 +37,8 @@ export type HunterSummary = {
   limited: boolean;
   canContinue?: boolean;
   finalistsFirst?: boolean;
+  ceilingPass?: boolean;
+  ceilings?: BingoCeilingResult[];
 };
 
 export const BINGO_HUNTER_SLICE_MS = 10_000;
@@ -53,6 +57,7 @@ type Phase =
   | "sample"
   | "checkpoint"
   | "refine"
+  | "ceilings"
   | "done";
 
 export function createBingoHunterSession(
@@ -115,6 +120,7 @@ export function createBingoHunterSession(
     : wide.screen;
   limited ||= !!exact && candidates.length < moves.length;
   let finalists: readonly Move[] = [];
+  let ceilingSearch: ReturnType<typeof createBingoCeilingSearch> | undefined;
   let stalled = false;
 
   function sharedCount(slate: readonly Move[], scores: Scores) {
@@ -207,6 +213,8 @@ export function createBingoHunterSession(
         checked: comparable.length,
         limited,
         canContinue: phase !== "done",
+        ceilingPass: phase === "ceilings",
+        ceilings: ceilingSearch?.results(),
         finalistsFirst:
           finalists.length > 0 && finalists.length < comparable.length,
       } satisfies HunterSummary,
@@ -368,8 +376,17 @@ export function createBingoHunterSession(
               ))
             )
               return finish();
-            phase = "done";
-            break;
+            // Publish the normal ranking before spending time on long shots.
+            phase = "ceilings";
+            return finish();
+          case "ceilings": {
+            ceilingSearch ??= createBingoCeilingSearch(position,
+              [...new Set([...wide.laneOrder, ...wide.screen])], pool, opponentSize);
+            const extra = await ceilingSearch.run(workers, deadline, signal, progress);
+            madeProgress ||= extra.advanced;
+            if (extra.done) phase = "done";
+            return finish();
+          }
         }
       }
       return finish();

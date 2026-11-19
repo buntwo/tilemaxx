@@ -96,7 +96,7 @@ export interface AnalysisProgress {
   total: number;
 }
 
-export function placeTiles(board: Board, move: Move): Board {
+export function placeTiles(board: Board, move: Pick<Move, "tiles">): Board {
   const next = [...board];
   for (const { index, letter } of move.tiles) next[index] = letter;
   return next;

@@ -275,6 +275,7 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
   let runs = 0;
   let cancellations = 0;
   let firstResultId: number | undefined;
+  let ceilingMove: string;
   class HunterWorker extends SolverWorker {
     postMessage(request: SolverRequest) {
       if (request.kind === "bingo-hunter") {
@@ -291,11 +292,13 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
           expect(request.resumeFrom).toBe(firstResultId);
           this.onmessage?.({ data: {
             id: request.id, kind: "bingo-hunter-progress",
-            progress: { phase: "refine", done: 1, total: 8 },
+            progress: { phase: "ceiling-discovery", done: 1, total: 8 },
           } });
           return;
         }
         const result = this.results.get(request.searchId)!;
+        const move = result.moves[0];
+        ceilingMove = move.word;
         result.setProfile({ profile: "bingo-hunter", profileBagSize: request.bagSize, profileSeed: request.id },
           result.moves.slice(0, 1).map((move) => ({
             move, utility: {
@@ -304,7 +307,14 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
             },
           })));
         this.onmessage?.({ data: {
-          id: request.id, kind: "bingo-hunter", summary: { checked: 1, limited: false, canContinue: true },
+          id: request.id, kind: "bingo-hunter", summary: {
+            checked: 1, limited: false, canContinue: runs === 3, ceilingPass: runs === 3,
+            ceilings: runs === 5 ? [{
+              move, bingo: { ...move, word: "BANJAXES", score: 338 },
+              draw: "ESX", drawChance: 0.0088, chance: 0.00185, needsReply: false,
+              laneBingoChance: 0, blockChance: 1, exact: true, cases: 792,
+            }] : undefined,
+          },
         } });
         return;
       }
@@ -340,12 +350,21 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
   expect(tooltip.getByText("Highest bingo found")).toBeTruthy();
   expect(tooltip.getByText("104")).toBeTruthy();
   expect(tooltip.getByText("30%")).toBeTruthy();
+  expect(screen.getByText(/High-ceiling setups ready to check/)).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Run another 10 seconds" }));
-  expect(await screen.findByText("Refining bingo estimates · 1/8 moves")).toBeTruthy();
+  expect(await screen.findByText("Finding high-scoring bingo setups · 1/8 moves")).toBeTruthy();
   expect(screen.getByText("U 21")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
   expect(screen.getByText("U 21")).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Run another 10 seconds" })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Run another 10 seconds" }));
+  await user.click(await screen.findByText("High-ceiling setups (1)"));
+  expect(screen.getByText("BANJAXES 338")).toBeTruthy();
+  expect(screen.getByText(/0.19% after reply/)).toBeTruthy();
+  expect(screen.getByText(/block the placement 100%/)).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: new RegExp(`^Preview ${ceilingMove!} at`) }));
+  expect(document.querySelectorAll(".board-entry .ghost").length).toBeGreaterThan(0);
+  expect(screen.getByRole("button", { name: `Play ${ceilingMove!}` })).toBeTruthy();
+  expect(screen.getByText("U 21")).toBeTruthy();
 });
 
 test("phone analysis taps preview and select a move without offering Play", async () => {

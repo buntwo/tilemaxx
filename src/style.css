@@ -2565,6 +2565,39 @@ label + label {
   padding: 5px 8px;
   font-size: 11px;
 }
+.high-ceiling-setups {
+  margin: 0 12px 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.high-ceiling-setups summary {
+  color: var(--primary);
+  cursor: pointer;
+}
+.high-ceiling-setups ul {
+  display: grid;
+  gap: 5px;
+  max-height: min(240px, 32svh);
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+.high-ceiling-setups li {
+  padding: 4px 0;
+  border-block-start: 1px solid var(--line);
+}
+.high-ceiling-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.high-ceiling-line .button {
+  min-height: 28px;
+  padding: 3px 6px;
+  font-size: 11px;
+}
 .reply-limit-list ul {
   margin: 4px 0 0;
   padding-inline-start: 18px;
