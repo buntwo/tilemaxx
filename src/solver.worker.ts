@@ -54,7 +54,7 @@ async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind:
   const { profile, profileBagSize = 0, profileSeed = 0 } = query;
   if (result && profile && profile !== "bingo-hunter" && !result.hasProfile(query)) {
     try {
-      const frequencies = await loadWordFrequencies();
+      const frequencies = await loadWordFrequencies(result.position.template.rules);
       if (results.get(searchId) !== result) return post({ id, kind: "page" });
       if (result.hasProfile(query)) return post({ id, kind: "page", page: result.page(query) });
       const { position, lexicon } = result;

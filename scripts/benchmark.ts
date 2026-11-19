@@ -7,7 +7,7 @@ import { PRESETS } from "../shared/presets";
 import { emptyBoard } from "../shared/model";
 import { getTileCounts } from "../shared/tile-pool";
 import { createPlayerProfiles } from "../shared/player-profiles";
-import { decodeWordFrequencies, WORD_FREQUENCY_URL } from "../shared/word-familiarity";
+import { decodeWordFrequencies, wordFrequencyLanguage, wordFrequencyUrl } from "../shared/word-familiarity";
 
 const source = existsSync("data/dictionaries/WOW24.txt")
   ? "data/dictionaries/WOW24.txt"
@@ -69,7 +69,11 @@ const alternatives = [
   moves[0],
   moves.find((move) => move.id !== moves[0].id && move.tiles.length <= 2),
 ];
-const frequencies = decodeWordFrequencies(gunzipSync(readFileSync(`public${WORD_FREQUENCY_URL}`)));
+const language = wordFrequencyLanguage(template.rules);
+const frequencies = decodeWordFrequencies(
+  gunzipSync(readFileSync(`public${wordFrequencyUrl(language)}`)),
+  language,
+);
 const profiles = createPlayerProfiles(dict, template, frequencies);
 const { result, ms } = medianMs(
   () =>

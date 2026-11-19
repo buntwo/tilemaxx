@@ -134,7 +134,7 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
       if (comparison) {
         const [lexicon, frequencies] = await Promise.all([
           dictionary(data.dictionaryId),
-          loadWordFrequencies(),
+          loadWordFrequencies(data.exchange.template.rules),
         ]);
         const choose = createPlayerProfiles(lexicon, data.exchange.template, frequencies);
         const sampled = samplePlayerExchange(lexicon, choose, comparison);

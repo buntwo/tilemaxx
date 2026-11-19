@@ -15,17 +15,18 @@ import {
   createPlayerProfiles,
   PLAYER_PROFILES,
 } from "../shared/player-profiles";
-import { PRESETS } from "../shared/presets";
+import { PRESETS, templateForLanguage } from "../shared/presets";
 import { solve } from "../shared/solver";
 import {
   createWordDifficulty,
   decodeWordFrequencies,
-  WORD_FREQUENCY_URL,
+  wordFrequencyUrl,
 } from "../shared/word-familiarity";
 
 test("the upstream English asset decodes exact Zipf values and keeps inflections separate", () => {
   const frequencies = decodeWordFrequencies(
-    gunzipSync(readFileSync(`public${WORD_FREQUENCY_URL}`)),
+    gunzipSync(readFileSync(`public${wordFrequencyUrl("en")}`)),
+    "en",
   );
   assert.equal(frequencies.get("SPATULA"), 2.86);
   assert.equal(frequencies.get("QAID"), 1.22);
@@ -152,6 +153,24 @@ test("word-list practice helps learners recall short words at equal corpus famil
   const longGain = noticed("QAID", "learner") - noticed("QAID", "casual");
   assert.ok(shortGain > longGain);
   assert.ok(noticed("QI", "learner") > noticed("QAID", "learner"));
+});
+
+test("English short-word study does not gate common French or Italian words", () => {
+  const preset = PRESETS.find(({ id }) => id === "lexulous")!;
+  const lexicon = new Lexicon(["SI"]);
+  const frequencies = new Map([["SI", 5]]);
+  const board = emptyBoard(preset.size);
+  const rack = "SI";
+  const [move] = solve(lexicon, board, rack, preset);
+  const choices = [preset, templateForLanguage(preset, "fr"), templateForLanguage(preset, "it")]
+    .map((template) => createPlayerProfiles(lexicon, template, frequencies));
+  const position = { board, rack, bagSize: 50, seed: 0, playerSeed: 0 };
+  const playerSeed = Array.from({ length: 100 }, (_, seed) => seed).find(
+    (seed) => !choices[0]([move], "casual", { ...position, playerSeed: seed }).move,
+  );
+  assert.notEqual(playerSeed, undefined);
+  for (const choose of choices.slice(1))
+    assert.equal(choose([move], "casual", { ...position, playerSeed: playerSeed! }).move, move);
 });
 
 test("profiles value shedding awkward duplicates and keeping flexible leaves", () => {

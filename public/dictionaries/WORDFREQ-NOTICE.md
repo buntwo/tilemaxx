@@ -1,6 +1,6 @@
-# wordfreq English frequency data
+# wordfreq frequency data
 
-Robyn Speer, wordfreq 3.1.1 (https://pypi.org/project/wordfreq/3.1.1/). The file is the unmodified large_en.msgpack.gz from the original wheel.
+Robyn Speer, wordfreq 3.1.1 (https://pypi.org/project/wordfreq/3.1.1/). The bundled English, French, and Italian assets are the unmodified `large_en.msgpack.gz`, `large_fr.msgpack.gz`, and `large_it.msgpack.gz` files from the original wheel.
 
 ## Upstream data license and attributions
 
