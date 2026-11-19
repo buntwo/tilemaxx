@@ -5682,7 +5682,7 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   const played = playBeforeRefill();
   remote.games[0] = { ...played, trackScores: true, scoring: emptyScoring() };
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: phone && query === "(max-width: 650px)",
+    matches: query === (phone ? "(max-width: 650px)" : "(any-hover: hover)"),
     addEventListener() {},
     removeEventListener() {},
   }));
@@ -5732,6 +5732,28 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   expect(dialog.getByText("Total elapsed time")).toBeTruthy();
   expect(dialog.getByText(/^Options 1–\d+$/)).toBeTruthy();
   await user.click(dialog.getByRole("button", { name: "Close dialog" }));
+
+  const boardGhost = () => document.querySelector(".board-entry .ghost");
+  touch(rows[1], "pointerover", { pointerType: phone ? "touch" : "mouse" });
+  expect(!!boardGhost()).toBe(!phone);
+  expect(rows[1].getAttribute("aria-expanded")).toBe("false");
+  expect(result.queryByRole("region", { name: "Opponent reply details" })).toBeNull();
+  touch(rows[1], "pointerout", { pointerType: phone ? "touch" : "mouse" });
+  expect(boardGhost()).toBeNull();
+
+  if (!phone) {
+    expect(fireEvent.contextMenu(rows[0])).toBe(false);
+    expect(rows[0].getAttribute("aria-expanded")).toBe("true");
+    const pinnedGhost = boardGhost();
+    expect(pinnedGhost).toBeTruthy();
+    touch(rows[1], "pointerover", { pointerType: "mouse" });
+    expect(boardGhost()).toBe(pinnedGhost);
+    touch(rows[1], "pointerout", { pointerType: "mouse" });
+    expect(boardGhost()).toBe(pinnedGhost);
+    expect(fireEvent.contextMenu(rows[0])).toBe(false);
+    expect(rows[0].getAttribute("aria-expanded")).toBe("false");
+    expect(boardGhost()).toBeNull();
+  }
 
   await user.click(rows[0]);
   const preview = within(result.getByRole("region", { name: "Opponent reply details" }));

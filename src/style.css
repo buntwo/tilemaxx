@@ -2210,6 +2210,9 @@ label + label {
   color: var(--muted);
   font-size: 11px;
 }
+.opponent-endgame .result-word-heading {
+  padding-inline-start: calc(var(--result-rank-width) + var(--result-rank-gap));
+}
 .opponent-endgame .opponent-swing-heading {
   display: flex;
   align-items: center;
@@ -2275,6 +2278,8 @@ label + label {
   --result-position: 37px;
   --result-gap: 6px;
   --result-gutter: 12px;
+  --result-rank-width: calc(var(--result-rank-digits, 1) * 6px);
+  --result-rank-gap: 3px;
   --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)
     [leave] var(--result-leave) [position] var(--result-position);
 }
@@ -2357,12 +2362,12 @@ label + label {
 }
 .result-row .result-word {
   grid-template-columns: max-content minmax(0, 1fr);
-  column-gap: 3px;
+  column-gap: var(--result-rank-gap);
 }
 .result-rank {
   grid-area: 1 / 1;
   align-self: start;
-  inline-size: calc(var(--result-rank-digits, 1) * 6px);
+  inline-size: var(--result-rank-width);
   font-size: 9px;
   font-weight: 500;
   line-height: 19px;
