@@ -42,7 +42,7 @@ const EXCHANGE_CACHE_LIMIT = 16;
 const TILE_HOLD_MS = 450;
 export type RackEntryHandle = {
   openSuggestedExchange: (reveal: boolean) => void;
-  focusEntry: () => void;
+  focusEntry: (firstEmpty?: boolean) => void;
 };
 
 export default function RackEntry({
@@ -391,8 +391,8 @@ export default function RackEntry({
     chooseMode("entry");
     focus(slot);
   }
-  function focusEntry() {
-    if (document.activeElement !== input.current) {
+  function focusEntry(firstEmpty = false) {
+    if (firstEmpty || document.activeElement !== input.current) {
       const gap = game.rack.indexOf(".");
       editFromReview(Math.min(gap === -1 ? game.rack.length : gap, capacity - 1));
     }

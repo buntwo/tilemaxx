@@ -275,6 +275,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const archiveFilter = useRef<HTMLInputElement>(null);
   const pendingGameSearch = useRef<Workspace>(undefined);
   const [flight, setFlight] = useState<TileFlight>();
+  const rackRefill = useRef<{ position: string; from: Element | null } | null>(null);
   const state = useStore(),
     data = state.data;
   const { main, twoColumns } = useWorkspaceWidth(!!data);
@@ -476,6 +477,19 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       stop?.();
     };
   }, [activeFlight, flight]);
+  useLayoutEffect(() => {
+    const refill = rackRefill.current;
+    if (!refill) return;
+    if (refill.position !== signature || workspace !== "games" || dialog || gameOver) {
+      rackRefill.current = null;
+      return;
+    }
+    if (activeFlight) return;
+    rackRefill.current = null;
+    const focused = document.activeElement;
+    if (focused === refill.from || (focused === document.body && !refill.from?.isConnected))
+      rackEntry.current?.focusEntry(true);
+  }, [activeFlight, dialog, gameOver, signature, workspace]);
   const hasPlayableRack = !!game && !gameOver && !!splitRack(game).available;
   useEffect(() => {
     updateFavicon();
@@ -680,15 +694,19 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     if (!game || activeFlight || boardLocked) return;
     try {
       const next = playTrackedMove(game, move, replyAnalysis.bagSize);
+      const destination = positionSignature(next);
       const motion = preferences.animatePlayedTiles
         ? prepareTileFlight(game, move, rackPanel.current, boardPanel.current)
         : undefined;
+      rackRefill.current = replyAnalysis.bagSize > 0
+        ? { position: destination, from: document.activeElement }
+        : null;
       solver.rememberResults();
       setFlight(
         motion && {
           ...motion,
           before: game,
-          destination: positionSignature(next),
+          destination,
           move,
           reviewing: moveReview.showing,
         },

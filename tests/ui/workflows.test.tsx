@@ -1757,7 +1757,7 @@ test("direct entry, skip existing letters, blanks, erase, undo/redo and persiste
   expect(current().rack).toBe("");
 });
 
-test("board selection uses tiles ahead within the physical rack size and leaves Alt+B across", async () => {
+test("click and Alt+B share direction detection within the physical rack size", async () => {
   const user = await start();
   const direction = () => cell("Toggle entry direction").textContent;
   await user.click(cell("G8: empty"));
@@ -1786,7 +1786,7 @@ test("board selection uses tiles ahead within the physical rack size and leaves 
   await user.click(cell("H6: empty"));
   expect(direction()).toBe("Across"); // Both the row and column have tiles.
   await user.click(cell("I5: empty"));
-  expect(direction()).toBe("Across"); // I6 is also a side connection for Across.
+  expect(direction()).toBe("Down"); // A direct connection beats a single side hook.
   await user.click(cell("A1: TW"));
   expect(direction()).toBe("Across"); // Neither path connects.
   await user.click(cell("I4: empty"));
@@ -1794,7 +1794,10 @@ test("board selection uses tiles ahead within the physical rack size and leaves 
 
   await user.keyboard("{Alt>}b{/Alt}i4");
   expect(selectedCell()).toBe("53");
-  expect(direction()).toBe("Across");
+  expect(direction()).toBe("Down");
+  await user.keyboard("{Alt>}b{/Alt}4iN");
+  expect(current().board[53]).toBe("N");
+  expect(selectedCell()).toBe("68");
 });
 
 test("right/down switch direction first, then advance; left/up always move without turning", async () => {
@@ -2056,6 +2059,8 @@ test("rack → real solver → hover preview → play → undo/redo → save", a
   await user.click(row[0]);
   expect(current().board.filter(Boolean).join("")).toBe("CATS");
   expect(current().rack).toBe("");
+  expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Rack letters" }));
+  expect(rackTile(1).getAttribute("aria-pressed")).toBe("true");
   expect(countA()).toBeTruthy();
   expect(current().past.at(-1)?.score).toBeGreaterThan(0);
   expect(screen.queryByLabelText("Suggested moves")).toBeNull();
@@ -3787,7 +3792,7 @@ test.each([
   const reviewing = () => workspace.classList.contains("move-review");
   const ghosts = () => board.querySelectorAll(".ghost");
   expect(reviewing()).toBe(false);
-  await typeRack(user, "CATS");
+  await typeRack(user, "CATSQ");
   await user.keyboard("{Enter}");
   const row = (await screen.findAllByRole("button", { name: /^CATS, / }))[0];
   expect(reviewing()).toBe(true);
@@ -3818,7 +3823,7 @@ test.each([
   expect(document.activeElement).toBe(
     screen.getByRole("textbox", { name: "Rack letters" }),
   );
-  expect(current().rack).toBe("CATS");
+  expect(current().rack).toBe("CATSQ");
 
   await user.keyboard("{Enter}");
   expect(reviewing()).toBe(true);
@@ -3833,8 +3838,10 @@ test.each([
   expect(reviewing()).toBe(false);
   expect(ghosts()).toHaveLength(0);
 
-  await typeRack(user, "QXZ");
-  await user.keyboard("{Enter}");
+  expect(current().rack).toBe("Q");
+  expect(rackTile(2).getAttribute("aria-pressed")).toBe("true");
+  await user.keyboard("XZ{Enter}");
+  expect(current().rack).toBe("QXZ");
   await screen.findByRole("heading", { name: "No legal moves found" });
   expect(reviewing()).toBe(false);
 });
@@ -3941,6 +3948,7 @@ test("finish overlay waits for the last tile, dismisses outside the card, and ar
       await act(async () => finish());
       expect(document.querySelector(".tile-flight-layer")).toBeNull();
       const outcome = board.getByRole("heading", { name: "You win!" });
+      expect(document.activeElement).not.toBe(screen.getByRole("textbox", { name: "Rack letters" }));
       expect(outcome.closest(".board-grid")).toBeTruthy();
       expect(board.getByText("Won by 11")).toBeTruthy();
       expect(board.getByText(/You went out/).textContent).toContain("CATS +6");
@@ -4003,8 +4011,8 @@ test("typing the opponent's last tile shows the adjusted loss and locks the boar
   const board = within(screen.getByRole("region", { name: "Game board" }));
   await board.findByRole("button", { name: /^H8: C/ });
   await user.click(board.getByRole("button", { name: /^J8:/ }));
-  // The adjacent A is a side connection for Down. Enter the intended Across play.
-  await user.keyboard("{ArrowRight}T");
+  expect(board.getByRole("button", { name: "Toggle entry direction" }).textContent).toBe("Across");
+  await user.keyboard("T");
   expect(board.queryByRole("heading", { name: "You lose" })).toBeNull();
   expect(document.activeElement).toBe(entry());
 
@@ -4435,6 +4443,7 @@ test("exclude rack tiles with Down or taps, keep the unseen count, and retain he
   await user.click(move);
   await waitFor(() => expect(current().rack).toBe("...S"));
   expect(current().excludedRackSlots).toBeUndefined();
+  expect(rackTile(1).getAttribute("aria-pressed")).toBe("true");
   await user.click(screen.getByRole("button", { name: "Undo" }));
   expect(current().rack).toBe("CATS");
   expect(current().excludedRackSlots).toEqual([3]);
@@ -4893,7 +4902,7 @@ test("Option+U and Option+Y undo and redo game history", async () => {
   expect(placed()).toBe("CAT");
 });
 
-test("Alt+B starts across for either coordinate order and groups the entered word", async () => {
+test("Alt+B defaults to across on an empty board and groups the entered word", async () => {
   const user = await start();
   const overlay = () => document.querySelector(".board-coordinate-grid");
   const labels = () => [...overlay()!.querySelectorAll(".board-coordinate-label[data-match]")];

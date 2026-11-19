@@ -60,12 +60,33 @@ test("reachable side connections count for parallel plays in either direction", 
   board[j13 + 15] = "G";
   board[j13 + 16] = "I";
   assert.equal(inferBoardEntryDirection(board, j13, 15, 2), "across");
+  assert.equal(inferBoardEntryDirection(board, j13, 15, 1), "down");
 
   const column = emptyBoard(5);
   column[17] = "A";
   column[22] = "T";
   assert.equal(inferBoardEntryDirection(column, 6, 5, 2), "across");
   assert.equal(inferBoardEntryDirection(column, 6, 5, 3), "down");
+});
+
+test("adjacent tiles above and left count as word extensions", () => {
+  const board = emptyBoard(5);
+  board[7] = "t";
+  assert.equal(inferBoardEntryDirection(board, 12, 5, 1), "down");
+  board[11] = "A";
+  assert.equal(inferBoardEntryDirection(board, 12, 5, 1), "across");
+  board[7] = "";
+  assert.equal(inferBoardEntryDirection(board, 12, 5, 1), "across");
+
+  board[12] = "R";
+  board[13] = "E";
+  board[14] = "D";
+  assert.equal(inferBoardEntryDirection(board, 12, 5, 1), "down");
+
+  const edge = emptyBoard(5);
+  edge[4] = "X";
+  edge[15] = "D";
+  assert.equal(inferBoardEntryDirection(edge, 5, 5, 2), "down");
 });
 
 test("typing and deletion form separate whole-word undo/redo steps across save acknowledgments", () => {
