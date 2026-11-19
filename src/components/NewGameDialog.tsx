@@ -8,16 +8,16 @@ import {
   type Game,
 } from "../../shared/model";
 import {
-  CLASSIC_LEXULOUS_ID,
-  LEXULOUS_LANGUAGES,
-  lexulousTemplateForLanguage,
-  type LexulousLanguage,
+  boardLanguages,
+  templateForLanguage,
+  type GameLanguage,
 } from "../../shared/presets";
 import { defaultPlatformBoard } from "../premium-palettes";
 import { GameDetailFields, readGameDetails } from "./GameDetails";
 import Modal from "./Modal";
 
-const lexulousWordLists: Record<LexulousLanguage, string> = {
+const wordListsByLanguage: Record<GameLanguage, string> = {
+  en: "an English word list",
   "en-US": "a US English word list",
   "en-GB": "a UK English word list",
   fr: "Grammalecte or a French word list",
@@ -48,10 +48,11 @@ export default function NewGameDialog({
   onClose: () => void;
 }) {
   const [templateId, setTemplateId] = useState("scrabble");
-  const [lexulousLanguage, setLexulousLanguage] =
-    useState<LexulousLanguage>("en-US");
+  const [languageChoices, setLanguageChoices] = useState<
+    Partial<Record<string, GameLanguage>>
+  >({});
   const [dictionaryChoices, setDictionaryChoices] = useState<
-    Partial<Record<"french" | "other" | LexulousLanguage, string>>
+    Partial<Record<string, string>>
   >({});
   const [trackScores, setTrackScores] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -63,27 +64,28 @@ export default function NewGameDialog({
   const dictionaryLabelId = useId();
   const dictionaryHelpId = useId();
   const boardLayout = templates.find(({ id }) => id === templateId);
-  const classicLexulous = boardLayout?.id === CLASSIC_LEXULOUS_ID;
-  const template = classicLexulous
-    ? lexulousTemplateForLanguage(boardLayout, lexulousLanguage)
-    : boardLayout;
-  const french = template?.rules === "scrabble-fr";
-  const dictionaryGroup = classicLexulous
-    ? lexulousLanguage
+  const languages = boardLanguages.get(templateId);
+  const language = languageChoices[templateId] ?? languages?.[0].id;
+  const template =
+    boardLayout && language
+      ? templateForLanguage(boardLayout, language)
+      : boardLayout;
+  const french =
+    template?.rules === "scrabble-fr" || template?.rules === "wordfeud-fr";
+  const dictionaryGroup = language
+    ? `${templateId}:${language}`
     : french
-      ? "french"
+      ? template.rules
       : "other";
   const preferred = defaultDictionary(
     dictionaries,
     currentDictionaryId,
     template?.rules,
-    classicLexulous ? lexulousLanguage : undefined,
+    language,
   );
   const missingWordList =
     !preferred &&
-    (classicLexulous
-      ? lexulousWordLists[lexulousLanguage]
-      : french && "Grammalecte");
+    (language ? wordListsByLanguage[language] : french && "Grammalecte");
   const chosen = dictionaryChoices[dictionaryGroup];
   const dictionaryId =
     dictionaries.find(({ id }) => id === chosen)?.id ?? preferred?.id ?? "";
@@ -167,24 +169,23 @@ export default function NewGameDialog({
                 ))}
               </select>
             </label>
-            {classicLexulous && (
+            {languages && (
               <label>
                 Language
                 <select
-                  value={lexulousLanguage}
+                  value={language}
                   onChange={(event) =>
-                    setLexulousLanguage(
-                      event.currentTarget.value as LexulousLanguage,
-                    )
+                    setLanguageChoices({
+                      ...languageChoices,
+                      [templateId]: event.currentTarget.value as GameLanguage,
+                    })
                   }
                 >
-                  {Object.entries(LEXULOUS_LANGUAGES).map(
-                    ([code, { label }]) => (
-                      <option key={code} value={code}>
-                        {label}
-                      </option>
-                    ),
-                  )}
+                  {languages.map(({ id, label }) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
+                  ))}
                 </select>
               </label>
             )}

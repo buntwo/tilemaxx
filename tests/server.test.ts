@@ -13,7 +13,7 @@ import { Lexicon } from "../shared/lexicon";
 import { solve } from "../shared/solver";
 import { TILE_SYMBOLS } from "../shared/tile-pool";
 import { type GameIndex, summarizeGame } from "../shared/game-index";
-import { lexulousTemplateForLanguage, PRESETS } from "../shared/presets";
+import { templateForLanguage, PRESETS } from "../shared/presets";
 import { defaultDictionary } from "../shared/dictionaries";
 
 test("a manual Grammalecte import is recognized and keeps its identity after restart", () => {
@@ -114,10 +114,12 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
     ).json();
     assert.equal(profile.name, "Phone player");
     const classic = PRESETS.find(({ id }) => id === "lexulous")!;
+    const wordfeud = PRESETS.find(({ id }) => id === "wordfeud")!;
     for (const template of [
       ...PRESETS.slice(3),
-      lexulousTemplateForLanguage(classic, "fr"),
-      lexulousTemplateForLanguage(classic, "it"),
+      templateForLanguage(classic, "fr"),
+      templateForLanguage(classic, "it"),
+      templateForLanguage(wordfeud, "fr"),
     ]) {
       const created = await req("/games", "POST", {
         ...game,

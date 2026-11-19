@@ -6,6 +6,7 @@ import {
 } from "../../shared/infer-premiums";
 import {
   isBingo,
+  isWordfeudRules,
   type Board as BoardState,
   type BoardTemplate,
   type Premium,
@@ -42,7 +43,7 @@ export default function ScreenshotPremiumReview({
   const unknown = squares.filter((square) => square === null).length;
   const histories = useMemo(
     () =>
-      style === "wordfeud" && template.rules === "wordfeud"
+      style === "wordfeud" && isWordfeudRules(template.rules)
         ? openingSequences(board, template)
         : [],
     [board, template, style],

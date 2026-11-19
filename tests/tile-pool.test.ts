@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lexulousTemplateForLanguage, PRESETS } from "../shared/presets";
+import { templateForLanguage, PRESETS } from "../shared/presets";
 import {
   getTileCounts,
   rackContainsChance,
@@ -72,17 +72,17 @@ test("saved French Scrabble boards still resolve French tile counts and values",
 test("Classic Lexulous combines one board with language-specific bags and values", () => {
   const classic = PRESETS.find(({ id }) => id === "lexulous")!;
   const superLexulous = PRESETS.find(({ id }) => id === "super-lexulous")!;
-  assert.equal(lexulousTemplateForLanguage(classic, "en-GB"), classic);
-  assert.equal(lexulousTemplateForLanguage(superLexulous, "it"), superLexulous);
+  assert.equal(templateForLanguage(classic, "en-GB"), classic);
+  assert.equal(templateForLanguage(superLexulous, "it"), superLexulous);
 
-  const french = lexulousTemplateForLanguage(classic, "fr");
+  const french = templateForLanguage(classic, "fr");
   assert.deepEqual(french.premiums, classic.premiums);
   const frenchPool = unseenTiles({ board: [], rack: "" }, french);
   assert.equal(frenchPool.total, 100);
   assert.equal(getTileCounts(french).E, 15);
   assert.equal(frenchPool.tiles.find(({ symbol }) => symbol === "Q")?.score, 8);
 
-  const italian = lexulousTemplateForLanguage(classic, "it");
+  const italian = templateForLanguage(classic, "it");
   assert.deepEqual(italian.premiums, classic.premiums);
   const italianPool = unseenTiles({ board: [], rack: "" }, italian);
   assert.equal(italianPool.total, 120);
@@ -93,6 +93,29 @@ test("Classic Lexulous combines one board with language-specific bags and values
     italianPool.tiles.find(({ symbol }) => symbol === "Q")?.score,
     12,
   );
+});
+
+test("French Wordfeud uses the standard board and the French tile bag", () => {
+  const wordfeud = PRESETS.find(({ id }) => id === "wordfeud")!;
+  assert.equal(templateForLanguage(wordfeud, "en"), wordfeud);
+  const french = templateForLanguage(wordfeud, "fr");
+  assert.deepEqual(french.premiums, wordfeud.premiums);
+  assert.equal(french.rackSize, 7);
+  assert.equal(french.bingo, 40);
+  assert.deepEqual(
+    getTileCounts(french),
+    getTileCounts({ ...french, tileCounts: undefined }),
+  );
+  const pool = unseenTiles({ board: [], rack: "" }, french);
+  assert.equal(pool.total, 104);
+  assert.equal(pool.totals.blank, 2);
+  const tile = (symbol: string) =>
+    pool.tiles.find((entry) => entry.symbol === symbol)!;
+  assert.equal(tile("E").count, 14);
+  assert.equal(tile("G").count, 3);
+  assert.equal(tile("L").score, 2);
+  assert.equal(tile("V").score, 5);
+  assert.equal(tile("J").score, 8);
 });
 
 test("tile tracking subtracts placed letters, assigned blanks, and rack tiles", () => {

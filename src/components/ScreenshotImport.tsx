@@ -6,6 +6,7 @@ import {
   type Premium,
   coordinate,
   emptyBoard,
+  isWordfeudRules,
 } from "../../shared/model";
 import {
   type Crop,
@@ -454,7 +455,7 @@ export default function ScreenshotImport({
           )}
           {includePremiums &&
             result.premiums?.style === "wordfeud" &&
-            template.rules !== "wordfeud" && (
+            !isWordfeudRules(template.rules) && (
               <p className="import-note">
                 For Wordfeud tile values and play bonuses, import into a
                 Wordfeud game.

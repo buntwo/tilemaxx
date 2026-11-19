@@ -26,6 +26,7 @@ The optional French list is based on the **Grammalecte 7.7** French spelling dic
 
 - Scrabble rules: https://instructions.hasbro.com/en-gb/instruction/scrabble-game
 - French Scrabble rules and distribution: [FFSc international classic rules](https://www.ffsc.fr/classique.php?page=reglements) and [Michel Duguet's French tile table](https://media.electre-ng.com/extraits/extrait-id/59c90a35e79d158ea169362b8b318a1cd38688f4d670cd257fea4acc80df3ea4.pdf).
+- Wordfeud French tile distribution and scoring: [Wordfeud Help](https://wordfeud.com/wfweb/help/).
 - Lexulous language choices and English tile bags: [Lexulous dictionary choices](https://forum.lexulous.com/topic/13/dictionary-word-list-choices?page=2) and [Lexulous tile distribution](https://buzz.lexulous.com/posts/tile-distribution). Classic French and Italian tile counts and values follow the published [Scrabulizer Lexulous designs](https://www.scrabulizer.com/design/lexulous/cheat).
 - Words With Friends scoring and 35-point bonus: https://zyngasupport.helpshift.com/hc/en/63-words-with-friends-2/faq/10552-words-with-friends-rule-book/
 - Super Scrabble rules: https://winning-moves.com/images/SuperScrabbleRulesSheet2.pdf
