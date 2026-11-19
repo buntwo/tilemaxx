@@ -3005,6 +3005,26 @@ test("game options archive the current game and open a blank game with today's d
   ).toBeNull();
 });
 
+test("new games and copies require a connection while a saved game stays editable", async () => {
+  const user = await start();
+  const connectedFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Offline")));
+  await act(() => store.refresh());
+  const newGame = screen.getByRole<HTMLButtonElement>("button", { name: "New game" });
+  expect(newGame.disabled).toBe(true);
+  await user.click(cell("Game options"));
+  const menu = within(screen.getByRole("dialog", { name: "Game options" }));
+  expect(menu.getByRole<HTMLButtonElement>("button", { name: /^Duplicate game/ }).disabled).toBe(true);
+  await user.click(menu.getByRole("button", { name: "Close dialog" }));
+  await typeRack(user, "CAT");
+  expect(current().rack).toBe("CAT");
+  expect(remote.games).toHaveLength(1);
+
+  vi.stubGlobal("fetch", connectedFetch);
+  await act(() => store.refresh());
+  expect(newGame.disabled).toBe(false);
+});
+
 test("multiple games retain separate racks and word lists", async () => {
   remote.dictionaries.push({
     ...remote.dictionaries[0],

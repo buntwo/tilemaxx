@@ -58,6 +58,10 @@ export function createStore(directory: string, root: string) {
     CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY,name TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY,revision INTEGER NOT NULL,data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS deleted_games (id TEXT PRIMARY KEY);
+    CREATE TABLE IF NOT EXISTS game_creation_requests (
+      profile_id TEXT NOT NULL, token TEXT NOT NULL, game_id TEXT NOT NULL,
+      PRIMARY KEY (profile_id, token)
+    );
     CREATE TRIGGER IF NOT EXISTS remember_deleted_game AFTER DELETE ON games
       BEGIN INSERT OR IGNORE INTO deleted_games VALUES (OLD.id); END;
     CREATE TABLE IF NOT EXISTS game_summaries (id TEXT PRIMARY KEY,revision INTEGER NOT NULL,data TEXT NOT NULL);
@@ -260,6 +264,18 @@ export function createStore(directory: string, root: string) {
   function createGame(input: Parameters<typeof insertGame>[0], id?: string) {
     return transaction(() => insertGame(input, id));
   }
+  function createGameOnce(input: Parameters<typeof insertGame>[0], token: string) {
+    return transaction(() => {
+      const previous = db.prepare(
+        "SELECT game_id FROM game_creation_requests WHERE profile_id=? AND token=?",
+      ).get(input.profileId, token);
+      if (previous) return getGame(previous.game_id as string);
+      const game = insertGame(input);
+      db.prepare("INSERT INTO game_creation_requests VALUES (?,?,?)")
+        .run(input.profileId, token, game.id);
+      return game;
+    });
+  }
   function writeGame(
     game: Game,
     updatedAt = new Date().toISOString(),
@@ -339,6 +355,7 @@ export function createStore(directory: string, root: string) {
     },
     getGame,
     createGame,
+    createGameOnce,
     dictionaries,
     hasProfile(id: string) {
       return !!db.prepare("SELECT 1 FROM profiles WHERE id=?").get(id);

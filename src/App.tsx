@@ -1035,6 +1035,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         <Brand />
         <button
           className="button new-game"
+          disabled={!state.online}
+          title={state.online ? undefined : "A server connection is required"}
           onClick={() => openDialog(profile ? "new" : "profile")}
         >
           <Plus size={18} />
@@ -1271,6 +1273,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               Use server version
             </button>
             <button
+              disabled={formBusy || !state.online}
+              title={state.online ? undefined : "A server connection is required"}
               onClick={() =>
                 void action(async () => {
                   const copy = await store.preserveCopy(game.id);
@@ -1291,7 +1295,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         {!state.online && (
           <div className="banner warning">
             Server connection lost. Edits stay on this device and will sync when
-            the connection returns.
+            the connection returns. Creating games requires a connection.
             <button onClick={() => void store.refresh()}>Reconnect</button>
           </div>
         )}
@@ -1674,6 +1678,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           currentDictionaryId={game?.dictionaryId}
           opponentSuggestions={recentOpponentNames(data.games, profileId)}
           phoneLayout={phoneLayout}
+          online={state.online}
           onCreate={async (input) => {
             const created = await store.createGame(input);
             chooseGame(created.id);
@@ -2115,7 +2120,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   setDialog(null);
                 })
               }
-              disabled={formBusy}
+              disabled={formBusy || !state.online}
+              title={state.online ? undefined : "A server connection is required"}
             >
               <Copy size={19} />
               <span>
@@ -2168,7 +2174,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             </button>
             {!game.archived && (
               <button
-                disabled={formBusy}
+                disabled={formBusy || !state.online}
+                title={state.online ? undefined : "A server connection is required"}
                 onClick={() =>
                   void action(async () => {
                     const created = await store.archiveAndStartNewGame(
