@@ -216,6 +216,7 @@ export function PremiumDefenseContent({
             template={template}
             board={defense.opened ? placeTiles(game.board, move) : game.board}
             preview={reply}
+            previewPlayer="opponent"
             highlight={main.square}
             compact
           />

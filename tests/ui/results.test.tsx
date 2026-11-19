@@ -690,8 +690,8 @@ test("reply rows resolve individually and compare against the highest score afte
   );
   await user.click(within(dialog).getByRole("button", { name: /ZA.*45 pts/ }));
   expect(
-    dialog.querySelector('[data-cell="0"]')?.classList.contains("ghost"),
-  ).toBe(true);
+    dialog.querySelector('.board-grid[data-preview-player="opponent"] [data-cell="0"].ghost'),
+  ).toBeTruthy();
   await user.click(
     within(dialog).getByRole("button", { name: "Change vs. CATS" }),
   );
@@ -984,6 +984,8 @@ test("a completed reply line replaces the immediate warning and replays each tur
   expect(tiles.map((tile) => tile.textContent)).toEqual(["T", "T", ""]);
   expect(tiles[2].classList.contains("blank")).toBe(true);
   expect(details.getByRole("button", { name: /^H7: Z/ }).classList.contains("ghost")).toBe(true);
+  expect(details.getByRole("button", { name: /^H7: Z/ })
+    .closest('.board-grid[data-preview-player="opponent"]')).toBeTruthy();
 
   const pass = details.getByRole("button", { name: /^Pass You/ });
   expect(within(pass.closest("tr")!).getByRole("img", { name: "Leave: T" })).toBeTruthy();
@@ -998,6 +1000,8 @@ test("a completed reply line replaces the immediate warning and replays each tur
   await user.click(lastPlay);
   expect(details.getByText("Board after TA")).toBeTruthy();
   expect(details.getByRole("button", { name: /^G8: T/ }).classList.contains("ghost")).toBe(true);
+  expect(details.getByRole("button", { name: /^G8: T/ })
+    .closest('.board-grid[data-preview-player="you"]')).toBeTruthy();
   const adjustment = details.getByRole("button", { name: "Final score" });
   expect(adjustment.closest("tr")?.classList.contains("optimal-reply-adjustment-row")).toBe(true);
   expect(within(adjustment).queryByRole("img")).toBeNull();

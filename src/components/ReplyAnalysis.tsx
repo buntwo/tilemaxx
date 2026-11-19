@@ -527,6 +527,7 @@ function ExactReplyDetails({
           template={game.template}
           board={placeTiles(game.board, move)}
           preview={reply}
+          previewPlayer="opponent"
         />
       )}
       {!ends && (

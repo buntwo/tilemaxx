@@ -2210,9 +2210,6 @@ label + label {
   color: var(--muted);
   font-size: 11px;
 }
-.opponent-endgame .result-word-heading {
-  padding-inline-start: calc(var(--result-rank-width) + var(--result-rank-gap));
-}
 .opponent-endgame .opponent-swing-heading {
   display: flex;
   align-items: center;
@@ -2312,6 +2309,9 @@ label + label {
 .result-word, .result-word-heading {
   grid-column: word;
   margin-inline-start: calc(5px - var(--result-gutter));
+}
+.result-word-heading {
+  padding-inline-start: calc(var(--result-rank-width) + var(--result-rank-gap));
 }
 .result-score, .result-points-heading { grid-column: points; text-align: right; }
 .result-reply-heading, .result-reply-metric, .result-defense-action { grid-column: reply; }
@@ -4545,6 +4545,12 @@ label + label {
 .square.occupied.ghost {
   background: var(--cell);
   box-shadow: none;
+}
+.board-grid[data-preview-player="opponent"] .square.occupied.ghost:not(.blank) {
+  --preview-dark: #ba6b66;
+  --preview-tint: #efaaa2;
+  --preview-edge: #893934;
+  color: #260c0b;
 }
 .square.occupied.ghost.blank,
 .rack-tile.move-preview .rack-face.blank {

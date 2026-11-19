@@ -198,6 +198,7 @@ test("compare mode selects moves without playing and switches model without reru
   const ghosts = () => document.querySelectorAll(".board-entry .ghost");
   await user.hover(alternative);
   expect(ghosts()).toHaveLength(4);
+  expect(ghosts()[0].closest(".board-grid")?.getAttribute("data-preview-player")).toBe("you");
   expect(alternative.getAttribute("aria-pressed")).toBe("false");
   await user.unhover(alternative);
   expect(ghosts()).toHaveLength(0);
@@ -5798,8 +5799,11 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   await user.click(dialog.getByRole("button", { name: "Close dialog" }));
 
   const boardGhost = () => document.querySelector(".board-entry .ghost");
+  const previewPlayer = () => document.querySelector(".board-entry .board-grid")
+    ?.getAttribute("data-preview-player");
   touch(rows[1], "pointerover", { pointerType: phone ? "touch" : "mouse" });
   expect(!!boardGhost()).toBe(!phone);
+  expect(previewPlayer()).toBe(phone ? null : "opponent");
   expect(rows[1].getAttribute("aria-expanded")).toBe("false");
   expect(result.queryByRole("region", { name: "Opponent reply details" })).toBeNull();
   touch(rows[1], "pointerout", { pointerType: phone ? "touch" : "mouse" });
@@ -5827,6 +5831,9 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   const firstTurn = preview.getByRole("table", { name: "Optimal endgame line" })
     .querySelector<HTMLButtonElement>("tbody button")!;
   await user.click(firstTurn);
+  expect(previewPlayer()).toBe("opponent");
+  expect(result.getByRole("region", { name: "Opponent reply details" })
+    .querySelector('.board-grid[data-preview-player="opponent"] .ghost')).toBeTruthy();
   expect(firstTurn.textContent).toContain("Opponent");
   expect(within(firstTurn).getByRole("img", { name: "Bingo" })).toBeTruthy();
   expect(firstTurn.closest("tr")!.querySelector(".optimal-reply-step-score small.value-bad")?.textContent)
