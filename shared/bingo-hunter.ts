@@ -196,6 +196,7 @@ export function hunterScreen(
   >();
   const openings = new Map<Move, number>();
   const bingos: Move[] = [];
+  const premiumAnchors: Move[] = [];
   const deadline = performance.now() + 750;
   let limited = false;
   for (const [i, move] of moves.entries()) {
@@ -203,6 +204,7 @@ export function hunterScreen(
     if (bingoNow(move, template) && bingos.length < 12) bingos.push(move);
     const lane = limited ? 0 : lanes(move);
     if (lane > 1) openings.set(move, lane);
+    if (move.tiles.length === 1 && lane >= 9) premiumAnchors.push(move);
     const group = groups.get(move.leave);
     if (!group) groups.set(move.leave, { first: move, laneMove: move, lane });
     else {
@@ -235,6 +237,12 @@ export function hunterScreen(
   const screen = [
     ...new Set([
       ...base,
+      // Same-leave hooks can make very different words through two premiums.
+      ...premiumAnchors
+        .sort(
+          (a, b) => openings.get(b)! - openings.get(a)! || prior(b) - prior(a),
+        )
+        .slice(0, 32),
       ...bingos,
       ...byLane.slice(0, 16),
       ...byLeave.slice(0, 25).map(({ laneMove }) => laneMove),

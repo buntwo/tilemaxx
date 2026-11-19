@@ -1,4 +1,4 @@
-import { runBingoHunter } from "./parallel-bingo-hunter";
+import { BINGO_HUNTER_SLICE_MS, createBingoHunterSession } from "./parallel-bingo-hunter";
 import { dictionaryText } from "./word-list-cache";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import {
@@ -31,7 +31,8 @@ import { createPlayerProfiles, profileWordHash } from "../shared/player-profiles
 import { loadWordFrequencies } from "./word-frequencies";
 import { rackComposition } from "../shared/rack-entry";
 
-let activeHunter: { id: number; searchId: number; abort: AbortController } | undefined;
+let activeHunter: { id: number; searchId: number; abort: AbortController; finished: Promise<unknown> } | undefined;
+let hunterSession: { searchId: number; key: string; lastId?: number; session: ReturnType<typeof createBingoHunterSession> } | undefined;
 type SolveRequest = Extract<SolverRequest, { kind: "solve" }>;
 const results = new Map<number, MoveResultIndex & { position: SolveRequest; lexicon: Lexicon; odds?: ReturnType<RackBingoIndex["calculate"]> }>();
 let models: { lexicon: Lexicon; templateKey: string; choose: ReturnType<typeof createPlayerProfiles> } | undefined;
@@ -154,16 +155,36 @@ async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
     post({ id, kind: "bingo-hunter", error: "Find moves again to reload this position." });
     return;
   }
-  activeHunter?.abort.abort();
+  const key = JSON.stringify([bagSize, request.scorelessTurns, request.opponentHasFinalTurn]);
+  const previous = activeHunter;
+  if (request.resumeFrom !== undefined &&
+    (hunterSession?.searchId !== searchId || hunterSession.key !== key || hunterSession.lastId !== request.resumeFrom)) {
+    post({ id, kind: "bingo-hunter", error: "This search has expired. Run Bingo hunter again." });
+    return;
+  }
+  previous?.abort.abort();
   const abort = new AbortController();
-  activeHunter = { id, searchId, abort };
+  const started = performance.now();
   try {
-    const { ranked, summary } = await runBingoHunter(
-      result.lexicon, { ...result.position, ...request }, result.moves, result.odds,
-      computeWorkerLimit(workerLimit), abort.signal,
-      (progress) => post({ id, kind: "bingo-hunter-progress", progress }),
-    );
-    if (abort.signal.aborted) return;
+    if (request.resumeFrom === undefined) {
+      hunterSession = {
+        searchId, key,
+        session: createBingoHunterSession(result.lexicon, { ...result.position, ...request },
+          result.moves, result.odds, computeWorkerLimit(workerLimit)),
+      };
+    }
+    const current = hunterSession!;
+    const finished = (async () => {
+      await previous?.finished.catch(() => {});
+      return current.session.run(abort.signal,
+        (progress) => post({ id, kind: "bingo-hunter-progress", progress }),
+        Math.max(0, BINGO_HUNTER_SLICE_MS - (performance.now() - started)),
+      );
+    })();
+    activeHunter = { id, searchId, abort, finished };
+    const { ranked, summary } = await finished;
+    if (abort.signal.aborted || hunterSession !== current) return;
+    current.lastId = id;
     result.setProfile({ profile: "bingo-hunter", profileBagSize: bagSize, profileSeed: id }, ranked);
     post({ id, kind: "bingo-hunter", summary });
   } catch (error) {
@@ -184,6 +205,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       return;
     case "discard":
       if (activeHunter?.searchId === request.searchId) activeHunter.abort.abort();
+      if (hunterSession?.searchId === request.searchId) hunterSession = undefined;
       results.delete(request.searchId);
       return;
     case "cancel":

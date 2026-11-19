@@ -20,7 +20,7 @@ type PositionRequest = Position & {
   dictionaryId: string;
   template: BoardTemplate;
 };
-export type HunterOptions = EndgameSettings & { bagSize: number; workerLimit: number };
+export type HunterOptions = EndgameSettings & { bagSize: number; workerLimit: number; resumeFrom?: number };
 
 export type SolverRequest =
   | ({ kind: "bingo-hunter"; id: number; searchId: number } & HunterOptions)

@@ -15,7 +15,10 @@ import { randomGenerator } from "../shared/move-analysis";
 import { PRESETS } from "../shared/presets";
 import { TILE_SYMBOLS } from "../shared/tile-pool";
 import { prepareSolver } from "../shared/solver";
-import { runBingoHunter } from "../src/parallel-bingo-hunter";
+import {
+  createBingoHunterSession,
+  runBingoHunter,
+} from "../src/parallel-bingo-hunter";
 
 test("shared deals conserve tiles and exact deals weight duplicate physical copies", () => {
   const pool = ["A", "A", "E", "T"];
@@ -85,6 +88,25 @@ test("best bingo scoring agrees with full move generation for blanks and differe
   }
 });
 
+test("seven rack tiles can form bingos through up to eight tiles on the board", () => {
+  const template = PRESETS[0];
+  const fixtures = [
+    { word: "TRAINING", anchor: "R", start: 1, rack: "AGIINNT", score: 140 },
+    { word: "REPAINTED", anchor: "RE", start: 1, rack: "PAINTED", score: 95 },
+    { word: "ANTAGONIZE", anchor: "ANT", start: 108, rack: "AGONIZE", score: 110 },
+    { word: "ABSTRACTIONISMS", anchor: "ABSTRACT", start: 0, rack: "IIMNOSS", score: 116 },
+  ];
+  for (const { word, anchor, start, rack, score } of fixtures) {
+    const board = emptyBoard(template.size);
+    [...anchor].forEach((letter, offset) => { board[start + offset] = letter; });
+    const solver = prepareSolver(new Lexicon([word]), board, template);
+    const [move] = solver.solve(rack);
+    assert.equal(move.word, word);
+    assert.equal(move.tiles.length, 7);
+    assert.equal(solver.bestBingoScore(rack), score);
+  }
+});
+
 test("the same refill can bingo after a reply opens an anchor", () => {
   const template = PRESETS[0];
   const board = emptyBoard(template.size);
@@ -142,7 +164,14 @@ test("an exhausted bag gives credit for a bingo now and zero for ordinary points
   const moves = prepareSolver(lexicon, position.board, template).solve(
     position.rack,
   );
-  const selected = [moves.find(({ word }) => word === "READ")!, moves[0]];
+  const ordinary = moves.find(({ word }) => word === "READ")!;
+  const selected = [
+    moves[0],
+    ...Array.from({ length: 100 }, (_, i) => ({
+      ...ordinary,
+      id: `ordinary-${i}`,
+    })),
+  ];
   const phases: string[] = [];
   const { ranked, summary } = await runBingoHunter(
     lexicon,
@@ -153,12 +182,12 @@ test("an exhausted bag gives credit for a bingo now and zero for ordinary points
     new AbortController().signal,
     ({ phase }) => phases.push(phase),
   );
-  assert.equal(summary.checked, 2);
+  assert.equal(summary.checked, selected.length);
   assert.equal(ranked[0].move.word, "READING");
   assert.equal(ranked[0].utility.total, ranked[0].move.score);
   assert.equal(ranked[1].utility.total, 0);
   assert.equal(ranked[0].utility.exact, true);
-  assert.deepEqual(phases, ["sample", "sample", "sample"]);
+  assert.deepEqual([...new Set(phases)], ["sample"]);
 });
 
 function setup(index: number, score: number, leave = "AGIINN"): Move {
@@ -232,4 +261,61 @@ test("board leaders, reply leaders and rare high scores all earn more samples", 
   assert.ok(finalists.includes(rare));
   assert.equal(rare.utility.total, 7);
   assert.equal(rare.utility.highestBingo, 140);
+});
+
+test("another slice resumes the exact deal sequence without replaying completed deals", async (t) => {
+  const template = {
+    ...PRESETS[0],
+    tileCounts: Object.fromEntries(
+      TILE_SYMBOLS.map((letter) => [
+        letter,
+        Number("READINGST".includes(letter)),
+      ]),
+    ),
+  };
+  const position = {
+    template,
+    rack: "READING",
+    board: emptyBoard(template.size),
+    bagSize: 1,
+    scorelessTurns: 0,
+  };
+  const lexicon = new Lexicon(["READING"]);
+  const [move] = prepareSolver(lexicon, position.board, template).solve(
+    position.rack,
+  );
+  const batches: string[][] = [];
+  const original = globalThis.Worker;
+  class PausingWorker {
+    onmessage?: (event: { data: { kind: string; outcomes: number[] } }) => void;
+    terminate() {}
+    postMessage({ job }: { job: { deals: { bag: string }[] } }) {
+      batches.push(job.deals.map(({ bag }) => bag));
+      const outcomes = batches.length === 1 ? [0] : job.deals.map(() => 0);
+      queueMicrotask(() =>
+        this.onmessage?.({ data: { kind: "bingo-hunter", outcomes } }),
+      );
+    }
+  }
+  t.after(() => {
+    globalThis.Worker = original;
+  });
+  globalThis.Worker = PausingWorker as unknown as typeof Worker;
+
+  const session = createBingoHunterSession(
+    lexicon,
+    position,
+    [move],
+    undefined,
+    1,
+  );
+  const first = await session.run(new AbortController().signal, () => {});
+  assert.equal(first.summary.canContinue, true);
+  assert.equal(first.summary.checked, 0);
+
+  const second = await session.run(new AbortController().signal, () => {});
+  assert.equal(second.summary.canContinue, false);
+  assert.equal(second.ranked[0].utility.exact, true);
+  assert.equal(second.ranked[0].utility.total, move.score);
+  assert.deepEqual(batches, [["S", "T"], ["T"]]);
 });

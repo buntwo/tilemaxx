@@ -70,7 +70,7 @@ export type CandidateJob =
 
 export type CandidateResult =
   | { kind: "histogram"; board: ReturnType<typeof summarizeReplyBoard> }
-  | { kind: "bingo-hunter"; outcomes: number[] }
+  | { kind: "bingo-hunter"; outcomes: number[]; blocked?: boolean }
   | { kind: "endgame"; line: EndgameLine; elapsed: number }
   | { kind: "opponent-endgame"; line?: EndgameLine }
   | { kind: "board-bingo"; odds?: BoardOdds }
@@ -96,8 +96,9 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
   let endgame:
     | { key: string; session: ReturnType<typeof createReplyEndgameSession> }
     | undefined;
-  // An Optimal Exchange pool checks one immutable board across both phases.
+  // Reuse prepared boards across deals for the current candidate.
   let hunter: { key: string; evaluate: ReturnType<typeof createHunterEvaluator> } | undefined;
+  // An Optimal Exchange pool checks one immutable board across both phases.
   let exchangeSolver: ReturnType<typeof prepareSolver> | undefined;
   return (job: CandidateJob): CandidateResult => {
     const started = performance.now();
@@ -115,7 +116,11 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
             try {
               outcomes.push(hunter.evaluate(deal, job.beforeReply, deadline));
             } catch (error) {
-              if (error instanceof SearchLimitError) break;
+              if (error instanceof SearchLimitError) {
+                if (error.reason === "nodes" || error.reason === "moves")
+                  return { kind: "bingo-hunter", outcomes, blocked: true };
+                break;
+              }
               throw error;
             }
           }

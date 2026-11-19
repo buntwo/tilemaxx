@@ -19,14 +19,18 @@ export function useBingoHunter(
 
   useEffect(() => {
     setState((current) =>
-      current?.progress && current.key !== key ? undefined : current,
+      current?.progress && current.key !== key
+        ? { ...current, progress: undefined }
+        : current,
     );
     return () => active.current?.abort();
   }, [key]);
 
   function cancel() {
     active.current?.abort();
-    setState(undefined);
+    setState((current) =>
+      current?.result ? { ...current, progress: undefined } : undefined,
+    );
   }
 
   function start(searchId: number, settings: HunterOptions) {
@@ -34,9 +38,16 @@ export function useBingoHunter(
     active.current?.abort();
     const controller = new AbortController();
     active.current = controller;
-    setState({ key, progress: { phase: "screen", done: 0, total: 0 } });
+    const previous =
+      settings.resumeFrom === undefined ? undefined : state?.result;
+    setState({
+      key,
+      result: previous,
+      progress: { phase: "screen", done: 0, total: 0 },
+    });
     void run(searchId, settings, controller.signal, (progress) => {
-      if (!controller.signal.aborted) setState({ key, progress });
+      if (!controller.signal.aborted)
+        setState({ key, result: previous, progress });
     }).then(
       (response) => {
         if (controller.signal.aborted) return;
@@ -45,6 +56,7 @@ export function useBingoHunter(
             ? { key, result: { ...response.summary, id: response.id } }
             : {
                 key,
+                result: previous,
                 error:
                   response?.error ??
                   "Bingo hunter could not finish. Try again.",
@@ -53,7 +65,11 @@ export function useBingoHunter(
       },
       () => {
         if (!controller.signal.aborted)
-          setState({ key, error: "Bingo hunter could not finish. Try again." });
+          setState({
+            key,
+            result: previous,
+            error: "Bingo hunter could not finish. Try again.",
+          });
       },
     );
   }

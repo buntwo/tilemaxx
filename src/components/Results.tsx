@@ -724,6 +724,26 @@ export default function Results({
   }
   const hasBingoControls = !!(analysisGame && onBoardOdds && onCancelBoardOdds);
   const showFilters = !!resultSet && !!(totalMoves || requiredSquares || analysisGame) && !busy && !error;
+  function runHunterSlice(resumeFrom?: number) {
+    if (searchId !== undefined)
+      hunter.start(searchId, { bagSize, scorelessTurns, opponentHasFinalTurn: replyAnalysis.opponentHasFinalTurn, workerLimit, resumeFrom });
+  }
+  const hunterStatus = hunterProgress && (
+    <span role="status">
+      {hunterProgress.phase === "screen" ? "Screening bingo setups" :
+        hunterProgress.phase === "screen-replies" ? "Screening opponent replies" :
+        hunterProgress.phase === "sample" ? "Simulating replies" : "Refining bingo estimates"}
+      {hunterProgress.total > 0 && ` · ${hunterProgress.done}/${hunterProgress.total} moves`}
+    </span>
+  );
+  const hunterAction = hunterProgress ? (
+    <button type="button" className="button secondary" onClick={hunter.cancel}>Cancel</button>
+  ) : hunterResult?.canContinue ? (
+    <button type="button" className="button secondary"
+      onClick={() => runHunterSlice(hunter.current?.error ? undefined : hunterResult.id)}>
+      {hunter.current?.error ? "Restart Bingo hunter" : "Run another 10 seconds"}
+    </button>
+  ) : undefined;
   const viewPicker = analysisGame && (
     <div
       className="result-view-picker"
@@ -1116,37 +1136,28 @@ export default function Results({
             Skip endgame analysis
           </button>
         </div>
-      ) : hunterSelected && !hunterResult ? (
+      ) : hunterSelected && !hunterResult?.checked ? (
         <div className="results-empty">
           {hunterProgress ? (
             <>
               <LoaderCircle className="spin" size={24} aria-hidden="true" />
-              <p role="status">
-                {hunterProgress.phase === "screen" ? "Screening bingo setups" :
-                  hunterProgress.phase === "screen-replies" ? "Screening opponent replies" :
-                  hunterProgress.phase === "sample" ? "Simulating replies" : "Refining bingo estimates"}
-                {hunterProgress.total > 0 && ` · ${hunterProgress.done}/${hunterProgress.total} moves`}
-              </p>
-              <button type="button" className="button secondary" onClick={hunter.cancel}>
-                Cancel
-              </button>
+              {hunterStatus}
+              {hunterAction}
             </>
           ) : (
             <>
               <p role="status">{hunter.current?.error ?? (invalid
                 ? "Check tile counts before running Bingo hunter."
-                : "Rank moves by bingo points now and expected bingo points after the reply.")}</p>
-              <button
-                type="button"
-                className="button primary"
-                disabled={!hunterKey}
-                onClick={() => {
-                  if (searchId !== undefined)
-                    hunter.start(searchId, { bagSize, scorelessTurns, opponentHasFinalTurn: replyAnalysis.opponentHasFinalTurn, workerLimit });
-                }}
-              >
-                Run Bingo hunter
-              </button>
+                : hunterResult?.canContinue
+                  ? "Search paused before enough moves could be compared."
+                  : hunterResult?.limited
+                    ? "The search reached its complexity limit."
+                    : "Rank moves by bingo points now and expected bingo points after the reply.")}</p>
+              {hunterAction ?? (
+                <button type="button" className="button primary" disabled={!hunterKey} onClick={() => runHunterSlice()}>
+                  Run Bingo hunter
+                </button>
+              )}
             </>
           )}
         </div>
@@ -1222,10 +1233,17 @@ export default function Results({
             </div>
           )}
           {hunterResult && (
-            <div className="reply-controls" role="status">
-              {hunterResult.checked} candidates checked
-              {hunterResult.finalistsFirst && " · Finalists ranked first"}
-              {hunterResult.limited && " · Search limit reached"}
+            <div className="reply-controls">
+              {hunterStatus ?? (
+                <span role="status">
+                  {hunterResult.checked} candidates checked
+                  {hunterResult.canContinue && " · Provisional"}
+                  {hunterResult.finalistsFirst && " · Finalists ranked first"}
+                  {hunterResult.limited && " · Search limit reached"}
+                  {hunter.current?.error && ` · ${hunter.current.error}`}
+                </span>
+              )}
+              {hunterAction}
             </div>
           )}
           <div className="result-columns">
