@@ -67,6 +67,7 @@ interface Direction {
   direction: Move["direction"];
   step: number;
   starts: Start[];
+  anchorSquares: Start[];
   toAnchor: Uint8Array;
   space: Uint8Array;
   mask: Int32Array;
@@ -90,6 +91,7 @@ function prepareDirection(
   const crossStep = across ? size : 1;
   const cellCount = size ** 2;
   const starts: Start[] = [];
+  const anchorSquares: Start[] = [];
   const toAnchor = prior ? prior.toAnchor.slice() : new Uint8Array(cellCount);
   const space = prior ? prior.space.slice() : new Uint8Array(cellCount);
   const mask = prior ? prior.mask.slice() : new Int32Array(cellCount).fill(ALL);
@@ -103,11 +105,16 @@ function prepareDirection(
     ? prior.suffix.slice()
     : Array<string>(cellCount).fill("");
   const previousStarts = Array.from({ length: size }, () => [] as Start[]);
-  if (prior)
+  const previousAnchors = Array.from({ length: size }, () => [] as Start[]);
+  if (prior) {
     for (const start of prior.starts) previousStarts[start.line].push(start);
+    for (const anchor of prior.anchorSquares)
+      previousAnchors[anchor.line].push(anchor);
+  }
   for (let line = 0; line < size; line++) {
     if (prior && dirty && !dirty.has(line)) {
       starts.push(...previousStarts[line]);
+      anchorSquares.push(...previousAnchors[line]);
       continue;
     }
 
@@ -131,6 +138,7 @@ function prepareDirection(
       ) {
         starts.push({ line, position, cell });
       }
+      if (anchors[cell]) anchorSquares.push({ line, position, cell });
       mask[cell] = ALL;
       crossScore[cell] = 0;
       prefix[cell] = "";
@@ -162,6 +170,7 @@ function prepareDirection(
     direction: across ? "across" : "down",
     step,
     starts,
+    anchorSquares,
     toAnchor,
     space,
     mask,
@@ -494,6 +503,7 @@ function prepareBoardSolver(
         direction,
         step,
         starts,
+        anchorSquares,
         mask,
         toAnchor,
         space,
@@ -791,6 +801,104 @@ function prepareBoardSolver(
           }
         }
         return false;
+      }
+
+      // Enumerating from each leftmost anchor shares rack-prefix traversal.
+      // Keep ranked word starts for score-bound searches and the established
+      // ordering of tied heatmap examples.
+      if (!pruneScore && !bigReplies) {
+        const leftCodes = new Uint8Array(rackLength);
+        for (const anchor of anchorSquares) {
+          if (performance.now() >= deadline) throw new SearchLimitError("time");
+          startLine = anchor.line;
+          if (anchor.position > 0 && letters[anchor.cell - step]) {
+            // A fixed contiguous prefix belongs to this anchor. Mixed prefixes
+            // are generated from the earlier anchor where their first tile goes.
+            let position = anchor.position,
+              cell = anchor.cell;
+            while (position > 0 && letters[cell - step]) {
+              position--;
+              cell -= step;
+            }
+            startPosition = position;
+            if (walk(cell, 0, 0, 0, rackMask, blankCount, 0, 1, 0, false))
+              return { moves, bestScore, hasBingo };
+            continue;
+          }
+          // Assign each play to its first newly covered anchor. The rack-only
+          // prefix may cover neither an earlier anchor nor an existing tile.
+          let limit = 0;
+          while (limit < anchor.position && limit < rackLength - 1) {
+            const cell = anchor.cell - (limit + 1) * step;
+            if (letters[cell] || anchors[cell]) break;
+            limit++;
+          }
+          function leftPart(
+            node: number,
+            length: number,
+            available: number,
+            blanks: number,
+          ): boolean {
+            startPosition = anchor.position - length;
+            let sum = 0,
+              multiplier = 1,
+              hitsPremium = false;
+            // Growing the prefix shifts it left, changing its premium squares.
+            for (let i = 0; i < length; i++) {
+              const cell = anchor.cell - (length - i) * step;
+              const code = leftCodes[i];
+              tileCells[i] = cell;
+              tileCodes[i] = code;
+              wordCodes[i] = code % 26;
+              sum += (code < 26 ? letterPoints[code] : 0) * lm[cell];
+              multiplier *= wm[cell];
+              hitsPremium ||= !!premiumSearch?.targets.has(cell);
+            }
+            if (
+              walk(
+                anchor.cell,
+                length,
+                node,
+                length,
+                available,
+                blanks,
+                sum,
+                multiplier,
+                0,
+                false,
+                hitsPremium,
+              )
+            )
+              return true;
+            if (length === limit) return false;
+            const allChildren = children[node];
+            for (
+              let possible = allChildren & (blanks ? ALL : available);
+              possible;
+            ) {
+              const code = 31 - Math.clz32(possible),
+                bit = 1 << code;
+              possible ^= bit;
+              const child = first[node] + popcount(allChildren >>> (code + 1));
+              if (available & bit) {
+                const left = --counts[code] ? available : available ^ bit;
+                leftCodes[length] = code;
+                const found = leftPart(child, length + 1, left, blanks);
+                counts[code]++;
+                if (found) return true;
+              }
+              if (blanks) {
+                leftCodes[length] = code + 26;
+                if (leftPart(child, length + 1, available, blanks - 1))
+                  return true;
+              }
+            }
+            return false;
+          }
+          if (leftPart(0, 0, rackMask, blankCount))
+            return { moves, bestScore, hasBingo };
+        }
+        continue;
       }
 
       const ordering = prioritizeStarts
