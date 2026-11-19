@@ -69,6 +69,7 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
     { label: "Crosswords", value: utility.crosswords },
     { label: "Play length", value: utility.length },
     { label: "Rack leave", value: utility.leave },
+    { label: "Endgame lookahead", value: utility.endgame, show: utility.endgame !== undefined },
     { label: "Going out", value: utility.goingOut },
     {
       label: "Premium lane risk",
@@ -101,9 +102,11 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
         <strong>Utility</strong>
         <strong>{formatUtility(utility.total)}</strong>
       </div>
-      {checksDefense && (
+      {(checksDefense || utility.endgame !== undefined) && (
         <div className="move-score-adjustment">
-          Leading candidates are ranked first and checked for premium threats.
+          {utility.endgame !== undefined
+            ? "Leading candidates were compared using the known endgame racks."
+            : "Leading candidates are ranked first and checked for premium threats."}
         </div>
       )}
     </div>

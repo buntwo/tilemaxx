@@ -64,7 +64,11 @@ async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind:
       }
       const seed = profileWordHash(`${position.board.join(".")}:${rackComposition(position.rack)}`);
       const { considered } = models.choose(result.moves, profile, {
-        ...position, bagSize: profileBagSize, seed, playerSeed: profileSeed,
+        ...position,
+        bagSize: profileBagSize,
+        seed,
+        playerSeed: profileSeed,
+        scorelessTurns: query.profileScorelessTurns,
       }, { all: true, scoreOrdered: true });
       result.setProfile(query, considered ?? []);
     } catch (error) {

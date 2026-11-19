@@ -433,7 +433,14 @@ export function analyzeMoves(
         const forecasts = bagSize
           ? new Map<string, { bingo: boolean; score: number }>()
           : entry.knownFollowups;
-        const replyPosition = { board: entry.board, rack: opponent, bagSize: bagAfter, seed: choice, playerSeed: choice ^ 0x583e4ad1 };
+        const replyPosition = {
+          board: entry.board,
+          rack: opponent,
+          bagSize: bagAfter,
+          seed: choice,
+          playerSeed: choice ^ 0x583e4ad1,
+          scorelessTurns: bagSize === 0 ? entry.streak : undefined,
+        };
         const defaultReply = chooseReply ? null : bestStrongReply(replies, bagAfter);
         const models = PLAYER_PROFILES.map((model) => {
           const reply = chooseReply
