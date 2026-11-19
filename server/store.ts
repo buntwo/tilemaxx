@@ -32,7 +32,11 @@ import {
 } from "../shared/game-scoring";
 import { PRESETS } from "../shared/presets";
 import { parseWords } from "../shared/lexicon";
-import { defaultDictionary } from "../shared/dictionaries";
+import {
+  defaultDictionary,
+  grammalecteDownloadName,
+  isGrammalecte,
+} from "../shared/dictionaries";
 import { type z } from "zod";
 import { type screenshotExampleSchema } from "./validation";
 
@@ -74,7 +78,15 @@ export function createStore(directory: string, root: string) {
       return;
     }
     const count = parseWords(readFileSync(file, "utf8")).length;
-    const metadata: Dictionary = { id, name, count, description, builtin };
+    const metadata: Dictionary = {
+      id,
+      name: name === grammalecteDownloadName ? "Grammalecte 7.7" : name,
+      count,
+      description: isGrammalecte(name)
+        ? "Open French word list for casual play."
+        : description,
+      builtin,
+    };
     db.prepare("INSERT INTO dictionaries VALUES (?,?,?)").run(
       id,
       JSON.stringify(metadata),
@@ -461,7 +473,7 @@ export function createStore(directory: string, root: string) {
       const words = parseWords(text);
       if (words.length < 1)
         throw new Error(
-          "No words found. Use a text file with one English word per line.",
+          "No words found. Use one word in A–Z tile spelling per line.",
         );
       const id = randomUUID(),
         file = join(dictionaryDirectory, `${id}.txt`);

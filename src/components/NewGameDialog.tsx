@@ -35,9 +35,9 @@ export default function NewGameDialog({
   onClose: () => void;
 }) {
   const [templateId, setTemplateId] = useState("scrabble");
-  const [dictionaryId, setDictionaryId] = useState(
-    () => defaultDictionary(dictionaries, currentDictionaryId)?.id ?? "",
-  );
+  const [dictionaryChoices, setDictionaryChoices] = useState<
+    Partial<Record<"french" | "other", string>>
+  >({});
   const [trackScores, setTrackScores] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -45,6 +45,19 @@ export default function NewGameDialog({
   const submitting = useRef(false);
   const layoutLabelId = useId();
   const layoutHelpId = useId();
+  const dictionaryLabelId = useId();
+  const dictionaryHelpId = useId();
+  const template = templates.find(({ id }) => id === templateId);
+  const french = template?.rules === "scrabble-fr";
+  const dictionaryGroup = french ? "french" : "other";
+  const preferred = defaultDictionary(
+    dictionaries,
+    currentDictionaryId,
+    template?.rules,
+  );
+  const chosen = dictionaryChoices[dictionaryGroup];
+  const dictionaryId =
+    dictionaries.find(({ id }) => id === chosen)?.id ?? preferred?.id ?? "";
 
   return (
     <Modal
@@ -59,11 +72,11 @@ export default function NewGameDialog({
           event.preventDefault();
           if (submitting.current) return;
           const details = readGameDetails(event.currentTarget);
-          const template = templates.find(({ id }) => id === templateId);
           if (!template) {
             setError("That board template was deleted. Choose another board.");
             return;
           }
+          if (!dictionaryId) return;
           submitting.current = true;
           setBusy(true);
           setError("");
@@ -126,11 +139,26 @@ export default function NewGameDialog({
               </select>
             </label>
             <label>
-              Word list
+              <span id={dictionaryLabelId}>Word list</span>
               <select
+                aria-labelledby={dictionaryLabelId}
+                aria-describedby={
+                  french && !preferred ? dictionaryHelpId : undefined
+                }
+                required
                 value={dictionaryId}
-                onChange={(event) => setDictionaryId(event.currentTarget.value)}
+                onChange={(event) =>
+                  setDictionaryChoices({
+                    ...dictionaryChoices,
+                    [dictionaryGroup]: event.currentTarget.value,
+                  })
+                }
               >
+                {!dictionaryId && (
+                  <option value="" disabled>
+                    Choose a word list
+                  </option>
+                )}
                 {dictionaries.map((dictionary) => (
                   <option key={dictionary.id} value={dictionary.id}>
                     {dictionary.name} · {dictionary.count.toLocaleString()}{" "}
@@ -138,6 +166,12 @@ export default function NewGameDialog({
                   </option>
                 ))}
               </select>
+              {french && !preferred && (
+                <small id={dictionaryHelpId} className="muted">
+                  Import Grammalecte under Word lists, or choose an installed
+                  list for this game.
+                </small>
+              )}
             </label>
             <label className="score-checkbox">
               <input
@@ -169,7 +203,7 @@ export default function NewGameDialog({
           >
             Cancel
           </button>
-          <button className="button primary" disabled={busy}>
+          <button className="button primary" disabled={busy || !dictionaryId}>
             {busy ? "Creating…" : "Create game"}
             <ArrowRight size={16} />
           </button>

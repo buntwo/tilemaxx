@@ -14,6 +14,26 @@ import { solve } from "../shared/solver";
 import { TILE_SYMBOLS } from "../shared/tile-pool";
 import { type GameIndex, summarizeGame } from "../shared/game-index";
 import { PRESETS } from "../shared/presets";
+import { defaultDictionary } from "../shared/dictionaries";
+
+test("a manual Grammalecte import is recognized and keeps its identity after restart", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-grammalecte-"));
+  let store = createStore(dir, process.cwd());
+  try {
+    const french = store.importDictionary("fr.d61940ba", "ete\nkiwi\n");
+    assert.equal(french.name, "Grammalecte 7.7");
+    assert.equal(french.builtin, false);
+    assert.equal(french.count, 2);
+    store.db.close();
+    store = createStore(dir, process.cwd());
+    assert.deepEqual(defaultDictionary(store.dictionaries(), undefined, "scrabble-fr"), french);
+    assert.equal(defaultDictionary(store.dictionaries(), french.id)?.id, "wordnik");
+    assert.equal(store.dictionaryText(french.id), "ETE\nKIWI\n");
+  } finally {
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test("durable games, profiles, templates, dictionary import and stale-update rejection", async () => {
   const dir = mkdtempSync(join(tmpdir(), "tilewise-test-"));

@@ -44,30 +44,32 @@ function reflect(size: number, points: number[][]): number[][] {
         for (const y of [b, size - 1 - b]) unique.set(`${x},${y}`, [x, y]);
   return [...unique.values()];
 }
+const scrabblePremiums = {
+  TW: reflect(15, [
+    [0, 0],
+    [0, 7],
+  ]),
+  DW: reflect(15, [
+    [1, 1],
+    [2, 2],
+    [3, 3],
+    [4, 4],
+    [7, 7],
+  ]),
+  TL: reflect(15, [
+    [1, 5],
+    [5, 5],
+  ]),
+  DL: reflect(15, [
+    [0, 3],
+    [2, 6],
+    [3, 7],
+    [6, 6],
+  ]),
+};
+
 export const PRESETS: BoardTemplate[] = [
-  board("scrabble", "Scrabble", 15, {
-    TW: reflect(15, [
-      [0, 0],
-      [0, 7],
-    ]),
-    DW: reflect(15, [
-      [1, 1],
-      [2, 2],
-      [3, 3],
-      [4, 4],
-      [7, 7],
-    ]),
-    TL: reflect(15, [
-      [1, 5],
-      [5, 5],
-    ]),
-    DL: reflect(15, [
-      [0, 3],
-      [2, 6],
-      [3, 7],
-      [6, 6],
-    ]),
-  }),
+  board("scrabble", RULE_NAMES.scrabble, 15, scrabblePremiums),
   board(
     "wwf",
     RULE_NAMES.wwf,
@@ -233,4 +235,7 @@ export const PRESETS: BoardTemplate[] = [
     },
     { rules: "lexulous", rackSize: 8, additionalBonuses: { 7: 40 } },
   ),
+  board("scrabble-fr", RULE_NAMES["scrabble-fr"], 15, scrabblePremiums, {
+    rules: "scrabble-fr",
+  }),
 ];

@@ -20,9 +20,12 @@ Bundled `public/dictionaries/enable.txt` is ENABLE1 from https://github.com/dolp
 
 User-provided word lists are stored in `data/dictionaries`, excluded from Git and Docker build context. They retain their original terms. No WOW, CSW, or NWL list is bundled with the source or image.
 
+The optional French list is based on the **Grammalecte 7.7** French spelling dictionary by Olivier R. and contributors. [LetterUnmix's expanded, accent-folded text list and source notices](https://letterunmix.com/sources/) are distributed under the [Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/). The list may be imported manually and is stored in `data/dictionaries`.
+
 ## Gameplay references
 
 - Scrabble rules: https://instructions.hasbro.com/en-gb/instruction/scrabble-game
+- French Scrabble rules and distribution: [FFSc international classic rules](https://www.ffsc.fr/classique.php?page=reglements) and [Michel Duguet's French tile table](https://media.electre-ng.com/extraits/extrait-id/59c90a35e79d158ea169362b8b318a1cd38688f4d670cd257fea4acc80df3ea4.pdf).
 - Words With Friends scoring and 35-point bonus: https://zyngasupport.helpshift.com/hc/en/63-words-with-friends-2/faq/10552-words-with-friends-rule-book/
 - Super Scrabble rules: https://winning-moves.com/images/SuperScrabbleRulesSheet2.pdf
 - Layout reference: https://scrabble-solver.org/ and its published board configurations. No implementation code or artwork was copied from that project. Tilemaxx has its own solver and UI.
