@@ -105,6 +105,9 @@ import {
 import { CLEARED_BOARD } from "../shared/score-recovery";
 import { DEFENSE_LIMIT } from "../shared/premium-defense";
 import { useSolver } from "./useSolver";
+import { useStyleExchange } from "./useStyleExchange";
+import { profileWordHash } from "../shared/player-profiles";
+import type { MoveStyle } from "../shared/move-results";
 import OfflineStatus from "./components/OfflineStatus";
 import { useAutoUpdate } from "./useAutoUpdate";
 import { useWorkspaceWidth } from "./useWorkspaceWidth";
@@ -349,6 +352,25 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     workerLimit,
     solver.replyCandidates,
   );
+  const [styleSelection, setStyleSelection] = useState<{ gameId: string; style: MoveStyle }>();
+  const playingStyle = styleSelection?.gameId === game?.id ? styleSelection?.style : undefined;
+  const exchangeProfile = playingStyle !== "bingo-hunter" ? playingStyle : undefined;
+  const exchangeSeed = game ? profileWordHash(game.id) : 0;
+  const exchangeSearch = solver.results?.searchId;
+  const exchangeChoice = exchangeProfile && exchangeSearch !== undefined
+    ? solver.styleChoice(exchangeSearch, exchangeProfile, replyAnalysis.bagSize, exchangeSeed)
+    : undefined;
+  const styleExchange = useStyleExchange(
+    workspace === "games" && !gameOver && !busy && !solver.error && !warnings.length && !replyAnalysis.invalid ? game : undefined,
+    signature,
+    exchangeSearch,
+    exchangeProfile,
+    exchangeChoice,
+    replyAnalysis.bagSize,
+    replyAnalysis.scorelessTurns,
+    exchangeSeed,
+  );
+  const exchangeAdvice = playingStyle ? styleExchange.advice : solver.exchangeAdvice;
   const activeFlight =
     workspace === "games" && flight?.destination === signature
       ? flight
@@ -405,6 +427,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       !!dialog ||
       formBusy ||
       solver.calculating ||
+      styleExchange.pending ||
       replyAnalysis.calculating ||
       calculating ||
       !!activeFlight,
@@ -1415,7 +1438,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   phoneLayout={phoneLayout}
                   onReviewEdit={moveReview.showing ? editPosition : undefined}
                   positionKey={signature}
-                  exchangeAdvice={solver.exchangeAdvice}
+                  exchangeAdvice={exchangeAdvice}
                   exchangeBag={replyAnalysis.bagSize}
                   exchangeBagConfirmed={replyAnalysis.bagConfirmed}
                   opponentRack={replyAnalysis.opponentRack}
@@ -1440,11 +1463,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   collapsibleSearch
                   results={solver.results}
                   findMovesRequest={findMovesRequest}
+                  playingStyle={playingStyle}
+                  onPlayingStyleChange={(style) => setStyleSelection(style ? { gameId: game.id, style } : undefined)}
                   exchangeAction={
-                    solver.exchangeAdvice &&
+                    exchangeAdvice &&
                     !activeFlight && (
                       <ExchangeSuggestion
-                        advice={solver.exchangeAdvice}
+                        advice={exchangeAdvice}
                         rack={game.rack}
                         onOpen={() => {
                           if (moveReview.showing) editPosition();
@@ -1458,7 +1483,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   fetchShortlist={solver.shortlist}
                   runBingoHunter={solver.runBingoHunter}
                   busy={busy}
-                  calculating={solver.calculating}
+                  calculating={solver.calculating || styleExchange.pending}
                   timing={solver.timing}
                   onTimingComplete={
                     solver.startedAt !== undefined && searchId !== undefined

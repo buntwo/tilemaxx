@@ -177,6 +177,8 @@ export default function Results({
   results: resultSet,
   findMovesRequest,
   exchangeAction,
+  playingStyle,
+  onPlayingStyleChange,
   compact = false,
   collapsibleSearch = compact,
   fetchPage,
@@ -216,6 +218,8 @@ export default function Results({
   results: MoveResults | null;
   findMovesRequest?: number;
   exchangeAction?: ReactElement | false;
+  playingStyle?: MoveStyle;
+  onPlayingStyleChange?: (style: MoveStyle | undefined) => void;
   compact?: boolean;
   collapsibleSearch?: boolean;
   fetchPage: FetchMovePage;
@@ -337,11 +341,9 @@ export default function Results({
   const replyMetricId = useId();
   const [candidates, setCandidates] = useState<Move[]>([]);
   const [shortlistSearch, setShortlistSearch] = useState<number>();
-  const [playingStyle, setPlayingStyle] = useState<{ gameId: string; profile: MoveStyle }>();
   const shortlistActive =
     !!analysisGame && !!resultSet && shortlistSearch === resultSet.searchId;
-  const profile = resultSet && playingStyle && playingStyle.gameId === analysisGame?.id && !shortlistActive
-    ? playingStyle.profile : undefined;
+  const profile = resultSet && !shortlistActive ? playingStyle : undefined;
   const hunterSelected = profile === "bingo-hunter";
   const hunterKey = hunterSelected && !busy && !error && !invalid
     ? JSON.stringify([analysisKey, resultSet?.searchId, bagSize, scorelessTurns, replyAnalysis.opponentHasFinalTurn])
@@ -721,7 +723,7 @@ export default function Results({
     );
   }
   const hasBingoControls = !!(analysisGame && onBoardOdds && onCancelBoardOdds);
-  const showFilters = !!resultSet && !!(totalMoves || requiredSquares) && !busy && !error;
+  const showFilters = !!resultSet && !!(totalMoves || requiredSquares || analysisGame) && !busy && !error;
   const viewPicker = analysisGame && (
     <div
       className="result-view-picker"
@@ -733,7 +735,7 @@ export default function Results({
         aria-pressed={!shortlistActive && !profile}
         onClick={() => {
           if (!shortlistActive && !profile) return;
-          setPlayingStyle(undefined);
+          onPlayingStyleChange?.(undefined);
           setShortlistSearch(undefined);
           setOrdering(undefined);
         }}
@@ -744,7 +746,7 @@ export default function Results({
         type="button"
         aria-pressed={shortlistActive}
         onClick={() => {
-          setPlayingStyle(undefined);
+          onPlayingStyleChange?.(undefined);
           setShortlistSearch(searchId);
           setSort("shortlist");
         }}
@@ -777,7 +779,7 @@ export default function Results({
         value={profile ?? ""}
         onChange={(event) => {
           const value = event.target.value as MoveStyle | "";
-          setPlayingStyle(value && analysisGame ? { gameId: analysisGame.id, profile: value } : undefined);
+          onPlayingStyleChange?.(value || undefined);
           setShortlistSearch(undefined);
           setOrdering(undefined);
           setLocked(null);
@@ -983,7 +985,7 @@ export default function Results({
               setSearchOpen(false);
               setOrdering(undefined);
               setShortlistSearch(undefined);
-              setPlayingStyle(undefined);
+              onPlayingStyleChange?.(undefined);
               setInspectedReply(undefined);
               setHeatmap(undefined);
               focusFindMoves.current = true;

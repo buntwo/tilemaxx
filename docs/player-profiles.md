@@ -19,3 +19,7 @@ The [shared profile code](../shared/player-profiles.ts) defines the weights. [Wo
 ## Premium lanes
 
 The lane penalty is three times the biggest increase in two-premium lane risk for Strong and one times that increase for Learner. The scan checks rack capacity, perpendicular word constraints, unseen tiles, and the face value of any tiles the reply would play through. Triple- and quadruple-word squares count as major premiums. The Strong weight was calibrated on simulated WOW24 Scrabble and SOWPODS Lexulous games against expected best replies from 500 shared opponent racks. The Learner weight represents lighter attention to defense.
+
+## Exchange suggestions
+
+When a style chooses to exchange, **Swap** in Possible moves marks those tiles and opens **Simulate exchange**. Casual and Word-list learner use rack quality to compare swaps with the style’s best spotted play. Strong uses the same heuristic and checks close calls against 16 shared draws and modeled opponent replies, with an estimate in the panel when the full comparison favors swapping. If the comparison hits a search limit, it uses the heuristic. Held tiles stay on the rack. **No style** uses the general exchange suggestion.

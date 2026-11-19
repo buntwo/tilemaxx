@@ -79,6 +79,7 @@ export interface MovePage {
   head: Move[];
   rows: Move[];
   scoreRanks: Record<string, number>;
+  styleChoice?: { move?: Move };
   utilities?: Record<string, MoveUtility>;
   endgame?: Record<string, EndgameEstimate>;
   exactEndgameCount?: number;
@@ -351,6 +352,7 @@ export class MoveResultIndex {
       scoreRanks: Object.fromEntries(
         rows.map(({ id }) => [id, this.scoreRanks.get(id)!]),
       ),
+      styleChoice: ranked && profile !== "bingo-hunter" ? { move: ranked.moves[0] } : undefined,
       utilities: ranked && Object.fromEntries(rows.map(({ id }) => {
         const rank = ranked.ranks.get(id)!;
         return [id, { ...ranked.ranked[rank - 1].utility, rank }];
