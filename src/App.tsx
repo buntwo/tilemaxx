@@ -17,6 +17,7 @@ import {
   Home,
   Info,
   Keyboard,
+  ListChecks,
   LoaderCircle,
   Map,
   Menu,
@@ -66,6 +67,7 @@ import BoardStudio from "./components/BoardStudio";
 import ScreenshotImport from "./components/ScreenshotImport";
 import { hasCustomPremiums, importBoard } from "../shared/screenshot";
 import Modal from "./components/Modal";
+import WordListChecker from "./components/WordListChecker";
 import MoveWord from "./components/MoveWord";
 import WordLists from "./components/WordLists";
 import UiGuide from "./components/UiGuide";
@@ -135,6 +137,7 @@ type Dialog =
   | "screenshot"
   | "new"
   | "dictionaries"
+  | "word-list-checker"
   | "profile"
   | "rename-profile"
   | "delete-profile"
@@ -1070,6 +1073,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           <BookOpen size={18} />
           Word lists
         </button>
+        <button className="nav-link" onClick={() => openDialog("word-list-checker")}>
+          <ListChecks size={18} aria-hidden="true" />
+          Word list checker
+        </button>
         <button className="nav-link" onClick={() => openDialog("ui-guide")}>
           <Map size={18} aria-hidden="true" />
           UI guide
@@ -1911,6 +1918,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           selectedId={game?.dictionaryId}
           onClose={() => setDialog(null)}
           onNotify={notify}
+        />
+      )}
+      {dialog === "word-list-checker" && (
+        <WordListChecker
+          dictionaries={data.dictionaries}
+          selectedId={game?.dictionaryId}
+          onClose={() => setDialog(null)}
         />
       )}
       {dialog === "ui-guide" && (

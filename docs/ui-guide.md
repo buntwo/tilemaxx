@@ -69,5 +69,6 @@ In **Game scores → Tracked move history**, lowercase letters are blanks and pa
 | **Board studio** | The board template library. The **board editor** sets board size, premium squares, and tile counts. |
 | **Screenshot import** | The dialog that reads a board from a picture. The **crop controls** set the grid bounds. **Premium review** checks special squares, including **Use opening play scores** when available. |
 | **Word lists** | The dictionary manager in the sidebar. Each game’s selected dictionary is in the Game header. |
+| **Word list checker** | Open it from the sidebar, choose an installed word list or open a local text file, and enter a word. **Check word** or **Enter** reports whether the word appears in that list. The checker starts with your game’s word list when available. Local files stay in the browser. |
 
 Green marks a favorable result or change for you. Red marks an unfavorable one. The comparison labels, signs, and lead or loss text carry the same meaning. Ties, reference values, and counts such as rack size and sample size use neutral styling. Gold marks bingos.

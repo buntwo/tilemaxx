@@ -36,6 +36,7 @@ import { createPlayerProfiles } from "../../shared/player-profiles";
 import { prepareEndgameEstimate } from "../../shared/endgame-estimate";
 import type { SolverMessage, SolverRequest } from "../../src/solver-messages";
 import type { PracticeRequest } from "../../src/practice.worker";
+import type { WordListCheckRequest } from "../../src/word-list-checker.worker";
 import type { EndgamePrecomputeRequest } from "../../src/useEndgameLines";
 import { simulateExchange } from "../../shared/exchange";
 import { TILE_SYMBOLS } from "../../shared/tile-pool";
@@ -3485,6 +3486,68 @@ test("word lists confirm removal, display a conflict and update the game selecto
   expect(screen.queryByRole("button", { name: "Remove House words" })).toBeNull();
   expect(screen.queryByRole("option", { name: "House words" })).toBeNull();
   expect((picker as HTMLSelectElement).value).toBe("test");
+});
+
+test("the sidebar checker uses the selected list or local file independently of the game", async () => {
+  remote.dictionaries.push({
+    id: "house",
+    name: "House words",
+    count: 1,
+    builtin: false,
+    description: "Imported word list",
+  });
+  const requests: WordListCheckRequest[] = [];
+  let delayed: (() => void) | undefined;
+  class CheckerWorker extends SolverWorker {
+    postMessage(request: SolverRequest | WordListCheckRequest) {
+      if (!("source" in request)) return super.postMessage(request);
+      requests.push(request);
+      const { id, word, source } = request;
+      const reply = (found: boolean) => this.onmessage?.({ data: { id, found } });
+      if (word === "WAIT") delayed = () => reply(true);
+      else queueMicrotask(() => reply(
+        (source === "test" && word === "CAT") || (source instanceof File && word === "DOG"),
+      ));
+    }
+  }
+  vi.stubGlobal("Worker", CheckerWorker);
+  const user = await start();
+  await user.click(screen.getByRole("button", { name: "Word list checker" }));
+  const dialog = within(screen.getByRole("dialog", { name: "Word list checker" }));
+  const list = dialog.getByRole<HTMLSelectElement>("combobox", { name: "Word list" });
+  const word = dialog.getByRole("textbox", { name: "Word" });
+  const status = dialog.getByRole("status");
+  expect(list.value).toBe("test");
+  expect(document.activeElement).toBe(word);
+  await user.keyboard(" cat {Enter}");
+  expect(status.textContent).toContain("CAT is in Test words.");
+  expect(requests[0]).toMatchObject({ word: "CAT", source: "test" });
+
+  await dialog.findByRole("option", { name: "House words" });
+  await user.selectOptions(list, "house");
+  expect(status.textContent).toBe("");
+  await user.click(dialog.getByRole("button", { name: "Check word" }));
+  expect(status.textContent).toContain("CAT is absent from House words.");
+  await user.clear(word);
+  await user.type(word, "two words{Enter}");
+  expect(status.textContent).toContain("Enter one word");
+  expect(requests).toHaveLength(2);
+
+  await user.clear(word);
+  await user.type(word, "wait{Enter}");
+  expect(status.textContent).toContain("Checking House words");
+  const file = new File(["DOG\n"], "club.txt", { type: "text/plain" });
+  await user.upload(dialog.getByLabelText("Open word list file"), file);
+  expect(list.selectedOptions[0].textContent).toBe("club.txt (local file)");
+  await user.clear(word);
+  await user.type(word, "dog{Enter}");
+  expect(requests.at(-1)?.source).toBe(file);
+  expect(status.textContent).toContain("DOG is in club.txt.");
+  await act(() => delayed?.());
+  expect(status.textContent).toContain("DOG is in club.txt.");
+  await user.click(dialog.getByRole("button", { name: "Close dialog" }));
+  expect(current().dictionaryId).toBe("test");
+  expect(remote.dictionaries.map(({ id }) => id)).toEqual(["test", "house"]);
 });
 
 test.each([1320, 760, 390])("the sidebar collapses and reopens at %ipx", async (width) => {

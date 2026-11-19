@@ -3146,6 +3146,29 @@ label + label {
 .modal textarea {
   resize: vertical;
 }
+.word-list-checker-source,
+.word-list-checker-query {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.word-list-checker-source .file-button { margin: 0; }
+.word-list-checker-query { margin-top: 16px; }
+.word-list-checker-result {
+  min-height: 1.5em;
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.word-list-checker-result svg { vertical-align: text-bottom; margin-inline-end: 3px; }
+@media (max-width: 420px) {
+  .word-list-checker-source { grid-template-columns: minmax(0, 1fr); }
+  .word-list-checker-source .file-button { justify-self: start; }
+  .modal.word-list-checker input:not([type="file"]),
+  .modal.word-list-checker select { font-size: 16px; }
+}
 .opponent-field {
   position: relative;
 }
