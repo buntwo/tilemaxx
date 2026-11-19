@@ -7,7 +7,7 @@ Choose **Playing style** in Possible moves to see placements ranked as a **Casua
 
 Choose **Bingo hunter** in Possible moves and select **Run Bingo hunter** for the current position. Utility adds a move’s bingo points now to the average score of the best legal bingo on the following turn. Ordinary points on the current move contribute zero. Each future turn without a bingo contributes zero.
 
-The search screens placements to select up to 20 candidates, then samples the same opponent rack and bag order across moves. The reply model picks the highest score plus rack-leave value and passes when there is no legal placement. Finalists receive up to 384 shared deals, with an early-stop check at 192. With up to three tiles in the bag, the search tries to enumerate tile deals exactly. The utility breakdown shows how many deals were checked, the chance of a bingo after the reply, and its average best score when available.
+The search screens up to 96 placements drawn from promising leaves, premium-square lanes, and immediate bingos. The board-first shortlist gets up to 20 slots. A shallow opponent-reply check, premium lanes, and the highest bingos found can add candidates for a total of up to 36. The highest bingos found also earn places in deeper analysis. The reply model picks the highest score plus rack-leave value and passes when there is no legal placement. Finalists receive up to 512 shared deals, with an early-stop check at 256. With up to three tiles in the bag, the search tries to enumerate tile deals exactly. The utility breakdown shows the number of deals checked, the chance of a bingo after the reply, its average score when available, and the highest bingo found.
 
 ## How the model works
 

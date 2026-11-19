@@ -1123,6 +1123,7 @@ export default function Results({
               <LoaderCircle className="spin" size={24} aria-hidden="true" />
               <p role="status">
                 {hunterProgress.phase === "screen" ? "Screening bingo setups" :
+                  hunterProgress.phase === "screen-replies" ? "Screening opponent replies" :
                   hunterProgress.phase === "sample" ? "Simulating replies" : "Refining bingo estimates"}
                 {hunterProgress.total > 0 && ` · ${hunterProgress.done}/${hunterProgress.total} moves`}
               </p>

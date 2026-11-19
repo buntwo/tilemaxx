@@ -3,10 +3,11 @@ import {
   nextEndgameStreak,
   type EndgameSettings,
 } from "./endgame";
-import type { Lexicon } from "./lexicon";
+import { popcount, type Lexicon } from "./lexicon";
 import {
   isBingo,
   minimumBingoTiles,
+  wordBonuses,
   type BoardTemplate,
   type Move,
   type Position,
@@ -17,11 +18,12 @@ import { createSolverFactory, SEARCH_LIMITS, SearchLimitError } from "./solver";
 import { unseenTiles } from "./tile-pool";
 import type { RackOdds } from "./bingo-odds";
 
-export const HUNTER_INITIAL = 64;
-export const HUNTER_CHECKPOINT = 192;
-export const HUNTER_MAX = 384;
-export const HUNTER_CANDIDATES = 20;
-export const HUNTER_FINALISTS = 8;
+export const HUNTER_INITIAL = 80;
+export const HUNTER_CHECKPOINT = 256;
+export const HUNTER_MAX = 512;
+export const HUNTER_SCREEN = 96;
+export const HUNTER_CANDIDATES = 36;
+export const HUNTER_FINALISTS = 12;
 
 export type HunterPosition = Position &
   EndgameSettings & { template: BoardTemplate; bagSize: number };
@@ -31,6 +33,7 @@ export type HunterUtility = {
   nextBingoPoints: number;
   bingoChance: number;
   meanBingoScore: number;
+  highestBingo: number;
   total: number;
   samples: number;
   exact: boolean;
@@ -114,18 +117,98 @@ export function exactHunterDeals(
   return [...deals.values()];
 }
 
+// Give crowded-out placements a way into the search based on premium lanes.
+// Geometry supplies leads for simulation, so it can ignore cross-word spelling.
+function hunterLanes({ board, template }: HunterPosition) {
+  const { size, premiums } = template;
+  const minimum = minimumBingoTiles(template);
+  const occupied = new Int32Array(2 * size);
+  const wordMultipliers = new Uint8Array(board.length);
+  const scanCache = Array.from(
+    { length: occupied.length },
+    () => new Map<number, number>(),
+  );
+  for (const [index, letter] of board.entries()) {
+    const row = Math.floor(index / size),
+      col = index % size;
+    if (letter) {
+      occupied[row] |= 1 << col;
+      occupied[size + col] |= 1 << row;
+    }
+    wordMultipliers[index] = wordBonuses[premiums[index]] ?? 1;
+  }
+  // Only windows long enough for a bingo are relevant. A window with one
+  // extra empty square can become available when the reply supplies a letter.
+  function scan(line: number, added: number) {
+    const cache = scanCache[line];
+    const saved = cache.get(added);
+    if (saved !== undefined) return saved;
+    const filled = occupied[line] | added;
+    const origin = line < size ? line * size : line - size;
+    const step = line < size ? 1 : size;
+    let best = 0;
+    for (let start = 0; start <= size - minimum; start++) {
+      if (start && filled & (1 << (start - 1))) continue;
+      let empty = 0,
+        factor = 1,
+        span = 0;
+      for (let end = start; end < size; end++) {
+        const bit = 1 << end;
+        span |= bit;
+        if (!(filled & bit)) {
+          if (++empty > minimum + 1) break;
+          factor *= wordMultipliers[origin + end * step];
+        }
+        if (!(added & span) || empty < minimum || filled & (bit << 1)) continue;
+        best = Math.max(best, empty === minimum ? factor : 0.75 * factor);
+      }
+    }
+    if (cache.size < 2_048) cache.set(added, best);
+    return best;
+  }
+  return (move: Move) => {
+    const changed = new Map<number, number>();
+    for (const { index } of move.tiles) {
+      const row = Math.floor(index / size),
+        col = index % size;
+      changed.set(row, (changed.get(row) ?? 0) | (1 << col));
+      changed.set(size + col, (changed.get(size + col) ?? 0) | (1 << row));
+    }
+    let best = 0;
+    for (const [line, added] of changed) {
+      if (size - popcount(occupied[line] | added) < minimum) continue;
+      best = Math.max(best, scan(line, added));
+    }
+    return best;
+  };
+}
+
 export function hunterScreen(
   moves: readonly Move[],
-  template: BoardTemplate,
+  position: HunterPosition,
   odds?: RackOdds,
 ) {
-  const groups = new Map<string, Move[]>();
-  const short = new Map<string, Move>();
-  for (const move of moves) {
+  const { template } = position;
+  const lanes = hunterLanes(position);
+  const groups = new Map<
+    string,
+    { first: Move; second?: Move; laneMove: Move; lane: number }
+  >();
+  const openings = new Map<Move, number>();
+  const bingos: Move[] = [];
+  const deadline = performance.now() + 750;
+  let limited = false;
+  for (const [i, move] of moves.entries()) {
+    if ((i & 63) === 0 && performance.now() >= deadline) limited = true;
+    if (bingoNow(move, template) && bingos.length < 12) bingos.push(move);
+    const lane = limited ? 0 : lanes(move);
+    if (lane > 1) openings.set(move, lane);
     const group = groups.get(move.leave);
-    if (!group) groups.set(move.leave, [move]);
-    else if (group.length < 2) group.push(move);
-    if (bingoNow(move, template) && short.size < 6) short.set(move.id, move);
+    if (!group) groups.set(move.leave, { first: move, laneMove: move, lane });
+    else {
+      group.second ??= move;
+      if (lane > group.lane) Object.assign(group, { laneMove: move, lane });
+    }
   }
   const prior = (move: Move) => {
     const chance = odds?.byLeave[move.leave];
@@ -134,21 +217,77 @@ export function hunterScreen(
       (chance === undefined ? 2 * leaveValue(move.leave) : 75 * chance)
     );
   };
-  const byLeave = [...groups.values()].sort(([a], [b]) => prior(b) - prior(a));
-  for (const move of byLeave.slice(0, 24).flat()) short.set(move.id, move);
-  return [...short.values()];
+  const byLeave = [...groups.values()].sort(
+    (a, b) => prior(b.first) - prior(a.first),
+  );
+  const byLane = [...groups.values()]
+    .filter(({ lane }) => lane > 1)
+    .sort((a, b) => b.lane - a.lane || prior(b.laneMove) - prior(a.laneMove))
+    .map(({ laneMove }) => laneMove);
+  const base = [
+    ...new Set([
+      ...bingos.slice(0, 6),
+      ...byLeave
+        .slice(0, 24)
+        .flatMap(({ first, second }) => (second ? [first, second] : [first])),
+    ]),
+  ];
+  const screen = [
+    ...new Set([
+      ...base,
+      ...bingos,
+      ...byLane.slice(0, 16),
+      ...byLeave.slice(0, 25).map(({ laneMove }) => laneMove),
+      ...moves.slice(0, HUNTER_SCREEN),
+    ]),
+  ].slice(0, HUNTER_SCREEN);
+  const laneOrder = screen
+    .filter((move) => openings.has(move))
+    .sort((a, b) => openings.get(b)! - openings.get(a)! || prior(b) - prior(a));
+  return { screen, base, laneOrder, limited };
 }
 
-export function chooseHunterCandidates(ranked: readonly Move[]) {
-  const candidates = new Set(ranked.slice(0, 12));
-  const seen = new Set<string>();
-  for (const move of ranked) {
-    if (seen.has(move.leave)) continue;
-    seen.add(move.leave);
-    candidates.add(move);
-    if (seen.size === 8) break;
+export function chooseHunterCandidates(
+  base: readonly Move[],
+  before: readonly Move[],
+  after: readonly Move[],
+  peaks: readonly Move[],
+  lanes: readonly Move[],
+) {
+  // Preserve the board-first picks before spending the extra slots on new leads.
+  const oldPicks = new Set(base.slice(0, 12));
+  const oldLeaves = new Set<string>();
+  for (const move of base) {
+    if (oldLeaves.has(move.leave)) continue;
+    oldLeaves.add(move.leave);
+    oldPicks.add(move);
+    if (oldLeaves.size === 8) break;
   }
-  return [...new Set([...candidates, ...ranked])].slice(0, HUNTER_CANDIDATES);
+  return [
+    ...new Set([
+      ...[...oldPicks, ...base.filter((move) => !oldPicks.has(move))].slice(
+        0,
+        20,
+      ),
+      ...peaks.slice(0, 4),
+      ...lanes.slice(0, 4),
+      ...after,
+      ...before,
+    ]),
+  ].slice(0, HUNTER_CANDIDATES);
+}
+
+export function chooseHunterFinalists(ranked: readonly RankedHunterMove[]) {
+  const peak = ranked
+    .filter(({ utility }) => utility.highestBingo > 0)
+    .sort((a, b) => b.utility.highestBingo - a.utility.highestBingo);
+  return [
+    ...new Set([
+      ...ranked.slice(0, HUNTER_FINALISTS - 2),
+      ...peak.slice(0, 2),
+      ...ranked,
+    ]),
+  ].slice(0, HUNTER_FINALISTS);
 }
 
 export function createHunterEvaluator(
@@ -226,10 +365,12 @@ export function hunterUtility(
 ): HunterUtility {
   let sum = 0,
     hits = 0,
-    weight = 0;
+    weight = 0,
+    highestBingo = 0;
   for (const [i, score] of outcomes.entries()) {
     const count = deals[i].weight ?? 1;
     sum += count * score;
+    highestBingo = Math.max(highestBingo, score);
     hits += score > 0 ? count : 0;
     weight += count;
   }
@@ -239,6 +380,7 @@ export function hunterUtility(
     nextBingoPoints: expected,
     bingoChance: weight ? hits / weight : 0,
     meanBingoScore: hits ? sum / hits : 0,
+    highestBingo,
     total: now + expected,
     exact,
     samples: outcomes.length,

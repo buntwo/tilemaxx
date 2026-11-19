@@ -1,6 +1,7 @@
 import {
   bingoNow,
   chooseHunterCandidates,
+  chooseHunterFinalists,
   exactHunterDeals,
   hunterClose,
   hunterPool,
@@ -9,7 +10,6 @@ import {
   sampleHunterDeals,
   HUNTER_CANDIDATES,
   HUNTER_CHECKPOINT,
-  HUNTER_FINALISTS,
   HUNTER_INITIAL,
   HUNTER_MAX,
   type HunterDeal,
@@ -26,7 +26,7 @@ import type { CandidateJob } from "./candidate-analysis-jobs";
 import { createCandidatePool } from "./candidate-analysis-pool";
 
 export type HunterProgress = {
-  phase: "screen" | "sample" | "refine";
+  phase: "screen" | "screen-replies" | "sample" | "refine";
   done: number;
   total: number;
 };
@@ -38,8 +38,10 @@ export type HunterSummary = {
 
 const SCREEN_DEALS = 48;
 const SCREEN_TIME_MS = 5_000;
-const TOTAL_TIME_MS = 22_000;
-const FIRST_PASS_MS = 8_000;
+const REPLY_SCREEN_DEALS = 20;
+const REPLY_SCREEN_MS = 8_000;
+const TOTAL_TIME_MS = 36_000;
+const FIRST_PASS_MS = 14_000;
 const MIN_DEALS = 24;
 const now = () => performance.timeOrigin + performance.now();
 
@@ -70,11 +72,7 @@ export async function runBingoHunter(
     HUNTER_MAX,
     randomGenerator(seed),
   );
-  const screen = hunterScreen(
-    moves,
-    template,
-    odds?.bagSize === bagSize ? odds : undefined,
-  );
+
   const values = new Map<Move, number[]>();
   let limited = false;
 
@@ -190,42 +188,18 @@ export async function runBingoHunter(
 
   try {
     if (!moves.length) return ranking([], []);
-    let candidates = moves;
-    if (
-      bagSize &&
-      moves.length > HUNTER_CANDIDATES &&
-      screen.length > HUNTER_CANDIDATES
-    ) {
-      const draws = sampleHunterDeals(
-        pool,
-        opponentSize,
-        draw,
-        SCREEN_DEALS,
-        randomGenerator(seed ^ 0x8c748391),
-      );
-      const screened = await batch(
-        screen,
-        draws,
-        "screen",
-        Math.min(deadline, now() + SCREEN_TIME_MS),
-        true,
-      );
-      if (screened.count >= 12) {
-        keep(screened.batchValues, screened.count);
-        candidates = chooseHunterCandidates(
-          order(screen, draws).map(({ move }) => move),
-        );
-        values.clear();
-      } else {
-        candidates = chooseHunterCandidates(screen);
-      }
-    } else if (moves.length > HUNTER_CANDIDATES) {
-      candidates = chooseHunterCandidates(
-        screen.length < HUNTER_CANDIDATES
-          ? [...screen, ...moves.slice(0, HUNTER_CANDIDATES)]
-          : screen,
-      );
-    }
+    const wide =
+      moves.length > HUNTER_CANDIDATES
+        ? hunterScreen(
+            moves,
+            position,
+            odds?.bagSize === bagSize ? odds : undefined,
+          )
+        : { screen: moves, base: moves, laneOrder: [], limited: false };
+    let before = wide.screen;
+    let candidates = wide.screen;
+    let firstDeals = 0;
+    let screenLimited = wide.limited;
 
     if (bagSize <= 3) {
       const deals = exactHunterDeals(pool, bagSize);
@@ -237,30 +211,94 @@ export async function runBingoHunter(
       );
       if (run.count === deals.length) {
         keep(run.batchValues, run.count);
-        const ranked = order(candidates, deals, true);
-        return ranking(ranked, ranked, true);
+        const ranked = order(candidates, deals, true).slice(
+          0,
+          HUNTER_CANDIDATES,
+        );
+        return {
+          ranked,
+          summary: { checked: candidates.length, limited: wide.limited },
+        };
       }
+    }
+
+    if (wide.screen.length > HUNTER_CANDIDATES) {
+      const draws = sampleHunterDeals(
+        pool,
+        opponentSize,
+        draw,
+        SCREEN_DEALS,
+        randomGenerator(seed ^ 0x8c748391),
+      );
+      const boardScreen = await batch(
+        wide.screen,
+        draws,
+        "screen",
+        Math.min(deadline, now() + SCREEN_TIME_MS),
+        true,
+      );
+      const boardPeaks = new Map<Move, number>();
+      if (boardScreen.count >= 12) {
+        keep(boardScreen.batchValues, boardScreen.count);
+        const ranked = order(wide.screen, draws);
+        before = ranked.map(({ move }) => move);
+        for (const { move, utility } of ranked)
+          boardPeaks.set(move, utility.highestBingo);
+        values.clear();
+      }
+
+      const replies = await batch(
+        wide.screen,
+        common.slice(0, REPLY_SCREEN_DEALS),
+        "screen-replies",
+        Math.min(deadline, now() + REPLY_SCREEN_MS),
+      );
+      let after: readonly Move[] = [];
+      screenLimited ||=
+        replies.count < REPLY_SCREEN_DEALS || boardScreen.count < SCREEN_DEALS;
+      if (replies.count > 0) {
+        firstDeals = replies.count;
+        keep(replies.batchValues, firstDeals);
+        const replyLeaders = order(wide.screen, common);
+        for (const { move, utility } of replyLeaders)
+          boardPeaks.set(
+            move,
+            Math.max(boardPeaks.get(move) ?? 0, utility.highestBingo),
+          );
+        if (firstDeals >= 8) after = replyLeaders.map(({ move }) => move);
+      }
+      const peaks = [...boardPeaks]
+        .filter(([, score]) => score > 0)
+        .sort(([, a], [, b]) => b - a)
+        .map(([move]) => move);
+      const base = new Set(wide.base);
+      candidates = chooseHunterCandidates(
+        before.filter((move) => base.has(move)),
+        before,
+        after,
+        peaks,
+        wide.laneOrder,
+      );
     }
 
     const first = await batch(
       candidates,
-      common.slice(0, HUNTER_INITIAL),
+      common.slice(firstDeals, HUNTER_INITIAL),
       "sample",
       Math.min(deadline, now() + FIRST_PASS_MS),
     );
-    if (first.count < MIN_DEALS)
+    const initial = firstDeals + first.count;
+    if (initial < MIN_DEALS)
       throw new Error(
         "Bingo hunter reached its search limit before it could compare the moves.",
       );
-    limited = first.count < HUNTER_INITIAL;
-    keep(first.batchValues, first.count);
+    screenLimited ||= initial < HUNTER_INITIAL;
+    keep(first.batchValues, first.count, firstDeals > 0);
     const provisional = order(candidates, common);
-    if (limited) return ranking(provisional, provisional);
-    const finalists = provisional
-      .slice(0, HUNTER_FINALISTS)
-      .map(({ move }) => move);
-    let ranked = provisional.slice(0, finalists.length);
-    let done = first.count;
+    let ranked = chooseHunterFinalists(provisional);
+    const finalists = ranked.map(({ move }) => move);
+    const finalistSet = new Set(finalists);
+    let done = initial;
     for (const target of [HUNTER_CHECKPOINT, HUNTER_MAX]) {
       if (limited) break;
       const run = await batch(
@@ -283,7 +321,11 @@ export async function runBingoHunter(
       );
       if (!close) break;
     }
-    return ranking([...ranked, ...provisional.slice(finalists.length)], ranked);
+    limited ||= screenLimited;
+    return ranking(
+      [...ranked, ...provisional.filter(({ move }) => !finalistSet.has(move))],
+      ranked,
+    );
   } finally {
     signal.removeEventListener("abort", stop);
     stop();

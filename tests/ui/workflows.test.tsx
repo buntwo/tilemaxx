@@ -290,7 +290,7 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
           result.moves.slice(0, 1).map((move) => ({
             move, utility: {
               total: 21, bingoNow: 0, nextBingoPoints: 21, bingoChance: 0.3,
-              meanBingoScore: 70, samples: 192, exact: false, close: false,
+              meanBingoScore: 70, highestBingo: 104, samples: 192, exact: false, close: false,
             },
           })));
         this.onmessage?.({ data: {
@@ -327,6 +327,8 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
   const tooltip = within(screen.getByRole("tooltip"));
   expect(tooltip.getByText("Bingo hunter · Rank 1")).toBeTruthy();
   expect(tooltip.getByText("Expected bingo points next turn")).toBeTruthy();
+  expect(tooltip.getByText("Highest bingo found")).toBeTruthy();
+  expect(tooltip.getByText("104")).toBeTruthy();
   expect(tooltip.getByText("30%")).toBeTruthy();
 });
 
