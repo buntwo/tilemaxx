@@ -274,6 +274,7 @@ test("playing style requests ranked pages and All moves restores the full list",
 test("Bingo hunter runs only on demand, supports cancel and shows bingo utility", async () => {
   let runs = 0;
   let cancellations = 0;
+  let firstResultId: number | undefined;
   class HunterWorker extends SolverWorker {
     postMessage(request: SolverRequest) {
       if (request.kind === "bingo-hunter") {
@@ -282,6 +283,15 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
           this.onmessage?.({ data: {
             id: request.id, kind: "bingo-hunter-progress",
             progress: { phase: "sample", done: 1, total: 8 },
+          } });
+          return;
+        }
+        if (runs === 3) firstResultId = request.id;
+        if (runs === 4) {
+          expect(request.resumeFrom).toBe(firstResultId);
+          this.onmessage?.({ data: {
+            id: request.id, kind: "bingo-hunter-progress",
+            progress: { phase: "refine", done: 1, total: 8 },
           } });
           return;
         }
@@ -294,7 +304,7 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
             },
           })));
         this.onmessage?.({ data: {
-          id: request.id, kind: "bingo-hunter", summary: { checked: 1, limited: false },
+          id: request.id, kind: "bingo-hunter", summary: { checked: 1, limited: false, canContinue: true },
         } });
         return;
       }
@@ -330,6 +340,12 @@ test("Bingo hunter runs only on demand, supports cancel and shows bingo utility"
   expect(tooltip.getByText("Highest bingo found")).toBeTruthy();
   expect(tooltip.getByText("104")).toBeTruthy();
   expect(tooltip.getByText("30%")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Run another 10 seconds" }));
+  expect(await screen.findByText("Refining bingo estimates · 1/8 moves")).toBeTruthy();
+  expect(screen.getByText("U 21")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
+  expect(screen.getByText("U 21")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Run another 10 seconds" })).toBeTruthy();
 });
 
 test("phone analysis taps preview and select a move without offering Play", async () => {
