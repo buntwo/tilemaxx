@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PRESETS } from "../shared/presets";
+import { lexulousTemplateForLanguage, PRESETS } from "../shared/presets";
 import {
   getTileCounts,
   rackContainsChance,
@@ -65,6 +65,32 @@ test("French Scrabble uses the classic board with French tile counts and values"
     Z: [1, 10],
     "?": [2, 0],
   });
+});
+
+test("Classic Lexulous combines one board with language-specific bags and values", () => {
+  const classic = PRESETS.find(({ id }) => id === "lexulous")!;
+  const superLexulous = PRESETS.find(({ id }) => id === "super-lexulous")!;
+  assert.equal(lexulousTemplateForLanguage(classic, "en-GB"), classic);
+  assert.equal(lexulousTemplateForLanguage(superLexulous, "it"), superLexulous);
+
+  const french = lexulousTemplateForLanguage(classic, "fr");
+  assert.deepEqual(french.premiums, classic.premiums);
+  const frenchPool = unseenTiles({ board: [], rack: "" }, french);
+  assert.equal(frenchPool.total, 100);
+  assert.equal(getTileCounts(french).E, 15);
+  assert.equal(frenchPool.tiles.find(({ symbol }) => symbol === "Q")?.score, 8);
+
+  const italian = lexulousTemplateForLanguage(classic, "it");
+  assert.deepEqual(italian.premiums, classic.premiums);
+  const italianPool = unseenTiles({ board: [], rack: "" }, italian);
+  assert.equal(italianPool.total, 120);
+  assert.equal(italianPool.totals.blank, 2);
+  assert.equal(getTileCounts(italian).O, 15);
+  assert.equal(getTileCounts(italian).K, 0);
+  assert.equal(
+    italianPool.tiles.find(({ symbol }) => symbol === "Q")?.score,
+    12,
+  );
 });
 
 test("tile tracking subtracts placed letters, assigned blanks, and rack tiles", () => {

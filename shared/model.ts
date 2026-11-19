@@ -8,6 +8,8 @@ export const RULE_NAMES = {
   wordfeud: "Wordfeud",
   crossplay: "NYT Crossplay",
   lexulous: "Lexulous",
+  "lexulous-fr": "Lexulous (French)",
+  "lexulous-it": "Lexulous (Italian)",
 } as const;
 export type Rules = keyof typeof RULE_NAMES;
 export interface BoardTemplate {
@@ -303,6 +305,14 @@ export const SCORES: Record<Rules, Record<string, number>> = {
     1, 4, 4, 2, 1, 5, 2, 5, 1, 8, 6, 1, 4, 1, 1, 4, 12, 1, 1, 2, 1, 5, 5, 8, 5,
     12,
   ]),
+  "lexulous-fr": letterValues([
+    1, 4, 4, 2, 1, 5, 2, 5, 1, 10, 12, 1, 2, 1, 1, 3, 8, 1, 1, 1, 1, 5, 12,
+    12, 12, 12,
+  ]),
+  "lexulous-it": letterValues([
+    1, 4, 4, 2, 1, 5, 2, 5, 1, 10, 6, 1, 4, 1, 1, 4, 12, 1, 1, 2, 1, 5, 5, 10,
+    5, 12,
+  ]),
 };
 export const tileScore = (letter: string, rules: Rules) =>
   letter && letter === letter.toUpperCase() ? (SCORES[rules][letter] ?? 0) : 0;
@@ -323,7 +333,7 @@ export function additionalPlayBonuses({
   // Games and custom boards saved before the editor had an explicit bonus table.
   return (
     additionalBonuses ??
-    (rules === "lexulous" && rackSize === 8
+    (rules.startsWith("lexulous") && rackSize === 8
       ? legacyLexulousBonuses
       : noAdditionalBonuses)
   );

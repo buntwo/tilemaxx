@@ -11,7 +11,7 @@ import {
   solvePositionWithBaseline,
 } from "../shared/solver";
 import { bestStrongReply } from "../shared/move-analysis";
-import { PRESETS } from "../shared/presets";
+import { lexulousTemplateForLanguage, PRESETS } from "../shared/presets";
 import { scorePlacement } from "../shared/game-scoring";
 import {
   emptyBoard,
@@ -37,6 +37,22 @@ test("French solver and score tracking agree on face values and blanks", () => {
     const played = [...board];
     for (const { index, letter } of move.tiles) played[index] = letter;
     assert.equal(scorePlacement(board, played, french)?.score, score);
+  }
+});
+
+test("Classic Lexulous uses localized face values in solving and score tracking", () => {
+  const classic = PRESETS.find(({ id }) => id === "lexulous")!;
+  const board = emptyBoard(classic.size);
+  const dictionary = lex("QUOTA");
+  for (const [language, score] of [["fr", 24], ["it", 34]] as const) {
+    const template = lexulousTemplateForLanguage(classic, language);
+    const move = solve(dictionary, board, "QUOTA", template).find(
+      ({ row, col, direction }) => row === 7 && col === 5 && direction === "across",
+    )!;
+    assert.equal(move.score, score);
+    const played = [...board];
+    for (const { index, letter } of move.tiles) played[index] = letter;
+    assert.equal(scorePlacement(board, played, template)?.score, score);
   }
 });
 

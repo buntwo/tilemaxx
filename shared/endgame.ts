@@ -26,6 +26,8 @@ interface EndgameStreak {
   passesOnly?: boolean;
 }
 
+const lexulousStreak = { limit: 2, passesOnly: true };
+
 export const endgameStreaks: Record<
   BoardTemplate["rules"],
   EndgameStreak | undefined
@@ -34,7 +36,9 @@ export const endgameStreaks: Record<
   "scrabble-fr": { limit: 6, passesOnly: true },
   wwf: { limit: 3 },
   wordfeud: { limit: 3, passesOnly: true },
-  lexulous: { limit: 2, passesOnly: true },
+  lexulous: lexulousStreak,
+  "lexulous-fr": lexulousStreak,
+  "lexulous-it": lexulousStreak,
   crossplay: undefined,
 };
 
