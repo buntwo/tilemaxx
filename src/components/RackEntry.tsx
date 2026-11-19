@@ -858,7 +858,6 @@ export default function RackEntry({
           key={optimalKey}
           game={game}
           bag={exchangeBag}
-          assumed={!exchangeBagConfirmed}
           scorelessTurns={exchangeScorelessTurns}
           restoredResult={optimalOpen.result}
           onClose={() => {

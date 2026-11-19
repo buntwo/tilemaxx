@@ -2828,6 +2828,13 @@ test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters
 });
 
 test("the Lexulous bag icon and Optimal exchange both subtract an eight-tile opponent rack", async () => {
+  const exchangeBags: number[] = [];
+  vi.stubGlobal("Worker", class extends SolverWorker {
+    postMessage(request: SolverRequest | PracticeRequest) {
+      if (request.kind === "optimal-exchange") exchangeBags.push(request.exchange.bag);
+      else if ("id" in request) super.postMessage(request);
+    }
+  });
   const template = PRESETS.find(({ id }) => id === "lexulous")!;
   const tiles = Object.entries(template.tileCounts!).flatMap(([tile, count]) => Array<string>(count).fill(tile));
   const board = emptyBoard(template.size);
@@ -2839,7 +2846,9 @@ test("the Lexulous bag icon and Optimal exchange both subtract an eight-tile opp
   expect(screen.queryByRole("img", { name: "23 estimated tiles in the bag" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Optimal exchange" }));
   const exchange = within(screen.getByRole("region", { name: "Optimal exchange" }));
-  expect(exchange.getByText(/22 estimated in bag/)).toBeTruthy();
+  expect(exchange.getByText("Bingo chance after the opponent’s turn")).toBeTruthy();
+  expect(exchange.queryByText(/estimated in bag/)).toBeNull();
+  expect(exchangeBags).toEqual([22]);
 });
 
 test("existing games and their thumbnails use platform palettes independently of layout", async () => {
@@ -5569,7 +5578,6 @@ test("Optimal exchange shows a 100% keep or swap bingo chance in green", () => {
     <OptimalExchange
       game={{ ...game(), rack: "RETAINS" }}
       bag={86}
-      assumed
       restoredResult={{
         keepBingo: true,
         checked: 2,
@@ -6418,7 +6426,7 @@ test.each([
 test("an undersized rack cannot start an Optimal exchange worker directly", () => {
   const worker = vi.fn();
   vi.stubGlobal("Worker", worker);
-  render(<OptimalExchange game={{ ...game(), rack: "CAT" }} bag={90} assumed
+  render(<OptimalExchange game={{ ...game(), rack: "CAT" }} bag={90}
     onClose={() => {}} onUse={() => {}} />);
   expect(screen.getByText(/at least 7 playable rack tiles for a bingo/)).toBeTruthy();
   expect(worker).not.toHaveBeenCalled();
