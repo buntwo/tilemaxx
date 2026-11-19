@@ -12,9 +12,9 @@ import {
   type Move,
   type Position,
 } from "./model";
-import { sampleTiles } from "./move-analysis";
+import { createBingoReplySearch, type BingoDeal } from "./bingo-replies";
 import { leaveValue } from "./rack-leave";
-import { createSolverFactory, SEARCH_LIMITS, SearchLimitError } from "./solver";
+import { createSolverFactory } from "./solver";
 import { unseenTiles } from "./tile-pool";
 import type { RackOdds } from "./bingo-odds";
 
@@ -27,7 +27,6 @@ export const HUNTER_FINALISTS = 12;
 
 export type HunterPosition = Position &
   EndgameSettings & { template: BoardTemplate; bagSize: number };
-export type HunterDeal = { opponent: string; bag: string; weight?: number };
 export type HunterUtility = {
   bingoNow: number;
   nextBingoPoints: number;
@@ -68,26 +67,10 @@ export function hunterPool(position: HunterPosition) {
   };
 }
 
-export function sampleHunterDeals(
-  pool: string[],
-  opponentSize: number,
-  draw: number,
-  count: number,
-  random: () => number,
-): HunterDeal[] {
-  return Array.from({ length: count }, () => {
-    const order = sampleTiles(pool, opponentSize + draw, random);
-    return {
-      opponent: sortTiles(order.slice(0, opponentSize)),
-      bag: order.slice(opponentSize),
-    };
-  });
-}
-
 export function exactHunterDeals(
   pool: string[],
   bagSize: number,
-): HunterDeal[] {
+): BingoDeal[] {
   if (
     !Number.isInteger(bagSize) ||
     bagSize < 0 ||
@@ -97,7 +80,7 @@ export function exactHunterDeals(
     throw new Error(
       "Exact bingo analysis supports up to three tiles in the bag.",
     );
-  const deals = new Map<string, HunterDeal>();
+  const deals = new Map<string, BingoDeal>();
   function visit(remaining: string[], bag: string) {
     if (bag.length === bagSize) {
       const deal = deals.get(bag);
@@ -306,7 +289,6 @@ export function createHunterEvaluator(
   const { board, template, bagSize, scorelessTurns } = position;
   const factory = createSolverFactory(lexicon, template, true);
   const next = factory.place(board, move);
-  const solver = factory(next);
   const draw = Math.min(bagSize, template.rackSize - move.leave.length);
   const bagAfter = bagSize - draw;
   const rule = endgameStreaks[template.rules];
@@ -316,59 +298,29 @@ export function createHunterEvaluator(
     (rule
       ? (!bagAfter && !move.leave && !draw) || streak >= rule.limit
       : !bagSize);
-  const replies = new Map<string, Move | null>();
-  const followups = new Map<
-    Move | null,
-    {
-      solver: typeof solver;
-      scores: Map<string, number>;
-    }
-  >();
+  const search = createBingoReplySearch(factory, next, bagAfter > 0,
+    (solver, rack, limits) => solver.bestBingoScore(rack, limits));
 
-  return (deal: HunterDeal, beforeReply: boolean, deadline: number) => {
+  return (deal: BingoDeal, beforeReply: boolean, deadline: number) => {
     if (impossible) return 0;
-    function limits() {
-      const maxMs = Math.min(SEARCH_LIMITS.maxMs, deadline - performance.now());
-      if (maxMs <= 0) throw new SearchLimitError("time");
-      return { maxMs };
-    }
     let reply: Move | null = null;
     if (!beforeReply && deal.opponent) {
-      if (!replies.has(deal.opponent)) {
-        replies.set(
-          deal.opponent,
-          solver.bestReply(deal.opponent, bagAfter > 0, limits()),
-        );
-      }
-      reply = replies.get(deal.opponent) ?? null;
+      reply = search.reply(deal.opponent, deadline);
       if (
         (rule && !bagAfter && reply?.leave === "") ||
         (rule && nextEndgameStreak(rule, streak, reply) >= rule.limit)
       )
         return 0;
     }
-    let entry = followups.get(reply);
-    if (entry) followups.delete(reply);
-    else
-      entry = {
-        solver: reply ? factory(factory.place(next, reply)) : solver,
-        scores: new Map(),
-      };
-    followups.set(reply, entry);
-    if (followups.size > 32) followups.delete(followups.keys().next().value!);
     const rack = sortTiles(move.leave + deal.bag.slice(0, draw));
-    const cached = entry.scores.get(rack);
-    if (cached !== undefined) return cached;
-    const score = entry.solver.bestBingoScore(rack, limits());
-    entry.scores.set(rack, score);
-    return score;
+    return search.bingo(reply, rack, deadline);
   };
 }
 
 export function hunterUtility(
   now: number,
   outcomes: readonly number[],
-  deals: readonly HunterDeal[],
+  deals: readonly BingoDeal[],
   exact = false,
 ): HunterUtility {
   let sum = 0,

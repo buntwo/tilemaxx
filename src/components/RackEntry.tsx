@@ -32,7 +32,7 @@ import {
 import { canAnimateTiles } from "./tile-motion";
 import { useRackKeyboard } from "./useRackKeyboard";
 import { useRackReorder } from "./useRackReorder";
-import ExchangeAnalysis from "./ExchangeAnalysis";
+import ExchangeAnalysis, { type ExchangeBingoEstimate } from "./ExchangeAnalysis";
 import OptimalExchange from "./OptimalExchange";
 import ExchangeSuggestion, { exchangeAdviceDetail, type SwapAdvice } from "./ExchangeSuggestion";
 import OpponentRack from "./OpponentRack";
@@ -57,6 +57,7 @@ export default function RackEntry({
   bagCount,
   exchangeBag,
   exchangeBagConfirmed,
+  exchangeScorelessTurns,
   opponentRack,
   preview,
   flyingRack,
@@ -72,6 +73,7 @@ export default function RackEntry({
   bagCount: number;
   exchangeBag: number;
   exchangeBagConfirmed: boolean;
+  exchangeScorelessTurns: number;
   opponentRack: string;
   preview?: Move | null;
   flyingRack?: { before: Game; slots: number[] };
@@ -85,7 +87,7 @@ export default function RackEntry({
   const [simulation, setSimulation] = useState<{
     key: string;
     optimalResult?: OptimalExchangeResult;
-    bingoEstimate?: number;
+    bingoEstimate?: ExchangeBingoEstimate;
   }>();
   const [optimalOpen, setOptimalOpen] = useState<{
     key: string;
@@ -137,8 +139,8 @@ export default function RackEntry({
   const exchangeSlots = Object.keys(exchangeMarks)
     .map(Number)
     .filter((i) => game.rack[i] === exchangeMarks[i]);
-  const exchangeKey = JSON.stringify([slotKey, exchangeSlots, exchangeBag]);
-  const optimalKey = JSON.stringify([slotKey, exchangeBag]);
+  const optimalKey = JSON.stringify([slotKey, exchangeBag, exchangeScorelessTurns]);
+  const exchangeKey = JSON.stringify([optimalKey, exchangeSlots]);
   const activeSimulation =
     simulation?.key === exchangeKey ? simulation : undefined;
   const canOpenOptimal = !opponentRack && exchangeBag > 0;
@@ -406,7 +408,7 @@ export default function RackEntry({
     setExchangeMarks(
       Object.fromEntries(slots.map((slot) => [slot, game.rack[slot]])),
     );
-    const key = JSON.stringify([slotKey, slots, exchangeBag]);
+    const key = JSON.stringify([optimalKey, slots]);
     setAcceptedAdvice({ key, detail: exchangeAdviceDetail(exchangeAdvice) });
     setSimulation({ key });
   }
@@ -857,6 +859,7 @@ export default function RackEntry({
           game={game}
           bag={exchangeBag}
           assumed={!exchangeBagConfirmed}
+          scorelessTurns={exchangeScorelessTurns}
           restoredResult={optimalOpen.result}
           onClose={() => {
             setOptimalOpen(undefined);
@@ -869,9 +872,9 @@ export default function RackEntry({
             setOptimalOpen(undefined);
             openExchange.current = { reveal: false };
             setSimulation({
-              key: JSON.stringify([slotKey, slots, exchangeBag]),
+              key: JSON.stringify([optimalKey, slots]),
               optimalResult: result,
-              bingoEstimate: chance,
+              bingoEstimate: { chance, afterReply: !!result.refinementDraws },
             });
           }}
         />

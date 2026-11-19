@@ -1468,6 +1468,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   bagCount={Math.max(0, replyAnalysis.unseen - 7)}
                   exchangeBag={replyAnalysis.bagSize}
                   exchangeBagConfirmed={replyAnalysis.bagConfirmed}
+                  exchangeScorelessTurns={replyAnalysis.scorelessTurns}
                   opponentRack={replyAnalysis.opponentRack}
                   preview={
                     preferences.highlightRackPreview && movePreview?.player !== "opponent"

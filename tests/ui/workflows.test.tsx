@@ -5540,7 +5540,7 @@ test("Optimal exchange shows a 100% keep or swap bingo chance in green", () => {
         checked: 2,
         finalists: 2,
         screeningDraws: 128,
-        refinementDraws: 1200,
+        refinementDraws: 256,
         bestSwaps: [
           { slots: [0], chance: 1, close: false },
           { slots: [1], chance: 0.5, close: false },
@@ -5560,6 +5560,7 @@ test("Optimal exchange restores the rankings and caches each completed simulatio
   remote.games[0].revision = 1;
   const searches: Extract<PracticeRequest, { kind: "optimal-exchange" }>[] = [];
   const simulations: Extract<PracticeRequest, { kind: "exchange" }>[] = [];
+  let finishOptimal: (() => void) | undefined;
   let pendingSimulation: SolverWorker | undefined;
   vi.stubGlobal(
     "Worker",
@@ -5567,7 +5568,7 @@ test("Optimal exchange restores the rankings and caches each completed simulatio
       postMessage(request: SolverRequest | PracticeRequest) {
         if (request.kind === "optimal-exchange") {
           searches.push(request);
-          queueMicrotask(() =>
+          const finish = () =>
             this.onmessage?.({
               data: {
                 result: {
@@ -5575,7 +5576,7 @@ test("Optimal exchange restores the rankings and caches each completed simulatio
                   checked: 7,
                   finalists: 7,
                   screeningDraws: 128,
-                  refinementDraws: 1200,
+                  refinementDraws: 256,
                   bestSwaps: [
                     { slots: [0, 2], chance: 0.42, close: false },
                     { slots: [1, 2], chance: 0.35, close: false },
@@ -5584,8 +5585,13 @@ test("Optimal exchange restores the rankings and caches each completed simulatio
                   ],
                 },
               },
-            }),
-          );
+            });
+          if (searches.length === 1) {
+            finishOptimal = finish;
+            queueMicrotask(() => this.onmessage?.({
+              data: { progress: { completed: 128, total: 256, phase: "replies" } },
+            }));
+          } else queueMicrotask(finish);
         } else if (request.kind === "exchange") {
           simulations.push(request);
           pendingSimulation = this;
@@ -5622,6 +5628,9 @@ test("Optimal exchange restores the rankings and caches each completed simulatio
   const optimal = within(
     screen.getByRole("region", { name: "Optimal exchange" }),
   );
+  expect(await optimal.findByText("128 / 256 reply scenarios checked")).toBeTruthy();
+  await act(() => finishOptimal?.());
+  expect(optimal.getByText(/Bingo chance after the opponent’s turn/)).toBeTruthy();
   expect(await optimal.findByText("≈35%")).toBeTruthy();
   const [head, baseline, first, second, third, all] =
     optimal.getAllByRole("row");
@@ -5653,12 +5662,13 @@ test("Optimal exchange restores the rankings and caches each completed simulatio
   expect(simulations[0].exchange.slots).toEqual([1, 2]);
   expect(simulations[0].exchange.bag).toBe(searches[0].exchange.bag);
   expect(
-    simulator.getByText("Bingo chance · ≈35% from Optimal exchange"),
+    simulator.getByText("Bingo chance after reply · ≈35% from Optimal exchange"),
   ).toBeTruthy();
   finishSimulation(24, 0.27);
   expect(simulator.getByText("24.0 pts")).toBeTruthy();
   expect(simulator.getByText("27%")).toBeTruthy();
-  expect(simulator.queryByText(/from Optimal exchange/)).toBeNull();
+  expect(simulator.getByText("Bingo chance on current board")).toBeTruthy();
+  expect(simulator.getByText("Bingo chance after reply · ≈35% from Optimal exchange")).toBeTruthy();
   expect(
     screen.getByLabelText("Rack tile 2: A, marked for exchange"),
   ).toBeTruthy();
@@ -5686,7 +5696,7 @@ test("Optimal exchange restores the rankings and caches each completed simulatio
     screen.getByRole("region", { name: "Simulate exchange" }),
   );
   expect(
-    other.getByText("Bingo chance · ≈42% from Optimal exchange"),
+    other.getByText("Bingo chance after reply · ≈42% from Optimal exchange"),
   ).toBeTruthy();
   finishSimulation(31, 0.44);
   expect(other.getByText("31.0 pts")).toBeTruthy();
