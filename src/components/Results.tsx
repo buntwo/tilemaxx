@@ -1175,7 +1175,7 @@ export default function Results({
                   ? "Search paused before enough moves could be compared."
                   : hunterResult?.limited
                     ? "The search reached its complexity limit."
-                    : "Rank moves by play points now and expected bingo points after the reply.")}</p>
+                    : "Rank moves by weighted play points now and expected bingo points after the reply. Bingos count in full.")}</p>
               {hunterAction ?? (
                 <button type="button" className="button primary" disabled={!hunterKey} onClick={() => hunter.start()}>
                   Run Bingo hunter
