@@ -317,7 +317,7 @@ export default function ScoreChart({ moves }: { moves: readonly ChartMove[] }) {
                       <i
                         className={`score-chart-swatch score-chart-${player}`}
                       />
-                      <span>{labels[player]}</span>
+                      <span>{player === "opponent" ? "Opp" : labels[player]}</span>
                     </dt>
                     <dd className="score-chart-total">
                       {number.format(pair.totals[player])}
