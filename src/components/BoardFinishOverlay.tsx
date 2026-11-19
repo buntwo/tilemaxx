@@ -1,20 +1,32 @@
-import { useCallback, useEffect, useRef, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { Flag, Minus, Trophy } from "lucide-react";
 import type { GameFinish } from "../useGameFinish";
 import MoveWord from "./MoveWord";
 import "./board-finish.css";
 
-const flecks = Array.from({ length: 16 }, (_, index) => {
-  const angle = index * 2.39996;
-  const radius = 13 + ((index * 17) % 31);
-  return {
-    "--fleck-x": `${Math.cos(angle) * radius}cqw`,
-    "--fleck-y": `${Math.sin(angle) * radius - 4}cqw`,
-    "--fleck-turn": `${(index % 2 ? -1 : 1) * (85 + index * 27)}deg`,
-    "--fleck-size": `${4 + (index % 4)}px`,
-    "--fleck-delay": `${(index % 4) * 23}ms`,
-  } as CSSProperties;
-});
+function randomFlecks(): CSSProperties[] {
+  const count = 16;
+  const sector = (2 * Math.PI) / count;
+  const rotation = Math.random() * 2 * Math.PI;
+  return Array.from({ length: count }, (_, index) => {
+    const angle = rotation + (index + Math.random()) * sector;
+    const radius = 22 + Math.random() * 21;
+    return {
+      "--fleck-x": `${Math.cos(angle) * radius}cqw`,
+      "--fleck-y": `${Math.sin(angle) * radius}cqw`,
+      "--fleck-turn": `${Math.random() * 900 - 450}deg`,
+      "--fleck-size": `${4 + Math.floor(Math.random() * 4)}px`,
+      "--fleck-delay": `${Math.random() * 70}ms`,
+    } as CSSProperties;
+  });
+}
 
 const results = {
   win: { Icon: Trophy, label: "You win!", margin: "Won by" },
@@ -33,7 +45,37 @@ export default function BoardFinishOverlay({
 }) {
   const { outcome, out, opponent, scores, square, size, move } = finish;
   const { Icon, label, margin } = results[outcome];
+  const [flecks] = useState(() => (outcome === "win" ? randomFlecks() : []));
   const overlay = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (outcome !== "win") return;
+    const result = overlay.current;
+    const grid = result?.parentElement;
+    const first = grid?.querySelector('[data-cell="0"]');
+    const last = grid?.querySelector(`[data-cell="${size * size - 1}"]`);
+    if (!result || !grid || !first || !last) return;
+
+    const center = () => {
+      const bounds = result.getBoundingClientRect();
+      const topLeft = first.getBoundingClientRect();
+      const bottomRight = last.getBoundingClientRect();
+      result.style.setProperty(
+        "--finish-x",
+        `${(topLeft.left + bottomRight.right) / 2 - bounds.left}px`,
+      );
+      result.style.setProperty(
+        "--finish-y",
+        `${(topLeft.top + bottomRight.bottom) / 2 - bounds.top}px`,
+      );
+    };
+    center();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(center);
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, [outcome, size]);
+
   const close = useCallback((action: () => void) => {
     const focusedSquare =
       overlay.current?.contains(document.activeElement)
@@ -73,10 +115,12 @@ export default function BoardFinishOverlay({
       className="board-finish"
       data-outcome={outcome}
       style={
-        {
-          "--finish-x": `${(((square % size) + 1.5) / (size + 1)) * 100}%`,
-          "--finish-y": `${((Math.floor(square / size) + 1.5) / (size + 1)) * 100}%`,
-        } as CSSProperties
+        outcome === "loss"
+          ? ({
+              "--finish-x": `${(((square % size) + 1.5) / (size + 1)) * 100}%`,
+              "--finish-y": `${((Math.floor(square / size) + 1.5) / (size + 1)) * 100}%`,
+            } as CSSProperties)
+          : undefined
       }
     >
       <button
@@ -87,10 +131,9 @@ export default function BoardFinishOverlay({
       />
       <div className="board-finish-effects" aria-hidden="true">
         {outcome !== "tie" && <div className="board-finish-wave" />}
-        {outcome === "win" &&
-          flecks.map((style, index) => (
-            <span key={index} className="board-finish-fleck" style={style} />
-          ))}
+        {flecks.map((style, index) => (
+          <span key={index} className="board-finish-fleck" style={style} />
+        ))}
       </div>
       <div className="board-finish-card">
         <div className="board-finish-emblem">
