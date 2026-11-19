@@ -155,15 +155,20 @@ export function BoardInput({
   const [pendingBlank, setPendingBlank] = useState(false);
   const [atEnd, setAtEnd] = useState(false);
   const [coordinateQuery, setCoordinateQuery] = useState<string | null>(null);
+  const coordinatePrefix = useRef<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const focusing = useRef(false);
   const shiftHeld = useRef(false);
   const breakHistory = useRef(onBreak);
   breakHistory.current = onBreak;
-  const resetHistory = () => breakHistory.current?.();
+  const resetHistory = () => {
+    coordinatePrefix.current = null;
+    breakHistory.current?.();
+  };
   useEffect(() => {
     const reset = () => {
       breakHistory.current?.();
+      coordinatePrefix.current = null;
       shiftHeld.current = false;
       setFocused(false);
       setPendingBlank(false);
@@ -231,7 +236,10 @@ export function BoardInput({
   }));
 
   useEffect(() => {
-    if (readOnly || toggleMark) setCoordinateQuery(null);
+    if (readOnly || toggleMark) {
+      coordinatePrefix.current = null;
+      setCoordinateQuery(null);
+    }
   }, [readOnly, toggleMark]);
 
   function coordinateStatus() {
@@ -248,16 +256,39 @@ export function BoardInput({
 
   function chooseCoordinate(match: typeof target) {
     if (!match || match.row === null || match.column === null) return false;
-    select(match.row * n + match.column, false);
+    select(match.row * n + match.column, false, "across");
     return true;
   }
 
-  function appendCoordinate(text: string) {
-    const typed = text.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const next = ((coordinateQuery ?? "") + typed).slice(0, 3);
-    const match = parseBoardCoordinate(next, n);
-    if (!match || match.ambiguous || !chooseCoordinate(match))
-      setCoordinateQuery(next);
+  function updateCoordinate(query: string) {
+    const match = parseBoardCoordinate(query, n);
+    if (chooseCoordinate(match)) {
+      // Select H1 immediately. The very next digit can still complete H10, H11, etc.
+      coordinatePrefix.current = match?.ambiguous ? query : null;
+    } else {
+      setCoordinateQuery(query);
+    }
+  }
+
+  function typeBoardInput(text: string) {
+    const prefix = coordinatePrefix.current;
+    coordinatePrefix.current = null;
+    if (locating) {
+      const typed = text.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      updateCoordinate((coordinateQuery + typed).slice(0, 3));
+    } else if (prefix && /^\d$/.test(text)) {
+      updateCoordinate(prefix + text);
+    } else {
+      enter(text);
+    }
+  }
+
+  function deleteCoordinateDigit() {
+    const query = coordinatePrefix.current ?? coordinateQuery;
+    if (query === null) return false;
+    coordinatePrefix.current = null;
+    updateCoordinate(query.slice(0, -1));
+    return true;
   }
 
   function closeCoordinateOverlay() {
@@ -269,7 +300,7 @@ export function BoardInput({
     if (event.key === "Escape") {
       closeCoordinateOverlay();
     } else if (event.key === "Backspace" || event.key === "Delete") {
-      setCoordinateQuery(coordinateQuery?.slice(0, -1) ?? "");
+      deleteCoordinateDigit();
     } else if (event.key === "Enter") {
       chooseCoordinate(target);
     } else if (event.key.startsWith("Arrow")) {
@@ -296,12 +327,15 @@ export function BoardInput({
     focusing.current = false;
     input.current?.setSelectionRange(SENTINEL.length, SENTINEL.length);
   }
-  function select(i: number, repeatTap?: boolean) {
+  function select(i: number, repeatTap?: boolean, directionOverride?: Direction) {
     resetHistory();
     setCoordinateQuery(null);
     if (!locating && (repeatTap ?? (focused && i === selected))) toggleDirection();
     else {
-      setDirection(locating ? "across" : (directionForSquare?.(i) ?? direction));
+      setDirection(
+        directionOverride ??
+          (locating ? "across" : (directionForSquare?.(i) ?? direction)),
+      );
       setSelected(i);
       setPendingBlank(false);
       setAtEnd(false);
@@ -335,6 +369,7 @@ export function BoardInput({
       onChange(next, kind);
   }
   function erase(backspace = false) {
+    coordinatePrefix.current = null;
     if (selected === null) return;
     if (pendingBlank) {
       setPendingBlank(false);
@@ -384,6 +419,7 @@ export function BoardInput({
     setAtEnd(end);
   }
   function toggleBlank() {
+    coordinatePrefix.current = null;
     if (selected === null) return;
     if (tile) {
       const next = [...board];
@@ -449,17 +485,15 @@ export function BoardInput({
         }}
         onChange={(e) => {
           const text = e.currentTarget.value.replaceAll(SENTINEL, "");
-          if (locating) appendCoordinate(text);
-          else if (!e.currentTarget.value) erase(true);
-          else enter(text);
+          if (!e.currentTarget.value) {
+            if (!deleteCoordinateDigit()) erase(true);
+          } else typeBoardInput(text);
           e.currentTarget.value = SENTINEL;
           e.currentTarget.setSelectionRange(1, 1);
         }}
         onPaste={(e) => {
           e.preventDefault();
-          const text = e.clipboardData.getData("text");
-          if (locating) appendCoordinate(text);
-          else enter(text);
+          typeBoardInput(e.clipboardData.getData("text"));
         }}
         onKeyUp={(e) => {
           if (e.key === "Shift") shiftHeld.current = false;
@@ -487,6 +521,13 @@ export function BoardInput({
           )
             return;
           e.preventDefault();
+          if (
+            (e.key === "Backspace" || e.key === "Delete") &&
+            deleteCoordinateDigit()
+          )
+            return;
+          const hadCoordinatePrefix = coordinatePrefix.current !== null;
+          coordinatePrefix.current = null;
           switch (e.key) {
             case "ArrowRight":
               if (direction === "down") {
@@ -518,7 +559,7 @@ export function BoardInput({
               if (e.repeat) break;
               // iOS auto-capitalization can set shiftKey on the Search key.
               if (e.shiftKey && shiftHeld.current) toggleDirection();
-              else if (onSolve) {
+              else if (onSolve && !hadCoordinatePrefix) {
                 e.currentTarget.blur();
                 onSolve();
               }
