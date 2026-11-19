@@ -1,16 +1,37 @@
 import { decode } from "@msgpack/msgpack";
 import { Lexicon } from "./lexicon";
+import type { Rules } from "./model";
 
-export const WORD_FREQUENCY_URL = "/dictionaries/wordfreq-en-3.1.1.msgpack.gz";
+export type WordFrequencyLanguage = "en" | "fr" | "it";
 
-export function decodeWordFrequencies(data: ArrayLike<number>) {
+export function wordFrequencyLanguage(rules: Rules): WordFrequencyLanguage {
+  switch (rules) {
+    case "scrabble-fr":
+    case "wordfeud-fr":
+    case "lexulous-fr":
+      return "fr";
+    case "lexulous-it":
+      return "it";
+    default:
+      return "en";
+  }
+}
+
+export function wordFrequencyUrl(language: WordFrequencyLanguage) {
+  return `/dictionaries/wordfreq-${language}-3.1.1.msgpack.gz`;
+}
+
+export function decodeWordFrequencies(
+  data: ArrayLike<number>,
+  language: WordFrequencyLanguage,
+) {
   const pack = decode(data, { maxArrayLength: 50_000, maxStrLength: 256 });
   if (
     !Array.isArray(pack) ||
     pack[0]?.format !== "cB" ||
     pack[0]?.version !== 1
   )
-    throw new Error("The English word frequency data could not be read.");
+    throw new Error("The word frequency data could not be read.");
   const frequencies = new Map<string, number>();
   // Bucket zero follows the format header and has a Zipf score of nine.
   for (let index = 1; index < pack.length; index++) {
@@ -18,8 +39,19 @@ export function decodeWordFrequencies(data: ArrayLike<number>) {
     if (!Array.isArray(bucket))
       throw new Error("Invalid word frequency bucket.");
     for (const word of bucket) {
-      if (typeof word === "string" && /^[a-z]{2,25}$/.test(word))
-        frequencies.set(word.toUpperCase(), (901 - index) / 100);
+      if (typeof word !== "string") continue;
+      if (language === "en") {
+        if (/^[a-z]{2,25}$/.test(word))
+          frequencies.set(word.toUpperCase(), (901 - index) / 100);
+        continue;
+      }
+      const spelling = word.toUpperCase().normalize("NFD")
+        .replace(/\p{M}/gu, "")
+        .replaceAll("Œ", "OE")
+        .replaceAll("Æ", "AE");
+      // Folded spellings can share a tile sequence. Zipf buckets are highest first.
+      if (/^[A-Z]{2,25}$/.test(spelling) && !frequencies.has(spelling))
+        frequencies.set(spelling, (901 - index) / 100);
     }
   }
   return frequencies;

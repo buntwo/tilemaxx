@@ -14,7 +14,10 @@ import {
 } from "./player-profile-endgame";
 import { leaveTileValue, profileLeaveValue } from "./rack-leave";
 import { choose, getTileCounts, unseenTiles } from "./tile-pool";
-import { createWordDifficulty } from "./word-familiarity";
+import {
+  createWordDifficulty,
+  wordFrequencyLanguage,
+} from "./word-familiarity";
 
 export const PLAYER_PROFILES = ["casual", "learner", "strong"] as const;
 export type PlayerProfile = (typeof PLAYER_PROFILES)[number];
@@ -160,6 +163,9 @@ export function createPlayerProfiles(
   frequencies: ReadonlyMap<string, number>,
 ) {
   const difficulty = createWordDifficulty(lexicon, frequencies);
+  const casualStudyWords = wordFrequencyLanguage(template.rules) === "en"
+    ? studyWords
+    : undefined;
   const counts = getTileCounts(template);
   const bagTiles = Object.values(counts).reduce((sum, count) => sum + count, 0);
   const bingoLength = minimumBingoTiles(template);
@@ -217,7 +223,7 @@ export function createPlayerProfiles(
       knowledge:
         Math.min(
           Math.exp(-0.72 * preset.vocabulary * adjusted),
-          (profile === "casual" ? studyWords.has(spelling) : spelling.length === 2)
+          (profile === "casual" ? casualStudyWords?.has(spelling) : spelling.length === 2)
             ? preset.shortWords
             : 1,
         ) * scale,

@@ -6,7 +6,7 @@ Bundled `public/dictionaries/wordnik.txt` is the 2021-07-29 word list from https
 
 ## wordfreq
 
-The playing styles use the unmodified English frequency asset from Robyn Speer's [wordfreq 3.1.1](https://pypi.org/project/wordfreq/3.1.1/). The data is distributed under CC BY-SA 4.0. See the [license and source attributions](public/dictionaries/WORDFREQ-NOTICE.md). The [MessagePack decoder](https://github.com/msgpack/msgpack-javascript) is ISC licensed.
+The playing styles use the unmodified English, French, and Italian frequency assets from Robyn Speer's [wordfreq 3.1.1](https://pypi.org/project/wordfreq/3.1.1/). The data is distributed under CC BY-SA 4.0. See the [license and source attributions](public/dictionaries/WORDFREQ-NOTICE.md). The [MessagePack decoder](https://github.com/msgpack/msgpack-javascript) is ISC licensed.
 
 ## Moby Words II
 

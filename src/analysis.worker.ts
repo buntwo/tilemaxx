@@ -119,7 +119,7 @@ self.onmessage = async (
   try {
     const [lexicon, frequencies] = await Promise.all([
       loadDictionary(request.dictionaryId),
-      loadWordFrequencies(),
+      loadWordFrequencies(request.template.rules),
     ]);
     const profiles = createPlayerProfiles(lexicon, request.template, frequencies);
     const result = analyzeMoves(lexicon, request, profiles, (progress) => {

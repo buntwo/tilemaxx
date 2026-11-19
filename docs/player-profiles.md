@@ -1,6 +1,6 @@
 # Playing styles
 
-Choose a style in **Playing style** in Possible moves to see placements ranked as a **Casual**, **Word-list learner**, or **Strong club player** might see them. Analyze uses the same styles for modeled opponent replies. The game's selected dictionary determines which moves are legal. The wordfreq English data provides familiarity estimates for exact spellings, including inflections.
+Choose a style in **Playing style** in Possible moves to see placements ranked as a **Casual**, **Word-list learner**, or **Strong club player** might see them. Analyze uses the same styles for modeled opponent replies. The game's selected dictionary determines which moves are legal. The saved game rules select English, French, or Italian wordfreq data. French and Italian spellings fold accents and ligatures to match board tiles.
 
 ## Bingo hunter
 
