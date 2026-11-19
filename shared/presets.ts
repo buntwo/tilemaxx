@@ -216,6 +216,7 @@ export const PRESETS: BoardTemplate[] = [
         [2, 9],
         [4, 5],
         [6, 7],
+        [10, 10],
       ]),
       QL: reflect(21, [[2, 5]]),
       TL: reflect(21, [

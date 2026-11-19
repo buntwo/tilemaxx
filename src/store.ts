@@ -14,6 +14,7 @@ import {
   RECENT_GAME_LIMIT,
 } from "./game-cache";
 import { readOfflineGame, removeOfflineGame } from "./offline-games";
+import { correctSuperLexulousCenter } from "../shared/game-scoring";
 import {
   summarizeGame,
   type GameIndex,
@@ -525,10 +526,13 @@ export class GameStore {
           continue;
         const draft = this.drafts.get(id)!;
         try {
+          const submitted = correctSuperLexulousCenter(draft);
           const saved = await api<Game>(
             draft.revision < 0 ? "/games" : `/games/${encodeURIComponent(id)}`,
             draft.revision < 0 ? "POST" : "PUT",
-            draft.revision < 0 ? { ...draft, creationId: id } : draft,
+            draft.revision < 0
+              ? { ...submitted, creationId: id }
+              : submitted,
           );
           if (this.deletedGames.has(id)) continue;
           this.snapshot.online = true;
@@ -537,13 +541,13 @@ export class GameStore {
             // accepted as submitted. Keep their identity through acknowledgement.
             this.finishDraft({
               ...saved,
-              board: draft.board,
-              scoring: draft.scoring,
-              past: draft.past,
-              future: draft.future,
-              trackedMoves: draft.trackedMoves,
-              excludedRackSlots: draft.excludedRackSlots,
-              requiredRackSlots: draft.requiredRackSlots,
+              board: submitted.board,
+              scoring: submitted.scoring,
+              past: submitted.past,
+              future: submitted.future,
+              trackedMoves: submitted.trackedMoves,
+              excludedRackSlots: submitted.excludedRackSlots,
+              requiredRackSlots: submitted.requiredRackSlots,
             });
           } else {
             const newer = {
