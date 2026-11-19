@@ -26,8 +26,13 @@ import {
 const lex = (words: string) =>
   new Lexicon(parseWords(words.split(" ").join("\n")));
 
-test("French solver and score tracking agree on face values and blanks", () => {
-  const french = PRESETS.find(({ id }) => id === "scrabble-fr")!;
+test("saved French Scrabble boards retain their scores and blank values", () => {
+  const french: BoardTemplate = {
+    ...PRESETS[0],
+    id: "scrabble-fr",
+    rules: "scrabble-fr",
+    tileCounts: undefined,
+  };
   const board = emptyBoard(french.size);
   for (const [rack, score] of [["KIWI", 44], ["KI?I", 24]] as const) {
     const move = solve(lex("KIWI"), board, rack, french).find(

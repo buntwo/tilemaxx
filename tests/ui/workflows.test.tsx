@@ -941,37 +941,53 @@ test("a new game defaults to imported WOW24 even from another dictionary", async
   expect(current().dictionaryId).toBe("test");
 });
 
-test("French Scrabble selects an installed Grammalecte list ahead of WOW24", async () => {
-  remote.dictionaries.push(
-    { id: "wow24", name: "WOW24", count: 8, builtin: false, description: "" },
-    { id: "french", name: "Grammalecte 7.7", count: 8, builtin: false, description: "" },
-  );
+test("the retired French Scrabble board opens as a saved game and stays out of New game", async () => {
+  remote.dictionaries.push({
+    id: "french",
+    name: "Grammalecte 7.7",
+    count: 8,
+    builtin: false,
+    description: "",
+  });
+  remote.games[0].template = {
+    ...PRESETS[0],
+    id: "scrabble-fr",
+    name: "French Scrabble",
+    rules: "scrabble-fr",
+    tileCounts: undefined,
+  };
+  remote.games[0].dictionaryId = "french";
+  remote.games[0].revision++;
   const user = await start();
+  await waitFor(() =>
+    expect(
+      screen.getByRole<HTMLSelectElement>("combobox", {
+        name: "Game dictionary",
+      }).value,
+    ).toBe("french"),
+  );
   await user.click(screen.getByRole("button", { name: "New game" }));
   const dialog = within(screen.getByRole("dialog", { name: "New game" }));
-  const layout = dialog.getByRole<HTMLSelectElement>("combobox", { name: "Board layout" });
-  const dictionary = dialog.getByRole<HTMLSelectElement>("combobox", { name: "Word list" });
-  expect(dictionary.value).toBe("wow24");
-  await user.selectOptions(layout, "scrabble-fr");
-  expect(dictionary.value).toBe("french");
-  await user.selectOptions(layout, "scrabble");
-  expect(dictionary.value).toBe("wow24");
-  await user.selectOptions(layout, "scrabble-fr");
-  await user.type(dialog.getByRole("combobox", { name: "Opponent" }), "Camille");
-  await user.click(dialog.getByRole("button", { name: "Create game" }));
-  await waitFor(() => expect(remote.games).toHaveLength(2));
-  expect(remote.games[1].dictionaryId).toBe("french");
-  expect(remote.games[1].template.rules).toBe("scrabble-fr");
+  expect(dialog.queryByRole("option", { name: /French Scrabble/ })).toBeNull();
+  expect(current().template.rules).toBe("scrabble-fr");
 });
 
-test("a French game without Grammalecte requires an explicit choice of word list", async () => {
+test("a custom board using French Scrabble scoring still prompts for a French word list", async () => {
+  remote.templates.push({
+    ...PRESETS[0],
+    id: "custom-fr",
+    name: "Custom board",
+    rules: "scrabble-fr",
+    tileCounts: undefined,
+    builtin: false,
+  });
   const user = await start();
   await user.click(screen.getByRole("button", { name: "New game" }));
   const dialog = within(screen.getByRole("dialog", { name: "New game" }));
   const layout = dialog.getByRole("combobox", { name: "Board layout" });
   const dictionary = dialog.getByRole<HTMLSelectElement>("combobox", { name: "Word list" });
   const create = dialog.getByRole<HTMLButtonElement>("button", { name: "Create game" });
-  await user.selectOptions(layout, "scrabble-fr");
+  await user.selectOptions(layout, "custom-fr");
   expect(dictionary.value).toBe("");
   expect(create.disabled).toBe(true);
   expect(dialog.getByText(/import Grammalecte under Word lists/i)).toBeTruthy();
