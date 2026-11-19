@@ -1,5 +1,6 @@
 import type { Lexicon } from "./lexicon";
 import {
+  letterBonuses,
   tileScore,
   wordBonuses,
   type Board,
@@ -16,7 +17,9 @@ export function createProfileDefense(
 ) {
   const { size, premiums, rules } = template;
   const targets = premiums.flatMap((premium, index) =>
-    premium === "TW" ? [index] : [],
+    premium === "TW" || premium === "QW" || premium === "TL" || premium === "QL"
+      ? [index]
+      : [],
   );
   const sameLine = (left: number, right: number) =>
     left % size === right % size ||
@@ -92,13 +95,14 @@ export function createProfileDefense(
       }
       if (!words) return 0;
       const premium = wordBonuses[premiums[cell]] ?? 1;
+      const letterPremium = letterBonuses[premiums[cell]] ?? 1;
       let strongest = Math.max(0, base * premium - 18) * chance[26];
       for (let bits = allowed; bits; bits &= bits - 1) {
         const index = 31 - Math.clz32(bits & -bits);
         const face = tileScore(String.fromCharCode(65 + index), rules);
         strongest = Math.max(
           strongest,
-          Math.max(0, (base + words * face) * premium - 18) * chance[index],
+          Math.max(0, (base + words * face * letterPremium) * premium - 18) * chance[index],
         );
       }
       return strongest;

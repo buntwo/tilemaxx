@@ -1,7 +1,6 @@
 # Playing styles
 
-Choose **Playing style** in Possible moves to see placements ranked as a **Casual**, **Word-list learner**, or **Strong club player** might see them. Analyze uses the same styles for modeled opponent replies. The game's selected dictionary determines which moves are legal. The wordfreq English data provides familiarity estimates for exact spellings, including inflections. The coefficients were initially tuned on WOW24.
-
+Choose a style in **Playing style** in Possible moves to see placements ranked as a **Casual**, **Word-list learner**, or **Strong club player** might see them. Analyze uses the same styles for modeled opponent replies. The game's selected dictionary determines which moves are legal. The wordfreq English data provides familiarity estimates for exact spellings, including inflections.
 
 ## Bingo hunter
 
@@ -13,14 +12,21 @@ Once the sampled ranking is ready, **Run another 10 seconds** checks **High-ceil
 
 ## How the model works
 
-1. **Spot moves.** Each simulated player has a seeded vocabulary. On each turn, a style examines a fraction of board locations and recalls some known words. Short hooks and premiums attract attention. Long plays and blank assignments are harder to spot. Every crossword formed by a placement must also be familiar. The search widens if it yields no play.
-2. **Choose a move.** Rank the spotted moves by actual points, visible premiums, the hardest word formed, crossword count, tiles placed beyond five, and rack leave. Before ranking its four finalists, Strong checks one-tile threats on triple-word squares and newly opened lanes that reach two major word premiums in a single reply. Learner gives those lanes a smaller weight for its three finalists. Casual ranks its spotted moves using the original scoring terms. An empty bag removes the leave and defense terms. Strong values immediate rack-outs by their rack adjustment.
+1. **Spot moves.** Each simulated player has a seeded vocabulary that stays consistent across turns. The player looks at a fraction of available board locations. Long placements and assigning blanks are harder to spot. Vertical words are harder for Casual to recognize, with a smaller effect for Learner and Strong. Learner and Strong also recall more short study words and bingos with likely letter combinations. Every new cross word still has to be familiar.
+2. **Rank the moves.** Utility adds weighted points, visible premiums, rack value, and any tactical adjustment. The hardest spelling, the number of cross words, and the number of tiles placed beyond five contribute small costs. Rack value rewards keeping flexible tiles and shedding awkward duplicates or excess vowels and consonants. With an empty bag, the rack term switches to the face-value liability of leftover tiles. Going out has a fixed incentive for Casual and Learner. Strong estimates the actual transfer from the known opposing rack.
+3. **Check the leading candidates.** Casual uses the static ranking. Learner checks three finalists for premium lanes using board geometry and letter availability. Strong checks up to five for both lanes and single-tile premium hooks. With an empty bag and at most seven tiles across both racks, Strong can compare up to five spotted placements by searching the known-rack continuation. Redundant immediate rack-outs share one shortlist slot. A finished search replaces the static rack projection with the spread from the line. If the shortlist exceeds the 8 ms budget or a candidate reaches 96 searched positions, the static ranking applies.
 
-The [shared profile code](../shared/player-profiles.ts) defines the weights. [Word familiarity](../shared/word-familiarity.ts) uses exact wordfreq entries with a Zipf 3 cutoff. For words without an entry, it uses capped edit distance to up to 10,000 familiar spellings legal in the game's lexicon. Each simulated player keeps the same vocabulary across turns. In Analyze, each shared scenario represents a possible opponent with the same vocabulary across the candidate boards being compared.
+[Word familiarity](../shared/word-familiarity.ts) starts from exact wordfreq spellings with a Zipf 3 cutoff. Spellings absent from wordfreq use capped edit distance from up to 10,000 common legal spellings. The [profile weights](../shared/player-profiles.ts) reduce that difficulty for studied words based on length and the tile combinations available in the starting distribution. Each spelling still gets its own vocabulary roll, even when two words are anagrams. In Analyze, the same simulated opponent has consistent vocabulary across compared boards.
 
-## Premium lanes
+### Research behind the model
 
-The lane penalty is three times the biggest increase in two-premium lane risk for Strong and one times that increase for Learner. The scan checks rack capacity, perpendicular word constraints, unseen tiles, and the face value of any tiles the reply would play through. Triple- and quadruple-word squares count as major premiums. The Strong weight was calibrated on simulated WOW24 Scrabble and SOWPODS Lexulous games against expected best replies from 500 shared opponent racks. The Learner weight represents lighter attention to defense.
+- Novice–expert studies find differences in Scrabble-specific anagramming, board-pattern recognition and vertical word recognition. The studies support modeling these skills separately from general English familiarity. The model's exact coefficients come from testing, since these studies did not measure move-discovery probabilities. [Halpern and Wai](https://cdn2.psychologytoday.com/assets/attachments/56143/the-world-competitive-scrabble.pdf), [Hargreaves et al.](https://link.springer.com/article/10.3758/s13421-011-0137-5), [Tuffiash et al.](https://pubmed.ncbi.nlm.nih.gov/17924798/)
+- NASPA introduces beginners to twos and threes. Scrabble New Zealand's training guide also recommends studying hooks and high-probability bingo racks, balancing the rack, and spending more thought on the endgame. [NASPA director manual](https://scrabbleplayers.org/dirman/dirman-20130721.pdf), [Scrabble New Zealand](https://scrabble.org.nz/resources/16-tips-to-boost-your-scrabble-game/)
+- Scrabble AI research motivates adding score and rack quality before more expensive search and using unseen tiles to screen defense. [Richards and Amir](https://ijcai.org/proceedings/2007/239), [Agarwal](https://arxiv.org/abs/1901.08728), [Tibshirani](https://arxiv.org/abs/1107.2456)
+
+## Premium threats
+
+The lane adjustment uses the largest increase in two-premium risk. Strong weights that change three times as much as Learner. The lane check uses rack capacity, perpendicular word constraints, unseen tiles, and the value of letters a reply would play through. Triple- and quadruple-word squares count as major premiums. Strong also checks one-tile hooks onto major word and letter premiums and discounts threats when the needed tile is scarce.
 
 ## Exchange suggestions
 

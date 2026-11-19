@@ -3,10 +3,12 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { gunzipSync } from "node:zlib";
 import { Lexicon } from "../shared/lexicon";
-import { emptyBoard, type Move } from "../shared/model";
+import { emptyBoard, type Move, type Premium } from "../shared/model";
 import { moveLocation } from "../shared/notation";
+import { createProfileDefense } from "../shared/player-profile-defense";
 import { createPremiumLaneRisk } from "../shared/player-profile-lanes";
-import { unseenTiles } from "../shared/tile-pool";
+import { TILE_SYMBOLS, unseenTiles } from "../shared/tile-pool";
+import { profileLeaveValue } from "../shared/rack-leave";
 import { analyzeMoves } from "../shared/move-analysis";
 import { MoveResultIndex } from "../shared/move-results";
 import {
@@ -104,6 +106,109 @@ test("player vocabulary is stable across turns and gates newly formed crosswords
   assert.equal(decision(hook, 61, seed).move, hook);
 });
 
+test("vertical fluency rises with experience for the same known word", () => {
+  const template = PRESETS[0];
+  const board = emptyBoard(template.size);
+  const rack = "CAT";
+  const lexicon = new Lexicon(["CAT"]);
+  const choose = createPlayerProfiles(lexicon, template, new Map([["CAT", 4]]));
+  const moves = solve(lexicon, board, rack, template);
+  const [across, down] = (["across", "down"] as const).map(
+    (direction) => moves.find((move) => move.direction === direction)!,
+  );
+  assert.ok(across && down);
+  const counts = PLAYER_PROFILES.map((profile) => {
+    let vertical = 0;
+    for (let seed = 0; seed < 256; seed++) {
+      const position = { board, rack, bagSize: 86, seed, playerSeed: 132 };
+      assert.equal(choose([across], profile, position).move, across);
+      if (choose([down], profile, position).move) vertical++;
+    }
+    return vertical;
+  });
+  assert.ok(counts[0] < counts[1] && counts[1] < counts[2]);
+});
+
+test("word-list practice helps learners recall short words at equal corpus familiarity", () => {
+  const template = PRESETS[0];
+  const board = emptyBoard(template.size);
+  const lexicon = new Lexicon(["QI", "QAID"]);
+  const choose = createPlayerProfiles(
+    lexicon, template, new Map([["QI", 1.5], ["QAID", 1.5]]),
+  );
+  const rack = "QAID";
+  const legal = solve(lexicon, board, rack, template);
+  const noticed = (word: string, profile: "casual" | "learner") => {
+    const move = legal.find((it) => it.word === word && it.direction === "across")!;
+    assert.ok(move);
+    let count = 0;
+    for (let seed = 0; seed < 256; seed++) {
+      const position = { board, rack, bagSize: 86, seed, playerSeed: seed ^ 456 };
+      if (choose([move], profile, position).move) count++;
+    }
+    return count;
+  };
+  const shortGain = noticed("QI", "learner") - noticed("QI", "casual");
+  const longGain = noticed("QAID", "learner") - noticed("QAID", "casual");
+  assert.ok(shortGain > longGain);
+  assert.ok(noticed("QI", "learner") > noticed("QAID", "learner"));
+});
+
+test("profiles value shedding awkward duplicates and keeping flexible leaves", () => {
+  assert.ok(profileLeaveValue("ION") > profileLeaveValue("IIINT"));
+  assert.ok(profileLeaveValue("QU") > profileLeaveValue("QV"));
+  assert.ok(profileLeaveValue("III?") > profileLeaveValue("IIII"));
+  assert.ok(profileLeaveValue("SST") > profileLeaveValue("IIT"));
+});
+
+test("only Strong uses known-rack lookahead to adjust a close empty-bag choice", (context) => {
+  const words = ["AT", "IT", "TA", "ZA", "ART", "RAT", "TAR"];
+  const lexicon = new Lexicon(words);
+  const rack = "AR";
+  const available = "IT" + rack + "Z";
+  const template = {
+    ...PRESETS[0],
+    tileCounts: Object.fromEntries(
+      TILE_SYMBOLS.map((letter) => [
+        letter, [...available].filter((tile) => tile === letter).length,
+      ]),
+    ),
+  };
+  const board = emptyBoard(template.size);
+  board[template.start] = "I";
+  board[template.start + 1] = "T";
+  const position = { board, rack, bagSize: 0, seed: 781, playerSeed: 48, scorelessTurns: 0 };
+  const moves = solve(lexicon, board, rack, template);
+  const create = () => createPlayerProfiles(
+    lexicon, template, new Map(words.map((word) => [word, 5])),
+  );
+  const choose = create();
+  const clock = context.mock.method(performance, "now", () => 0);
+  const strong = choose(moves, "strong", position, { all: true, scoreOrdered: true });
+  assert.equal(strong.beforeDefense?.word, "ART");
+  assert.equal(strong.move?.word, "AT");
+  assert.equal(strong.move?.leave, "R");
+  assert.equal(strong.considered?.[0].utility.endgame, 24);
+  assert.ok(strong.considered!.filter(({ move, utility }) => move.leave && utility.endgame !== undefined).length <= 5);
+  assert.equal(
+    choose(moves, "strong", position, { scoreOrdered: true }).move?.id,
+    strong.move?.id,
+  );
+  for (const profile of ["casual", "learner"] as const)
+    assert.ok(
+      choose(moves, profile, position, { all: true }).considered!.every(
+        ({ utility }) => utility.endgame === undefined,
+      ),
+    );
+  const withTiles = choose(moves, "strong", { ...position, bagSize: 1 }, { all: true });
+  assert.ok(withTiles.considered!.every(({ utility }) => utility.endgame === undefined));
+  let now = 0;
+  clock.mock.mockImplementation(() => (now += 10));
+  const timedOut = create()(moves, "strong", position, { all: true, scoreOrdered: true });
+  assert.equal(timedOut.move?.word, "ART");
+  assert.ok(timedOut.considered!.every(({ utility }) => utility.endgame === undefined));
+});
+
 test("profile paging preserves style order and the raw points rank", () => {
   const template = PRESETS[0];
   const board = emptyBoard(template.size);
@@ -154,6 +259,7 @@ test("profile paging preserves style order and the raw points rank", () => {
     index.page({ ...query, profile: undefined }).utilities,
     undefined,
   );
+  assert.equal(index.page({ ...query, profileScorelessTurns: 0 }).utilities, undefined);
   assert.equal(
     index.page({ ...query, profile: "strong" }).utilities,
     undefined,
@@ -284,6 +390,34 @@ test("only the stronger profiles account for new lanes, with Strong imposing the
     ).considered!.find(({ move }) => move === opening)?.utility.premiumLane,
     undefined,
   );
+});
+
+test("Strong notices a new triple-letter hook only when the reply tile is unseen", () => {
+  const preset = PRESETS[0];
+  const premiums = preset.premiums.map<Premium>(() => "");
+  premiums[preset.start - preset.size] = "TL";
+  const board = emptyBoard(preset.size);
+  const rack = "CAT";
+  const lexicon = new Lexicon(["CAT", "ZA"]);
+  const risk = (unseen: string) => {
+    const template = {
+      ...preset,
+      premiums,
+      tileCounts: Object.fromEntries(
+        TILE_SYMBOLS.map((letter) => [
+          letter, [...rack, ...unseen].filter((tile) => tile === letter).length,
+        ]),
+      ),
+    };
+    const move = solve(lexicon, board, rack, template).find(
+      ({ direction, tiles }) => direction === "across" &&
+        tiles.some(({ index, letter }) => index === template.start && letter === "A"),
+    )!;
+    assert.ok(move);
+    return createProfileDefense(lexicon, template)({ board, rack }, 1, true)(move).hook;
+  };
+  assert.equal(risk("AZ"), 6.5);
+  assert.equal(risk("AB"), 0);
 });
 
 test("a premium pair must fit one rack and have possible side words", () => {

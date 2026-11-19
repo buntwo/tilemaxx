@@ -17,7 +17,11 @@ type SearchResult =
   | (Pick<EndgameLine, "spread" | "line"> & { bound: "exact" })
   | { spread: number; bound: "upper" | "lower" };
 
-export class EndgameSearchLimitError extends Error {}
+export class EndgameSearchLimitError extends Error {
+  constructor(message: string, readonly reason?: "positions" | "time" | "move-generation") {
+    super(message);
+  }
+}
 
 export const DEFAULT_ENDGAME_POSITION_LIMIT = 1_500;
 
@@ -146,16 +150,17 @@ export function searchEmptyBagCandidate(
   const start = performance.now();
   const deadline = start + timeLimitMs;
   let states = 0;
-  function stop(limit: string): never {
+  function stop(limit: string, reason: NonNullable<EndgameSearchLimitError["reason"]>): never {
     const elapsed = Math.round(performance.now() - start).toLocaleString();
     const positions = `${states.toLocaleString()} ${states === 1 ? "position" : "positions"}`;
     throw new EndgameSearchLimitError(
       `Endgame search reached ${limit} after visiting ${positions} (${elapsed} ms elapsed).`,
+      reason,
     );
   }
   function checkTime() {
     if (performance.now() >= deadline)
-      stop(`its ${timeLimitMs.toLocaleString()} ms time limit`);
+      stop(`its ${timeLimitMs.toLocaleString()} ms time limit`, "time");
   }
   const finish = (spread: number, continuation: EndgameLine["line"]) =>
     finishEndgameLine(
@@ -167,7 +172,7 @@ export function searchEmptyBagCandidate(
       continuation,
     );
   function findMoves(position: Board, rack: string) {
-    if (states === positionLimit) stop("its position limit");
+    if (states === positionLimit) stop("its position limit", "positions");
     states++;
     try {
       return search(position, rack, deadline);
@@ -177,17 +182,20 @@ export function searchEmptyBagCandidate(
         checkTime();
         stop(
           `the ${SEARCH_LIMITS.maxMs.toLocaleString()} ms move-generation limit at a single position`,
+          "move-generation",
         );
       }
       if (error.reason === "nodes")
         stop(
           `the move generator’s ${SEARCH_LIMITS.maxNodes.toLocaleString()}-node limit at a single position`,
+          "move-generation",
         );
       if (error.reason === "moves")
         stop(
           `the move generator’s ${SEARCH_LIMITS.maxMoves.toLocaleString()}-move limit at a single position`,
+          "move-generation",
         );
-      stop("a move-generation limit at a single position");
+      stop("a move-generation limit at a single position", "move-generation");
     }
   }
   const rule = endgameStreaks[template.rules];

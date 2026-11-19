@@ -1,8 +1,19 @@
+import { rackPoints } from "./endgame";
 import type { Lexicon } from "./lexicon";
-import { isBingo, type BoardTemplate, type Move, type Position } from "./model";
+import {
+  isBingo,
+  minimumBingoTiles,
+  type BoardTemplate,
+  type Move,
+  type Position,
+} from "./model";
 import { createProfileDefense } from "./player-profile-defense";
-import { leaveValue } from "./rack-leave";
-import { unseenTiles } from "./tile-pool";
+import {
+  createProfileEndgame,
+  PROFILE_ENDGAME_TILES,
+} from "./player-profile-endgame";
+import { leaveTileValue, profileLeaveValue } from "./rack-leave";
+import { choose, getTileCounts, unseenTiles } from "./tile-pool";
 import { createWordDifficulty } from "./word-familiarity";
 
 export const PLAYER_PROFILES = ["casual", "learner", "strong"] as const;
@@ -15,10 +26,12 @@ export const PLAYER_PROFILE_LABELS: Record<PlayerProfile, string> = {
 
 const presets = {
   casual: {
-    focus: 0.225,
+    focus: 0.32,
     hookAttention: 0.1,
     vocabulary: 0.18,
     shortWords: 0.35,
+    study: 0,
+    vertical: 0.85,
     bingo: 0.2,
     blank: 0.55,
     score: 0.6,
@@ -27,15 +40,19 @@ const presets = {
     missing: 0.9,
     cross: 1.5,
     length: 3,
-    leave: 0.15,
+    leave: 0.27,
     premiumLane: 0,
+    endRack: 0.35,
+    finish: 3,
     finalists: 1,
   },
   learner: {
     focus: 0.38,
     hookAttention: 0,
     vocabulary: 0.07,
-    shortWords: 0.9,
+    shortWords: 0.96,
+    study: 0.5,
+    vertical: 0.94,
     bingo: 0.52,
     blank: 0.75,
     score: 0.85,
@@ -44,15 +61,19 @@ const presets = {
     missing: 0.45,
     cross: 0.85,
     length: 1.5,
-    leave: 0.4,
+    leave: 0.56,
     premiumLane: 1,
+    endRack: 0.65,
+    finish: 6,
     finalists: 3,
   },
   strong: {
     focus: 0.75,
     hookAttention: 0,
     vocabulary: 0.025,
-    shortWords: 0.99,
+    shortWords: 0.995,
+    study: 0.72,
+    vertical: 0.99,
     bingo: 0.86,
     blank: 0.92,
     score: 1,
@@ -63,7 +84,9 @@ const presets = {
     length: 0.75,
     leave: 0.85,
     premiumLane: 3,
-    finalists: 4,
+    endRack: 1,
+    finish: 0,
+    finalists: 5,
   },
 };
 
@@ -97,6 +120,7 @@ export type ProfilePosition = Position & {
   bagSize: number;
   seed: number;
   playerSeed: number;
+  scorelessTurns?: number;
 };
 export type ProfileUtility = {
   total: number;
@@ -107,6 +131,7 @@ export type ProfileUtility = {
   length: number;
   leave: number;
   goingOut: number;
+  endgame?: number;
   defense?: number;
   premiumLane?: number;
 };
@@ -125,6 +150,7 @@ export type ProfileDecision = {
     | "rank"
     | "leave"
     | "defense"
+    | "endgame"
     | "found";
 };
 
@@ -134,6 +160,32 @@ export function createPlayerProfiles(
   frequencies: ReadonlyMap<string, number>,
 ) {
   const difficulty = createWordDifficulty(lexicon, frequencies);
+  const counts = getTileCounts(template);
+  const bagTiles = Object.values(counts).reduce((sum, count) => sum + count, 0);
+  const bingoLength = minimumBingoTiles(template);
+  const rackDraws = [
+    choose(bagTiles, bingoLength),
+    choose(bagTiles, bingoLength + 1),
+  ];
+  function studyPriority(spelling: string) {
+    if (spelling.length === 2) return 1;
+    if (spelling.length === 3) return 0.6;
+    const span = spelling.length - bingoLength;
+    if (span < 0 || span > 1) return 0;
+    // Players study likely alphagrams. Exact spellings still have their own
+    // vocabulary rolls, including when two spellings share the same tiles.
+    const used: Record<string, number> = {};
+    let combinations = 1;
+    for (const letter of spelling) {
+      const copies = (used[letter] ?? 0) + 1;
+      combinations *= ((counts[letter] ?? 0) - copies + 1) / copies;
+      if (combinations <= 0) return 0;
+      used[letter] = copies;
+    }
+    const rate = combinations / rackDraws[span];
+    // Smoothly scale up to alphagrams seen roughly once per 10,000 draws.
+    return 0.65 * Math.min(1, Math.sqrt(rate * 10_000));
+  }
   const wordCache = new Map<
     string,
     {
@@ -141,6 +193,7 @@ export function createPlayerProfiles(
       data: Partial<Record<PlayerProfile, WordProfile>>;
       difficulty: number;
       missing: boolean;
+      study?: number;
     }
   >();
   function wordData(word: string, profile: PlayerProfile) {
@@ -154,18 +207,23 @@ export function createPlayerProfiles(
       };
       wordCache.set(spelling, wordInfo);
     }
+    const cached = wordInfo.data[profile];
+    if (cached) return cached;
     const preset = presets[profile];
-    return (wordInfo.data[profile] ??= {
+    const study = preset.study ? (wordInfo.study ??= studyPriority(spelling)) : 0;
+    const adjusted = wordInfo.difficulty * (1 - preset.study * study);
+    return (wordInfo.data[profile] = {
       hash: wordInfo.hash,
       knowledge:
         Math.min(
-          Math.exp(-0.72 * preset.vocabulary * wordInfo.difficulty),
-          studyWords.has(spelling) ? preset.shortWords : 1,
+          Math.exp(-0.72 * preset.vocabulary * adjusted),
+          (profile === "casual" ? studyWords.has(spelling) : spelling.length === 2)
+            ? preset.shortWords
+            : 1,
         ) * scale,
-      recall: Math.exp(-0.28 * preset.vocabulary * wordInfo.difficulty) * scale,
+      recall: Math.exp(-0.28 * preset.vocabulary * adjusted) * scale,
       penalty:
-        wordInfo.difficulty *
-        (wordInfo.missing ? preset.missing : preset.frequency),
+        adjusted * (wordInfo.missing ? preset.missing : preset.frequency),
     });
   }
 
@@ -204,6 +262,7 @@ export function createPlayerProfiles(
     ].filter((next) => next >= 0),
   );
   let defense: ReturnType<typeof createProfileDefense> | undefined;
+  let endgame: ReturnType<typeof createProfileEndgame> | undefined;
 
   function attention(position: ProfilePosition, profile: PlayerProfile) {
     const { board, seed } = position;
@@ -268,8 +327,18 @@ export function createPlayerProfiles(
     if (!moves.length)
       return { bingoFound: false, considered: options.all ? [] : undefined };
     const preset = presets[profile];
-    const { bagSize, board, seed, playerSeed, rack } = position;
-    const shortlistSize = bagSize > 0 ? preset.finalists : 1;
+    const { bagSize, board, seed, playerSeed, rack, scorelessTurns } = position;
+    const emptyBag = bagSize === 0 && template.rules !== "crossplay";
+    const pool = emptyBag && profile === "strong"
+      ? unseenTiles(position, template)
+      : undefined;
+    const canTrack = pool && !pool.excess.length && pool.total <= template.rackSize;
+    const planEndgame =
+      canTrack &&
+      scorelessTurns !== undefined &&
+      pool.total > 0 &&
+      rack.replaceAll(".", "").length + pool.total <= PROFILE_ENDGAME_TILES;
+    const shortlistSize = bagSize > 0 || planEndgame ? preset.finalists : 1;
     const shortlist: {
       move: Move;
       value: number;
@@ -279,29 +348,17 @@ export function createPlayerProfiles(
     const ranked: typeof shortlist = [];
     const knownWords = new Map<WordProfile, boolean>();
     const leaveScores = new Map<string, number>();
-    const rackOut =
-      profile === "strong" && !bagSize && template.rules !== "crossplay"
-        ? 2 *
-          unseenTiles(position, template).tiles.reduce(
-            (sum, tile) => sum + tile.count * tile.score,
-            0,
-          )
-        : 0;
+    const rackOut = canTrack
+      ? 2 * pool.tiles.reduce((sum, tile) => sum + tile.count * tile.score, 0)
+      : (emptyBag ? preset.finish : 0);
     const maxLeave = bagSize
       ? preset.leave *
         [...rack].reduce(
-          (sum, letter) =>
-            sum +
-            (letter === "?"
-              ? 12
-              : letter === "S"
-                ? 5
-                : "AERNT".includes(letter)
-                  ? 1
-                  : 0),
+          (sum, letter) => sum + Math.max(0, leaveTileValue(letter)),
           0,
         )
       : rackOut;
+    let checkedEndgame = false;
     let bingoFound = false;
     let withoutLeave: Move | undefined;
     let bestBase = -Infinity;
@@ -350,13 +407,15 @@ export function createPlayerProfiles(
         const simpleExtension =
           move.tiles.length === 1 &&
           move.word.length >= 3 &&
+          !move.blanks &&
           (move.tiles[0].index === first || move.tiles[0].index === last);
         if (!simpleExtension) {
           const probability =
             word.recall *
-            (extra
-              ? lengthChance[profile][move.tiles.length] *
-                blankChance[profile][move.blanks]
+            lengthChance[profile][move.tiles.length] *
+            (extra ? blankChance[profile][move.blanks] : 1) *
+            (move.direction === "down" && move.word.length > 2
+              ? preset.vertical
               : 1);
           const roll = mix(word.hash ^ seed);
           if (
@@ -400,14 +459,16 @@ export function createPlayerProfiles(
           withoutLeave = move;
         }
         let leave = 0;
-        const goingOut = !bagSize && !move.leave ? rackOut : 0;
-        if (bagSize) {
+        const goingOut = emptyBag && !move.leave ? rackOut : 0;
+        if (bagSize || emptyBag) {
           let estimate = leaveScores.get(move.leave);
           if (estimate === undefined) {
-            estimate = leaveValue(move.leave);
+            estimate = emptyBag
+              ? -preset.endRack * rackPoints(move.leave, template.rules)
+              : preset.leave * profileLeaveValue(move.leave);
             leaveScores.set(move.leave, estimate);
           }
-          leave = preset.leave * estimate;
+          leave = estimate;
         }
         const value = base + leave + goingOut;
         const entry: (typeof shortlist)[number] = { move, value, index };
@@ -424,6 +485,15 @@ export function createPlayerProfiles(
           };
           ranked.push(entry);
         }
+        // Immediate rack-outs have the same continuation. Only their best
+        // placement needs a finalist slot.
+        if (planEndgame && !move.leave) {
+          const existing = shortlist.findIndex((item) => !item.move.leave);
+          if (existing >= 0) {
+            if (value <= shortlist[existing].value + 1e-7) continue;
+            shortlist.splice(existing, 1);
+          }
+        }
         const slot = shortlist.findIndex((item) => value > item.value + 1e-7);
         if (slot >= 0) shortlist.splice(slot, 0, entry);
         else if (shortlist.length < shortlistSize) shortlist.push(entry);
@@ -434,7 +504,7 @@ export function createPlayerProfiles(
     scan(attention(position, profile));
     if (!shortlist.length) scan();
     const beforeDefense = shortlist[0]?.move;
-    if (shortlist.length > 1) {
+    if (bagSize > 0 && shortlist.length > 1) {
       const risk = (defense ??= createProfileDefense(lexicon, template))(
         position,
         bagSize,
@@ -455,24 +525,58 @@ export function createPlayerProfiles(
         }
       }
       shortlist.sort((a, b) => b.value - a.value);
+    } else if (planEndgame && shortlist.length > 1) {
+      const spreads = (endgame ??= createProfileEndgame(lexicon, template))(
+        board,
+        pool,
+        scorelessTurns,
+        shortlist.map(({ move }) => move),
+      );
+      if (spreads) {
+        checkedEndgame = true;
+        for (const [index, entry] of shortlist.entries()) {
+          const leave = -preset.endRack * rackPoints(entry.move.leave, template.rules);
+          const goingOut = entry.move.leave ? 0 : rackOut;
+          // Replace the static rack projection with the spread from the line.
+          const adjustment = spreads[index] - entry.move.score - leave - goingOut;
+          entry.value += adjustment;
+          if (entry.utility) {
+            entry.utility.endgame = adjustment;
+            entry.utility.total = entry.value;
+          }
+        }
+        shortlist.sort((a, b) => b.value - a.value);
+      }
     }
     const move = shortlist[0]?.move;
     if (topReason === "found" && move?.id !== moves[0].id)
       topReason =
         beforeDefense?.id === moves[0].id
-          ? "defense"
+          ? (checkedEndgame ? "endgame" : "defense")
           : withoutLeave?.id === moves[0].id
             ? "leave"
             : "rank";
     let considered: RankedProfileMove[] | undefined;
     if (options.all) {
-      const finalists = new Set(shortlist.map((entry) => entry.move));
-      considered = [
-        ...shortlist,
-        ...ranked
-          .filter((entry) => !finalists.has(entry.move))
-          .sort((a, b) => b.value - a.value || a.index - b.index),
-      ].map(({ move, utility }) => ({ move, utility: utility! }));
+      const byUtility = (a: (typeof ranked)[number], b: (typeof ranked)[number]) =>
+        b.value - a.value || a.index - b.index;
+      const first = bagSize || checkedEndgame
+        ? [...shortlist]
+        : shortlist.slice(0, 1);
+      const finalists = new Set(first.map((entry) => entry.move));
+      const rest: typeof ranked = [];
+      for (const entry of ranked) {
+        if (finalists.has(entry.move)) continue;
+        if (checkedEndgame && !entry.move.leave) {
+          // This spread is known without another solve.
+          entry.utility!.endgame = 0;
+          first.push(entry);
+        } else rest.push(entry);
+      }
+      if (checkedEndgame) first.sort((a, b) => b.value - a.value);
+      considered = [...first, ...rest.sort(byUtility)].map(
+        ({ move, utility }) => ({ move, utility: utility! }),
+      );
     }
     return {
       move,

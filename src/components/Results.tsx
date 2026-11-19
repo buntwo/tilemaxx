@@ -589,6 +589,7 @@ export default function Results({
       filter,
       profile,
       profileBagSize: profile ? bagSize : undefined,
+      profileScorelessTurns: profile === "strong" && bagSize === 0 ? scorelessTurns : undefined,
       profileSeed: hunterSelected ? hunterResult?.id :
         profile && analysisGame ? profileWordHash(analysisGame.id) : undefined,
       requiredSquares,

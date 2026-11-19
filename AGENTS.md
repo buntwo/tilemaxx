@@ -16,6 +16,12 @@
 - Keep solver, API, sync, and UI tests in the default suite. Add targeted regression coverage for behavior changes. Check changed UI interactions in an isolated browser workspace with test data.
 - Preserve the 38 px height of the **Possible moves** header unless the user explicitly requests a height change. For changes that affect the header or its controls, measure it in a browser at desktop and phone widths before and after **Find moves**, including with the close button visible.
 
+## Playing-style models
+
+- Keep Casual, Word-list learner, and Strong club player simple. Rank the moves each style spots with an additive utility and use special cases sparingly.
+- Casual and Word-list learner use static evaluation of the generated moves. Keep sampling and extra board solves out of those profiles. Strong may use bounded extra computation after cheap screening, on a shortlist of at most five candidates.
+- After changing a profile, run paired self-play with shared bag shuffles and swapped opening seats. Report all three head-to-head matchups with wins, losses, ties, and final spread. Include mean and median points per placement, points per turn, available, spotted, and played bingos, passes with legal moves, exchanges, top-score choice rate, representative decisions, and separate move generation and profile timings. Keep top raw score and sampled reply-adjusted points as separate baselines.
+
 ## Git and deployment
 
 - Bump the Tilemaxx patch version by one in `version.json` before staging each commit. Bump major or minor only when the user explicitly asks, and set the patch to `1` for either bump. Keep `package.json` and `package-lock.json` stable for app version bumps so Docker can reuse installed dependencies.

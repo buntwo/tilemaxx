@@ -47,6 +47,7 @@ export interface MoveQuery {
   profile?: MoveStyle;
   profileBagSize?: number;
   profileSeed?: number;
+  profileScorelessTurns?: number;
   requiredSquares?: RequiredSquares;
   sort: MoveSort;
   reversed?: boolean;
@@ -65,8 +66,15 @@ export interface EndgameRanking {
   head: Move[];
 }
 
-function utilityKey({ profile, profileBagSize = 0, profileSeed = 0 }: Pick<MoveQuery, "profile" | "profileBagSize" | "profileSeed">) {
-  return JSON.stringify([profile, profileBagSize, profileSeed]);
+type ProfileQuery = Pick<MoveQuery, "profile" | "profileBagSize" | "profileSeed" | "profileScorelessTurns">;
+
+function utilityKey({
+  profile,
+  profileBagSize = 0,
+  profileSeed = 0,
+  profileScorelessTurns,
+}: ProfileQuery) {
+  return JSON.stringify([profile, profileBagSize, profileSeed, profileScorelessTurns]);
 }
 
 type RankedMove = RankedProfileMove | RankedHunterMove;
@@ -267,7 +275,7 @@ export class MoveResultIndex {
     return this.profileOrder?.key === utilityKey(query);
   }
 
-  setProfile(query: Pick<MoveQuery, "profile" | "profileBagSize" | "profileSeed">, ranked: readonly RankedMove[]) {
+  setProfile(query: ProfileQuery, ranked: readonly RankedMove[]) {
     const order = {
       key: utilityKey(query),
       moves: ranked.map(({ move }) => move),
@@ -297,6 +305,7 @@ export class MoveResultIndex {
     profile,
     profileBagSize,
     profileSeed,
+    profileScorelessTurns,
     requiredSquares,
     offset,
     locateMoveId,
@@ -307,10 +316,10 @@ export class MoveResultIndex {
     const estimates =
       this.endgame?.id === endgameId ? this.endgame?.estimates : undefined;
     const profileOrder = profile === "bingo-hunter" ? this.hunterOrder : this.profileOrder;
-    const ranked = profile && profileOrder?.key === utilityKey({ profile, profileBagSize, profileSeed })
+    const ranked = profile && profileOrder?.key === utilityKey({ profile, profileBagSize, profileSeed, profileScorelessTurns })
       ? profileOrder : undefined;
     const source = profile ? ranked?.moves ?? [] : this.moves;
-    const key = JSON.stringify([word, profile, profileBagSize, profileSeed, requiredSquares, order, endgameId]);
+    const key = JSON.stringify([word, profile, profileBagSize, profileSeed, profileScorelessTurns, requiredSquares, order, endgameId]);
     if (this.ordered?.key !== key) {
       const matches =
         word || requiredSquares?.indices.length
