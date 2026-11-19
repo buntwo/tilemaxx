@@ -273,6 +273,8 @@ test("playing style requests ranked pages and All moves restores the full list",
 });
 
 test("Bingo hunter starts on demand, then follows new move searches", async () => {
+  remote.games[0].template.rackSize = 4;
+  remote.games[0].revision++;
   let runs = 0;
   let cancellations = 0;
   let firstResultId: number | undefined;
@@ -299,15 +301,15 @@ test("Bingo hunter starts on demand, then follows new move searches", async () =
           return;
         }
         const result = this.results.get(request.searchId)!;
-        const move = result.moves[0];
+        const move = runs === 7 ? result.moves.find(({ word }) => word === "CAT")! : result.moves[0];
         ceilingMove = move.word;
         result.setProfile({ profile: "bingo-hunter", profileBagSize: request.bagSize, profileSeed: request.id },
-          result.moves.slice(0, 1).map((move) => ({
+          [{
             move, utility: {
               total: 21, bingoNow: 0, nextBingoPoints: 21, bingoChance: 0.3,
               meanBingoScore: 70, highestBingo: 104, samples: 192, exact: false, close: false,
             },
-          })));
+          }]);
         this.onmessage?.({ data: {
           id: request.id, kind: "bingo-hunter", summary: {
             checked: 1, limited: false, canContinue: runs === 3, ceilingPass: runs === 3,
@@ -329,13 +331,15 @@ test("Bingo hunter starts on demand, then follows new move searches", async () =
   }
   vi.stubGlobal("Worker", HunterWorker);
   const user = await start();
-  await typeRack(user, "CATS");
+  await waitFor(() => expect(current().template.rackSize).toBe(4));
+  await typeRack(user, "RATS");
   await user.keyboard("{Enter}");
   await user.selectOptions(await screen.findByRole("combobox", { name: "Playing style" }), "bingo-hunter");
   expect(runs).toBe(0);
   const button = () => screen.getByRole("button", { name: "Run Bingo hunter" });
   await user.click(button());
   expect(await screen.findByText("1. Simulating replies · 1/8 moves")).toBeTruthy();
+  expect(screen.queryByRole("img", { name: /bingos?/ })).toBeNull();
   await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
   expect(cancellations).toBe(1);
   await user.click(button());
@@ -371,14 +375,22 @@ test("Bingo hunter starts on demand, then follows new move searches", async () =
   await user.click(rackTile(1));
   await user.keyboard("{Enter}");
   expect(runs).toBe(5);
-  await typeRack(user, "R");
+  await typeRack(user, "C");
+  expect(current().rack).toBe("CATS");
   expect(runs).toBe(5);
   await user.keyboard("{Enter}");
   expect(await screen.findByText("1. Simulating replies · 1/8 moves")).toBeTruthy();
   expect(runs).toBe(6);
+  const bingoBadge = screen.getByRole("img", { name: "8 bingos" });
+  expect(bingoBadge.nextElementSibling?.getAttribute("title")).toBe("All legal moves");
+  expect(Number(bingoBadge.nextElementSibling?.textContent)).toBeGreaterThan(8);
   await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
   expect(runs).toBe(6);
   expect(button()).toBeTruthy();
+  await user.click(button());
+  expect(await screen.findByText("U 21")).toBeTruthy();
+  expect(screen.getByRole("img", { name: "8 bingos" })).toBe(bingoBadge);
+  expect(bingoBadge.nextElementSibling?.textContent).toBe("1");
 });
 
 test("phone analysis taps preview and select a move without offering Play", async () => {
