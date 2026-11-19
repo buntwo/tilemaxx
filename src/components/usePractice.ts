@@ -1,9 +1,10 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { PracticeRequest } from "../practice.worker";
+import type { ExchangeProgress } from "../../shared/optimal-exchange";
 import { useGameCalculation } from "./GameCalculations";
 import { ComputeWorkerLimit } from "./ComputeWorkerLimit";
 
-type Progress = { completed: number; total: number };
+type Progress = { completed: number; total: number; phase?: ExchangeProgress["phase"] };
 type PracticeMessage<Result, Update> =
   | { progress: Progress; update?: Update }
   | { result: Result }

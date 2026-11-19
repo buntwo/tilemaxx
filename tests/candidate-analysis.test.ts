@@ -5,7 +5,7 @@ import {
   prepareBoardBingo,
   RackBingoIndex,
 } from "../shared/bingo-odds";
-import { optimizeExchange } from "../shared/optimal-exchange";
+import { optimizeExchange, type ExchangeProgress } from "../shared/optimal-exchange";
 import { analyzeOpponentPolicy } from "../shared/opponent-policy";
 import { randomGenerator } from "../shared/move-analysis";
 import { parallelOptimalExchange } from "../src/parallel-exchange";
@@ -335,12 +335,12 @@ test("Optimal Exchange uses the same screening draws and finalists across reusab
     request,
   );
   const workers: ComputingWorker[] = [];
-  const progress: number[] = [];
+  const progress: ExchangeProgress[] = [];
   const result = await parallelOptimalExchange(
     lexicon,
     new RackBingoIndex(words),
     request,
-    (completed) => progress.push(completed),
+    (update) => progress.push(update),
     2,
     () => {
       const worker = new ComputingWorker();
@@ -349,17 +349,18 @@ test("Optimal Exchange uses the same screening draws and finalists across reusab
     },
   );
   assert.deepEqual(result, expected);
-  assert.equal(result.refinementDraws, 1200);
-  assert.deepEqual(
-    progress,
-    [...progress].sort((a, b) => a - b),
-  );
+  assert.equal(result.refinementDraws, 256);
+  for (const phase of ["screen", "replies"]) {
+    const counts = progress.filter((progress) => progress.phase === phase).map(({ completed }) => completed);
+    assert.deepEqual(counts, [...counts].sort((a, b) => a - b));
+  }
   assert.equal(workers.length, 2);
   assert.ok(
     workers.every(
       (worker) =>
         worker.stopped &&
         worker.requests.length > 1 &&
+        worker.requests.some(({ job }) => job.kind === "exchange-replies") &&
         worker.requests.filter(({ dictionary }) => dictionary).length === 1,
     ),
   );

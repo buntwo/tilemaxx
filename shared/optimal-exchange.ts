@@ -1,15 +1,31 @@
 import { RackBingoIndex } from "./bingo-odds";
+import {
+  createBingoReplySearch,
+  sampleBingoDeals,
+  type BingoDeal,
+} from "./bingo-replies";
+import {
+  endgameStreaks,
+  nextEndgameStreak,
+  validEndgameStreak,
+} from "./endgame";
 import { minimumExchangeBag } from "./exchange";
 import type { Lexicon } from "./lexicon";
 import { minimumBingoTiles, type BoardTemplate, type Position } from "./model";
 import { randomGenerator, sampleTiles } from "./move-analysis";
 import { splitRack } from "./rack-entry";
-import { prepareSolver, SEARCH_LIMITS, SearchLimitError } from "./solver";
+import {
+  createSolverFactory,
+  prepareSolver,
+  SEARCH_LIMITS,
+  SearchLimitError,
+} from "./solver";
 import { unseenTiles } from "./tile-pool";
 
 export type OptimalExchangeRequest = Position & {
   template: BoardTemplate;
   bag: number;
+  scorelessTurns?: number;
 };
 
 type Swap = { slots: number[]; leave: string; hits: number };
@@ -25,7 +41,7 @@ export type OptimalExchangeResult = {
 
 const SCREEN_DRAWS = 128;
 const FINALIST_LIMIT = 20;
-const REFINE_DRAWS = 1200;
+export const EXCHANGE_REPLY_TRIALS = 256;
 const DISPLAY_LIMIT = 7;
 const MIN_DRAWS = 12;
 const canonical = (rack: string) => [...rack].sort().join("");
@@ -66,7 +82,16 @@ function interval(hits: number, samples: number) {
   };
 }
 
-type ExchangeBatch = { racks: string[]; deadline: number };
+export type ExchangeProgress = {
+  completed: number;
+  total: number;
+  phase: "screen" | "replies";
+};
+type ExchangeLeave = { leave: string; draw: number };
+export type ExchangeBatch = { deadline: number } & (
+  | { kind: "exchange-racks"; racks: string[] }
+  | { kind: "exchange-replies"; deals: BingoDeal[]; swaps: ExchangeLeave[] }
+);
 type ExchangeHits = (boolean | undefined)[];
 
 export function checkExchangeRacks(
@@ -87,11 +112,66 @@ export function checkExchangeRacks(
   return hits;
 }
 
+export function createExchangeReplyCheck(
+  lexicon: Lexicon,
+  {
+    board,
+    template,
+    scorelessTurns = 0,
+  }: Pick<OptimalExchangeRequest, "board" | "template" | "scorelessTurns">,
+) {
+  const factory = createSolverFactory(lexicon, template, true);
+  const search = createBingoReplySearch(
+    factory,
+    board,
+    true,
+    (solver, rack, limits) =>
+      !!solver.solve(rack, limits, { bingoOnly: true }).length,
+  );
+  const rule = endgameStreaks[template.rules];
+  const streak = rule && !rule.passesOnly ? scorelessTurns + 1 : 0;
+
+  return (
+    deals: BingoDeal[],
+    swaps: ExchangeLeave[],
+    deadline: number,
+  ): ExchangeHits => {
+    const hits: boolean[] = [];
+    try {
+      for (const deal of deals) {
+        if (performance.now() >= deadline) break;
+        if (rule && streak >= rule.limit) {
+          hits.push(...swaps.map(() => false));
+          continue;
+        }
+        const reply = search.reply(deal.opponent, deadline);
+        const ended =
+          rule && nextEndgameStreak(rule, streak, reply) >= rule.limit;
+        // Evaluate every swap on the same reply board before recording this deal.
+        hits.push(
+          ...swaps.map(
+            ({ leave, draw }) =>
+              !ended &&
+              search.bingo(
+                reply,
+                canonical(leave + deal.bag.slice(0, draw)),
+                deadline,
+              ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!(error instanceof SearchLimitError)) throw error;
+    }
+    return hits;
+  };
+}
+
 export function* planOptimalExchange(
   lexicon: Lexicon,
   rackIndex: RackBingoIndex,
   request: OptimalExchangeRequest,
-  progress: (completed: number, total: number) => void,
+  progress: (progress: ExchangeProgress) => void,
   { seed = 0x604bd5, maxMs = 6000 } = {},
 ): Generator<ExchangeBatch, OptimalExchangeResult, ExchangeHits> {
   const { template, bag } = request;
@@ -105,6 +185,8 @@ export function* planOptimalExchange(
     bag > total
   )
     throw new Error("The bag does not have enough tiles for an exchange.");
+  if (!validEndgameStreak(template.rules, request.scorelessTurns ?? 0))
+    throw new Error("Enter a valid number of prior passes or scoreless turns.");
   const bingoMinimum = minimumBingoTiles(template);
   if (available.length < bingoMinimum)
     throw new Error(
@@ -117,33 +199,25 @@ export function* planOptimalExchange(
   );
   const random = randomGenerator(seed);
   const memo = new Map<string, boolean>();
-  const deals: string[] = [];
-  let dealIndex = 0;
   const start = performance.now();
   const deadline = start + maxMs;
   const kept = canonical(available);
-  const [keepBingo] = yield { racks: [kept], deadline };
+  progress({ completed: 0, total: SCREEN_DRAWS, phase: "screen" });
+  const [keepBingo] = yield { kind: "exchange-racks", racks: [kept], deadline };
   if (keepBingo === undefined) throw new SearchLimitError();
   memo.set(kept, keepBingo);
 
-  function* sample(
-    swaps: Swap[],
-    limit: number,
+  function* screen(
     until: number,
-    offset: number,
   ): Generator<ExchangeBatch, number, ExchangeHits> {
     let completed = 0;
-    while (completed < limit && performance.now() < until) {
+    while (completed < SCREEN_DRAWS && performance.now() < until) {
       const rounds: string[][] = [];
       const pending = new Set<string>();
-      const batchSize = Math.min(16, limit - completed);
+      const batchSize = Math.min(16, SCREEN_DRAWS - completed);
       for (let i = 0; i < batchSize; i++) {
-        const dealt = (deals[dealIndex + i] ??= sampleTiles(
-          pool,
-          maxDraw,
-          random,
-        ));
-        const racks = swaps.map(({ slots, leave }) =>
+        const dealt = sampleTiles(pool, maxDraw, random);
+        const racks = options.map(({ slots, leave }) =>
           canonical(leave + dealt.slice(0, slots.length)),
         );
         for (const rack of racks) if (!memo.has(rack)) pending.add(rack);
@@ -151,36 +225,30 @@ export function* planOptimalExchange(
       }
       if (pending.size) {
         const racks = [...pending];
-        const hits = yield { racks, deadline: until };
+        const hits = yield { kind: "exchange-racks", racks, deadline: until };
         for (const [i, rack] of racks.entries()) {
           const hit = hits[i];
           if (hit !== undefined) memo.set(rack, hit);
         }
       }
       for (const racks of rounds) {
-        dealIndex++;
         const hits = racks.map((rack) => memo.get(rack));
         // A draw contributes only when every swap has a result.
         if (hits.includes(undefined)) return completed;
         hits.forEach((hit, i) => {
-          if (hit) swaps[i].hits++;
+          if (hit) options[i].hits++;
         });
         if (++completed % 16 === 0)
-          progress(offset + completed, SCREEN_DRAWS + REFINE_DRAWS);
+          progress({ completed, total: SCREEN_DRAWS, phase: "screen" });
       }
     }
     return completed;
   }
 
-  const screeningDraws = yield* sample(
-    options,
-    SCREEN_DRAWS,
-    start + maxMs * 0.45,
-    0,
-  );
+  const screeningDraws = yield* screen(start + maxMs * 0.45);
   if (screeningDraws < MIN_DRAWS)
     throw new Error("This position exceeded the exchange search limit.");
-  progress(screeningDraws, SCREEN_DRAWS + REFINE_DRAWS);
+  progress({ completed: screeningDraws, total: SCREEN_DRAWS, phase: "screen" });
   // Break screening ties with dictionary-only bingo odds.
   const drawOdds =
     available.length === template.rackSize && screeningDraws === SCREEN_DRAWS
@@ -198,12 +266,42 @@ export function* planOptimalExchange(
   const finalists = options
     .slice(0, FINALIST_LIMIT)
     .map((choice) => ({ ...choice, hits: 0 }));
-  const refinementDraws = yield* sample(
-    finalists,
-    REFINE_DRAWS,
-    deadline,
-    screeningDraws,
-  );
+  const swaps = finalists.map(({ slots, leave }) => ({
+    leave,
+    draw: slots.length,
+  }));
+  const largestSwap = Math.max(...swaps.map(({ draw }) => draw));
+  let refinementDraws = 0;
+  progress({ completed: 0, total: EXCHANGE_REPLY_TRIALS, phase: "replies" });
+  while (
+    refinementDraws < EXCHANGE_REPLY_TRIALS &&
+    performance.now() < deadline
+  ) {
+    const deals = sampleBingoDeals(
+      pool,
+      total - bag,
+      largestSwap,
+      Math.min(16, EXCHANGE_REPLY_TRIALS - refinementDraws),
+      random,
+    );
+    const hits = yield { kind: "exchange-replies", deals, swaps, deadline };
+    let completed = 0;
+    for (let i = 0; i < deals.length; i++) {
+      const row = hits.slice(i * swaps.length, (i + 1) * swaps.length);
+      if (row.length !== swaps.length || row.includes(undefined)) break;
+      row.forEach((hit, j) => {
+        if (hit) finalists[j].hits++;
+      });
+      completed++;
+    }
+    refinementDraws += completed;
+    progress({
+      completed: refinementDraws,
+      total: EXCHANGE_REPLY_TRIALS,
+      phase: "replies",
+    });
+    if (completed < deals.length) break;
+  }
   const refined = refinementDraws >= MIN_DRAWS;
   const samples = refined ? refinementDraws : screeningDraws;
   // Stable sorting preserves the screening order when refined estimates tie.
@@ -231,10 +329,11 @@ export function optimizeExchange(
   lexicon: Lexicon,
   rackIndex: RackBingoIndex,
   request: OptimalExchangeRequest,
-  progress: (completed: number, total: number) => void = () => {},
+  progress: (progress: ExchangeProgress) => void = () => {},
   options?: { seed?: number; maxMs?: number },
 ): OptimalExchangeResult {
   const solver = prepareSolver(lexicon, request.board, request.template);
+  let replies: ReturnType<typeof createExchangeReplyCheck> | undefined;
   const plan = planOptimalExchange(
     lexicon,
     rackIndex,
@@ -244,8 +343,16 @@ export function optimizeExchange(
   );
   let step = plan.next();
   while (!step.done) {
-    const { racks, deadline } = step.value;
-    step = plan.next(checkExchangeRacks(solver, racks, deadline));
+    const batch = step.value;
+    step = plan.next(
+      batch.kind === "exchange-racks"
+        ? checkExchangeRacks(solver, batch.racks, batch.deadline)
+        : (replies ??= createExchangeReplyCheck(lexicon, request))(
+            batch.deals,
+            batch.swaps,
+            batch.deadline,
+          ),
+    );
   }
   return step.value;
 }

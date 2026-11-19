@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Play } from "lucide-react";
 import { minimumExchangeBag } from "../../shared/exchange";
 import { minimumBingoTiles, type Game } from "../../shared/model";
-import type { OptimalExchangeResult } from "../../shared/optimal-exchange";
+import {
+  EXCHANGE_REPLY_TRIALS,
+  type OptimalExchangeResult,
+} from "../../shared/optimal-exchange";
 import { splitRack } from "../../shared/rack-entry";
 import { unseenTiles } from "../../shared/tile-pool";
 import type { PracticeRequest } from "../practice.worker";
@@ -15,6 +18,7 @@ export default function OptimalExchange({
   game,
   bag,
   assumed,
+  scorelessTurns = 0,
   restoredResult,
   onClose,
   onUse,
@@ -22,6 +26,7 @@ export default function OptimalExchange({
   game: Game;
   bag: number;
   assumed: boolean;
+  scorelessTurns?: number;
   restoredResult?: OptimalExchangeResult;
   onClose: () => void;
   onUse: (
@@ -44,7 +49,7 @@ export default function OptimalExchange({
   const [request] = useState<PracticeRequest>(() => ({
     kind: "optimal-exchange",
     dictionaryId,
-    exchange: { rack, board, template, excludedRackSlots, bag },
+    exchange: { rack, board, template, excludedRackSlots, bag, scorelessTurns },
   }));
   const heading = useRef<HTMLHeadingElement>(null);
   const {
@@ -72,14 +77,16 @@ export default function OptimalExchange({
         </button>
       </div>
       <p className="small muted">
-        Bingo chance on the current board · {bag}{" "}
-        {assumed ? "estimated in bag" : "in bag"}
+        {result && !result.refinementDraws
+          ? "Bingo chance on the current board"
+          : "Bingo chance after the opponent’s turn"}{" "}
+        · {bag} {assumed ? "estimated in bag" : "in bag"}
       </p>
       {unavailable && <p className="small muted">{unavailable}</p>}
       {progress && (
         <p role="status">
-          {progress.completed
-            ? `${progress.completed} shared draws checked`
+          {progress.phase
+            ? `${progress.completed} / ${progress.total} ${progress.phase === "replies" ? "reply scenarios checked" : "shared draws screened"}`
             : "Preparing exchange search…"}
         </p>
       )}
@@ -101,7 +108,9 @@ export default function OptimalExchange({
             </thead>
             <tbody>
               <tr>
-                <th scope="row">Keep your rack</th>
+                <th scope="row" title="Bingo available now">
+                  Keep your rack
+                </th>
                 <td>
                   <MiniTiles tiles={available} />
                 </td>
@@ -167,6 +176,9 @@ export default function OptimalExchange({
               })}
             </tbody>
           </table>
+          <p className="small muted">
+            Keep your rack shows whether you have a bingo to play now.
+          </p>
           {held && (
             <p className="small muted">
               Leave shows playable tiles. Held tiles stay on your rack.
@@ -176,7 +188,9 @@ export default function OptimalExchange({
             {result.checked} swaps screened with {result.screeningDraws} shared
             draws.
             {result.refinementDraws > 0 &&
-              ` ${result.finalists} finalists compared on ${result.refinementDraws} fresh draws.`}
+              ` ${result.finalists} finalists compared on ${result.refinementDraws} of ${EXCHANGE_REPLY_TRIALS} reply scenarios.`}
+            {!result.refinementDraws &&
+              " Reply search reached its limit. Swap odds use the current board."}
           </p>
         </>
       )}

@@ -1,10 +1,11 @@
-import { createHunterEvaluator, type HunterDeal, type HunterPosition } from "../shared/bingo-hunter";
+import type { BingoDeal } from "../shared/bingo-replies";
+import { createHunterEvaluator, type HunterPosition } from "../shared/bingo-hunter";
 import { findBingoCeiling, prepareCeilingReplies, type BingoCeiling, type CeilingReply } from "../shared/bingo-ceilings";
 import { checkBoardBingoMove, type BoardOdds } from "../shared/bingo-odds";
 import { EndgameSearchLimitError, type EndgameLine } from "../shared/endgame";
 import type { Lexicon } from "../shared/lexicon";
 import type { Board, BoardTemplate, Move } from "../shared/model";
-import { checkExchangeRacks } from "../shared/optimal-exchange";
+import { checkExchangeRacks, createExchangeReplyCheck, type ExchangeBatch, type OptimalExchangeRequest } from "../shared/optimal-exchange";
 import {
   analyzeOpponentPolicy,
   type OpponentPolicyInput,
@@ -33,7 +34,7 @@ export type CandidateJob =
       kind: "bingo-hunter";
       position: HunterPosition;
       move: Move;
-      deals: HunterDeal[];
+      deals: BingoDeal[];
       beforeReply: boolean;
       deadline: number;
       wavesRemaining: number;
@@ -72,13 +73,10 @@ export type CandidateJob =
       deadline: number;
       wavesRemaining: number;
     }
-  | {
-      kind: "exchange-racks";
-      position: { board: Board; template: BoardTemplate };
-      racks: string[];
+  | (ExchangeBatch & {
+      position: Pick<OptimalExchangeRequest, "board" | "template" | "scorelessTurns">;
       offset: number;
-      deadline: number;
-    }
+    })
   | {
       kind: "policy-turn";
       key: string;
@@ -94,7 +92,7 @@ export type CandidateResult =
   | { kind: "endgame"; line: EndgameLine; elapsed: number }
   | { kind: "opponent-endgame"; line?: EndgameLine }
   | { kind: "board-bingo"; odds?: BoardOdds }
-  | { kind: "exchange-racks"; hits: ReturnType<typeof checkExchangeRacks> }
+  | { kind: "exchange-racks" | "exchange-replies"; hits: ReturnType<typeof checkExchangeRacks> }
   | { kind: "policy-turn"; policy?: OpponentPolicyResult }
   | {
       kind: "limit";
@@ -118,8 +116,9 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
     | undefined;
   // Reuse prepared boards across deals for the current candidate.
   let hunter: { key: string; evaluate: ReturnType<typeof createHunterEvaluator> } | undefined;
-  // An Optimal Exchange pool checks one immutable board across both phases.
+  // An Optimal Exchange pool handles one position across batches.
   let exchangeSolver: ReturnType<typeof prepareSolver> | undefined;
+  let exchangeReplies: ReturnType<typeof createExchangeReplyCheck> | undefined;
   return (job: CandidateJob): CandidateResult => {
     const started = performance.now();
     try {
@@ -247,6 +246,12 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
               job.racks,
               job.deadline - performance.timeOrigin,
             ),
+          };
+        case "exchange-replies":
+          exchangeReplies ??= createExchangeReplyCheck(lexicon, job.position);
+          return {
+            kind: job.kind,
+            hits: exchangeReplies(job.deals, job.swaps, job.deadline - performance.timeOrigin),
           };
         case "policy-turn": {
           const maxMs = Math.min(

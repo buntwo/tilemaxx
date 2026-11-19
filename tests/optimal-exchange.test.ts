@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { RackBingoIndex } from "../shared/bingo-odds";
 import { Lexicon } from "../shared/lexicon";
 import { emptyBoard } from "../shared/model";
-import { optimizeExchange, planOptimalExchange } from "../shared/optimal-exchange";
+import { createExchangeReplyCheck, optimizeExchange, planOptimalExchange, type ExchangeProgress } from "../shared/optimal-exchange";
 import { PRESETS } from "../shared/presets";
 import { TILE_SYMBOLS, unseenTiles } from "../shared/tile-pool";
 
@@ -49,7 +49,7 @@ test("optimal exchange finds the useful swap size and deduplicates equivalent co
 test("optimal exchange refines 20 global finalists and can rank two swaps of the same size first", () => {
   const rack = "ABCDEFG";
   const words = ["ABCDETT", "ABCEFTT"];
-  const progress: [number, number][] = [];
+  const progress: ExchangeProgress[] = [];
   const result = optimizeExchange(
     new Lexicon(words),
     new RackBingoIndex(words),
@@ -67,19 +67,51 @@ test("optimal exchange refines 20 global finalists and can rank two swaps of the
         ),
       },
     },
-    (completed, total) => progress.push([completed, total]),
+    (update) => progress.push(update),
   );
   assert.equal(result.checked, 127);
   assert.equal(result.finalists, 20);
   assert.equal(result.screeningDraws, 128);
-  assert.equal(result.refinementDraws, 1200);
-  assert.deepEqual(progress.at(-1), [1328, 1328]);
+  assert.equal(result.refinementDraws, 256);
+  assert.deepEqual(progress.at(-1), { completed: 256, total: 256, phase: "replies" });
   assert.equal(result.bestSwaps.length, 7);
   assert.deepEqual(result.bestSwaps.slice(0, 2), [
     { slots: [3, 6], chance: 1, close: true },
     { slots: [5, 6], chance: 1, close: true },
   ]);
   assert.ok(result.bestSwaps.slice(2).every(({ chance }) => chance === 0));
+});
+
+test("a shared opponent reply can open a bingo for one exchange and block another", () => {
+  const lexicon = new Lexicon(["CAT", "CATS"]);
+  const board = emptyBoard(template.size);
+  const deals = [{ opponent: "ACT", bag: "A" }, { opponent: "TVV", bag: "A" }];
+  const swaps = [{ leave: "CS", draw: 1 }, { leave: "CT", draw: 1 }];
+  const check = (scorelessTurns: number) => createExchangeReplyCheck(
+    lexicon, { board, template, scorelessTurns },
+  )(deals, swaps, performance.now() + 1000);
+
+  assert.deepEqual(check(0), [true, false, false, true]);
+  assert.deepEqual(check(4), [true, false, false, false]);
+  assert.deepEqual(check(5), [false, false, false, false]);
+});
+
+test("reply refinement only counts complete shared scenarios", () => {
+  const words = ["ATT", "TAT"];
+  const lexicon = new Lexicon(words);
+  const plan = planOptimalExchange(lexicon, new RackBingoIndex(words), {
+    board: emptyBoard(15), rack: "AVV", template, bag: 7,
+  }, () => {});
+  let step = plan.next();
+  while (!step.done && step.value.kind === "exchange-racks")
+    step = plan.next(step.value.racks.map(() => false));
+  assert.ok(!step.done && step.value.kind === "exchange-replies");
+  const { swaps } = step.value;
+  const partial = Array(12 * swaps.length + 1).fill(true);
+  const result = plan.next(partial);
+  assert.ok(result.done);
+  assert.equal(result.value.refinementDraws, 12);
+  assert.ok(result.value.bestSwaps.every(({ chance }) => chance === 1));
 });
 
 test("the same exchange odds depend on placement and cross words on the board", () => {

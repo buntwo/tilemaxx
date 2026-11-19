@@ -12,6 +12,7 @@ export const exchangePercent = new Intl.NumberFormat(undefined, {
   style: "percent",
   maximumFractionDigits: 1,
 });
+export type ExchangeBingoEstimate = { chance: number; afterReply: boolean };
 
 function DrawOptions({
   draws,
@@ -51,7 +52,7 @@ export default function ExchangeAnalysis({
   bagSize?: number;
   bagAssumed?: boolean;
   cachedResult?: ExchangeResult;
-  bingoEstimate?: number;
+  bingoEstimate?: ExchangeBingoEstimate;
   onResult: (result: ExchangeResult) => void;
   onBack?: () => void;
 }) {
@@ -156,10 +157,11 @@ export default function ExchangeAnalysis({
           {error}
         </p>
       )}
-      {!result && bingoEstimate !== undefined && (
+      {bingoEstimate && (bingoEstimate.afterReply || !result) && (
         <p className="small muted">
-          Bingo chance · ≈{exchangePercent.format(bingoEstimate)} from Optimal
-          exchange
+          Bingo chance{" "}
+          {bingoEstimate.afterReply ? "after reply" : "on current board"} · ≈
+          {exchangePercent.format(bingoEstimate.chance)} from Optimal exchange
         </p>
       )}
       {result && (
@@ -170,7 +172,7 @@ export default function ExchangeAnalysis({
               <dd>{result.score.toFixed(1)} pts</dd>
             </div>
             <div>
-              <dt>Bingo chance</dt>
+              <dt>Bingo chance on current board</dt>
               <dd>{Math.round(result.bingo * 100)}%</dd>
             </div>
             <div>
@@ -179,6 +181,7 @@ export default function ExchangeAnalysis({
             </div>
           </dl>
           <p className="small muted">
+            On the current board ·{" "}
             {result.exact
               ? "Exact weighted draws"
               : `${result.completed} of ${result.total} sampled refills`}

@@ -1,3 +1,4 @@
+import { sampleBingoDeals, type BingoDeal } from "../shared/bingo-replies";
 import {
   bingoNow,
   chooseHunterCandidates,
@@ -7,12 +8,10 @@ import {
   hunterPool,
   hunterScreen,
   hunterUtility,
-  sampleHunterDeals,
   HUNTER_CANDIDATES,
   HUNTER_CHECKPOINT,
   HUNTER_INITIAL,
   HUNTER_MAX,
-  type HunterDeal,
   type HunterPosition,
   type RankedHunterMove,
 } from "../shared/bingo-hunter";
@@ -75,14 +74,14 @@ export function createBingoHunterSession(
   const seed = profileWordHash(
     `${position.board.join(".")}:${rackComposition(position.rack)}:${bagSize}`,
   );
-  const common = sampleHunterDeals(
+  const common = sampleBingoDeals(
     pool,
     opponentSize,
     draw,
     HUNTER_MAX,
     randomGenerator(seed),
   );
-  const draws = sampleHunterDeals(
+  const draws = sampleBingoDeals(
     pool,
     opponentSize,
     draw,
@@ -140,7 +139,7 @@ export function createBingoHunterSession(
   function rank(
     slate: readonly Move[],
     scores: Scores,
-    deals: readonly HunterDeal[],
+    deals: readonly BingoDeal[],
     count: number,
     enumerate = false,
   ) {
@@ -246,7 +245,7 @@ export function createBingoHunterSession(
     async function batch(
       slate: readonly Move[],
       scores: Scores,
-      deals: HunterDeal[],
+      deals: BingoDeal[],
       target: number,
       label: HunterProgress["phase"],
     ) {

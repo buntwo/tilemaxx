@@ -2,6 +2,7 @@ import type { RackBingoIndex } from "../shared/bingo-odds";
 import type { Lexicon } from "../shared/lexicon";
 import {
   planOptimalExchange,
+  type ExchangeProgress,
   type OptimalExchangeRequest,
 } from "../shared/optimal-exchange";
 import type { CandidateJob } from "./candidate-analysis-jobs";
@@ -11,34 +12,48 @@ export async function parallelOptimalExchange(
   lexicon: Lexicon,
   rackIndex: RackBingoIndex,
   request: OptimalExchangeRequest,
-  progress: (completed: number, total: number) => void,
+  progress: (progress: ExchangeProgress) => void,
   workerLimit: number,
   createWorker?: () => Worker,
 ) {
   const pool = createCandidatePool(lexicon, workerLimit, createWorker);
-  const position = { board: request.board, template: request.template };
+  const { board, template, scorelessTurns } = request;
+  const position = { board, template, scorelessTurns };
   const plan = planOptimalExchange(lexicon, rackIndex, request, progress);
   try {
     let step = plan.next();
     while (!step.done) {
-      const { racks, deadline } = step.value;
-      const jobs: CandidateJob[] = [];
+      const batch = step.value;
+      const screening = batch.kind === "exchange-racks";
+      const count = screening ? batch.racks.length : batch.deals.length;
+      const stride = screening ? 1 : batch.swaps.length;
+      const deadline = performance.timeOrigin + batch.deadline;
+      const jobs: Extract<
+        CandidateJob,
+        { kind: "exchange-racks" | "exchange-replies" }
+      >[] = [];
       const size =
-        workerLimit > 1
-          ? Math.ceil(racks.length / (workerLimit * 2))
-          : racks.length;
-      for (let offset = 0; offset < racks.length; offset += size) {
-        jobs.push({
-          kind: "exchange-racks",
-          position,
-          offset,
-          racks: racks.slice(offset, offset + size),
-          deadline: performance.timeOrigin + deadline,
-        });
+        workerLimit > 1 ? Math.ceil(count / (workerLimit * 2)) : count;
+      for (let start = 0; start < count; start += size) {
+        const job = { position, offset: start * stride, deadline };
+        jobs.push(
+          screening
+            ? {
+                ...job,
+                kind: batch.kind,
+                racks: batch.racks.slice(start, start + size),
+              }
+            : {
+                ...job,
+                kind: batch.kind,
+                swaps: batch.swaps,
+                deals: batch.deals.slice(start, start + size),
+              },
+        );
       }
-      const hits: (boolean | undefined)[] = Array(racks.length);
+      const hits: (boolean | undefined)[] = Array(count * stride);
       await pool.run(jobs, (job, result) => {
-        if (job.kind !== "exchange-racks" || result.kind !== "exchange-racks")
+        if (job.kind !== result.kind)
           throw new Error(
             result.kind === "error"
               ? result.message

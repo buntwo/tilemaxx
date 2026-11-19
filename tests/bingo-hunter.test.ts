@@ -1,3 +1,4 @@
+import { sampleBingoDeals } from "../shared/bingo-replies";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -7,7 +8,6 @@ import {
   exactHunterDeals,
   hunterScreen,
   hunterUtility,
-  sampleHunterDeals,
 } from "../shared/bingo-hunter";
 import { Lexicon } from "../shared/lexicon";
 import { emptyBoard, isBingo, type Move } from "../shared/model";
@@ -32,10 +32,10 @@ test("shared deals conserve tiles and exact deals weight duplicate physical copi
       ?.weight,
     2,
   );
-  const samples = sampleHunterDeals(pool, 2, 2, 100, randomGenerator(5));
+  const samples = sampleBingoDeals(pool, 2, 2, 100, randomGenerator(5));
   assert.deepEqual(
     samples,
-    sampleHunterDeals(pool, 2, 2, 100, randomGenerator(5)),
+    sampleBingoDeals(pool, 2, 2, 100, randomGenerator(5)),
   );
   for (const { opponent, bag } of [...exact, ...samples]) {
     assert.equal(opponent.length, 2);

@@ -12,6 +12,7 @@ import { RackBingoIndex } from "../shared/bingo-odds";
 import type {
   OptimalExchangeRequest,
   OptimalExchangeResult,
+  ExchangeProgress,
 } from "../shared/optimal-exchange";
 import { simulateExchange, type ExchangeRequest } from "../shared/exchange";
 import {
@@ -95,7 +96,7 @@ export type ExchangeAdviceMessage =
 
 export type OptimalExchangeMessage =
   | { result: OptimalExchangeResult }
-  | { progress: { completed: number; total: number } }
+  | { progress: ExchangeProgress }
   | { error: string };
 
 self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
@@ -119,9 +120,9 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
         new Lexicon(words),
         new RackBingoIndex(words),
         data.exchange,
-        (completed, total) =>
+        (progress) =>
           self.postMessage({
-            progress: { completed, total },
+            progress,
           } satisfies OptimalExchangeMessage),
         data.workerLimit ?? computeWorkerLimit(),
       );
