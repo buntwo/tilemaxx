@@ -83,7 +83,7 @@ import KeyboardShortcuts from "./components/KeyboardShortcuts";
 import useKeyboardShortcuts from "./useKeyboardShortcuts";
 import {
   GameDetailFields,
-  FullMoveHistoryIcon,
+  IncompleteMoveHistoryIcon,
   GameOptionDetails,
   readGameDetails,
 } from "./components/GameDetails";
@@ -1116,7 +1116,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               {selectedGame?.archived ? (
                 <div className="archived-game-title game-picker-trigger-line">
                   <h1 title={selectedGame.name}>{selectedGame.name}</h1>
-                  {selectedGame.fullMoveHistory && <FullMoveHistoryIcon />}
+                  {!selectedGame.fullMoveHistory && <IncompleteMoveHistoryIcon />}
                 </div>
               ) : (
                 <GamePicker

@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import { Check, ChevronRight, GripVertical } from "lucide-react";
 import { opponentNameMatches, type GameSummary } from "../../shared/game-index";
 
-import { FullMoveHistoryIcon, GameMetadata } from "./GameDetails";
+import { IncompleteMoveHistoryIcon, GameMetadata } from "./GameDetails";
 import { describeGameScore } from "./GameScoreBadge";
 import LayoutThumbnail from "./LayoutThumbnail";
 
@@ -35,7 +35,7 @@ function GamePickerLabel({
         <span className="game-picker-name-line">
           <strong className="game-picker-name">
             <span className="game-picker-opponent" title={game.name}>{game.name}</span>
-            {game.fullMoveHistory && <FullMoveHistoryIcon />}
+            {!game.fullMoveHistory && <IncompleteMoveHistoryIcon />}
           </strong>
           {game.score && (
             <span className="game-picker-score" aria-hidden="true">
@@ -347,7 +347,10 @@ export default function GamePicker({
             aria-label="Switch game"
             aria-keyshortcuts="Alt+F"
             aria-description={
-              [headingMetadata, game?.fullMoveHistory && "Full move history"].filter(Boolean).join(". ") || undefined
+              [
+                headingMetadata,
+                game && !game.fullMoveHistory && "Incomplete move history",
+              ].filter(Boolean).join(". ") || undefined
             }
             aria-expanded={open}
             aria-haspopup="menu"
@@ -369,7 +372,7 @@ export default function GamePicker({
               <span className="game-picker-title">
                 {game?.name ?? "Select a game"}
               </span>
-              {game?.fullMoveHistory && <FullMoveHistoryIcon />}
+              {game && !game.fullMoveHistory && <IncompleteMoveHistoryIcon />}
               <ChevronRight
                 className="game-picker-chevron"
                 size={18}

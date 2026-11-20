@@ -601,10 +601,10 @@ export function BoardInput({
       <div
         className={`direct-entry-tools${historyControls ? " with-board-history" : ""}`}
       >
+        {statusAction}
         <div className="direct-entry-status" role="status">
           {status}
         </div>
-        {statusAction}
         <div className="direct-entry-actions">
           <button
             className="text-button direction-button"
