@@ -14,6 +14,7 @@ import type {
 } from "../../shared/definitions";
 import type { Move } from "../../shared/model";
 import { api } from "../store";
+import Modal from "./Modal";
 
 const HOVER_DELAY_MS = 500;
 const LEAVE_DELAY_MS = 200;
@@ -22,8 +23,7 @@ type TargetWord = { word: string; direction?: Move["direction"] };
 type Selection = {
   anchor: HTMLElement;
   words: TargetWord[];
-  hover: boolean;
-};
+} & ({ kind: "hover" | "tile" } | { kind: "sheet"; title: string });
 
 export function useDefinitionTooltip(
   language: DefinitionLanguage | undefined,
@@ -45,7 +45,7 @@ export function useDefinitionTooltip(
   }, [language, positionKey, close, cancelTimer]);
 
   useEffect(() => {
-    if (!language) return;
+    if (!language || selection?.kind === "sheet") return;
     function outside(event: Event) {
       if (event.target instanceof Node && tip.current?.contains(event.target))
         return;
@@ -64,12 +64,18 @@ export function useDefinitionTooltip(
       window.removeEventListener("scroll", outside, true);
       window.removeEventListener("resize", close);
     };
-  }, [language, close]);
+  }, [language, selection?.kind, close]);
 
   function open(anchor: HTMLElement, words: TargetWord[]) {
     if (!language || !words.length) return;
     cancelTimer();
-    setSelection({ anchor, words, hover: false });
+    setSelection({ anchor, words, kind: "tile" });
+  }
+
+  function openSheet(anchor: HTMLElement, words: TargetWord[], title: string) {
+    if (!language || !words.length) return;
+    cancelTimer();
+    setSelection({ anchor, words, kind: "sheet", title });
   }
 
   function hover(anchor: HTMLElement, word: string) {
@@ -79,7 +85,7 @@ export function useDefinitionTooltip(
     setSelection(undefined);
     timer.current = setTimeout(() => {
       if (anchor.isConnected)
-        setSelection({ anchor, words: [{ word }], hover: true });
+        setSelection({ anchor, words: [{ word }], kind: "hover" });
     }, HOVER_DELAY_MS);
   }
 
@@ -89,8 +95,9 @@ export function useDefinitionTooltip(
   }
 
   return {
-    id,
+    id: selection?.kind === "sheet" ? undefined : id,
     open,
+    openSheet,
     hover,
     leave,
     anchor: selection?.anchor,
@@ -98,14 +105,22 @@ export function useDefinitionTooltip(
       language &&
       selection &&
       createPortal(
-        <DefinitionTooltip
-          id={id}
-          language={language}
-          selection={selection}
-          tip={tip}
-          onEnter={cancelTimer}
-          onLeave={leave}
-        />,
+        selection.kind === "sheet" ? (
+          <DefinitionSheet
+            language={language}
+            selection={selection}
+            onClose={close}
+          />
+        ) : (
+          <DefinitionTooltip
+            id={id}
+            language={language}
+            selection={selection}
+            tip={tip}
+            onEnter={cancelTimer}
+            onLeave={leave}
+          />
+        ),
         document.body,
       ),
   };
@@ -171,33 +186,8 @@ function DefinitionTooltip({
   onEnter: () => void;
   onLeave: () => void;
 }) {
-  const [response, setResponse] = useState<{
-    selection: Selection;
-    lookup?: DefinitionLookup;
-  }>();
-  const result = response?.selection === selection ? response : undefined;
-  const lookup = result?.lookup;
-  const entries = lookup?.available
-    ? lookup.entries.map(preferredSpellings)
-    : undefined;
-  useEffect(() => {
-    const request = new AbortController();
-    const query = new URLSearchParams({ language });
-    for (const { word } of selection.words) query.append("word", word);
-    void api<DefinitionLookup>(
-      `/definitions?${query}`,
-      "GET",
-      undefined,
-      request.signal,
-    )
-      .then((lookup) => {
-        if (!request.signal.aborted) setResponse({ selection, lookup });
-      })
-      .catch(() => {
-        if (!request.signal.aborted) setResponse({ selection });
-      });
-    return () => request.abort();
-  }, [language, selection]);
+  const result = useDefinitionLookup(language, selection.words);
+  const hover = selection.kind === "hover";
 
   useLayoutEffect(() => {
     if (tip.current) positionTooltip(tip.current, selection.anchor);
@@ -208,35 +198,110 @@ function DefinitionTooltip({
       className="definition-tooltip"
       id={id}
       ref={tip}
-      role={selection.hover ? "tooltip" : "region"}
-      aria-label={selection.hover ? undefined : "Word definitions"}
-      onPointerEnter={selection.hover ? onEnter : undefined}
-      onPointerLeave={selection.hover ? onLeave : undefined}
+      role={hover ? "tooltip" : "region"}
+      aria-label={hover ? undefined : "Word definitions"}
+      onPointerEnter={hover ? onEnter : undefined}
+      onPointerLeave={hover ? onLeave : undefined}
     >
       <div className="definition-tooltip-content">
-        {!result ? (
-          <p className="definition-muted">Looking up definitions…</p>
-        ) : !entries ? (
-          <p className="definition-muted">Definitions unavailable.</p>
-        ) : (
-          selection.words.map(({ word, direction }, index) => (
-            <section className="definition-word" key={direction ?? word}>
-              {direction && (
-                <p className="definition-heading">
-                  <span>{direction === "across" ? "Across" : "Down"}</span>
-                  <strong>{word}</strong>
-                </p>
-              )}
-              <Glosses
-                language={language}
-                compact={selection.hover}
-                entries={entries[index]}
-              />
-            </section>
-          ))
-        )}
+        <DefinitionContent
+          language={language}
+          words={selection.words}
+          result={result}
+        />
       </div>
     </div>
+  );
+}
+
+function DefinitionSheet({
+  language,
+  selection,
+  onClose,
+}: {
+  language: DefinitionLanguage;
+  selection: Extract<Selection, { kind: "sheet" }>;
+  onClose: () => void;
+}) {
+  const result = useDefinitionLookup(language, selection.words);
+  return (
+    <Modal
+      title={selection.title}
+      className="definition-sheet"
+      onClose={onClose}
+    >
+      <div aria-live="polite">
+        <DefinitionContent
+          language={language}
+          words={selection.words}
+          result={result}
+        />
+      </div>
+    </Modal>
+  );
+}
+
+function useDefinitionLookup(
+  language: DefinitionLanguage,
+  words: TargetWord[],
+) {
+  const [response, setResponse] = useState<{
+    words: TargetWord[];
+    lookup?: DefinitionLookup;
+  }>();
+  useEffect(() => {
+    const request = new AbortController();
+    const query = new URLSearchParams({ language });
+    for (const { word } of words) query.append("word", word);
+    void api<DefinitionLookup>(
+      `/definitions?${query}`,
+      "GET",
+      undefined,
+      request.signal,
+    )
+      .then((lookup) => {
+        if (!request.signal.aborted) setResponse({ words, lookup });
+      })
+      .catch(() => {
+        if (!request.signal.aborted) setResponse({ words });
+      });
+    return () => request.abort();
+  }, [language, words]);
+  return response?.words === words ? response : undefined;
+}
+
+function DefinitionContent({
+  language,
+  words,
+  result,
+}: {
+  language: DefinitionLanguage;
+  words: TargetWord[];
+  result: ReturnType<typeof useDefinitionLookup>;
+}) {
+  if (!result)
+    return <p className="definition-muted">Looking up definitions…</p>;
+  if (!result.lookup?.available)
+    return <p className="definition-muted">Definitions unavailable.</p>;
+  const { entries } = result.lookup;
+  return (
+    <>
+      {words.map(({ word, direction }, index) => (
+        <section className="definition-word" key={direction ?? word}>
+          {direction && (
+            <p className="definition-heading">
+              <span>{direction === "across" ? "Across" : "Down"}</span>
+              <strong>{word}</strong>
+            </p>
+          )}
+          <Glosses
+            language={language}
+            compact={!direction}
+            entries={preferredSpellings(entries[index])}
+          />
+        </section>
+      ))}
+    </>
   );
 }
 

@@ -3,6 +3,7 @@ import {
   useEffect,
   useId,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -47,6 +48,7 @@ export default function BoardEntry({
   ref,
   game,
   skipPlayedTiles,
+  phoneLayout,
   hideHelp,
   readOnly,
   displayBoard,
@@ -63,6 +65,7 @@ export default function BoardEntry({
   ref?: Ref<BoardEntryHandle>;
   game: Game;
   skipPlayedTiles: boolean;
+  phoneLayout?: boolean;
   hideHelp?: boolean;
   readOnly?: boolean;
   displayBoard?: BoardState;
@@ -96,6 +99,7 @@ export default function BoardEntry({
       }
       hideHelp={hideHelp}
       skipPlayedTiles={skipPlayedTiles}
+      phoneLayout={phoneLayout}
       readOnly={readOnly}
       archivedBoard={game.archived ? game.archivedBoard : undefined}
       template={game.template}
@@ -138,6 +142,7 @@ export function BoardInput({
   hideHelp = false,
   readOnly = false,
   skipPlayedTiles = false,
+  phoneLayout = false,
   wordScores,
   definitionLanguage,
   moveFilter,
@@ -163,6 +168,7 @@ export function BoardInput({
   hideHelp?: boolean;
   readOnly?: boolean;
   skipPlayedTiles?: boolean;
+  phoneLayout?: boolean;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
   definitionLanguage?: DefinitionLanguage;
   moveFilter?: MoveFilterSelection;
@@ -176,6 +182,8 @@ export function BoardInput({
   const [pendingBlank, setPendingBlank] = useState(false);
   const [atEnd, setAtEnd] = useState(false);
   const [coordinateQuery, setCoordinateQuery] = useState<string | null>(null);
+  const [defining, setDefining] = useState(false);
+  const entry = useRef<HTMLDivElement>(null);
   const coordinatePrefix = useRef<string | null>(null);
   // Backspace reverses an automatic jump without erasing the intervening tiles.
   const skippedSteps = useRef(new Map<number, number>());
@@ -228,6 +236,24 @@ export function BoardInput({
     : "";
   const toggleMark = readOnly ? undefined : moveFilter?.onToggle;
   const locating = coordinateQuery !== null && !readOnly && !toggleMark;
+  const lookupLanguage = readOnly || toggleMark || locating ? undefined : definitionLanguage;
+  useLayoutEffect(() => setDefining(false), [board, phoneLayout, lookupLanguage]);
+  useEffect(() => {
+    if (!defining) return;
+    function outside(event: PointerEvent) {
+      if (event.target instanceof Node && !entry.current?.contains(event.target))
+        setDefining(false);
+    }
+    function escape(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setDefining(false);
+    }
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [defining]);
   const target = locating ? parseBoardCoordinate(coordinateQuery, n) : null;
   const instruction = pendingBlank
     ? "Type a blank’s letter"
@@ -236,13 +262,15 @@ export function BoardInput({
         ? "Board edge"
         : "Board edge — choose another square"
       : "Type to enter";
-  const status = locating
-    ? coordinateStatus()
-    : readOnly
-      ? "Board locked"
-      : cursor
-        ? `${cursor} · ${instruction}`
-        : "Tap a square and type";
+  const status = defining
+    ? "Tap a tile in a word"
+    : locating
+      ? coordinateStatus()
+      : readOnly
+        ? "Board locked"
+        : cursor
+          ? `${cursor} · ${instruction}`
+          : "Tap a square and type";
   const help = <BoardEntryHelp id={helpId} hidden={hideHelp} />;
 
   useImperativeHandle(ref, () => ({
@@ -467,6 +495,7 @@ export function BoardInput({
 
   return (
     <div
+      ref={entry}
       className={`board-entry${toggleMark ? " selecting-move-squares" : ""}`}
     >
       <Board
@@ -477,14 +506,14 @@ export function BoardInput({
         previewPlayer={previewPlayer}
         disabled={readOnly}
         selected={
-          !readOnly && (focused || onCursorChange) && !preview && !toggleMark && !locating
+          !readOnly && (focused || onCursorChange) && !preview && !toggleMark && !locating && !defining
             ? selected
             : null
         }
         markedSquares={moveFilter?.marks}
         selectingSquares={!!toggleMark}
         onSelect={toggleMark ?? select}
-        onTileHold={readOnly || toggleMark || locating ? undefined : (index) => {
+        onTileHold={readOnly || toggleMark || locating || defining ? undefined : (index) => {
           resetHistory();
           togglePlacedBlank(index);
         }}
@@ -492,7 +521,8 @@ export function BoardInput({
         pendingBlank={pendingBlank}
         uncertain={uncertain}
         wordScores={readOnly || toggleMark || locating ? undefined : wordScores}
-        definitionLanguage={readOnly || toggleMark || locating ? undefined : definitionLanguage}
+        definitionLanguage={lookupLanguage}
+        onDefinitionPick={defining ? () => setDefining(false) : undefined}
         keepInputFocus={!toggleMark}
         coordinateSelection={
           locating ? (target ?? { row: null, column: null }) : undefined
@@ -505,7 +535,7 @@ export function BoardInput({
         aria-label={inputLabel}
         aria-describedby={helpId}
         aria-keyshortcuts={ref && !readOnly && !toggleMark ? "Alt+B" : undefined}
-        disabled={readOnly || !!toggleMark}
+        disabled={readOnly || !!toggleMark || defining}
         value={SENTINEL}
         autoComplete="off"
         autoCorrect="off"
@@ -622,31 +652,47 @@ export function BoardInput({
           {status}
         </div>
         <div className="direct-entry-actions">
-          <button
-            className={`text-button ${pendingBlank || isBlank ? "active" : ""}`}
-            disabled={readOnly || locating || selected === null}
-            aria-label={`Blank tile: ${pendingBlank || isBlank ? "on" : "off"}`}
-            aria-pressed={pendingBlank || isBlank}
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={toggleBlank}
-          >
-            {historyControls
-              ? "Blank"
-              : `Blank tile: ${pendingBlank || isBlank ? "on" : "off"}`}
-          </button>
-          <button
-            className="icon-button"
-            aria-label="Erase selected tile"
-            title="Erase selected tile"
-            disabled={readOnly || locating || selected === null || (!tile && !pendingBlank)}
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() => {
-              erase();
-              focus();
-            }}
-          >
-            <Trash2 size={15} />
-          </button>
+          {phoneLayout ? (
+            <button
+              type="button"
+              className="text-button board-define"
+              disabled={!lookupLanguage || !board.some(Boolean)}
+              onClick={() => {
+                input.current?.blur();
+                setDefining((current) => !current);
+              }}
+            >
+              {defining ? "Cancel" : "Define"}
+            </button>
+          ) : (
+            <>
+              <button
+                className={`text-button ${pendingBlank || isBlank ? "active" : ""}`}
+                disabled={readOnly || locating || selected === null}
+                aria-label={`Blank tile: ${pendingBlank || isBlank ? "on" : "off"}`}
+                aria-pressed={pendingBlank || isBlank}
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={toggleBlank}
+              >
+                {historyControls
+                  ? "Blank"
+                  : `Blank tile: ${pendingBlank || isBlank ? "on" : "off"}`}
+              </button>
+              <button
+                className="icon-button"
+                aria-label="Erase selected tile"
+                title="Erase selected tile"
+                disabled={readOnly || locating || selected === null || (!tile && !pendingBlank)}
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  erase();
+                  focus();
+                }}
+              >
+                <Trash2 size={15} />
+              </button>
+            </>
+          )}
           {historyControls}
         </div>
         {!historyControls && help}

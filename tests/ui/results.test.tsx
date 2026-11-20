@@ -1413,6 +1413,66 @@ test("the definition lookup starts after half a second over the letters and foll
   }
 });
 
+test("holding only the letters on a phone opens a definition sheet and consumes the release click", async () => {
+  const fetchDefinition = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    available: true,
+    entries: [[{ spelling: "cats", headword: "cat", partOfSpeech: "noun", glosses: ["Domestic felines."] }]],
+  })));
+  vi.stubGlobal("fetch", fetchDefinition);
+  const { onPreview, onPlay } = setup(true);
+  const [row] = rows();
+  const letters = row.querySelector(".result-letters")!;
+  const touch = (target: Element, type: string, clientX = 20) => {
+    const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX });
+    Object.assign(event, { pointerType: "touch", pointerId: 1, isPrimary: true });
+    fireEvent(target, event);
+  };
+  vi.useFakeTimers();
+  try {
+    touch(row, "pointerdown");
+    act(() => vi.advanceTimersByTime(500));
+    touch(row, "pointerup");
+    expect(fetchDefinition).not.toHaveBeenCalled();
+
+    touch(letters, "pointerdown");
+    touch(letters, "pointermove", 35);
+    act(() => vi.advanceTimersByTime(500));
+    touch(letters, "pointercancel");
+    expect(fetchDefinition).not.toHaveBeenCalled();
+
+    touch(letters, "pointerdown");
+    touch(letters, "pointerup");
+    fireEvent.click(letters, { detail: 1 });
+    expect(onPreview).toHaveBeenLastCalledWith(moves[0]);
+    expect(row.classList.contains("pinned")).toBe(true);
+
+    touch(letters, "pointerdown");
+    act(() => vi.advanceTimersByTime(449));
+    expect(fetchDefinition).not.toHaveBeenCalled();
+    expect(fireEvent.contextMenu(letters)).toBe(false);
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    const sheet = screen.getByRole("dialog", { name: "CATS" });
+    expect(within(sheet).getByText("Domestic felines.")).toBeTruthy();
+    touch(sheet, "pointerup");
+    expect(fireEvent.click(sheet, { detail: 1 })).toBe(false);
+    expect(screen.getByRole("dialog", { name: "CATS" })).toBe(sheet);
+    expect(onPlay).not.toHaveBeenCalled();
+
+    const close = within(sheet).getByRole("button", { name: "Close dialog" });
+    touch(close, "pointerdown");
+    touch(close, "pointerup");
+    fireEvent.click(close, { detail: 1 });
+    expect(screen.queryByRole("dialog", { name: "CATS" })).toBeNull();
+    expect(row.classList.contains("pinned")).toBe(true);
+    touch(letters, "pointerdown");
+    touch(letters, "pointerup");
+    fireEvent.click(letters, { detail: 1 });
+    expect(onPlay).toHaveBeenCalledExactlyOnceWith(moves[0]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 test("a desktop click outside a pinned move clears its preview", async () => {
   const { user, onPlay, onPreview } = setup();
   const [first, second] = rows();

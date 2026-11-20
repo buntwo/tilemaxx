@@ -53,6 +53,7 @@ import { endgameLength } from "../endgame-line-format";
 import { canHoverWithMouse } from "../move-preview";
 import { definitionLanguageForRules } from "../../shared/definitions";
 import { useDefinitionTooltip } from "./DefinitionTooltip";
+import { useDefinitionHold } from "../useDefinitionHold";
 import MoveAnalysis from "./MoveAnalysis";
 import HighCeilingSetups from "./HighCeilingSetups";
 import EmptyMoveTiles from "./EmptyMoveTiles";
@@ -688,7 +689,8 @@ export default function Results({
     !waitingForEndgame && (!hunterSelected || !!hunterResult?.checked) &&
     !(profile && page.error) && (shortlistActive || !page.unavailable) &&
     !pagePending && total > 0;
-  const definitionLanguage = showList && canHoverWithMouse("mouse")
+  const mouseDefinitions = showList && canHoverWithMouse("mouse");
+  const definitionLanguage = showList && (phoneLayout || mouseDefinitions)
     ? definitionLanguageForRules(bingoRules.rules)
     : undefined;
   const definitionPosition = useMemo(
@@ -696,7 +698,9 @@ export default function Results({
     [resultSet, filter, requiredSquares, sort, reversed, view, profile, analysisKey],
   );
   const definitions = useDefinitionTooltip(definitionLanguage, definitionPosition);
-  const definitionMoveId = definitions.anchor?.dataset.moveId;
+  const touchDefinitions = phoneLayout && !!definitionLanguage;
+  const definitionHold = useDefinitionHold(touchDefinitions, definitionPosition);
+  const definitionMoveId = definitions.id && definitions.anchor?.dataset.moveId;
   useEffect(() => {
     setScrollPositions({});
     if (scroller.current) scroller.current.scrollTop = 0;
@@ -744,7 +748,7 @@ export default function Results({
       if (
         !(target instanceof Element) ||
         pinnedRow.current?.contains(target) ||
-        target.closest("[data-move-preview-action]") ||
+        target.closest("[data-move-preview-action], .definition-sheet") ||
         (histogramSelection && (target === scroller.current || target.closest("dialog")))
       )
         return;
@@ -1491,6 +1495,10 @@ export default function Results({
                     ref={pinned ? pinnedRow : undefined}
                     style={{ top: (start + offset) * moveRowHeight }}
                     onContextMenu={(event) => {
+                      if (definitionHold.ownsContextMenu(event.target)) {
+                        event.preventDefault();
+                        return;
+                      }
                       if (analyzing) return;
                       event.preventDefault();
                       togglePin(m);
@@ -1568,13 +1576,19 @@ export default function Results({
                           className="result-letters"
                           aria-hidden="true"
                           data-move-id={definitionLanguage ? m.id : undefined}
-                          onPointerEnter={definitionLanguage && ((event) => {
+                          data-definition-hold={touchDefinitions || undefined}
+                          onPointerDown={touchDefinitions ? (event) => {
+                            definitionHold.start(event, (anchor) =>
+                              definitions.openSheet(anchor, [{ word: m.word }], m.word),
+                            );
+                          } : undefined}
+                          onPointerEnter={(mouseDefinitions && definitionLanguage) ? (event) => {
                             if (event.pointerType === "mouse" && event.buttons === 0)
                               definitions.hover(event.currentTarget, m.word);
-                          })}
-                          onPointerLeave={definitionLanguage && ((event) => {
+                          } : undefined}
+                          onPointerLeave={(mouseDefinitions && definitionLanguage) ? (event) => {
                             if (event.pointerType === "mouse") definitions.leave();
-                          })}
+                          } : undefined}
                         >
                           <MoveLetters
                             move={m}
@@ -1782,6 +1796,7 @@ export default function Results({
             </span>
             <span className="tap-hint">
               Tap to preview · tap again to play
+              {touchDefinitions && " · hold the word to define"}
             </span>
           </>
         )}
