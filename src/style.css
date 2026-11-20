@@ -6316,10 +6316,6 @@ label + label {
 .app-shell:not(.phone-layout) .board-panel:has(> .last-play-lane) { padding-top: 0; }
 .board-panel :is(.last-play-summary, .board-warnings) { min-height: 24px; }
 .board-warnings {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 7px;
   margin: 8px;
   padding: 2px 8px;
   border: 1px solid color-mix(in srgb, var(--value-bad) 40%, var(--line));
@@ -6328,8 +6324,9 @@ label + label {
   color: var(--value-bad);
   font-size: 13px;
   overflow-wrap: anywhere;
+  text-align: center;
 }
-.board-warnings svg { flex: none; margin-block-start: 2px; }
+.board-warnings svg { margin-inline-end: 7px; vertical-align: middle; }
 .board-warnings p { margin: 0; line-height: 18px; }
 .board-warnings p + p { margin-top: 4px; }
 .board-panel > .board-warnings + .board-entry > .board-wrap { padding-block-start: 0; }

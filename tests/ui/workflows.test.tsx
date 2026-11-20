@@ -4291,6 +4291,15 @@ test.each([
   expect(warning.nextElementSibling).toBe(board.querySelector(".board-entry"));
   expect(workspace.classList.contains("move-review")).toBe(layout === "phone");
 
+  await user.click(cell("A1: TW"));
+  await user.keyboard("DOG{Enter}");
+  const warnings = await within(board).findByRole("alert");
+  expect(Array.from(warnings.querySelectorAll(":scope > p"), (message) => message.textContent)).toEqual([
+    "Some tiles are disconnected. Check the board transcription.",
+    "Not in this dictionary: ZCAT.",
+  ]);
+  expect(warnings.querySelectorAll("svg")).toHaveLength(1);
+
   await user.click(cell("G8: Z"));
   await user.keyboard("{Delete}");
   expect(within(board).queryByRole("alert")).toBeNull();
