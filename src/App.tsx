@@ -771,6 +771,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     if (sidebarOverlay) setSidebarDrawerOpen(visible);
     else setSidebarCollapsed(!visible);
   }
+  const headingMetadata = [
+    selectedGame?.platform,
+    data.dictionaries.find(({ id }) => id === game?.dictionaryId)?.name,
+  ].filter(Boolean).join(" · ");
   const headlineScore = game && (
     <GameScoreBadge
       score={gameFinish.score}
@@ -1162,25 +1166,19 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         )}
         {workspace === "games" && (
           <header className="workspace-heading game-heading">
+            {sidebarButton}
             <div className="game-title-row">
-              {sidebarButton}
               {selectedGame?.archived ? (
-                <div className="archived-game-title">
-                  <div className="game-picker-trigger-line">
-                    <h1 title={selectedGame.name}>{selectedGame.name}</h1>
-                    {selectedGame.fullMoveHistory && <FullMoveHistoryIcon />}
-                  </div>
-                  {selectedGame.platform && (
-                    <span className="game-heading-platform" title={selectedGame.platform}>
-                      {selectedGame.platform}
-                    </span>
-                  )}
+                <div className="archived-game-title game-picker-trigger-line">
+                  <h1 title={selectedGame.name}>{selectedGame.name}</h1>
+                  {selectedGame.fullMoveHistory && <FullMoveHistoryIcon />}
                 </div>
               ) : (
                 <GamePicker
                   ref={gamePicker}
                   key={profileId}
                   game={selectedGame}
+                  headingMetadata={headingMetadata}
                   games={activeGames}
                   onChoose={chooseGame}
                   onReorder={(ids) => store.reorderGames(profileId, ids)}
@@ -1199,6 +1197,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               >
                 <MoreHorizontal size={18} aria-hidden="true" />
               </button>
+            )}
+            {headingMetadata && (
+              <span className="game-heading-metadata" title={headingMetadata}>
+                {headingMetadata}
+              </span>
             )}
           </header>
         )}

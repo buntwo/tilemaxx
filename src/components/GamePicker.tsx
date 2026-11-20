@@ -57,12 +57,14 @@ export type GamePickerHandle = { focusSearch: () => boolean };
 export default function GamePicker({
   ref,
   game,
+  headingMetadata,
   games,
   onChoose,
   onReorder,
 }: {
   ref?: Ref<GamePickerHandle>;
   game?: GameSummary;
+  headingMetadata: string;
   games: GameSummary[];
   onChoose: (id: string) => void;
   onReorder: (ids: string[]) => Promise<void>;
@@ -345,7 +347,7 @@ export default function GamePicker({
             aria-label="Switch game"
             aria-keyshortcuts="Alt+F"
             aria-description={
-              [game?.platform, game?.fullMoveHistory && "Full move history"].filter(Boolean).join(". ") || undefined
+              [headingMetadata, game?.fullMoveHistory && "Full move history"].filter(Boolean).join(". ") || undefined
             }
             aria-expanded={open}
             aria-haspopup="menu"
@@ -383,7 +385,6 @@ export default function GamePicker({
                 </span>
               )}
             </span>
-            {game?.platform && <span className="game-heading-platform">{game.platform}</span>}
           </button>
         ) : (
           (game?.name ?? "No active games")
