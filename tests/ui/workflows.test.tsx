@@ -2775,26 +2775,26 @@ test.each(["phone Define", "desktop Define", "desktop right-click"] as const)("l
   const empty = cell("B1: empty");
   expect(screen.queryByRole("button", { name: /^Blank tile:/ })).toBeNull();
   expect(screen.queryByRole("button", { name: "Erase selected tile" })).toBeNull();
-  if (phone) {
-    await user.click(tile);
-    expect(document.activeElement).toBe(entry());
-    await user.click(cell("Define"));
-    expect(screen.getByText("Tap a tile in a word")).toBeTruthy();
-    expect(document.activeElement).not.toBe(entry());
+  if (method !== "desktop right-click") {
+    const define = cell("Define");
+    const grid = tile.closest(".board-grid");
+    expect(define).toHaveProperty("disabled", false);
+    expect(selectedCell()).toBeUndefined();
+    if (phone) {
+      await user.click(tile);
+      expect(document.activeElement).toBe(entry());
+    }
+    await user.click(define);
+    expect(screen.getByText(phone ? "Tap a tile in a word" : "Click a tile in a word")).toBeTruthy();
+    expect(grid?.getAttribute("data-defining")).toBe("true");
+    expect(entry()).toHaveProperty("disabled", true);
     expect(empty).toHaveProperty("disabled", true);
     await user.click(cell("Cancel"));
+    expect(grid?.hasAttribute("data-defining")).toBe(false);
     expect(empty).toHaveProperty("disabled", false);
     await user.click(cell("Define"));
     await user.click(tile);
-  } else if (method === "desktop Define") {
-    const define = cell("Define");
-    expect(define).toHaveProperty("disabled", true);
-    await user.click(empty);
-    expect(define).toHaveProperty("disabled", true);
-    await user.click(tile);
-    expect(define).toHaveProperty("disabled", false);
-    await user.click(define);
-    expect(document.activeElement).toBe(entry());
+    expect(grid?.hasAttribute("data-defining")).toBe(false);
     expect(empty).toHaveProperty("disabled", false);
   } else {
     expect(fireEvent.contextMenu(empty, { button: 2 })).toBe(true);
@@ -2816,7 +2816,7 @@ test.each(["phone Define", "desktop Define", "desktop right-click"] as const)("l
   expect(tip.getByText("Down")).toBeTruthy();
   expect(tip.getByText("LUNE")).toBeTruthy();
   expect(current().board[115]).toBe("e");
-  expect(selectedCell()).toBe(method === "desktop Define" ? "115" : undefined);
+  expect(selectedCell()).toBeUndefined();
   expect(tile.getAttribute("data-definition-open")).toBe("true");
   expect(fetchDefinitions.mock.calls.filter(([url]) => url.startsWith("/api/definitions?"))
     .map(([url]) => url)).toEqual(["/api/definitions?language=fr&word=COTE&word=LUNE"]);
