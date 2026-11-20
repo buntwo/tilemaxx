@@ -10,6 +10,7 @@ import {
   recordOpponentRackOut,
   reopenSearchRecordedOpponentPlay,
   trackBoardEdit,
+  trackReenteredTiles,
 } from "./game-scoring";
 
 type EditKind = keyof typeof BOARD_EDIT_LABELS;
@@ -81,7 +82,7 @@ function sameEditPosition(a: Game, b: Game) {
 }
 
 export class BoardEditHistory {
-  private group: { kind: EditKind; game: Game; reopenedFrom?: Game } | null = null;
+  private group: { kind: EditKind; game: Game } | null = null;
 
   reset() {
     this.group = null;
@@ -92,40 +93,29 @@ export class BoardEditHistory {
     const editable =
       kind === "erase" ? reopenSearchRecordedOpponentPlay(game, board) : game;
     const continuing =
-      (this.group?.kind === kind && sameEditPosition(this.group.game, editable));
-    const reopened = editable !== game;
-    const reopenedFrom = reopened ? game : continuing ? this.group?.reopenedFrom : undefined;
-    const { scoring, trackedMoves } = trackBoardEdit(editable, board);
-    // A complete deletion is an edit of the recorded turn, even though there
-    // is nothing left to rescore on the next search. Undo should restore it.
-    const removed = reopenedFrom && !scoring?.pendingBase;
-    const reuseBoundary =
-      continuing || (reopened && editable.past.length >= game.past.length);
-    const snapshot = removed ? reopenedFrom : editable;
+      this.group?.kind === kind && sameEditPosition(this.group.game, editable);
+    const restored = kind === "enter" ? trackReenteredTiles(game, board) : undefined;
+    const { scoring, trackedMoves } = restored ?? trackBoardEdit(editable, board);
     const next = {
       ...editable,
-      ...(reuseBoundary && !removed ? {} : remember(snapshot, BOARD_EDIT_LABELS[kind])),
+      ...(continuing || editable !== game
+        ? {}
+        : remember(editable, BOARD_EDIT_LABELS[kind])),
       board,
       scoring,
     };
-    if (trackedMoves || removed) {
-      next.trackedMoves = trackedMoves ?? trackedMoveHistory(editable);
+    if (trackedMoves) {
+      next.trackedMoves = trackedMoves;
       const last = next.past.at(-1)!;
       if (!last.trackedMoves) {
         next.past = [
           ...next.past.slice(0, -1),
-          {
-            ...last,
-            trackedMoves: trackedMoveHistory(snapshot),
-          },
+          { ...last, trackedMoves: trackedMoveHistory(editable) },
         ];
       }
     }
     const recorded = recordOpponentRackOut(next);
-    this.group =
-      recorded === next
-        ? { kind, game: next, reopenedFrom: removed ? undefined : reopenedFrom }
-        : null;
+    this.group = recorded === next ? { kind, game: next } : null;
     return recorded;
   }
 }
