@@ -110,6 +110,7 @@ import { DEFENSE_LIMIT } from "../shared/premium-defense";
 import { useSolver } from "./useSolver";
 import { useStyleExchange } from "./useStyleExchange";
 import { useGamePlayingStyle } from "./useGamePlayingStyle";
+import { useMoveListNavigation } from "./useMoveListNavigation";
 import { profileWordHash } from "../shared/player-profiles";
 import OfflineStatus from "./components/OfflineStatus";
 import { useAutoUpdate } from "./useAutoUpdate";
@@ -343,6 +344,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     solver.replyCandidates,
   );
   const [playingStyle, selectPlayingStyle] = useGamePlayingStyle(game?.id);
+  const moveListNavigation = useMoveListNavigation(solver.results?.searchId, playingStyle);
   const exchangeProfile = !isBingoStyle(playingStyle) ? playingStyle : undefined;
   const exchangeSeed = game ? profileWordHash(game.id) : 0;
   const exchangeSearch = solver.results?.searchId;
@@ -359,7 +361,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     replyAnalysis.scorelessTurns,
     exchangeSeed,
   );
-  const exchangeAdvice = playingStyle ? styleExchange.advice : solver.exchangeAdvice;
+  const exchangeAdvice = moveListNavigation.view === "style" ? styleExchange.advice : solver.exchangeAdvice;
   const activeFlight =
     workspace === "games" && flight?.destination === signature
       ? flight
@@ -1417,6 +1419,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   findMovesRequest={findMovesRequest}
                   playingStyle={playingStyle}
                   onPlayingStyleChange={selectPlayingStyle}
+                  navigation={moveListNavigation}
                   exchangeAction={
                     exchangeAdvice &&
                     !activeFlight && (

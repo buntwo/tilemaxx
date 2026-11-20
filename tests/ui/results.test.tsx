@@ -1,3 +1,4 @@
+import { useMoveListNavigation } from "../../src/useMoveListNavigation";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
 import {
@@ -168,6 +169,7 @@ function setup(
   function Harness({ results }: { results: MoveResults }) {
     const [preview, setPreview] = useState<Move | null>(null);
     const [boardOdds, setBoardOdds] = useState(options.boardOdds);
+    const navigation = useMoveListNavigation(results.searchId, options.playingStyle);
     const replyAnalysis = useReplyAnalysis(
       options.analysisGame,
       options.analysisGame?.id,
@@ -178,6 +180,7 @@ function setup(
     return (
       <Results
         results={results}
+        navigation={navigation}
         playingStyle={options.playingStyle}
         requiredSquares={options.requiredSquares}
         fetchPage={fetchPage}
