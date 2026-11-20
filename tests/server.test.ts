@@ -621,6 +621,33 @@ test("upgrading SQLite recovers saved rack-outs once for active and archived gam
   }
 });
 
+test("upgrading the game index restores active scores from saved games", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-active-scores-"));
+  let store = createStore(dir, process.cwd());
+  try {
+    const [game] = store.state().games;
+    const scoring = emptyScoring();
+    scoring.you.points = 218;
+    scoring.opponent.points = 192;
+    const saved = store.saveGame({ ...game, scoring })!;
+    // A version 3 server cached a null score for every active game.
+    store.db.prepare(
+      "UPDATE game_summaries SET data=json_set(data, '$.score', NULL) WHERE id=?",
+    ).run(saved.id);
+    store.db.exec("PRAGMA user_version=3");
+    store.db.close();
+
+    store = createStore(dir, process.cwd());
+    const [summary] = store.index().games;
+    assert.deepEqual(summary.score, { you: 218, opponent: 192, outcome: "playing" });
+    assert.equal(summary.revision, saved.revision);
+    assert.deepEqual(store.getGame(saved.id), saved);
+  } finally {
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("the game index backfills old SQLite saves and leaves full history on the detail API", async () => {
   const dir = mkdtempSync(join(tmpdir(), "tilemaxx-index-test-"));
   const database = new DatabaseSync(join(dir, "tilewise.sqlite"));

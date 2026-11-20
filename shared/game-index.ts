@@ -117,7 +117,7 @@ export function summarizeGame(game: Game): GameSummary {
     archived,
     revision,
     fullMoveHistory: hasFullMoveHistory(game),
-    score: archived && scoring ? summarizeGameScore(game, scoring) : null,
+    score: !archived || scoring ? summarizeGameScore(game, scoring) : null,
     thumbnail: {
       size: template.size,
       squares: template.premiums

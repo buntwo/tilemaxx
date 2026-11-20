@@ -5530,6 +5530,26 @@ test("search games focuses the archived filter and can return there from an arch
   expect(document.activeElement).toBe(search());
 });
 
+test("active game options show the tracked score inline with your score first", async () => {
+  const scoring = emptyScoring();
+  scoring.you.points = 218;
+  scoring.opponent.points = 192;
+  remote.games.push(
+    { ...game(), id: "tracked", name: "Morgan Lee", scoring },
+    { ...game(), id: "untracked", name: "Taylor Brooks", trackScores: false },
+  );
+  const user = await start();
+  await user.click(cell("Switch game"));
+  const tracked = screen.getByRole("menuitemradio", { name: /^Morgan Lee/ });
+  const score = within(tracked).getByText("218–192");
+  expect(score.parentElement).toBe(within(tracked).getByText("Morgan Lee").closest(".game-picker-name-line"));
+  expect(tracked.getAttribute("aria-description")).toContain("Your score 218, opponent score 192");
+  const newGame = screen.getByRole("menuitemradio", { name: /^First game/ });
+  expect(within(newGame).getByText("0–0")).toBeTruthy();
+  const untracked = screen.getByRole("menuitemradio", { name: /^Taylor Brooks/ });
+  expect(untracked.querySelector(".game-picker-score")).toBeNull();
+});
+
 test("typing in the game picker filters active games by opponent name", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === "(min-width: 1000px)",
@@ -5553,8 +5573,8 @@ test("typing in the game picker filters active games by opponent name", async ()
   expect(document.activeElement).toBe(search());
   await user.keyboard("sMiTh");
   expect(options()).toHaveLength(2);
-  expect(options()[0].textContent).toMatch(/^1Jo SmithScrabble GO/);
-  expect(options()[1].textContent).toMatch(/^2Jo SmithWordfeud/);
+  expect(options()[0].textContent).toMatch(/^1Jo Smith0–0Scrabble GO/);
+  expect(options()[1].textContent).toMatch(/^2Jo Smith0–0Wordfeud/);
   expect(screen.queryByRole("menuitem", { name: /Reorder/ })).toBeNull();
 
   await user.keyboard("x{ArrowDown}{Enter}");

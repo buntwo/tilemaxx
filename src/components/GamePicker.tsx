@@ -13,6 +13,7 @@ import { Check, ChevronRight, GripVertical } from "lucide-react";
 import { opponentNameMatches, type GameSummary } from "../../shared/game-index";
 
 import { FullMoveHistoryIcon, GameMetadata } from "./GameDetails";
+import { describeGameScore } from "./GameScoreBadge";
 import LayoutThumbnail from "./LayoutThumbnail";
 
 function GamePickerLabel({
@@ -31,10 +32,17 @@ function GamePickerLabel({
       </span>
       <LayoutThumbnail thumbnail={game.thumbnail} platform={game.platform} />
       <span className="game-picker-label">
-        <strong>
-          {game.name}
-          {game.fullMoveHistory && <FullMoveHistoryIcon />}
-        </strong>
+        <span className="game-picker-name-line">
+          <strong className="game-picker-name">
+            <span className="game-picker-opponent" title={game.name}>{game.name}</span>
+            {game.fullMoveHistory && <FullMoveHistoryIcon />}
+          </strong>
+          {game.score && (
+            <span className="game-picker-score" aria-hidden="true">
+              {game.score.you}–{game.score.opponent}
+            </span>
+          )}
+        </span>
         <small>
           <GameMetadata game={game} />
         </small>
@@ -417,6 +425,7 @@ export default function GamePicker({
                   role="menuitemradio"
                   tabIndex={-1}
                   aria-checked={option.id === game?.id}
+                  aria-description={option.score ? describeGameScore(option.score) : undefined}
                   onClick={() => choose(option.id)}
                 >
                   <GamePickerLabel
