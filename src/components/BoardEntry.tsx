@@ -17,6 +17,7 @@ import {
   inferBoardEntryDirection,
 } from "../../shared/board-entry";
 import { boardWordsAt } from "../../shared/game-scoring";
+import { definitionLanguageForRules, type DefinitionLanguage } from "../../shared/definitions";
 import { moveLocation } from "../../shared/notation";
 import { rackLetters } from "../../shared/rack-entry";
 import {
@@ -101,6 +102,7 @@ export default function BoardEntry({
       preview={preview}
       previewPlayer={previewPlayer}
       wordScores={displayBoard ? undefined : wordScores}
+      definitionLanguage={displayBoard ? undefined : definitionLanguageForRules(game.template.rules)}
       onSelect={onSelect}
       onSolve={onSolve}
       moveFilter={moveFilter}
@@ -137,6 +139,7 @@ export function BoardInput({
   readOnly = false,
   skipPlayedTiles = false,
   wordScores,
+  definitionLanguage,
   moveFilter,
   historyControls,
   statusAction,
@@ -161,6 +164,7 @@ export function BoardInput({
   readOnly?: boolean;
   skipPlayedTiles?: boolean;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
+  definitionLanguage?: DefinitionLanguage;
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
   statusAction?: ReactNode;
@@ -488,6 +492,7 @@ export function BoardInput({
         pendingBlank={pendingBlank}
         uncertain={uncertain}
         wordScores={readOnly || toggleMark || locating ? undefined : wordScores}
+        definitionLanguage={readOnly || toggleMark || locating ? undefined : definitionLanguage}
         keepInputFocus={!toggleMark}
         coordinateSelection={
           locating ? (target ?? { row: null, column: null }) : undefined

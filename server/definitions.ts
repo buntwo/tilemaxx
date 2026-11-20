@@ -1,15 +1,14 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type {
+  DefinitionLanguage,
+  DefinitionLookup,
+  WordDefinition,
+} from "../shared/definitions";
 
-export type DefinitionLanguage = "en" | "fr";
-
-export interface WordDefinition {
-  source: string;
-  spelling: string;
-  headword: string;
-  partOfSpeech: string;
-  glosses: string[];
-  sourceUrl: string | null;
-  license: string | null;
+export function definitionIndexPath(dataDir: string) {
+  return join(dataDir, "definitions", "definitions.sqlite");
 }
 
 export function definitionSpelling(word: string) {
@@ -121,4 +120,33 @@ export function lookupDefinitions(
       Omit<WordDefinition, "glosses"> & { glosses: string }
     >
   ).map((row) => ({ ...row, glosses: JSON.parse(row.glosses) as string[] }));
+}
+
+export function lookupEnglishGlosses(
+  path: string,
+  language: DefinitionLanguage,
+  words: string[],
+): DefinitionLookup {
+  if (!existsSync(path)) return { available: false, entries: [] };
+  const db = new DatabaseSync(path, { readOnly: true });
+  try {
+    const source = db
+      .prepare(
+        `
+      SELECT 1 FROM definition_sources
+      WHERE word_language = ? AND definition_language = 'en' LIMIT 1
+    `,
+      )
+      .get(language);
+    return source
+      ? {
+          available: true,
+          entries: words.map((word) =>
+            lookupDefinitions(db, word, language, "en"),
+          ),
+        }
+      : { available: false, entries: [] };
+  } finally {
+    db.close();
+  }
 }

@@ -2296,6 +2296,8 @@ label + label {
 }
 .result-word .result-letters {
   grid-area: 1 / 2;
+  justify-self: start;
+  max-width: 100%;
   font-size: var(--move-word-size);
 }
 .result-stack .result-letters,
@@ -2426,6 +2428,75 @@ label + label {
   border-top: 1px solid var(--line);
   color: var(--muted);
 }
+.definition-tooltip {
+  position: fixed;
+  z-index: 111;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 6px 20px #0003;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.definition-tooltip::before {
+  content: "";
+  position: absolute;
+  top: var(--definition-arrow-offset);
+  width: 9px;
+  height: 9px;
+  border: solid var(--line);
+  background: var(--surface);
+  pointer-events: none;
+  transform: translateY(-50%) rotate(45deg);
+}
+.definition-tooltip[data-side="right"]::before {
+  left: -6px;
+  border-width: 0 0 1px 1px;
+}
+.definition-tooltip[data-side="left"]::before {
+  right: -6px;
+  border-width: 1px 1px 0 0;
+}
+.definition-tooltip[data-side="vertical"]::before { display: none; }
+.definition-tooltip-content {
+  max-height: min(360px, calc(100dvh - 18px));
+  overflow: auto;
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+}
+.definition-tooltip :is(p, dl, dd) { margin: 0; }
+.definition-tooltip dt { font-weight: 700; }
+.definition-tooltip dt a {
+  color: inherit;
+  text-underline-offset: 2px;
+}
+.definition-tooltip i,
+.definition-muted,
+.definition-heading span,
+.definition-credit { color: var(--muted); }
+.definition-word + .definition-word {
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.definition-tooltip .definition-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+.definition-heading strong { letter-spacing: .04em; }
+.definition-preview > div + div { margin-top: 6px; }
+.definition-preview dt { font-size: 15px; }
+.definition-preview i { margin-left: 7px; font-size: 12px; font-weight: 400; }
+.definition-glosses {
+  display: grid;
+  grid-template-columns: fit-content(45%) 1fr;
+  gap: 2px 8px;
+}
+.definition-glosses > div { display: contents; }
+.definition-tooltip .definition-credit { margin-top: 5px; font-size: 11px; }
 .reply-cell {
   display: grid;
   justify-items: center;
@@ -4334,6 +4405,10 @@ label + label {
 .square.occupied.word-hover {
   --word-highlight: light-dark(#dceccf, #b5d1a5);
   background-color: var(--word-highlight);
+}
+.square.occupied[data-definition-open] {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
 }
 .board-entry .square.occupied:not(.ghost) {
   -webkit-touch-callout: none;

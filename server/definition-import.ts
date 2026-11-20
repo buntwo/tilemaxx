@@ -5,11 +5,12 @@ import { Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createGunzip } from "node:zlib";
 import type { DatabaseSync } from "node:sqlite";
+import type { DefinitionLanguage } from "../shared/definitions";
 import {
+  definitionIndexPath,
   definitionSpelling,
   definitionTileKey,
   openDefinitionIndex,
-  type DefinitionLanguage,
 } from "./definitions";
 
 const sources = [
@@ -422,7 +423,7 @@ export async function importDefinitions(
   const directory = join(dataDir, "definitions");
   await mkdir(directory, { recursive: true });
   const inputs = await findInputs(directory);
-  const database = join(directory, "definitions.sqlite");
+  const database = definitionIndexPath(dataDir);
   if (!inputs.length) return { database, sources: [] };
   const db = openDefinitionIndex(database);
   try {

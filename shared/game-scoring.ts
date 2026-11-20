@@ -536,37 +536,46 @@ function rescoreBoardCorrections(game: Game, board: Board, base: Board) {
   if (moves) return { history, moves, cells };
 }
 
-type BoardWordScore = {
+type BoardWord = {
   direction: Move["direction"];
   cells: number[];
   word: string;
+};
+
+type BoardWordScore = BoardWord & {
   score: number;
   fromPlay: boolean;
   bingo?: boolean;
 };
 
-export function boardWordsAt(game: Game, index: number) {
-  const { board, template, past, scoring } = game;
+export function boardWordsThrough(board: Board, size: number, index: number) {
   if (!board[index]) return [];
-  const words = (["across", "down"] as const).flatMap<BoardWordScore>(
+  return (["across", "down"] as const).flatMap<BoardWord>(
     (direction) => {
-      const step = direction === "across" ? 1 : template.size;
-      const cells = wordCells(board, template.size, index, step);
+      const step = direction === "across" ? 1 : size;
+      const cells = wordCells(board, size, index, step);
       if (cells.length < 2) return [];
       return [
         {
           direction,
           cells,
           word: cells.map((i) => board[i].toUpperCase()).join(""),
-          score: cells.reduce(
-            (sum, i) => sum + tileScore(board[i], template.rules),
-            0,
-          ),
-          fromPlay: false,
         },
       ];
     },
   );
+}
+
+export function boardWordsAt(game: Game, index: number) {
+  const { board, template, past, scoring } = game;
+  const words: BoardWordScore[] = boardWordsThrough(board, template.size, index).map((word) => ({
+    ...word,
+    score: word.cells.reduce(
+      (sum, i) => sum + tileScore(board[i], template.rules),
+      0,
+    ),
+    fromPlay: false,
+  }));
   const unresolved = new Set(words);
   function useReview({
     board: base,

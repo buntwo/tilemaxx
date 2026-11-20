@@ -10,6 +10,8 @@ import {
 } from "node:fs";
 import { join, basename } from "node:path";
 import { randomUUID } from "node:crypto";
+import type { DefinitionLanguage } from "../shared/definitions";
+import { definitionIndexPath, lookupEnglishGlosses } from "./definitions";
 import {
   type AppState,
   type Dictionary,
@@ -344,6 +346,9 @@ export function createStore(directory: string, root: string) {
   }
   return {
     db,
+    definitions(language: DefinitionLanguage, words: string[]) {
+      return lookupEnglishGlosses(definitionIndexPath(directory), language, words);
+    },
     saveScreenshotExample({
       croppedPng,
       ...example

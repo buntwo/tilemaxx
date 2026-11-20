@@ -1364,6 +1364,55 @@ test.each(["right-click", "P"])("%s toggles a move pin", async (input) => {
   expect(onPlay).not.toHaveBeenCalled();
 });
 
+test("the definition lookup starts after half a second over the letters and follows the word anchor", async () => {
+  const fetchDefinition = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    available: true,
+    entries: [[{ spelling: "cats", headword: "cat", partOfSpeech: "noun", glosses: ["Domestic felines."] }]],
+  })));
+  vi.stubGlobal("fetch", fetchDefinition);
+  const { onPreview, onPlay } = setup();
+  const [row] = rows();
+  const letters = row.querySelector(".result-letters")!;
+  vi.spyOn(letters, "getBoundingClientRect").mockReturnValue(new DOMRect(95, 140, 44, 18));
+  vi.spyOn(row, "getBoundingClientRect").mockReturnValue(new DOMRect(50, 125, 300, 50));
+  function point(target: Element, type: string, pointerType = "mouse") {
+    const event = new MouseEvent(type, { bubbles: true, buttons: 0 });
+    Object.defineProperty(event, "pointerType", { value: pointerType });
+    fireEvent(target, event);
+  }
+  vi.useFakeTimers();
+  try {
+    point(row, "pointerover");
+    act(() => vi.advanceTimersByTime(500));
+    expect(onPreview).toHaveBeenLastCalledWith(moves[0]);
+    expect(fetchDefinition).not.toHaveBeenCalled();
+    point(letters, "pointerover", "touch");
+    act(() => vi.advanceTimersByTime(500));
+    expect(fetchDefinition).not.toHaveBeenCalled();
+    point(letters, "pointerover");
+    act(() => vi.advanceTimersByTime(499));
+    expect(fetchDefinition).not.toHaveBeenCalled();
+    point(letters, "pointerout");
+    act(() => vi.advanceTimersByTime(500));
+    expect(fetchDefinition).not.toHaveBeenCalled();
+    point(letters, "pointerover");
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    const tip = screen.getByRole("tooltip");
+    expect(tip.textContent).toContain("Domestic felines.");
+    expect(tip.style.left).toBe("147px");
+    expect(row.getAttribute("aria-describedby")).toBe(tip.id);
+    expect(fetchDefinition).toHaveBeenCalledExactlyOnceWith(
+      "/api/definitions?language=en&word=CATS",
+      expect.objectContaining({ method: "GET" }),
+    );
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(onPlay).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 test("a desktop click outside a pinned move clears its preview", async () => {
   const { user, onPlay, onPreview } = setup();
   const [first, second] = rows();

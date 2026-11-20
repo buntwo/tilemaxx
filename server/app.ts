@@ -13,6 +13,14 @@ import {
 import { PRESETS } from "../shared/presets";
 import { createDebugRouter } from "./debug";
 
+const definitionQuery = z.object({
+  language: z.enum(["en", "fr"]),
+  word: z
+    .union([z.string(), z.array(z.string())])
+    .transform((words) => [words].flat())
+    .pipe(z.array(z.string().regex(/^[a-z]{2,25}$/i)).min(1).max(2)),
+});
+
 export function createApp(store: ReturnType<typeof createStore>) {
   const app = express();
   app.disable("x-powered-by");
@@ -39,6 +47,15 @@ export function createApp(store: ReturnType<typeof createStore>) {
   });
   app.use(express.json({ limit: "16mb" }));
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
+  app.get("/api/definitions", (req, res) => {
+    const { language, word } = definitionQuery.parse(req.query);
+    try {
+      res.json(store.definitions(language, word));
+    } catch (error) {
+      console.error(error);
+      res.status(503).json({ error: "Definitions are unavailable." });
+    }
+  });
   app.get("/api/state", (_req, res) => res.json(store.state()));
   app.get("/api/state/index", (_req, res) =>
     res.json({ ...store.index(), version }),
