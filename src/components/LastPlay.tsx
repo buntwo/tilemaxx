@@ -3,10 +3,46 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { lastRecordedBoardPlay } from "../../shared/game-scoring";
 import { moveLocation } from "../../shared/notation";
 import { wordBonuses, type Game } from "../../shared/model";
+import type { unseenTiles } from "../../shared/tile-pool";
 import MoveWord from "./MoveWord";
 
 type RecordedPlay = NonNullable<ReturnType<typeof lastRecordedBoardPlay>>;
 type ScoredWord = NonNullable<RecordedPlay["main"]>;
+
+export type LastPlayBag = {
+  bagSize: number;
+  bagConfirmed: boolean;
+  unseenPool: ReturnType<typeof unseenTiles> | undefined;
+};
+
+function BagStatus({ bagSize, bagConfirmed, unseenPool }: LastPlayBag) {
+  if (!unseenPool || unseenPool.excess.length) return null;
+  const estimatedCount = !bagConfirmed && unseenPool.total > 0;
+  const estimatedVowels = bagSize < unseenPool.total;
+  const title = [
+    estimatedCount &&
+      "Bag count assumes one opponent with a full rack where possible.",
+    bagSize > 0 &&
+      estimatedVowels &&
+      "Vowel estimate uses all unseen tiles, including the opponent’s rack. Blanks count toward the total.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <span className="last-play-bag" title={title || undefined}>
+      {bagSize === 0 ? (
+        "Bag empty"
+      ) : (
+        <>
+          Bag: {bagSize} · {estimatedVowels && "≈"}
+          {Math.round((100 * unseenPool.totals.vowel) / unseenPool.total)}%
+          vowels
+        </>
+      )}
+    </span>
+  );
+}
 
 function location({ cells, direction }: ScoredWord, size: number) {
   return moveLocation({
@@ -24,7 +60,13 @@ function multiplierText(word: ScoredWord) {
   return `${word.sum} × ${word.multiplier} ${premiums.join("·")}`;
 }
 
-export default function LastPlay({ game }: { game: Game }) {
+export default function LastPlay({
+  game,
+  bag,
+}: {
+  game: Game;
+  bag?: LastPlayBag;
+}) {
   const play = useMemo(() => lastRecordedBoardPlay(game), [game]);
   if (!play) return null;
   const { move } = play;
@@ -33,11 +75,20 @@ export default function LastPlay({ game }: { game: Game }) {
       key={`${game.id}:${move.at}:${move.player}:${move.word}:${move.score}`}
       play={play}
       size={game.template.size}
+      bag={bag}
     />
   );
 }
 
-function LastPlayLane({ play, size }: { play: RecordedPlay; size: number }) {
+function LastPlayLane({
+  play,
+  size,
+  bag,
+}: {
+  play: RecordedPlay;
+  size: number;
+  bag?: LastPlayBag;
+}) {
   const { move, main, bingo, breakdown } = play;
   const [hover, setHover] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -86,28 +137,31 @@ function LastPlayLane({ play, size }: { play: RecordedPlay; size: number }) {
     <div
       ref={lane}
       className="last-play-lane"
-      onPointerEnter={(event) => {
-        if (event.pointerType === "mouse") setHover(true);
-      }}
       onPointerLeave={() => setHover(false)}
     >
-      {breakdown ? (
-        <button
-          type="button"
-          className="last-play-summary"
-          aria-expanded={open}
-          aria-controls={id}
-          onClick={() => {
-            if (pinned) setHover(false);
-            setPinned(!pinned);
-          }}
-        >
-          {summary}
-          <ChevronDown size={12} aria-hidden="true" />
-        </button>
-      ) : (
-        <div className="last-play-summary">{summary}</div>
-      )}
+      <div className="last-play-row">
+        {breakdown ? (
+          <button
+            type="button"
+            className="last-play-summary"
+            aria-expanded={open}
+            aria-controls={id}
+            onPointerEnter={(event) => {
+              if (event.pointerType === "mouse") setHover(true);
+            }}
+            onClick={() => {
+              if (pinned) setHover(false);
+              setPinned(!pinned);
+            }}
+          >
+            {summary}
+            <ChevronDown size={12} aria-hidden="true" />
+          </button>
+        ) : (
+          <div className="last-play-summary">{summary}</div>
+        )}
+        {bag && <BagStatus {...bag} />}
+      </div>
       {breakdown && main && (
         <div className="last-play-breakdown" id={id} hidden={!open}>
           <table aria-label="Last play point breakdown">

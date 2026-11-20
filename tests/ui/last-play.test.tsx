@@ -10,6 +10,7 @@ import {
   type Game,
 } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
+import { unseenTiles } from "../../shared/tile-pool";
 import LastPlay from "../../src/components/LastPlay";
 
 function opponentBingo() {
@@ -130,4 +131,31 @@ test("an older score entry with no recoverable position shows its recorded word 
   expect(screen.getByText("Last play: Opp")).toBeTruthy();
   expect(screen.getByText("70 pts")).toBeTruthy();
   expect(screen.queryByRole("button")).toBeNull();
+});
+
+test("the bag status includes blanks in the vowel percentage and follows the bag count", () => {
+  const game = opponentBingo();
+  const unseenPool = unseenTiles(game, game.template);
+  const bag = { bagSize: 83, bagConfirmed: false, unseenPool };
+  const { rerender } = render(<LastPlay game={game} bag={bag} />);
+
+  const status = screen.getByText("Bag: 83 · ≈42% vowels");
+  expect(status.title).toContain("including the opponent’s rack");
+  expect(status.closest("button")).toBeNull();
+  expect(
+    screen.getByRole("button", {
+      name: "Last play: Opp STEALER Bingo 70 pts K8",
+    }),
+  ).toBeTruthy();
+
+  rerender(
+    <LastPlay game={game} bag={{ ...bag, bagSize: 90, bagConfirmed: true }} />,
+  );
+  expect(screen.getByText("Bag: 90 · 42% vowels").title).toBe("");
+
+  rerender(
+    <LastPlay game={game} bag={{ ...bag, bagSize: 0, bagConfirmed: true }} />,
+  );
+  expect(screen.getByText("Bag empty")).toBeTruthy();
+  expect(screen.queryByText(/% vowels/)).toBeNull();
 });
