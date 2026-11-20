@@ -241,11 +241,7 @@ export function BoardInput({
   const locating = coordinateQuery !== null && !readOnly && !toggleMark;
   const lookupLanguage = readOnly || toggleMark || locating ? undefined : definitionLanguage;
   const definitions = useDefinitionTooltip(lookupLanguage, board);
-  const canDefine =
-    !!lookupLanguage &&
-    (phoneLayout
-      ? board.some(Boolean)
-      : selected !== null && boardWordsThrough(board, n, selected).length > 0);
+  const canDefine = !!lookupLanguage && board.some(Boolean);
   useLayoutEffect(() => setDefining(false), [board, phoneLayout, lookupLanguage]);
   useEffect(() => {
     if (!defining) return;
@@ -276,7 +272,7 @@ export function BoardInput({
         ? `Space: blank${skipPlayedTiles ? " · Period: skip" : ""} · ${repeatHint}`
         : "Type to enter";
   const status = defining
-    ? "Tap a tile in a word"
+    ? `${phoneLayout ? "Tap" : "Click"} a tile in a word`
     : locating
       ? coordinateStatus()
       : readOnly
@@ -509,26 +505,18 @@ export function BoardInput({
   function openDefinition(anchor: HTMLButtonElement, index: number) {
     const words = boardWordsThrough(board, n, index);
     if (!words.length) return false;
-    if (defining) {
+    if (defining && phoneLayout) {
       definitions.openSheet(anchor, words, `Words at ${coordinate(index, n)}`);
-      setDefining(false);
     } else {
       definitions.open(anchor, words);
     }
+    setDefining(false);
     return true;
   }
 
-  function define() {
-    if (phoneLayout) {
-      input.current?.blur();
-      setDefining((current) => !current);
-      return;
-    }
-    if (selected === null) return;
-    const anchor = entry.current?.querySelector<HTMLButtonElement>(
-      `button[data-cell="${selected}"]`,
-    );
-    if (anchor) openDefinition(anchor, selected);
+  function toggleDefine() {
+    input.current?.blur();
+    setDefining((current) => !current);
   }
 
   return (
@@ -727,10 +715,7 @@ export function BoardInput({
               type="button"
               className="text-button board-define"
               disabled={!canDefine}
-              onPointerDown={(event) => {
-                if (!phoneLayout) event.preventDefault();
-              }}
-              onClick={define}
+              onClick={toggleDefine}
             >
               {defining ? "Cancel" : "Define"}
             </button>
