@@ -3633,19 +3633,21 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   expect(cell("My games").getAttribute("aria-current")).toBe("page");
 });
 
-test("the game picker and archive show the full move history icon on complete games", async () => {
+test("the game header, picker, and archive mark incomplete move histories", async () => {
   const user = await start();
+  const icon = { name: "Incomplete move history" };
+  expect(within(cell("Switch game")).getByRole("img", icon)).toBeTruthy();
+  expect(cell("Switch game").getAttribute("aria-description")).toContain(icon.name);
   await user.click(cell("H8: DW, start"));
   await user.keyboard("CAT");
   await user.click(cell("Record opponent move"));
-  await store.flush();
-  expect(
-    within(cell("Switch game")).getByRole("img", { name: "Full move history" }),
-  ).toBeTruthy();
+  await act(() => store.flush());
+  expect(within(cell("Switch game")).queryByRole("img", icon)).toBeNull();
   expect(screen.queryByText("TIP", { exact: true })).toBeNull();
 
   const complete = current();
   remote.games.push(
+    { ...game(), id: "active-partial", name: "Active partial match", board: complete.board },
     {
       ...complete,
       id: "archived-tracked",
@@ -3663,19 +3665,18 @@ test("the game picker and archive show the full move history icon on complete ga
   await act(() => store.refresh());
   await user.click(cell("Switch game"));
   const active = screen.getByRole("menuitemradio", { name: /^First game/ });
-  expect(
-    within(active).getByRole("img", { name: "Full move history" }),
-  ).toBeTruthy();
+  expect(within(active).queryByRole("img", icon)).toBeNull();
+  const activePartial = screen.getByRole("menuitemradio", { name: /^Active partial match/ });
+  expect(within(activePartial).getByRole("img", icon)).toBeTruthy();
   await user.keyboard("{Escape}");
   await user.click(cell("Archived games"));
   const tracked = screen.getByRole("button", { name: /^Tracked match/ });
-  expect(
-    within(tracked).getByRole("img", { name: "Full move history" }),
-  ).toBeTruthy();
+  expect(within(tracked).queryByRole("img", icon)).toBeNull();
   const partial = screen.getByRole("button", { name: /^Partial match/ });
-  expect(
-    within(partial).queryByRole("img", { name: "Full move history" }),
-  ).toBeNull();
+  expect(within(partial).getByRole("img", icon)).toBeTruthy();
+  await user.click(partial);
+  const heading = await screen.findByRole("heading", { name: "Partial match" });
+  expect(within(heading.closest("header")!).getByRole("img", icon)).toBeTruthy();
 });
 
 test.each(["phone", "tablet", "desktop"])(
@@ -3892,7 +3893,7 @@ test("the desktop board offers screenshot import next to its entry hint while em
   const user = await start(820);
   const board = within(screen.getByRole("region", { name: "Game board" }));
   const importShortcut = () => board.queryByRole("button", { name: "Import screenshot" });
-  expect(importShortcut()?.previousElementSibling).toBe(board.getByText("Tap a square and type"));
+  expect(importShortcut()?.nextElementSibling).toBe(board.getByText("Tap a square and type"));
   await user.click(importShortcut()!);
   const screenshot = screen.getByRole("dialog", { name: "Import a screenshot" });
   await user.click(within(screenshot).getByRole("button", { name: "Close dialog" }));

@@ -4,13 +4,13 @@ import { opponentNameMatches } from "../../shared/game-index";
 import { localDate, MAX_GAME_NOTES, type Dictionary, type Game } from "../../shared/model";
 import { gamePlatforms } from "../premium-palettes";
 
-export function FullMoveHistoryIcon() {
+export function IncompleteMoveHistoryIcon() {
   return (
     <span
-      className="full-move-history"
+      className="incomplete-move-history"
       role="img"
-      aria-label="Full move history"
-      title="Full move history"
+      aria-label="Incomplete move history"
+      title="Incomplete move history"
     >
       <History size={14} aria-hidden="true" />
     </span>

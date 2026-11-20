@@ -1,7 +1,7 @@
 import { useState, type ReactNode, type Ref } from "react";
 import { ArrowLeft, ArrowRight, Pencil } from "lucide-react";
 import { opponentNameMatches, type GameSummary } from "../../shared/game-index";
-import { FullMoveHistoryIcon, GameMetadata } from "./GameDetails";
+import { IncompleteMoveHistoryIcon, GameMetadata } from "./GameDetails";
 import GameScoreBadge, { describeGameScore } from "./GameScoreBadge";
 import LayoutThumbnail from "./LayoutThumbnail";
 
@@ -108,7 +108,7 @@ export default function ArchivedGames({
                       <span className="game-picker-label">
                         <strong>
                           {game.name}
-                          {game.fullMoveHistory && <FullMoveHistoryIcon />}
+                          {!game.fullMoveHistory && <IncompleteMoveHistoryIcon />}
                         </strong>
                         <small>
                           <GameMetadata game={game} endedOn={game.endedOn} />
