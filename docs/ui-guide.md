@@ -2,7 +2,7 @@
 
 ## Game workspace
 
-On narrow windows, the board and rack sit above Possible moves. Wider windows put the board and moves side by side. The sidebar opens as a drawer until there is room to dock it alongside the game.
+On narrow windows, the board and rack sit above Possible moves. Wider windows put the board and moves side by side. Once the sidebar docks, the game fills the rest of the window. Collapsing the docked sidebar gives that space back to the game.
 
 | Name | Where to find it |
 | --- | --- |

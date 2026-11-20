@@ -1583,7 +1583,6 @@ label + label {
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   align-items: start;
-  max-width: 1260px;
 }
 .workspace-grid > * {
   min-width: 0;
@@ -5631,22 +5630,21 @@ label + label {
   --game-workspace-columns: min(54%, max(320px, calc(100svh - 188px))) minmax(0, 1fr);
   --game-workspace-gap: 14px;
 }
+.compact-game .main-content { max-width: none; }
 .sidebar .profile-picker { padding-top: 12px; }
 .game-heading {
   --game-heading-edge: 0px;
   display: grid;
   grid-template-columns: var(--game-heading-edge) minmax(0, 1fr) auto minmax(0, 1fr) var(--game-heading-edge);
   gap: 0 2px;
-  max-width: 1260px;
   padding: 10px 0 8px;
 }
 .game-heading:has(> .menu-button) { --game-heading-edge: 32px; }
 .game-heading > .menu-button { grid-area: 1 / 1 / span 2; }
 .sidebar-overlay .game-heading:has(> .menu-button) { --game-heading-edge: 44px; }
 .sidebar-overlay .game-heading > .menu-button { width: 44px; height: 44px; }
-.compact-game :is(.game-heading, .workspace-grid, .workspace-footer),
-.stacked-game :is(.game-heading, .workspace-grid, .workspace-footer) {
-  max-width: var(--game-workspace-width, 1260px);
+:is(.compact-game, .stacked-game) :is(.game-heading, .workspace-grid, .workspace-footer) {
+  max-width: var(--game-workspace-width, none);
   margin-inline: auto;
 }
 .stacked-game { --game-workspace-width: 620px; }
