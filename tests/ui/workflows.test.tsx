@@ -2739,7 +2739,7 @@ test("scroll gestures and canceled board touches do not select or turn a square"
   expect(selectedCell()).toBeUndefined();
 });
 
-test("right-clicking a board intersection looks up both French words without editing the tile", async () => {
+test.each(["desktop", "phone"])("looking up a board intersection on %s shows both French words without editing the tile", async (layout) => {
   const board = emptyBoard(15);
   board.splice(112, 4, ..."COTe");
   board[70] = "L";
@@ -2766,15 +2766,32 @@ test("right-clicking a board intersection looks up both French words without edi
     }));
   });
   vi.stubGlobal("fetch", fetchDefinitions);
-  await start();
+  const user = await start(layout === "phone" ? 390 : 1200);
   const tile = await screen.findByRole("button", { name: "K8: E blank" });
   const empty = cell("B1: empty");
-  expect(fireEvent.contextMenu(empty, { button: 2 })).toBe(true);
-  touch(tile, "contextmenu", { button: 2 });
-  expect(screen.queryByRole("region", { name: "Word definitions" })).toBeNull();
-  expect(fireEvent.contextMenu(tile, { button: 2 })).toBe(false);
+  if (layout === "phone") {
+    expect(screen.queryByRole("button", { name: /^Blank tile:/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Erase selected tile" })).toBeNull();
+    await user.click(tile);
+    expect(document.activeElement).toBe(entry());
+    await user.click(cell("Define"));
+    expect(screen.getByText("Tap a tile in a word")).toBeTruthy();
+    expect(document.activeElement).not.toBe(entry());
+    expect(empty).toHaveProperty("disabled", true);
+    await user.click(cell("Cancel"));
+    expect(empty).toHaveProperty("disabled", false);
+    await user.click(cell("Define"));
+    await user.click(tile);
+  } else {
+    expect(fireEvent.contextMenu(empty, { button: 2 })).toBe(true);
+    touch(tile, "contextmenu", { button: 2 });
+    expect(screen.queryByRole("region", { name: "Word definitions" })).toBeNull();
+    expect(fireEvent.contextMenu(tile, { button: 2 })).toBe(false);
+  }
 
-  const tip = within(screen.getByRole("region", { name: "Word definitions" }));
+  const tip = within(layout === "phone"
+    ? screen.getByRole("dialog", { name: "Words at K8" })
+    : screen.getByRole("region", { name: "Word definitions" }));
   await tip.findByText("moon");
   expect(tip.getByText("Across")).toBeTruthy();
   expect(tip.getByText("COTE")).toBeTruthy();
@@ -2788,8 +2805,16 @@ test("right-clicking a board intersection looks up both French words without edi
   expect(selectedCell()).toBeUndefined();
   expect(fetchDefinitions.mock.calls.filter(([url]) => url.startsWith("/api/definitions?"))
     .map(([url]) => url)).toEqual(["/api/definitions?language=fr&word=COTE&word=LUNE"]);
-  fireEvent.pointerDown(document.body);
-  expect(screen.queryByRole("region", { name: "Word definitions" })).toBeNull();
+  if (layout === "phone") {
+    await user.click(tip.getByRole("button", { name: "Close dialog" }));
+    expect(screen.queryByRole("dialog", { name: "Words at K8" })).toBeNull();
+    expect(cell("Define")).toBeTruthy();
+    expect(empty).toHaveProperty("disabled", false);
+    expect(document.activeElement).not.toBe(entry());
+  } else {
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("region", { name: "Word definitions" })).toBeNull();
+  }
 });
 
 test.each(["touch", "mouse"])("a %s hold toggles a placed blank without moving the board cursor", async (pointerType) => {
@@ -4110,7 +4135,7 @@ test("the phone layout keeps settings, the build version, board help and move fi
   expect(main.getByText("Tap a square and type").closest(".direct-entry-tools")).toBeTruthy();
   expect(entryTools?.contains(redo)).toBe(true);
   expect(main.queryByRole("button", { name: "Toggle entry direction" })).toBeNull();
-  expect(entryTools?.contains(main.getByRole("button", { name: "Blank tile: off" }))).toBe(true);
+  expect(entryTools?.contains(main.getByRole("button", { name: "Define" }))).toBe(true);
   await user.click(cell("H8: DW, start"));
   await user.keyboard("C");
   expect(main.getByText("8I · Type to enter")).toBeTruthy();

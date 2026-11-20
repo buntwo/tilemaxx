@@ -49,6 +49,7 @@ export default function Board({
   overlay,
   wordScores,
   definitionLanguage,
+  onDefinitionPick,
 }: {
   template: BoardTemplate;
   board: BoardState;
@@ -75,6 +76,7 @@ export default function Board({
   overlay?: ReactNode;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
   definitionLanguage?: DefinitionLanguage;
+  onDefinitionPick?: () => void;
 }) {
   const press = useRef<{
     index: number;
@@ -90,6 +92,7 @@ export default function Board({
   const canHoldTile = !!onTileHold;
   const [hoveredTile, setHoveredTile] = useState<number | null>(null);
   const definitions = useDefinitionTooltip(definitionLanguage, board);
+  const defining = !!onDefinitionPick;
   useEffect(() => () => clearTimeout(holdTimer.current), [board, canHoldTile]);
   function cancelPress(pointerId: number) {
     if (press.current?.pointerId !== pointerId) return;
@@ -113,6 +116,7 @@ export default function Board({
         className={`board-grid ${paint ? "paint-board" : ""} ${placed.size ? "has-move-preview" : ""}`}
         aria-label={`${template.name} board`}
         data-preview-player={placed.size ? previewPlayer : undefined}
+        data-defining={defining || undefined}
         onPointerOver={
           wordScores &&
           ((event) => {
@@ -130,7 +134,7 @@ export default function Board({
           })
         }
         onPointerLeave={wordScores && (() => setHoveredTile(null))}
-        onContextMenu={definitionLanguage && ((event) => {
+        onContextMenu={definitionLanguage && !defining ? (event) => {
           if (
             event.defaultPrevented ||
             (event.button !== 2 && !event.ctrlKey) ||
@@ -144,7 +148,7 @@ export default function Board({
           if (!words.length) return;
           event.preventDefault();
           definitions.open(tile, words);
-        })}
+        } : undefined}
       >
         <span className="axis corner" />
         {Array.from({ length: n }, (_, c) => (
@@ -171,7 +175,7 @@ export default function Board({
                   key={i}
                   data-cell={i}
                   data-definition-open={definitions.anchor?.dataset.cell === String(i) || undefined}
-                  disabled={disabled}
+                  disabled={disabled || (defining && !board[i])}
                   tabIndex={compact && !overlay ? -1 : undefined}
                   className={`square ${bonus.toLowerCase()} ${tile ? "occupied" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}${wordTiles.has(i) ? " word-hover" : ""}${marked ? " move-filter-square" : ""}`}
                   aria-label={`${coordinate(i, n)}${tile ? `: ${tile.toUpperCase()}${tile === tile.toLowerCase() ? " blank" : ""}` : bonus ? `: ${bonus}` : ": empty"}${i === template.start ? ", start" : ""}${archiveEdit ? ", edited after archiving" : ""}${overlay ? `, ${overlay.label}` : ""}${marked && !selectingSquares ? ", required for move filter" : ""}`}
@@ -251,6 +255,14 @@ export default function Board({
                     if (keepInputFocus) e.preventDefault();
                     if (canceledTap.current) {
                       canceledTap.current = false;
+                      return;
+                    }
+                    if (onDefinitionPick) {
+                      const words = boardWordsThrough(board, n, i);
+                      if (words.length) {
+                        definitions.openSheet(e.currentTarget, words, `Words at ${coordinate(i, n)}`);
+                        onDefinitionPick();
+                      }
                       return;
                     }
                     // Do not focus on pointerup: Safari may move focus again

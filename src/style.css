@@ -2300,6 +2300,11 @@ label + label {
   max-width: 100%;
   font-size: var(--move-word-size);
 }
+.result-letters[data-definition-hold] {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
 .result-stack .result-letters,
 .result-stack .result-word-note,
 .result-stack .result-score-delta {
@@ -2464,13 +2469,13 @@ label + label {
   padding: 10px 12px;
   overflow-wrap: anywhere;
 }
-.definition-tooltip :is(p, dl, dd) { margin: 0; }
-.definition-tooltip dt { font-weight: 700; }
-.definition-tooltip dt a {
+:is(.definition-tooltip, .definition-sheet) :is(p, dl, dd) { margin: 0; }
+:is(.definition-tooltip, .definition-sheet) dt { font-weight: 700; }
+:is(.definition-tooltip, .definition-sheet) dt a {
   color: inherit;
   text-underline-offset: 2px;
 }
-.definition-tooltip i,
+:is(.definition-tooltip, .definition-sheet) i,
 .definition-muted,
 .definition-heading span { color: var(--muted); }
 .definition-word + .definition-word {
@@ -2478,7 +2483,7 @@ label + label {
   margin-top: 8px;
   padding-top: 8px;
 }
-.definition-tooltip .definition-heading {
+:is(.definition-tooltip, .definition-sheet) .definition-heading {
   display: flex;
   align-items: baseline;
   gap: 7px;
@@ -2495,6 +2500,29 @@ label + label {
   gap: 2px 8px;
 }
 .definition-glosses > div { display: contents; }
+.modal.definition-sheet {
+  position: fixed;
+  inset: auto 0 0;
+  margin: 0 auto;
+  width: min(100%, 36rem);
+  max-width: none;
+  max-height: min(70dvh, 32rem);
+  border-radius: 16px 16px 0 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.definition-sheet .modal-inner {
+  padding: 12px 16px max(20px, env(safe-area-inset-bottom));
+  overflow-wrap: anywhere;
+}
+.definition-sheet .modal-heading {
+  align-items: center;
+  margin-bottom: 8px;
+}
+.definition-sheet .modal-heading h2 { font-size: 18px; }
+.definition-sheet .modal-heading .icon-button { width: 44px; height: 44px; }
 .reply-cell {
   display: grid;
   justify-items: center;
@@ -4423,6 +4451,10 @@ label + label {
   outline: 2px solid var(--primary);
   outline-offset: -2px;
 }
+.board-grid[data-defining] .square.occupied:not(.ghost) {
+  outline: 1px solid var(--primary);
+  outline-offset: -1px;
+}
 .board-entry .square.occupied:not(.ghost) {
   -webkit-touch-callout: none;
 }
@@ -5818,6 +5850,8 @@ label + label {
   min-width: 36px;
 }
 .with-board-history .direct-entry-actions > .text-button { padding-inline: 4px; }
+.board-panel .direct-entry-actions > .board-define { min-width: 44px; }
+.board-panel .direct-entry-actions > .board-define:not(:disabled) { color: var(--primary); }
 .with-board-history .direct-entry-status {
   --board-status-line-height: 12px;
   min-width: 0;
