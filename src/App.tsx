@@ -139,6 +139,7 @@ type Dialog =
   | "screenshot"
   | "new"
   | "dictionaries"
+  | "dictionary-sources"
   | "word-list-checker"
   | "profile"
   | "rename-profile"
@@ -1552,13 +1553,21 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             </button>
           </div>
         )}
-        {(!narrowLayout || openId) && (
-          <footer className="workspace-footer">
-            {!narrowLayout && <span>Less guessing. More good words.</span>}
-            {openId && <GameId id={openId} onNotice={notify} />}
+        <footer className="workspace-footer">
+          {!narrowLayout && <span>Less guessing. More good words.</span>}
+          {openId && <GameId id={openId} onNotice={notify} />}
+          <div className="workspace-footer-meta">
             {!narrowLayout && <span>Tilemaxx · Local & personal</span>}
-          </footer>
-        )}
+            <button
+              type="button"
+              className="text-button dictionary-sources-button"
+              aria-haspopup="dialog"
+              onClick={() => openDialog("dictionary-sources")}
+            >
+              Dictionary sources
+            </button>
+          </div>
+        </footer>
       </main>
       {toast && (
         <div className="toast" role="status">
@@ -1847,6 +1856,41 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           onClose={() => setDialog(null)}
           onNotify={notify}
         />
+      )}
+      {dialog === "dictionary-sources" && (
+        <Modal
+          title="Dictionary sources"
+          className="dictionary-sources"
+          onClose={() => setDialog(null)}
+        >
+          <p>
+            Wiktionary definitions are written by contributors to{" "}
+            <a
+              href="https://en.wiktionary.org/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              English Wiktionary
+            </a>{" "}
+            and made available under{" "}
+            <a
+              href="https://creativecommons.org/licenses/by-sa/4.0/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              CC BY-SA 4.0
+            </a>
+            .
+          </p>
+          <p>
+            The import uses{" "}
+            <a href="https://kaikki.org/" target="_blank" rel="noreferrer">
+              Kaikki’s Wiktextract exports
+            </a>.
+            Tilemaxx displays selected glosses and folds accents for lookup.
+            Each Wiktionary headword in a tooltip links to its source entry.
+          </p>
+        </Modal>
       )}
       {dialog === "word-list-checker" && (
         <WordListChecker

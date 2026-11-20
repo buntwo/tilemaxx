@@ -180,7 +180,6 @@ function DefinitionTooltip({
   const entries = lookup?.available
     ? lookup.entries.map(preferredSpellings)
     : undefined;
-  const license = entries?.flat().find((entry) => entry.license)?.license;
   useEffect(() => {
     const request = new AbortController();
     const query = new URLSearchParams({ language });
@@ -236,7 +235,6 @@ function DefinitionTooltip({
             </section>
           ))
         )}
-        {license && <p className="definition-credit">Wiktionary · {license}</p>}
       </div>
     </div>
   );
