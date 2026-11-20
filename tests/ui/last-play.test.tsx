@@ -139,7 +139,7 @@ test("the bag status includes blanks in the vowel percentage and follows the bag
   const bag = { bagSize: 83, bagConfirmed: false, unseenPool };
   const { rerender } = render(<LastPlay game={game} bag={bag} />);
 
-  const status = screen.getByText("Bag: 83 · ≈42% vowels");
+  const status = screen.getByText("Bag: 83 · 42% V");
   expect(status.title).toContain("including the opponent’s rack");
   expect(status.closest("button")).toBeNull();
   expect(
@@ -151,11 +151,11 @@ test("the bag status includes blanks in the vowel percentage and follows the bag
   rerender(
     <LastPlay game={game} bag={{ ...bag, bagSize: 90, bagConfirmed: true }} />,
   );
-  expect(screen.getByText("Bag: 90 · 42% vowels").title).toBe("");
+  expect(screen.getByText("Bag: 90 · 42% V").title).toBe("");
 
   rerender(
     <LastPlay game={game} bag={{ ...bag, bagSize: 0, bagConfirmed: true }} />,
   );
   expect(screen.getByText("Bag empty")).toBeTruthy();
-  expect(screen.queryByText(/% vowels/)).toBeNull();
+  expect(screen.queryByText(/% V/)).toBeNull();
 });
