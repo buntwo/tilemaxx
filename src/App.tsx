@@ -1369,6 +1369,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   ref={boardEntry}
                   key={game.id}
                   game={game}
+                  skipPlayedTiles={preferences.skipPlayedTiles}
                   hideHelp
                   preview={boardLocked ? null : activeFlight?.move ?? preview}
                   previewPlayer={activeFlight ? "you" : movePreview?.player}
