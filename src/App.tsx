@@ -1352,16 +1352,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             reviewing={moveReview.showing}
             hasWarnings={warnings.length > 0}
           >
-            {warnings.length > 0 && (
-              <div className="board-warnings" role="alert">
-                <TriangleAlert size={16} aria-hidden="true" />
-                <div>
-                  {warnings.map((warning) => (
-                    <p key={warning}>{warning}</p>
-                  ))}
-                </div>
-              </div>
-            )}
             <div className="board-column">
               <section
                 ref={boardPanel}
@@ -1379,6 +1369,16 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 }}
               >
                 <LastPlay game={activeFlight?.before ?? game} />
+                {warnings.length > 0 && (
+                  <div className="board-warnings" role="alert">
+                    <TriangleAlert size={16} aria-hidden="true" />
+                    <div>
+                      {warnings.map((warning) => (
+                        <p key={warning}>{warning}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <BoardEntry
                   ref={boardEntry}
                   key={game.id}

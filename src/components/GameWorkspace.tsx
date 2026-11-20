@@ -73,15 +73,14 @@ export default class GameWorkspace extends Component<Props, object, Snapshot> {
     // transforms so a quick reversal can start from the current positions.
     this.stopMotion();
     if (root && this.props.reviewing) {
-      const contentTop =
-        root.querySelector(".board-warnings, .board-panel")
-          ?.getBoundingClientRect().top ?? 0;
+      const boardTop =
+        root.querySelector(".board-panel")?.getBoundingClientRect().top ?? 0;
       const firstMove = root
         .querySelector(".result-row")
         ?.getBoundingClientRect();
       if (
-        contentTop < 0 ||
-        (contentTop > 8 && firstMove && firstMove.bottom > window.innerHeight)
+        boardTop < 0 ||
+        (boardTop > 8 && firstMove && firstMove.bottom > window.innerHeight)
       )
         root.scrollIntoView?.({
           block: "start",

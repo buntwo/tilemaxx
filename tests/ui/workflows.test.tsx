@@ -4250,7 +4250,7 @@ test("phone rack entry reveals the tiles above the keyboard and restores the pag
 test.each([
   { layout: "phone", width: 390 },
   { layout: "desktop", width: 950 },
-])("on $layout, dictionary warnings appear above the board after finding moves", async ({ layout, width }) => {
+])("on $layout, dictionary warnings appear between Last play and the board", async ({ layout, width }) => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: layout === "phone" && query === "(max-width: 650px)",
     addEventListener() {},
@@ -4266,22 +4266,34 @@ test.each([
   }
   vi.stubGlobal("Worker", ValidatingWorker);
 
+  const fixture = remote.games[0];
+  fixture.revision++;
+  fixture.board.splice(fixture.template.start, 3, "C", "A", "T");
+  fixture.trackedMoves = [
+    { word: "CAT", player: "you", score: 10, bingo: false, at: "2026-11-20T10:00:00Z" },
+  ];
+  fixture.scoring = {
+    ...emptyScoring(),
+    you: { points: 10, moves: 1, best: 10, bingos: 0 },
+  };
   const user = await start(width);
   const board = screen.getByRole("region", { name: "Game board" });
   const workspace = board.closest<HTMLElement>(".workspace-grid")!;
-  await user.click(cell("H8: DW, start"));
-  await user.keyboard("ZAT");
+  await user.click(cell("G8: empty"));
+  await user.keyboard("Z");
   await typeRack(user, "CATS");
   await user.keyboard("{Enter}");
 
-  const warning = await within(workspace).findByRole("alert");
-  expect(warning.textContent).toBe("Not in this dictionary: ZAT.");
-  expect(workspace.firstElementChild).toBe(warning);
+  const warning = await within(board).findByRole("alert");
+  expect(warning.textContent).toBe("Not in this dictionary: ZCAT.");
+  expect(warning.previousElementSibling?.querySelector(".last-play-summary")?.textContent)
+    .toContain("Last play");
+  expect(warning.nextElementSibling).toBe(board.querySelector(".board-entry"));
   expect(workspace.classList.contains("move-review")).toBe(layout === "phone");
 
-  await user.click(cell("H8: Z, start"));
-  await user.keyboard("C");
-  expect(within(workspace).queryByRole("alert")).toBeNull();
+  await user.click(cell("G8: Z"));
+  await user.keyboard("{Delete}");
+  expect(within(board).queryByRole("alert")).toBeNull();
 });
 
 test.each([
