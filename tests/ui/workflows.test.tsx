@@ -272,6 +272,52 @@ test("playing style requests ranked pages and All moves restores the full list",
   expect(screen.getAllByRole("button", { name: /^Score breakdown for/ }).length).toBeGreaterThan(0);
 });
 
+test("each game remembers its playing style after switching games, closing results and reopening the app", async () => {
+  remote.games[0].rack = "CATS";
+  remote.games[0].revision++;
+  remote.games.push({ ...game(), id: "second", name: "Second game", rack: "CATS" });
+  const mounted = render(<App />);
+  const user = userEvent.setup();
+  await screen.findByRole("heading", { name: /First game/ });
+  await act(() => store.refresh());
+
+  const showMoves = async () => {
+    await user.click(await screen.findByRole("button", { name: "Find moves" }));
+    return screen.findByRole<HTMLSelectElement>("combobox", { name: "Playing style" });
+  };
+  const pickGame = async (name: RegExp) => {
+    await user.click(screen.getByRole("button", { name: "Switch game" }));
+    await user.click(await screen.findByRole("menuitemradio", { name }));
+    await screen.findByRole("heading", { name });
+  };
+
+  await user.selectOptions(await showMoves(), "strong");
+  await user.click(screen.getByRole("button", { name: "Close possible moves" }));
+  expect((await showMoves()).value).toBe("strong");
+
+  await pickGame(/Second game/);
+  const secondStyle = await showMoves();
+  expect(secondStyle.value).toBe("");
+  await user.selectOptions(secondStyle, "tactician");
+  expect(screen.getByRole("button", { name: "Run Bingo Tactician" })).toBeTruthy();
+
+  await pickGame(/First game/);
+  expect((await showMoves()).value).toBe("strong");
+  mounted.unmount();
+  render(<App />);
+  await screen.findByRole("heading", { name: /First game/ });
+  expect((await showMoves()).value).toBe("strong");
+
+  await pickGame(/Second game/);
+  const restored = await showMoves();
+  expect(restored.value).toBe("tactician");
+  await user.selectOptions(restored, "");
+  await pickGame(/First game/);
+  expect((await showMoves()).value).toBe("strong");
+  await pickGame(/Second game/);
+  expect((await showMoves()).value).toBe("");
+});
+
 test("Bingo Mercenary starts on demand, then follows new move searches", async () => {
   remote.games[0].template.rackSize = 4;
   remote.games[0].revision++;

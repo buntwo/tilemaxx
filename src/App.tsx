@@ -109,8 +109,8 @@ import { CLEARED_BOARD } from "../shared/score-recovery";
 import { DEFENSE_LIMIT } from "../shared/premium-defense";
 import { useSolver } from "./useSolver";
 import { useStyleExchange } from "./useStyleExchange";
+import { useGamePlayingStyle } from "./useGamePlayingStyle";
 import { profileWordHash } from "../shared/player-profiles";
-import type { MoveStyle } from "../shared/move-results";
 import OfflineStatus from "./components/OfflineStatus";
 import { useAutoUpdate } from "./useAutoUpdate";
 import { useWorkspaceWidth } from "./useWorkspaceWidth";
@@ -357,8 +357,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     workerLimit,
     solver.replyCandidates,
   );
-  const [styleSelection, setStyleSelection] = useState<{ gameId: string; style: MoveStyle }>();
-  const playingStyle = styleSelection?.gameId === game?.id ? styleSelection?.style : undefined;
+  const [playingStyle, selectPlayingStyle] = useGamePlayingStyle(game?.id);
   const exchangeProfile = !isBingoStyle(playingStyle) ? playingStyle : undefined;
   const exchangeSeed = game ? profileWordHash(game.id) : 0;
   const exchangeSearch = solver.results?.searchId;
@@ -1497,7 +1496,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   results={solver.results}
                   findMovesRequest={findMovesRequest}
                   playingStyle={playingStyle}
-                  onPlayingStyleChange={(style) => setStyleSelection(style ? { gameId: game.id, style } : undefined)}
+                  onPlayingStyleChange={selectPlayingStyle}
                   exchangeAction={
                     exchangeAdvice &&
                     !activeFlight && (
