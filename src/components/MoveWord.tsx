@@ -33,10 +33,12 @@ export function MoveLetters({
   move,
   size,
   board,
+  showTileTitles = true,
 }: {
   move: Move;
   size: number;
   board?: Board;
+  showTileTitles?: boolean;
 }) {
   const letters = moveLetters(move, size, board);
   return letters.map((tile, index) => (
@@ -44,7 +46,7 @@ export function MoveLetters({
       key={index}
       className={`result-letter ${tile.existing ? "existing" : "played"}${tile.blank ? " assigned-blank" : ""}`}
       title={
-        tile.existing
+        !showTileTitles ? undefined : tile.existing
           ? "Already on board"
           : tile.blank
             ? "Play a blank"

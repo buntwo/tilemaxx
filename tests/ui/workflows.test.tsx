@@ -2723,6 +2723,56 @@ test("scroll gestures and canceled board touches do not select or turn a square"
   expect(selectedCell()).toBeUndefined();
 });
 
+test("right-clicking a board intersection looks up both French words without editing the tile", async () => {
+  const board = emptyBoard(15);
+  board.splice(112, 4, ..."COTe");
+  board[70] = "L";
+  board[85] = "U";
+  board[100] = "N";
+  const original = game();
+  remote.games[0] = {
+    ...original,
+    revision: 1,
+    board,
+    template: { ...original.template, rules: "scrabble-fr" },
+  };
+  const request = fetch;
+  const fetchDefinitions = vi.fn(async (url: string, options?: RequestInit) => {
+    if (!url.startsWith("/api/definitions?")) return request(url, options);
+    return new Response(JSON.stringify({
+      available: true,
+      entries: [
+        [{ spelling: "côte", headword: "côte", glosses: ["coast"] },
+          { spelling: "côté", headword: "côté", glosses: ["side"] }],
+        [{ spelling: "lune", headword: "lune", glosses: ["moon"] }],
+      ],
+    }));
+  });
+  vi.stubGlobal("fetch", fetchDefinitions);
+  await start();
+  const tile = await screen.findByRole("button", { name: "K8: E blank" });
+  const empty = cell("B1: empty");
+  expect(fireEvent.contextMenu(empty, { button: 2 })).toBe(true);
+  touch(tile, "contextmenu", { button: 2 });
+  expect(screen.queryByRole("region", { name: "Word definitions" })).toBeNull();
+  expect(fireEvent.contextMenu(tile, { button: 2 })).toBe(false);
+
+  const tip = within(screen.getByRole("region", { name: "Word definitions" }));
+  await tip.findByText("moon");
+  expect(tip.getByText("Across")).toBeTruthy();
+  expect(tip.getByText("COTE")).toBeTruthy();
+  expect(tip.getByText("côte")).toBeTruthy();
+  expect(tip.getByText("côté")).toBeTruthy();
+  expect(tip.getByText("Down")).toBeTruthy();
+  expect(tip.getByText("LUNE")).toBeTruthy();
+  expect(current().board[115]).toBe("e");
+  expect(selectedCell()).toBeUndefined();
+  expect(fetchDefinitions.mock.calls.filter(([url]) => url.startsWith("/api/definitions?"))
+    .map(([url]) => url)).toEqual(["/api/definitions?language=fr&word=COTE&word=LUNE"]);
+  fireEvent.pointerDown(document.body);
+  expect(screen.queryByRole("region", { name: "Word definitions" })).toBeNull();
+});
+
 test.each(["touch", "mouse"])("a %s hold toggles a placed blank without moving the board cursor", async (pointerType) => {
   const user = await start(pointerType === "touch" ? 390 : 1200);
   await user.click(cell("H8: DW, start"));

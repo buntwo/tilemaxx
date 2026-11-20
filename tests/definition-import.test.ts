@@ -4,6 +4,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
+import { createApp } from "../server/app";
+import { createStore } from "../server/store";
 import { importDefinitions } from "../server/definition-import";
 import {
   definitionLookupSql,
@@ -18,6 +20,68 @@ function jsonl(...entries: unknown[]) {
 function entry(word: string, gloss: string, language = "fr", pos = "noun") {
   return { word, lang_code: language, pos, senses: [{ glosses: [gloss] }] };
 }
+
+test("the definitions API reads optional local imports by game language", async () => {
+  const data = await mkdtemp(join(tmpdir(), "tilemaxx-definition-api-"));
+  const store = createStore(data, process.cwd());
+  const server = createApp(store).listen(0, "127.0.0.1");
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("listening", resolve);
+      server.once("error", reject);
+    });
+    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/definitions`;
+    const get = (query: string) => fetch(base + "?" + query);
+
+    const missing = await get("language=en&word=CAT");
+    assert.equal(missing.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await missing.json(), { available: false, entries: [] });
+    assert.equal((await get("language=it&word=CAT")).status, 400);
+    assert.equal(
+      (await get("language=en&word=CAT&word=AT&word=TO")).status,
+      400,
+    );
+    assert.equal((await get("language=en&word=CAT!")).status, 400);
+
+    const definitions = join(data, "definitions");
+    await mkdir(definitions);
+    await writeFile(
+      join(definitions, "en.tsv"),
+      "Word\tDefinition\nCAT\tA domestic feline.\n",
+    );
+    await importDefinitions(data);
+    assert.deepEqual(await (await get("language=fr&word=COTE")).json(), {
+      available: false,
+      entries: [],
+    });
+    await writeFile(
+      join(definitions, "fr-en.jsonl"),
+      jsonl(
+        entry("côte", "rib or coast"),
+        entry("côté", "side"),
+        entry("lune", "moon"),
+      ),
+    );
+    await importDefinitions(data);
+    const english = await (await get("language=en&word=CAT&word=AT")).json();
+    assert.equal(english.available, true);
+    assert.deepEqual(english.entries[0][0].glosses, ["A domestic feline."]);
+    assert.deepEqual(english.entries[1], []);
+    const french = await (await get("language=fr&word=COTE&word=LUNE")).json();
+    assert.equal(french.available, true);
+    assert.deepEqual(
+      french.entries.map((entries: { spelling: string }[]) =>
+        entries.map(({ spelling }) => spelling),
+      ),
+      [["côte", "côté"], ["lune"]],
+    );
+    assert.match(french.entries[0][0].sourceUrl, /en\.wiktionary\.org/);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    store.db.close();
+    await rm(data, { recursive: true, force: true });
+  }
+});
 
 test("definition exports for each language pair share one index, preserving French spellings and base words", async (t) => {
   const data = await mkdtemp(join(tmpdir(), "tilemaxx-definitions-"));

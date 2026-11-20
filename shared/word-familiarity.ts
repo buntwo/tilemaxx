@@ -1,21 +1,10 @@
 import { decode } from "@msgpack/msgpack";
 import { Lexicon } from "./lexicon";
-import type { Rules } from "./model";
+import { gameWordLanguage } from "./model";
 
 export type WordFrequencyLanguage = "en" | "fr" | "it";
 
-export function wordFrequencyLanguage(rules: Rules): WordFrequencyLanguage {
-  switch (rules) {
-    case "scrabble-fr":
-    case "wordfeud-fr":
-    case "lexulous-fr":
-      return "fr";
-    case "lexulous-it":
-      return "it";
-    default:
-      return "en";
-  }
-}
+export const wordFrequencyLanguage = gameWordLanguage;
 
 export function wordFrequencyUrl(language: WordFrequencyLanguage) {
   return `/dictionaries/wordfreq-${language}-3.1.1.msgpack.gz`;

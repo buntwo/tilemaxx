@@ -16,6 +16,19 @@ export type Rules = keyof typeof RULE_NAMES;
 export const isWordfeudRules = (rules: Rules) =>
   rules === "wordfeud" || rules === "wordfeud-fr";
 
+export function gameWordLanguage(rules: Rules) {
+  switch (rules) {
+    case "scrabble-fr":
+    case "wordfeud-fr":
+    case "lexulous-fr":
+      return "fr";
+    case "lexulous-it":
+      return "it";
+    default:
+      return "en";
+  }
+}
+
 export interface BoardTemplate {
   id: string;
   name: string;

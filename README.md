@@ -96,6 +96,8 @@ docker compose exec -T tilemaxx node dist-server/import-definitions.js
 
 The command finds the installed exports and builds `data/definitions/definitions.sqlite`. Rerun it after replacing an export. It skips unchanged sources and keeps each previous index usable if its replacement fails. Wait for files to finish copying before running it. Set `DATA_DIR` if the checkout uses a different data directory. The index preserves accented spellings, links Wiktionary entries to their sources, and keeps these definition sources independent of the word lists used to validate plays.
 
+On desktop, hover over a word in **Possible moves** for half a second, or right-click a placed tile to see the words that cross it. Tilemaxx reads the installed index automatically and shows English definitions for English and French games.
+
 ## Deploy with Docker Compose
 
 On a host with Git and Docker Compose, run these commands from the folder where you keep your Compose projects.

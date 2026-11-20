@@ -51,6 +51,8 @@ import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import { endgameLength } from "../endgame-line-format";
 import { canHoverWithMouse } from "../move-preview";
+import { definitionLanguageForRules } from "../../shared/definitions";
+import { useDefinitionTooltip } from "./DefinitionTooltip";
 import MoveAnalysis from "./MoveAnalysis";
 import HighCeilingSetups from "./HighCeilingSetups";
 import EmptyMoveTiles from "./EmptyMoveTiles";
@@ -686,6 +688,15 @@ export default function Results({
     !waitingForEndgame && (!hunterSelected || !!hunterResult?.checked) &&
     !(profile && page.error) && (shortlistActive || !page.unavailable) &&
     !pagePending && total > 0;
+  const definitionLanguage = showList && canHoverWithMouse("mouse")
+    ? definitionLanguageForRules(bingoRules.rules)
+    : undefined;
+  const definitionPosition = useMemo(
+    () => ({}),
+    [resultSet, filter, requiredSquares, sort, reversed, view, profile, analysisKey],
+  );
+  const definitions = useDefinitionTooltip(definitionLanguage, definitionPosition);
+  const definitionMoveId = definitions.anchor?.dataset.moveId;
   useEffect(() => {
     setScrollPositions({});
     if (scroller.current) scroller.current.scrollTop = 0;
@@ -1509,7 +1520,9 @@ export default function Results({
                     <button
                       className={`result-row${bingo ? " bingo" : ""}${preview?.id === m.id || selected || histogramSelected ? " active" : ""}${pinned ? " pinned" : ""}`}
                       aria-pressed={analyzing ? selected : undefined}
-                      aria-describedby={metricId}
+                      aria-describedby={definitionMoveId === m.id
+                        ? [metricId, definitions.id].filter(Boolean).join(" ")
+                        : metricId}
                       disabled={
                         analyzing &&
                         !selected &&
@@ -1551,8 +1564,24 @@ export default function Results({
                         <span className="result-rank" title={scoreRankLabel} aria-hidden="true">
                           {scoreRank}
                         </span>
-                        <span className="result-letters" aria-hidden="true">
-                          <MoveLetters move={m} size={size} board={analysisGame?.board} />
+                        <span
+                          className="result-letters"
+                          aria-hidden="true"
+                          data-move-id={definitionLanguage ? m.id : undefined}
+                          onPointerEnter={definitionLanguage && ((event) => {
+                            if (event.pointerType === "mouse" && event.buttons === 0)
+                              definitions.hover(event.currentTarget, m.word);
+                          })}
+                          onPointerLeave={definitionLanguage && ((event) => {
+                            if (event.pointerType === "mouse") definitions.leave();
+                          })}
+                        >
+                          <MoveLetters
+                            move={m}
+                            size={size}
+                            board={analysisGame?.board}
+                            showTileTitles={!definitionLanguage}
+                          />
                         </span>
                         <small
                           className="result-word-detail"
@@ -1808,6 +1837,7 @@ export default function Results({
         </section>
       )}
       {scoreTooltip.popup}
+      {definitions.popup}
       {analysisGame && defenseDetail && (
         <PremiumDefense
           game={analysisGame}
