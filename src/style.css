@@ -3065,10 +3065,10 @@ label + label {
   color: inherit;
 }
 .board-warnings {
-  grid-column: 1 / -1;
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  margin: 4px 8px 2px;
   padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--value-bad) 40%, var(--line));
   border-radius: 7px;
@@ -6320,17 +6320,11 @@ label + label {
 .compact-game .workspace-grid {
   grid-template-columns: var(--game-workspace-columns);
   grid-template-rows: auto 1fr;
-  grid-template-areas: "board results" "scores results";
   gap: var(--game-workspace-gap);
 }
-.compact-game .workspace-grid:has(> .board-warnings) {
-  grid-template-rows: auto auto 1fr;
-  grid-template-areas: "warning warning" "board results" "scores results";
-}
-.compact-game .board-warnings { grid-area: warning; }
-.compact-game .board-column { grid-area: board; }
-.compact-game .results-column { grid-area: results; }
-.compact-game .game-scores-column { grid-area: scores; }
+.compact-game .board-column { grid-area: 1 / 1; }
+.compact-game .results-column { grid-area: 1 / 2 / span 2; }
+.compact-game .game-scores-column { grid-area: 2 / 1; }
 .app-shell:not(.phone-layout) .board-panel { padding: 5px 0 2px; }
 .app-shell:not(.phone-layout) .board-panel .board-wrap { padding: 1px 14px 2px 9px; }
 .board-panel {
