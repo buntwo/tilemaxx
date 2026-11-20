@@ -1,3 +1,4 @@
+import type { BingoStyle } from "../shared/bingo-styles";
 import type { HunterProgress, HunterSummary } from "./parallel-bingo-hunter";
 import type { BoardOdds, BoardOddsResult, RackOdds } from "../shared/bingo-odds";
 import type { BoardTemplate, Move, Position } from "../shared/model";
@@ -20,7 +21,7 @@ type PositionRequest = Position & {
   dictionaryId: string;
   template: BoardTemplate;
 };
-export type HunterOptions = EndgameSettings & { bagSize: number; workerLimit: number; resumeFrom?: number };
+export type HunterOptions = EndgameSettings & { bagSize: number; workerLimit: number; style?: BingoStyle; resumeFrom?: number };
 
 export type SolverRequest =
   | ({ kind: "bingo-hunter"; id: number; searchId: number } & HunterOptions)

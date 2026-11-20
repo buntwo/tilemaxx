@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BINGO_STYLES, BINGO_STYLE_LABELS, type BingoStyle } from "../shared/bingo-styles";
 import type { HunterProgress, HunterSummary } from "./parallel-bingo-hunter";
 import type { HunterOptions } from "./solver-messages";
 import type { RunBingoHunter } from "./useSolver";
@@ -14,38 +15,41 @@ type HuntState = {
 export function useBingoHunter(
   key: string | undefined,
   run: RunBingoHunter | undefined,
-  { gameId, searchId, findMovesRequest, bagSize, scorelessTurns, opponentHasFinalTurn, workerLimit }:
+  { style, gameId, searchId, findMovesRequest, bagSize, scorelessTurns, opponentHasFinalTurn, workerLimit }:
     Omit<HunterOptions, "resumeFrom"> & { gameId?: string; searchId?: number; findMovesRequest?: number },
 ) {
   const active = useRef<AbortController>(undefined);
-  const lastStarted = useRef<{ gameId?: string; searchId: number; findMovesRequest?: number }>(undefined);
-  const [state, setState] = useState<HuntState>();
-  const current = state?.key === key ? state : undefined;
+  const lastStarted = useRef(new Map<BingoStyle, { gameId?: string; searchId: number; findMovesRequest?: number }>());
+  const [states, setStates] = useState<Partial<Record<BingoStyle, HuntState>>>({});
+  const saved = style ? states[style] : undefined;
+  const current = saved?.key === key ? saved : undefined;
 
   useEffect(() => {
-    setState((current) =>
-      current?.pending && current.key !== key
-        ? { ...current, pending: undefined, progress: undefined }
-        : current,
-    );
+    setStates((current) => {
+      const stale = BINGO_STYLES.find(style => current[style]?.pending && current[style].key !== key);
+      if (!stale) return current;
+      return { ...current, [stale]: { ...current[stale], pending: undefined, progress: undefined } };
+    });
     return () => active.current?.abort();
   }, [key]);
 
   function cancel() {
     active.current?.abort();
-    setState((current) =>
-      current?.result ? { ...current, pending: undefined, progress: undefined } : undefined,
-    );
+    if (!style) return;
+    setStates((states) => ({ ...states, [style]: current?.result
+      ? { ...current, pending: undefined, progress: undefined } : undefined }));
   }
 
   const start = useCallback((resumeFrom?: number) => {
-    if (!key || !run || searchId === undefined) return;
+    if (!style || !key || !run || searchId === undefined) return;
     active.current?.abort();
     const controller = new AbortController();
     active.current = controller;
-    lastStarted.current = { gameId, searchId, findMovesRequest };
+    lastStarted.current.set(style, { gameId, searchId, findMovesRequest });
     const previous = resumeFrom === undefined ? undefined : current?.result;
-    const settings = { bagSize, scorelessTurns, opponentHasFinalTurn, workerLimit, resumeFrom };
+    const settings = { style, bagSize, scorelessTurns, opponentHasFinalTurn, workerLimit, resumeFrom };
+    const setState = (state: HuntState) => setStates((states) => ({ ...states, [style]: state }));
+    const error = `${BINGO_STYLE_LABELS[style]} could not finish. Try again.`;
     setState({ key, result: previous, pending: true });
     void run(searchId, settings, controller.signal, (progress) => {
       if (!controller.signal.aborted)
@@ -53,39 +57,25 @@ export function useBingoHunter(
     }).then(
       (response) => {
         if (controller.signal.aborted) return;
-        setState(
-          response?.summary
-            ? { key, result: { ...response.summary, id: response.id } }
-            : {
-                key,
-                result: previous,
-                error:
-                  response?.error ??
-                  "Bingo hunter could not finish. Try again.",
-              },
-        );
+        setState(response?.summary
+          ? { key, result: { ...response.summary, id: response.id } }
+          : { key, result: previous, error: response?.error ?? error });
       },
       () => {
-        if (!controller.signal.aborted)
-          setState({
-            key,
-            result: previous,
-            error: "Bingo hunter could not finish. Try again.",
-          });
+        if (!controller.signal.aborted) setState({ key, result: previous, error });
       },
     );
-  }, [key, run, gameId, searchId, findMovesRequest, current?.result, bagSize, scorelessTurns, opponentHasFinalTurn, workerLimit]);
+  }, [style, key, run, gameId, searchId, findMovesRequest, current?.result, bagSize, scorelessTurns, opponentHasFinalTurn, workerLimit]);
 
   useEffect(() => {
-    const previous = lastStarted.current;
-    // Search IDs increase when the solver generates a new move set. Reopening
-    // cached results or cancelling a hunt should leave the current run alone.
-    if (key && gameId && previous?.gameId === gameId &&
+    const previous = style && lastStarted.current.get(style);
+    // Reopening cached results or cancelling a hunt should leave the current run alone.
+    if (key && gameId && previous && previous.gameId === gameId &&
       searchId !== undefined && searchId > previous.searchId &&
       findMovesRequest !== undefined && findMovesRequest > (previous.findMovesRequest ?? 0)) {
       start();
     }
-  }, [key, gameId, searchId, findMovesRequest, start]);
+  }, [style, key, gameId, searchId, findMovesRequest, start]);
 
   return { current, start, cancel };
 }

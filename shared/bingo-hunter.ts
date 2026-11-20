@@ -15,7 +15,8 @@ import {
 } from "./model";
 import { createBingoReplySearch, type BingoDeal } from "./bingo-replies";
 import { leaveValue } from "./rack-leave";
-import { createSolverFactory } from "./solver";
+import { createSolverFactory, SearchLimitError } from "./solver";
+import { createBingoLaneScorer } from "./tactician-lanes";
 import { unseenTiles } from "./tile-pool";
 import type { RackOdds } from "./bingo-odds";
 
@@ -26,6 +27,8 @@ export const HUNTER_SCREEN = 96;
 export const HUNTER_CANDIDATES = 36;
 export const HUNTER_FINALISTS = 12;
 export const HUNTER_SCORE_LEADERS = 6;
+export const TACTICIAN_FINALISTS = 5;
+export const ORDINARY_FOLLOW_UP_WEIGHT = 0.75;
 const ORDINARY_PLAY_WEIGHT = 0.75;
 
 export type HunterPosition = Position &
@@ -42,7 +45,10 @@ export type HunterUtility = {
   samples: number;
   exact: boolean;
   close: boolean;
+  tactics?: { replyPoints: number; ordinaryPoints?: number; laneBonus?: number };
 };
+export type TacticianOutcome = { bingo: number; reply: number; ordinary: number; laneGain?: number };
+export type HunterOutcome = number | TacticianOutcome;
 export type RankedHunterMove = { move: Move; utility: HunterUtility };
 
 const sortTiles = (rack: string) => [...rack].sort().join("");
@@ -269,23 +275,44 @@ export function chooseHunterCandidates(
   ].slice(0, HUNTER_CANDIDATES);
 }
 
-export function chooseHunterFinalists(ranked: readonly RankedHunterMove[]) {
+export function chooseHunterFinalists(ranked: readonly RankedHunterMove[], count = HUNTER_FINALISTS) {
   const peak = ranked
     .filter(({ utility }) => utility.highestBingo > 0)
     .sort((a, b) => b.utility.highestBingo - a.utility.highestBingo);
   return [
     ...new Set([
-      ...ranked.slice(0, HUNTER_FINALISTS - 2),
+      ...ranked.slice(0, count - 2),
       ...peak.slice(0, 2),
       ...ranked,
     ]),
-  ].slice(0, HUNTER_FINALISTS);
+  ].slice(0, count);
 }
 
 export function createHunterEvaluator(
   lexicon: Lexicon,
   position: HunterPosition,
   move: Move,
+) {
+  const evaluate = createBingoEvaluator(lexicon, position, move, false);
+  return (deal: BingoDeal, beforeReply: boolean, deadline: number) =>
+    evaluate(deal, beforeReply, deadline).bingo;
+}
+
+export function createTacticianEvaluator(
+  lexicon: Lexicon,
+  position: HunterPosition,
+  move: Move,
+  followUp: boolean,
+) {
+  return createBingoEvaluator(lexicon, position, move, true, followUp);
+}
+
+function createBingoEvaluator(
+  lexicon: Lexicon,
+  position: HunterPosition,
+  move: Move,
+  tactician: boolean,
+  followUp = false,
 ) {
   const { board, template, bagSize, scorelessTurns } = position;
   const factory = createSolverFactory(lexicon, template, true);
@@ -294,36 +321,52 @@ export function createHunterEvaluator(
   const bagAfter = bagSize - draw;
   const rule = endgameStreaks[template.rules];
   const streak = rule ? nextEndgameStreak(rule, scorelessTurns, move) : 0;
-  const impossible =
-    move.leave.length + draw < minimumBingoTiles(template) ||
-    (rule
-      ? (!bagAfter && !move.leave && !draw) || streak >= rule.limit
-      : !bagSize);
+  const finished = rule
+    ? (!bagAfter && !move.leave && !draw) || streak >= rule.limit
+    : !bagSize;
+  const canBingo = move.leave.length + draw >= minimumBingoTiles(template);
   const search = createBingoReplySearch(factory, next, bagAfter > 0,
-    (solver, rack, limits) => solver.bestBingoScore(rack, limits));
+    (solver, rack, limits) => {
+      const deadline = performance.now() + limits.maxMs;
+      const bingo = canBingo ? solver.bestBingoScore(rack, limits) : 0;
+      if (bingo || !followUp) return { bingo, ordinary: 0 };
+      const maxMs = deadline - performance.now();
+      if (maxMs <= 0) throw new SearchLimitError("time");
+      return { bingo: 0, ordinary: solver.bestScore(rack, { maxMs }) };
+    });
+  let laneScore: ReturnType<typeof createBingoLaneScorer> | undefined;
+  let originalLaneScore: number | undefined;
+  return (deal: BingoDeal, beforeReply: boolean, deadline: number, checkLane = false): TacticianOutcome => {
+    if (finished || (!canBingo && (beforeReply || !tactician)))
+      return { bingo: 0, reply: 0, ordinary: 0 };
+    const reply = !beforeReply && deal.opponent ? search.reply(deal.opponent, deadline) : null;
+    const result = { bingo: 0, reply: reply?.score ?? 0, ordinary: 0 };
+    if (rule && !beforeReply && (tactician || deal.opponent) &&
+      ((!bagAfter && reply?.leave === "") || nextEndgameStreak(rule, streak, reply) >= rule.limit))
+      return result;
 
-  return (deal: BingoDeal, beforeReply: boolean, deadline: number) => {
-    if (impossible) return 0;
-    let reply: Move | null = null;
-    if (!beforeReply && deal.opponent) {
-      reply = search.reply(deal.opponent, deadline);
-      if (
-        (rule && !bagAfter && reply?.leave === "") ||
-        (rule && nextEndgameStreak(rule, streak, reply) >= rule.limit)
-      )
-        return 0;
+    if (canBingo || followUp) {
+      const rack = sortTiles(move.leave + deal.bag.slice(0, draw));
+      Object.assign(result, search.bingo(reply, rack, deadline));
     }
-    const rack = sortTiles(move.leave + deal.bag.slice(0, draw));
-    return search.bingo(reply, rack, deadline);
+    if (!checkLane) return result;
+    laneScore ??= createBingoLaneScorer(lexicon, template);
+    originalLaneScore ??= laneScore(board);
+    return { ...result, laneGain: laneScore(reply ? factory.place(next, reply) : next) - originalLaneScore };
   };
+}
+
+export function dealUtility(outcome: HunterOutcome) {
+  return typeof outcome === "number" ? outcome : outcome.bingo - outcome.reply + ORDINARY_FOLLOW_UP_WEIGHT * outcome.ordinary;
 }
 
 export function hunterUtility(
   move: Pick<Move, "score" | "tiles">,
   rules: BingoRules,
-  outcomes: readonly number[],
+  outcomes: readonly HunterOutcome[],
   deals: readonly BingoDeal[],
   exact = false,
+  tactics?: "reply" | "follow-up",
 ): HunterUtility {
   const playPoints = move.score;
   const playWeight = isBingo(rules, move.tiles.length) ? 1 : ORDINARY_PLAY_WEIGHT;
@@ -331,11 +374,18 @@ export function hunterUtility(
   let sum = 0,
     hits = 0,
     weight = 0,
-    highestBingo = 0;
-  for (const [i, score] of outcomes.entries()) {
+    highestBingo = 0,
+    reply = 0,
+    ordinary = 0;
+  for (const [i, outcome] of outcomes.entries()) {
+    const score = typeof outcome === "number" ? outcome : outcome.bingo;
     const count = deals[i].weight ?? 1;
     sum += count * score;
     highestBingo = Math.max(highestBingo, score);
+    if (typeof outcome !== "number") {
+      reply += count * outcome.reply;
+      ordinary += count * outcome.ordinary;
+    }
     hits += score > 0 ? count : 0;
     weight += count;
   }
@@ -348,7 +398,12 @@ export function hunterUtility(
     bingoChance: weight ? hits / weight : 0,
     meanBingoScore: hits ? sum / hits : 0,
     highestBingo,
-    total: weightedPlayPoints + expected,
+    total: weightedPlayPoints + expected + (weight && tactics ?
+      ((tactics === "follow-up" ? ORDINARY_FOLLOW_UP_WEIGHT * ordinary : 0) - reply) / weight : 0),
+    ...(tactics && { tactics: {
+      replyPoints: weight ? reply / weight : 0,
+      ...(tactics === "follow-up" && { ordinaryPoints: weight ? ordinary / weight : 0 }),
+    } }),
     exact,
     samples: outcomes.length,
     close: false,

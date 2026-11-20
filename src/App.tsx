@@ -1,3 +1,4 @@
+import { isBingoStyle } from "../shared/bingo-styles";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ImagePlus,
@@ -358,7 +359,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   );
   const [styleSelection, setStyleSelection] = useState<{ gameId: string; style: MoveStyle }>();
   const playingStyle = styleSelection?.gameId === game?.id ? styleSelection?.style : undefined;
-  const exchangeProfile = playingStyle !== "bingo-hunter" ? playingStyle : undefined;
+  const exchangeProfile = !isBingoStyle(playingStyle) ? playingStyle : undefined;
   const exchangeSeed = game ? profileWordHash(game.id) : 0;
   const exchangeSearch = solver.results?.searchId;
   const exchangeChoice = exchangeProfile && exchangeSearch !== undefined

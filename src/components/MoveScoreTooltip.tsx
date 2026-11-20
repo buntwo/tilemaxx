@@ -1,3 +1,5 @@
+import { BINGO_STYLE_LABELS, isBingoStyle } from "../../shared/bingo-styles";
+import { ORDINARY_FOLLOW_UP_WEIGHT } from "../../shared/bingo-hunter";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { scorePlacement } from "../../shared/game-scoring";
@@ -27,7 +29,7 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
   if ("playPoints" in utility) {
     return (
       <div className="score-breakdown-content">
-        <div>Bingo hunter · Rank {utility.rank}</div>
+        <div>{isBingoStyle(profile) && BINGO_STYLE_LABELS[profile]} · Rank {utility.rank}</div>
         <ul>
           <li className="score-breakdown-line">
             <span>Play points now</span>
@@ -38,6 +40,24 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
           <li className="score-breakdown-line">
             <span>Expected bingo points next turn</span><span>{formatUtility(utility.nextBingoPoints)}</span>
           </li>
+          {utility.tactics && (
+            <>
+              <li className="score-breakdown-line">
+                <span>Expected opponent reply</span><span className={scoreTone(-utility.tactics.replyPoints)}>{formatUtility(-utility.tactics.replyPoints)}</span>
+              </li>
+              {utility.tactics.ordinaryPoints !== undefined && (
+                <li className="score-breakdown-line">
+                  <span>Ordinary follow-up when no bingo</span>
+                  <span>{formatUtility(utility.tactics.ordinaryPoints)} × {ORDINARY_FOLLOW_UP_WEIGHT} = {formatUtility(utility.tactics.ordinaryPoints * ORDINARY_FOLLOW_UP_WEIGHT)}</span>
+                </li>
+              )}
+              {utility.tactics.laneBonus !== undefined && (
+                <li className="score-breakdown-line">
+                  <span>Bingo lanes after reply</span><span className={scoreTone(utility.tactics.laneBonus)}>{formatUtility(utility.tactics.laneBonus)}</span>
+                </li>
+              )}
+            </>
+          )}
           <li className="score-breakdown-line">
             <span>Bingo chance after reply</span><span>{formatUtility(utility.bingoChance * 100)}%</span>
           </li>
@@ -57,6 +77,7 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
         </div>
         <div className="move-score-adjustment">
           {utility.exact ? "Exact over tile deals" : `${utility.samples} sampled deals`} · Replies favor points and rack leave.
+          {utility.tactics && utility.tactics.ordinaryPoints === undefined && " Follow-ups have yet to be checked."}
           {utility.close && " Too close to call among the top moves."}
         </div>
       </div>
@@ -85,7 +106,7 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
   return (
     <div className="score-breakdown-content">
       <div>
-        {profile !== "bingo-hunter" && PLAYER_PROFILE_LABELS[profile]} · Rank {utility.rank}
+        {!isBingoStyle(profile) && PLAYER_PROFILE_LABELS[profile]} · Rank {utility.rank}
       </div>
       <ul>
         {factors.map(
