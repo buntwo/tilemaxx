@@ -2407,7 +2407,8 @@ test("rack → real solver → hover preview → play → undo/redo → save", a
   expect(solves).toBe(1);
   await user.click(screen.getByRole("button", { name: "Redo" }));
   expect(screen.queryByLabelText("Suggested moves")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Move history" }));
+  const options = await openGameOptions(user);
+  await user.click(options.getByRole("button", { name: "Move history" }));
   await user.click(screen.getByRole("button", { name: "Undo last change" }));
   expect(moveRows()).toEqual(originalRows);
   expect(solves).toBe(1);
@@ -3062,19 +3063,24 @@ test("existing games and their thumbnails use platform palettes independently of
   await waitFor(() => expect(palette(board())).toBe("in-person"));
 });
 
-test("the board toolbar labels imported premiums and follows undo and redo", async () => {
+test("Game options labels imported premiums and follows undo and redo", async () => {
   const template = PRESETS.find(({ id }) => id === "wordfeud")!;
   const premiums = [...template.premiums];
   premiums[0] = "DW";
   const imported = importBoard({ ...game(), template }, game().board, premiums);
   remote.games[0] = { ...imported, originalPremiums: undefined, revision: 1 };
   const user = await start();
-  const name = { selector: ".board-name" };
-  await screen.findByText("Wordfeud (custom)", name);
+  await waitFor(() => expect(current().revision).toBe(1));
+  async function expectLayout(name: string) {
+    const options = await openGameOptions(user);
+    expect(options.getByText(`${name} · 15 × 15`)).toBeTruthy();
+    await user.click(options.getByRole("button", { name: "Close dialog" }));
+  }
+  await expectLayout("Wordfeud (custom)");
   await user.click(screen.getByRole("button", { name: "Undo" }));
-  expect(screen.getByText("Wordfeud", name)).toBeTruthy();
+  await expectLayout("Wordfeud");
   await user.click(screen.getByRole("button", { name: "Redo" }));
-  expect(screen.getByText("Wordfeud (custom)", name)).toBeTruthy();
+  await expectLayout("Wordfeud (custom)");
 });
 
 test("new games start with score tracking on even after an earlier opt-out", async () => {
@@ -3687,14 +3693,12 @@ test.each(["phone", "tablet", "desktop"])(
     expect(within(heading).getByText("Lexulous · Test words")).toBeTruthy();
     expect(within(heading).getByRole("group", { name: "Tracked score" })).toBeTruthy();
     expect(heading.querySelector("time")).toBeNull();
-    expect(heading.querySelector(".board-toolbar")).toBeNull();
+    const board = screen.getByRole("region", { name: "Game board" });
+    expect(board.parentElement?.firstElementChild).toBe(board);
     const scores = screen.getByRole("region", { name: "Game scores" });
     const moves = screen.getByRole("heading", { name: "Possible moves" });
     expect(moves.compareDocumentPosition(scores)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.queryByRole("combobox", { name: "Game dictionary" })).toBeNull();
-    const toolbar = document.querySelector(".board-column > .board-toolbar");
-    expect(Boolean(toolbar)).toBe(layout !== "phone");
-    if (toolbar) expect(toolbar.nextElementSibling?.getAttribute("aria-label")).toBe("Game board");
     const options = await openGameOptions(user);
     expect(options.getByRole("combobox", { name: "Game dictionary" })).toBeTruthy();
     expect(options.getByText("Club round")).toBeTruthy();
@@ -3832,6 +3836,7 @@ test.each([
     expect(document.activeElement).toBe(collapse());
   }
   expect(collapse().querySelector(".lucide-menu")).toBeTruthy();
+  expect(collapse().previousElementSibling?.classList.contains("brand")).toBe(true);
   await user.click(collapse());
   expect(sidebar()).toBeNull();
   expect(document.activeElement).toBe(open());
@@ -3853,18 +3858,15 @@ test("resizing changes the game layout once and preserves open score history", a
   const history = within(scores).getByText("Tracked move history");
   await user.click(history);
   const shell = header.closest(".app-shell")!;
-  const boardToolbar = () => document.querySelector(".board-column > .board-toolbar");
   const sidebar = () => screen.queryByRole("complementary", { name: "Sidebar" });
   expect(shell.classList.contains("stacked-game")).toBe(true);
   expect(shell.classList.contains("phone-layout")).toBe(true);
-  expect(boardToolbar()).toBeNull();
 
   for (const width of [752, 800, 801, 960, 991, 992, 1150, 1500]) {
     act(() => resizeShell(width));
     expect(shell.classList.contains("compact-game"), String(width)).toBe(true);
     expect(shell.classList.contains("phone-layout"), String(width)).toBe(false);
     expect(!!sidebar(), String(width)).toBe(width >= 992);
-    expect(boardToolbar()?.nextElementSibling?.getAttribute("aria-label")).toBe("Game board");
     expect(screen.getByRole("region", { name: "Game scores" })).toBe(scores);
     expect(history.closest("details")?.open).toBe(true);
   }
@@ -3882,9 +3884,28 @@ test("resizing changes the game layout once and preserves open score history", a
   act(() => resizeShell(751));
   expect(shell.classList.contains("stacked-game")).toBe(true);
   expect(shell.classList.contains("phone-layout")).toBe(true);
-  expect(boardToolbar()).toBeNull();
   expect(history.closest("details")?.open).toBe(true);
   expect(document.querySelector(".breadcrumb, .topbar")).toBeNull();
+});
+
+test("the desktop board offers screenshot import next to its entry hint while empty", async () => {
+  const user = await start(820);
+  const board = within(screen.getByRole("region", { name: "Game board" }));
+  const importShortcut = () => board.queryByRole("button", { name: "Import screenshot" });
+  expect(importShortcut()?.previousElementSibling).toBe(board.getByText("Tap a square and type"));
+  await user.click(importShortcut()!);
+  const screenshot = screen.getByRole("dialog", { name: "Import a screenshot" });
+  await user.click(within(screenshot).getByRole("button", { name: "Close dialog" }));
+
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("C");
+  expect(importShortcut()).toBeNull();
+  const options = await openGameOptions(user);
+  for (const name of ["Import screenshot", "Move history", "Board help"])
+    expect(options.getByRole("button", { name })).toBeTruthy();
+  await user.click(options.getByRole("button", { name: "Close dialog" }));
+  await user.click(board.getByRole("button", { name: "Undo" }));
+  expect(importShortcut()).toBeTruthy();
 });
 
 test.each([false, true])("the sidebar opens the illustrated guide (phone %s)", async (phone) => {
@@ -3940,7 +3961,6 @@ test("the phone layout keeps settings, the build version, board help and move fi
   await user.click(main.getByRole("button", { name: "Open sidebar" }));
   await user.click(sidebar.getByRole("button", { name: "My games" }));
 
-  expect(document.querySelector(".board-toolbar")).toBeNull();
   const score = main.getByRole("group", { name: "Tracked score" });
   expect(score.closest(".game-heading")).toBeTruthy();
   expect(score.getAttribute("data-outcome")).toBe("playing");
@@ -4640,7 +4660,7 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   expect(scoreDelta()?.textContent).toBe("0");
   const heading = cell("Game options").closest(".game-heading");
   expect(heading?.contains(titleScore())).toBe(true);
-  expect(titleScore()?.closest(".game-title-row, .board-toolbar")).toBeNull();
+  expect(titleScore()?.closest(".game-title-row")).toBeNull();
   const boardStrip = cell("Undo").closest(".board-panel .direct-entry-tools");
   expect(boardStrip?.contains(cell("Redo"))).toBe(true);
   expect(boardStrip?.contains(cell("Toggle entry direction"))).toBe(true);
