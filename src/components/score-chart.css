@@ -128,7 +128,7 @@
 .score-chart-tooltip dd { margin: 0; }
 
 .score-chart-total {
-  padding-inline-start: 8px;
+  padding-inline-start: 20px;
   text-align: right;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
