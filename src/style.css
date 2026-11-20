@@ -1256,6 +1256,29 @@ label + label {
   gap: 3px;
   overflow-wrap: anywhere;
 }
+.game-picker-name-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.game-picker-name {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.game-picker-opponent {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.game-picker-score {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .full-move-history {
   display: inline-flex;
   flex: none;

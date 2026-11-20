@@ -334,6 +334,14 @@ export function createStore(directory: string, root: string) {
       db.exec("PRAGMA user_version=3");
     });
   }
+  if (db.prepare("PRAGMA user_version").get()?.user_version === 3) {
+    transaction(() => {
+      if (db.prepare("PRAGMA user_version").get()?.user_version !== 3) return;
+      // Earlier active summaries omitted the score even for tracked games.
+      db.exec(`DELETE FROM game_summaries WHERE json_extract(data, '$.archived') = 0;
+        PRAGMA user_version=4;`);
+    });
+  }
   return {
     db,
     saveScreenshotExample({
