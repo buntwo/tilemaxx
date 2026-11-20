@@ -3240,10 +3240,12 @@ test("multiple games retain separate racks and word lists", async () => {
   let options = await openGameOptions(user);
   await user.selectOptions(dictionary(options), "other");
   await user.click(options.getByRole("button", { name: "Close dialog" }));
+  expect(screen.getByText("Scrabble GO · Other words", { selector: ".game-heading-metadata" })).toBeTruthy();
   await act(() => store.flush());
   await user.click(cell("Switch game"));
   await user.click(screen.getByRole("menuitemradio", { name: /^First game/ }));
   expect(current().rack).toBe("CAT");
+  expect(screen.getByText("Test words", { selector: ".game-heading-metadata" })).toBeTruthy();
   options = await openGameOptions(user);
   expect(dictionary(options).value).toBe("test");
   await user.click(options.getByRole("button", { name: "Close dialog" }));
@@ -3600,6 +3602,7 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
     archived().getByRole("button", { name: /Sam.*Club night.*2026/ }),
   );
   expect(screen.getByRole("heading", { name: "Sam" })).toBeTruthy();
+  expect(screen.getByText("Club night · Test words", { selector: ".game-heading-metadata" })).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Switch game" })).toBeNull();
   expect(cell("Archived games").getAttribute("aria-current")).toBe("page");
   expect(cell("My games").getAttribute("aria-current")).toBeNull();
@@ -3697,7 +3700,7 @@ test("the game picker and archive show the full move history icon on complete ga
 });
 
 test.each(["phone", "tablet", "desktop"])(
-  "the %s header shows the platform and keeps game details in Game options",
+  "the %s header shows the platform and word list with the selector in Game options",
   async (layout) => {
     Object.assign(remote.games[0], {
       revision: 1,
@@ -3713,7 +3716,7 @@ test.each(["phone", "tablet", "desktop"])(
     const user = await start(layout === "phone" ? 360 : layout === "tablet" ? 700 : 950);
     await waitFor(() => expect(current().revision).toBe(1));
     const heading = cell("Game options").closest("header")!;
-    expect(within(heading).getByText("Lexulous")).toBeTruthy();
+    expect(within(heading).getByText("Lexulous · Test words")).toBeTruthy();
     expect(within(heading).getByRole("group", { name: "Tracked score" })).toBeTruthy();
     expect(heading.querySelector("time")).toBeNull();
     expect(heading.querySelector(".board-toolbar")).toBeNull();

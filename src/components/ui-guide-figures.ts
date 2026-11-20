@@ -34,7 +34,7 @@ export const guideFigures: GuideFigure[] = [
         x: 471,
         y: 35,
         name: "Game header",
-        hint: "Find the game name, platform, and centered score.",
+        hint: "Find the game name, platform, word list, and centered score.",
       },
       {
         x: 1312,
