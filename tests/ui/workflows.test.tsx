@@ -258,7 +258,7 @@ test("playing style requests ranked pages and All moves restores the full list",
   await user.click(screen.getByRole("button", { name: /^Utility breakdown for/ }));
   const tooltip = within(screen.getByRole("tooltip"));
   expect(tooltip.getByText("Utility breakdown")).toBeTruthy();
-  expect(tooltip.getByText("Word-list learner · Rank 1")).toBeTruthy();
+  expect(tooltip.getByText("Word-List Learner · Rank 1")).toBeTruthy();
   expect(tooltip.getByText("Weighted points")).toBeTruthy();
   expect(tooltip.getByText("Word familiarity")).toBeTruthy();
   expect(tooltip.getByText("Rack leave")).toBeTruthy();
@@ -272,7 +272,7 @@ test("playing style requests ranked pages and All moves restores the full list",
   expect(screen.getAllByRole("button", { name: /^Score breakdown for/ }).length).toBeGreaterThan(0);
 });
 
-test("Mercenary starts on demand, then follows new move searches", async () => {
+test("Bingo Mercenary starts on demand, then follows new move searches", async () => {
   remote.games[0].template.rackSize = 4;
   remote.games[0].revision++;
   let runs = 0;
@@ -343,7 +343,7 @@ test("Mercenary starts on demand, then follows new move searches", async () => {
   await user.keyboard("{Enter}");
   await user.selectOptions(await screen.findByRole("combobox", { name: "Playing style" }), "bingo-hunter");
   expect(runs).toBe(0);
-  const button = () => screen.getByRole("button", { name: "Run Mercenary" });
+  const button = () => screen.getByRole("button", { name: "Run Bingo Mercenary" });
   await user.click(button());
   expect(await screen.findByText("1. Simulating replies · 1/8 moves")).toBeTruthy();
   expect(screen.queryByRole("img", { name: /bingos?/ })).toBeNull();
@@ -358,7 +358,7 @@ test("Mercenary starts on demand, then follows new move searches", async () => {
   expect(await screen.findByText(/^U \d+(?:\.\d+)?$/)).toBeTruthy();
   await user.click(screen.getByRole("button", { name: /^Utility breakdown for/ }));
   const tooltip = within(screen.getByRole("tooltip"));
-  expect(tooltip.getByText("Mercenary · Rank 1")).toBeTruthy();
+  expect(tooltip.getByText("Bingo Mercenary · Rank 1")).toBeTruthy();
   expect(tooltip.getByText("Play points now").parentElement?.lastChild?.textContent).toBe(
     playWeight === 1 ? String(playPoints) : `${playPoints} × 0.75 = ${weightedPlayPoints}`,
   );
@@ -408,7 +408,7 @@ test("Mercenary starts on demand, then follows new move searches", async () => {
   expect(ordinaryBreakdown.getByText(`${playPoints} × 0.75 = ${weightedPlayPoints}`)).toBeTruthy();
 });
 
-test("Tactician keeps its utility breakdown and continuation separate from Mercenary", async () => {
+test("Bingo Tactician keeps its utility breakdown and continuation separate from Bingo Mercenary", async () => {
   const requests: Extract<SolverRequest, { kind: "bingo-hunter" }>[] = [];
   class HunterWorker extends SolverWorker {
     postMessage(request: SolverRequest) {
@@ -435,29 +435,32 @@ test("Tactician keeps its utility breakdown and continuation separate from Merce
   await typeRack(user, "RATS");
   await user.keyboard("{Enter}");
   const select = await screen.findByRole("combobox", { name: "Playing style" });
+  expect(Array.from(select.querySelectorAll("option"), (option) => option.textContent)).toEqual([
+    "No style", "Casual", "Word-List Learner", "Strong Club Player", "Bingo Mercenary", "Bingo Tactician",
+  ]);
   await user.selectOptions(select, "tactician");
   expect(requests).toHaveLength(0);
-  await user.click(screen.getByRole("button", { name: "Run Tactician" }));
+  await user.click(screen.getByRole("button", { name: "Run Bingo Tactician" }));
   const openUtility = async () => {
     await user.click(await screen.findByRole("button", { name: /^Utility breakdown for/ }));
     return within(screen.getByRole("tooltip"));
   };
   const tactics = await openUtility();
-  expect(tactics.getByText("Tactician · Rank 1")).toBeTruthy();
+  expect(tactics.getByText("Bingo Tactician · Rank 1")).toBeTruthy();
   expect(tactics.getByText("-22")).toBeTruthy();
   expect(tactics.getByText("24 × 0.75 = 18")).toBeTruthy();
   expect(tactics.getByText("Bingo lanes after reply").parentElement?.lastChild?.textContent).toBe("2");
 
   await user.selectOptions(select, "bingo-hunter");
-  await user.click(screen.getByRole("button", { name: "Run Mercenary" }));
+  await user.click(screen.getByRole("button", { name: "Run Bingo Mercenary" }));
   const mercenary = await openUtility();
-  expect(mercenary.getByText("Mercenary · Rank 1")).toBeTruthy();
+  expect(mercenary.getByText("Bingo Mercenary · Rank 1")).toBeTruthy();
   expect(mercenary.queryByText("Expected opponent reply")).toBeNull();
   await user.selectOptions(select, "tactician");
   await user.click(await screen.findByRole("button", { name: "Run another 10 seconds" }));
   expect(requests.map(({ style }) => style)).toEqual(["tactician", "bingo-hunter", "tactician"]);
   expect(requests[2].resumeFrom).toBe(requests[0].id);
-  expect((await openUtility()).getByText("Tactician · Rank 1")).toBeTruthy();
+  expect((await openUtility()).getByText("Bingo Tactician · Rank 1")).toBeTruthy();
 });
 
 test("phone analysis taps preview and select a move without offering Play", async () => {
