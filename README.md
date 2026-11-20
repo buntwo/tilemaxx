@@ -89,7 +89,7 @@ docker compose up -d --build
 
 Open `http://YOUR-HOST-IP:4173` from a device on the same network. If your host uses standalone Compose, substitute `docker-compose` for `docker compose`.
 
-- **Settings.** Set `TILEMAXX_PORT` in a local `.env` file to change the host port. Set `TILEMAXX_CONTAINER_NAME` to override the default `tilemaxx-1` when running multiple instances.
+- **Settings.** Set `TILEMAXX_PORT` in a local `.env` file to change the host port. Set `TILEMAXX_CONTAINER_NAME` to override the default container name `tilemaxx` when running multiple instances. To rename an existing `tilemaxx-1` container, set `TILEMAXX_CONTAINER_NAME=tilemaxx` in the deployment folder’s `.env` and run `docker compose up -d`.
 - **Storage.** Compose mounts `./data` at `/app/data`. It contains the SQLite database (`tilewise.sqlite`), imported word lists, and any screenshot examples you explicitly save. The container runs as UID/GID `1000:1000` and needs write access to these files. Git and the Docker build context exclude `data/`.
 - **Prebuilt image.** If you already have an image, leave `build: .` commented out, set `image:` to the tag you loaded, and run `docker compose up -d`.
 
