@@ -227,7 +227,7 @@ test("compare mode selects moves without playing and switches model without reru
   expect(screen.queryByRole("article", { name: /^Analysis for/ })).toBeNull();
 });
 
-test("playing style requests ranked pages and All moves restores the full list", async () => {
+test("All moves and Shortlist toggle back to the previous move view", async () => {
   const requested: string[] = [];
   class ProfileWorker extends SolverWorker {
     postMessage(request: SolverRequest) {
@@ -272,48 +272,32 @@ test("playing style requests ranked pages and All moves restores the full list",
 
   const allMoves = screen.getByRole("button", { name: "All moves" });
   const shortlist = screen.getByRole("button", { name: /^Shortlist/ });
-  const results = screen.getByLabelText("Suggested moves");
-  results.scrollTop = 12;
-  fireEvent.scroll(results);
-  vi.useFakeTimers();
-  try {
-    const hold = () => act(() => vi.advanceTimersByTime(450));
-    touch(allMoves, "pointerdown", { pointerType: "mouse" });
-    expect(allMoves.getAttribute("aria-pressed")).toBe("false");
-    hold();
-    expect(allMoves.getAttribute("aria-pressed")).toBe("true");
-    expect(all().length).toBeGreaterThan(1);
-    expect(results.scrollTop).toBe(0);
-    expect(picker).toHaveProperty("value", "learner");
-    touch(allMoves, "pointerup", { pointerType: "mouse" });
-    fireEvent.click(allMoves, { detail: 1 });
-    expect(allMoves.getAttribute("aria-pressed")).toBe("false");
-    expect(all()).toHaveLength(1);
-    expect(results.scrollTop).toBe(12);
-
-    touch(shortlist, "pointerdown");
-    hold();
-    expect(shortlist.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByLabelText("Suggested moves").classList.contains("is-shortlist")).toBe(true);
-    touch(shortlist, "pointercancel");
-    expect(shortlist.getAttribute("aria-pressed")).toBe("false");
-    expect(all()).toHaveLength(1);
-
-    touch(shortlist, "pointerdown");
-    touch(shortlist, "pointermove", { clientY: 50 });
-    hold();
-    expect(shortlist.getAttribute("aria-pressed")).toBe("false");
-    touch(shortlist, "pointerup");
-    fireEvent.click(shortlist, { detail: 1 });
-    expect(picker).toHaveProperty("value", "learner");
-  } finally {
-    vi.useRealTimers();
-  }
-
+  const suggested = () => screen.getByLabelText("Suggested moves");
+  suggested().scrollTop = 12;
+  fireEvent.scroll(suggested());
   await user.click(allMoves);
   await waitFor(() => expect(all().length).toBeGreaterThan(1));
   expect(screen.queryByText("U 7")).toBeNull();
   expect(screen.getAllByRole("button", { name: /^Score breakdown for/ }).length).toBeGreaterThan(0);
+  expect(allMoves.getAttribute("aria-pressed")).toBe("true");
+  expect(suggested().scrollTop).toBe(0);
+  expect(localStorage.getItem(`tilemaxx:playing-style:${current().id}`)).toBe("learner");
+
+  await user.click(shortlist);
+  expect(shortlist.getAttribute("aria-pressed")).toBe("true");
+  expect(suggested().classList.contains("is-shortlist")).toBe(true);
+  await user.click(shortlist);
+  expect(allMoves.getAttribute("aria-pressed")).toBe("true");
+  await user.click(allMoves);
+  await waitFor(() => expect(all()).toHaveLength(1));
+  expect(picker).toHaveProperty("value", "learner");
+  expect(suggested().scrollTop).toBe(12);
+
+  await user.click(shortlist);
+  expect(suggested().classList.contains("is-shortlist")).toBe(true);
+  await user.click(shortlist);
+  expect(await screen.findByText("U 7")).toBeTruthy();
+  expect(picker).toHaveProperty("value", "learner");
 });
 
 test("each game remembers its playing style after switching games, closing results and reopening the app", async () => {
@@ -437,27 +421,18 @@ test("Bingo Mercenary starts on demand, then follows new move searches", async (
   await user.click(button());
   expect(await screen.findByText("1. Simulating replies · 1/8 moves")).toBeTruthy();
   expect(screen.queryByRole("img", { name: /bingos?/ })).toBeNull();
-  const allMovesButton = screen.getByRole("button", { name: "All moves" });
-  vi.useFakeTimers();
-  try {
-    touch(allMovesButton, "pointerdown");
-    act(() => vi.advanceTimersByTime(450));
-    expect(screen.queryByText("1. Simulating replies · 1/8 moves")).toBeNull();
-    expect(screen.getByLabelText("Suggested moves")).toBeTruthy();
-    touch(allMovesButton, "pointerup");
-    fireEvent.click(allMovesButton, { detail: 1 });
-    expect(screen.getByText("1. Simulating replies · 1/8 moves")).toBeTruthy();
-    expect(cancellations).toBe(0);
-  } finally {
-    vi.useRealTimers();
-  }
   await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
   expect(cancellations).toBe(1);
   await user.click(button());
-  await user.click(screen.getByRole("button", { name: "All moves" }));
-  expect(cancellations).toBe(2);
-  await user.selectOptions(screen.getByRole("combobox", { name: "Playing style" }), "bingo-hunter");
+  const allMovesButton = screen.getByRole("button", { name: "All moves" });
+  await user.click(allMovesButton);
+  expect(screen.queryByText("1. Simulating replies · 1/8 moves")).toBeNull();
+  expect(cancellations).toBe(1);
+  await user.click(allMovesButton);
+  expect(await screen.findByText("1. Simulating replies · 1/8 moves")).toBeTruthy();
   expect(runs).toBe(2);
+  await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
+  expect(cancellations).toBe(2);
   await user.click(button());
   expect(await screen.findByText(/^U \d+(?:\.\d+)?$/)).toBeTruthy();
   await user.click(screen.getByRole("button", { name: /^Utility breakdown for/ }));

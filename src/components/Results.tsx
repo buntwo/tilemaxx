@@ -3,6 +3,7 @@ import { useBingoHunter } from "../useBingoHunter";
 import type { HunterProgress } from "../parallel-bingo-hunter";
 import type { RunBingoHunter } from "../useSolver";
 import type { MoveStyle } from "../../shared/move-results";
+import type { MoveListNavigation, MoveListView } from "../useMoveListNavigation";
 import { moveLocation } from "../../shared/notation";
 import {
   useContext,
@@ -74,7 +75,6 @@ import type { useReplyAnalysis } from "../useReplyAnalysis";
 import type { BoardOddsProgress } from "../useSolver";
 import type { MoveTiming } from "../move-timing";
 import MoveTimingButton from "./MoveTimingButton";
-import MoveViewPicker, { type MoveListView } from "./MoveViewPicker";
 import type { ShortlistEntry } from "../../shared/move-shortlist";
 import {
   coversRequiredSquares,
@@ -98,6 +98,8 @@ import ReplyHeatmapDialog, {
   ReplyPreview,
   ReplySettings,
 } from "./ReplyAnalysis";
+
+type MoveListOrder = { sort: MoveSort; reversed: boolean };
 
 const hunterStageLabels: Record<HunterProgress["phase"], string> = {
   exact: "Checking exact tile deals",
@@ -197,6 +199,7 @@ export default function Results({
   exchangeAction,
   playingStyle,
   onPlayingStyleChange,
+  navigation,
   compact = false,
   collapsibleSearch = compact,
   fetchPage,
@@ -238,6 +241,7 @@ export default function Results({
   exchangeAction?: ReactElement | false;
   playingStyle?: MoveStyle;
   onPlayingStyleChange?: (style: MoveStyle | undefined) => void;
+  navigation: MoveListNavigation;
   compact?: boolean;
   collapsibleSearch?: boolean;
   fetchPage: FetchMovePage;
@@ -281,7 +285,6 @@ export default function Results({
   onCancelBoardOdds?: () => void;
 }) {
   const [filter, setFilter] = useState(""),
-    [scroll, setScroll] = useState(0),
     [locked, setLocked] = useState<string | null>(null);
   useEffect(() => setFilter(""), [findMovesRequest]);
   const localCalculation = useGameCalculating();
@@ -358,15 +361,13 @@ export default function Results({
   const [analyzing, setAnalyzing] = useState(false);
   const replyMetricId = useId();
   const [candidates, setCandidates] = useState<Move[]>([]);
-  const [shortlistSearch, setShortlistSearch] = useState<number>();
-  const shortlistSelected =
-    !!analysisGame && !!resultSet && shortlistSearch === resultSet.searchId;
-  const selectedProfile = resultSet && !shortlistSelected ? playingStyle : undefined;
-  const [heldView, setHeldView] = useState<MoveListView>();
-  const shortlistActive = heldView ? heldView === "shortlist" : shortlistSelected;
-  const profile = heldView ? undefined : selectedProfile;
+  const searchId = resultSet?.searchId;
+  const selectedProfile = resultSet ? playingStyle : undefined;
+  const { view, previousView } = navigation;
+  const shortlistActive = view === "shortlist";
+  const profile = view === "style" ? selectedProfile : undefined;
   const bingoStyle = isBingoStyle(selectedProfile) ? selectedProfile : undefined;
-  const hunterSelected = !!bingoStyle && !heldView;
+  const hunterSelected = !!bingoStyle && view === "style";
   const hunterLabel = bingoStyle && BINGO_STYLE_LABELS[bingoStyle];
   const hunterKey = bingoStyle && resultSet?.total && !busy && !error && !invalid
     ? JSON.stringify([bingoStyle, analysisKey, resultSet.searchId, bagSize, scorelessTurns, replyAnalysis.opponentHasFinalTurn])
@@ -381,8 +382,7 @@ export default function Results({
     opponentHasFinalTurn: replyAnalysis.opponentHasFinalTurn,
     workerLimit,
   });
-  const storedHunterResult = hunter.current?.result;
-  const hunterResult = hunterSelected ? storedHunterResult : undefined;
+  const hunterResult = hunterSelected ? hunter.current?.result : undefined;
   const hunterProgress = hunter.current?.progress;
   const hunterPending = hunter.current?.pending;
   const totalMoves = resultSet?.total ?? 0;
@@ -465,39 +465,49 @@ export default function Results({
     searchId: number;
     entries: ShortlistEntry[];
   }>();
-  const searchId = resultSet?.searchId;
   const [ordering, setOrdering] = useState<{
     searchId?: number;
-    sort: MoveSort;
-    reversed: boolean;
+    views: Partial<Record<MoveListView, MoveListOrder>>;
   }>();
-  const activeOrder = ordering?.searchId === searchId ? ordering : undefined;
-  const ranking = replyEnabled ? replyAnalysis.ranking : undefined;
-  const selectedWaitingForEndgame =
-    replyEnabled && !selectedProfile && replyAnalysis.estimatingEndgame;
-  const waitingForEndgame = !heldView && selectedWaitingForEndgame;
+  const activeOrder = ordering?.searchId === searchId ? ordering?.views[view] : undefined;
+  const ranking =
+    replyEnabled && !shortlistActive ? replyAnalysis.ranking : undefined;
+  const waitingForEndgame = replyEnabled && !profile && replyAnalysis.estimatingEndgame;
   const endgameProgress = replyEnabled ? replyAnalysis.endgameProgress : undefined;
   const endgameRanked = !!ranking?.checked;
-  const endgameSwingAvailable =
-    endgameRanked || (replyEnabled && !!replyAnalysis.exactEndgameSpreads);
-  const showEndgameSwing = !shortlistActive && endgameSwingAvailable;
-  const allMovesSort =
-    endgameSwingAvailable ? "endgame" : canSortAdjusted ? "reply-adjusted" : "score";
-  const selectedSort = selectedProfile && !activeOrder ? "playing-style" :
+  const showEndgameSwing =
+    endgameRanked || (replyEnabled && !shortlistActive && !!replyAnalysis.exactEndgameSpreads);
+  const sort = profile && !activeOrder ? "playing-style" :
     activeOrder &&
-    (activeOrder.sort !== "endgame" || (!shortlistSelected && endgameSwingAvailable)) &&
+    (activeOrder.sort !== "endgame" || showEndgameSwing) &&
     (activeOrder.sort !== "reply-adjusted" || canSortAdjusted) &&
-    (activeOrder.sort !== "playing-style" || selectedProfile) &&
+    (activeOrder.sort !== "playing-style" || profile) &&
     (!endgame || (activeOrder.sort !== "bingo-draw" && activeOrder.sort !== "board-bingo"))
       ? activeOrder.sort
-      : shortlistSelected ? "score" : allMovesSort;
-  const selectedReversed =
-    (activeOrder?.sort === selectedSort && activeOrder.reversed) || false;
-  const sort = heldView === "shortlist" ? "shortlist" : heldView ? allMovesSort : selectedSort;
-  const reversed = !heldView && selectedReversed;
+      : showEndgameSwing
+        ? "endgame"
+        : canSortAdjusted && !shortlistActive
+          ? "reply-adjusted"
+          : shortlistActive ? "shortlist" : "score";
+  const reversed =
+    (activeOrder?.sort === sort && activeOrder.reversed) || false;
+  const [scrollPositions, setScrollPositions] = useState<
+    Partial<Record<MoveListView, MoveListOrder & { top: number }>>
+  >({});
+  const position = scrollPositions[view];
+  const scroll = position?.sort === sort && position.reversed === reversed ? position.top : 0;
   const pointsSorted = sort === "score" || sort === "reply-adjusted" || sort === "playing-style";
-  function setSort(sort: MoveSort, reversed = false) {
-    setOrdering({ searchId, sort, reversed });
+  function setSort(sort: MoveSort, reversed = false, target = view) {
+    setOrdering((current) => ({
+      searchId,
+      views: {
+        ...(current?.searchId === searchId && current?.views),
+        [target]: { sort, reversed },
+      },
+    }));
+  }
+  function toggleView(target: "all" | "shortlist") {
+    if (navigation.toggle(target)) onPreview(null);
   }
   function checkReplyHistogram(move: Move) {
     if (!resultSet || !replyAnalysis.canRequestHistogram) return;
@@ -603,45 +613,32 @@ export default function Results({
     fetchPage,
     !busy && !error,
   );
-  const selectedPage = useMoveResults(
+  const page = useMoveResults(
     resultSet,
     {
       filter,
-      profile: selectedProfile,
-      profileBagSize: selectedProfile ? bagSize : undefined,
-      profileScorelessTurns: selectedProfile === "strong" && bagSize === 0 ? scorelessTurns : undefined,
-      profileSeed: bingoStyle ? storedHunterResult?.id :
-        selectedProfile && analysisGame ? profileWordHash(analysisGame.id) : undefined,
+      profile,
+      profileBagSize: profile ? bagSize : undefined,
+      profileScorelessTurns: profile === "strong" && bagSize === 0 ? scorelessTurns : undefined,
+      profileSeed: hunterSelected ? hunterResult?.id :
+        profile && analysisGame ? profileWordHash(analysisGame.id) : undefined,
       requiredSquares,
-      sort: shortlistSelected || selectedSort === "shortlist" ? "score" : selectedSort,
-      reversed: !shortlistSelected && selectedReversed,
-      offset: shortlistSelected ? 0 : Math.max(0, Math.floor(scroll / moveRowHeight) - 5),
+      sort: shortlistActive || sort === "shortlist" ? "score" : sort,
+      reversed: !shortlistActive && reversed,
+      offset: shortlistActive
+        ? 0
+        : Math.max(0, Math.floor(scroll / moveRowHeight) - 5),
       locateMoveId,
-      rackOdds: selectedSort === "bingo-draw" ? rackOdds : undefined,
-      boardOdds: selectedSort === "board-bingo" ? boardOdds : undefined,
+      rackOdds: sort === "bingo-draw" ? rackOdds : undefined,
+      boardOdds: sort === "board-bingo" ? boardOdds : undefined,
       replyDeltas:
-        selectedSort === "reply" || selectedSort === "reply-adjusted" ? replyDeltas : undefined,
-      endgameId: !selectedProfile && !shortlistSelected && endgameRanked ? ranking.id : undefined,
-      exactEndgameSpreads: selectedSort === "endgame" ? replyAnalysis.exactEndgameSpreads : undefined,
+        sort === "reply" || sort === "reply-adjusted" ? replyDeltas : undefined,
+      endgameId: !profile && endgameRanked ? ranking.id : undefined,
+      exactEndgameSpreads: sort === "endgame" ? replyAnalysis.exactEndgameSpreads : undefined,
     },
     fetchPage,
-    !busy && !error && !selectedWaitingForEndgame && (!bingoStyle || !!storedHunterResult),
+    !busy && !error && !waitingForEndgame && (!hunterSelected || !!hunterResult),
   );
-  const peekPage = useMoveResults(
-    heldView === "all" ? resultSet : null,
-    {
-      filter,
-      requiredSquares,
-      sort: allMovesSort,
-      offset: 0,
-      replyDeltas: allMovesSort === "reply-adjusted" ? replyDeltas : undefined,
-      endgameId: endgameRanked ? ranking.id : undefined,
-      exactEndgameSpreads: allMovesSort === "endgame" ? replyAnalysis.exactEndgameSpreads : undefined,
-    },
-    fetchPage,
-    !busy && !error,
-  );
-  const page = heldView ? peekPage : selectedPage;
   const scoreTooltip = useMoveScoreTooltip(analysisGame, (move) => {
     const delta = replyDeltas[move.id];
     const adjusted = replyAdjustedPoints(move, delta);
@@ -685,21 +682,26 @@ export default function Results({
           : current,
     );
   }
+  const showList = !busy && !error && !!resultSet &&
+    !waitingForEndgame && (!hunterSelected || !!hunterResult?.checked) &&
+    !(profile && page.error) && (shortlistActive || !page.unavailable) &&
+    !pagePending && total > 0;
   useEffect(() => {
-    setScroll(0);
+    setScrollPositions({});
     if (scroller.current) scroller.current.scrollTop = 0;
+  }, [resultSet, filter, requiredSquares, playingStyle]);
+  const restoreScroll = useEffectEvent(() => {
+    if (scroller.current) scroller.current.scrollTop = scroll;
+  });
+  useLayoutEffect(() => restoreScroll(), [view, sort, reversed, showList]);
+  useEffect(() => {
     setLocked(null);
     setInspectedReply((current) => current?.histogramSelected ? undefined : current);
     setFollowHistogram(undefined);
     scoreTooltip.close();
-  }, [resultSet, filter, requiredSquares, selectedSort, selectedReversed, shortlistSelected, selectedProfile]);
-  const placeViewScroll = useEffectEvent(() => {
-    if (scroller.current) scroller.current.scrollTop = heldView ? 0 : scroll;
-  });
-  useLayoutEffect(() => placeViewScroll(), [heldView]);
+  }, [resultSet, filter, requiredSquares, sort, reversed, view, profile]);
   useEffect(() => {
-    if (heldView) return;
-    const index = selectedPage.locatedIndex;
+    const index = page.locatedIndex;
     const list = scroller.current;
     if (index === undefined || !list) return;
     setFollowHistogram(undefined);
@@ -715,7 +717,7 @@ export default function Results({
         ? "instant"
         : "smooth",
     });
-  }, [heldView, selectedPage.locatedIndex]);
+  }, [page.locatedIndex]);
   useEffect(() => {
     setInspectedReply(undefined);
     if (requiredSquares)
@@ -805,24 +807,30 @@ export default function Results({
       {hunter.current?.error ? `Restart ${hunterLabel}` : "Run another 10 seconds"}
     </button>
   ) : undefined;
+  const returnViewLabel = previousView === "style" && selectedProfile
+    ? isBingoStyle(selectedProfile)
+      ? BINGO_STYLE_LABELS[selectedProfile]
+      : PLAYER_PROFILE_LABELS[selectedProfile]
+    : previousView === "shortlist" ? "Shortlist" : "All moves";
   const viewPicker = analysisGame && (
-    <MoveViewPicker
-      key={searchId}
-      active={shortlistActive ? "shortlist" : profile ? undefined : "all"}
-      canPreview={!!selectedProfile}
-      count={requiredSquares ? filteredShortlist.length : shortlist.length}
-      onPreview={setHeldView}
-      onSelect={(view) => {
-        setLocked(null);
-        setInspectedReply(undefined);
-        onPreview(null);
-        if (view === "all" && !shortlistSelected && !selectedProfile) return;
-        onPlayingStyleChange?.(undefined);
-        setShortlistSearch(view === "shortlist" ? searchId : undefined);
-        if (view === "shortlist") setSort("shortlist");
-        else setOrdering(undefined);
-      }}
-    />
+    <div className="result-view-picker" role="group" aria-label="Move list view">
+      <button
+        type="button"
+        aria-pressed={view === "all"}
+        title={view === "all" && previousView ? `Return to ${returnViewLabel}` : undefined}
+        onClick={() => toggleView("all")}
+      >
+        All moves
+      </button>
+      <button
+        type="button"
+        aria-pressed={view === "shortlist"}
+        title={view === "shortlist" && previousView ? `Return to ${returnViewLabel}` : undefined}
+        onClick={() => toggleView("shortlist")}
+      >
+        Shortlist <span>{requiredSquares ? filteredShortlist.length : shortlist.length}</span>
+      </button>
+    </div>
   );
   const solveEndgame = opponentPosition && (
     <button
@@ -845,11 +853,11 @@ export default function Results({
         className="move-playing-style"
         aria-label="Playing style"
         title="Rank moves by a playing style"
-        value={selectedProfile ?? ""}
+        value={profile ?? ""}
         onChange={(event) => {
           const value = event.target.value as MoveStyle | "";
           onPlayingStyleChange?.(value || undefined);
-          setShortlistSearch(undefined);
+          navigation.reset();
           setOrdering(undefined);
           setLocked(null);
           onPreview(null);
@@ -1057,7 +1065,7 @@ export default function Results({
               setFilter("");
               setSearchOpen(false);
               setOrdering(undefined);
-              setShortlistSearch(undefined);
+              navigation.reset();
               setInspectedReply(undefined);
               setHeatmap(undefined);
               focusFindMoves.current = true;
@@ -1181,8 +1189,8 @@ export default function Results({
             className="button secondary"
             onClick={() => {
               replyAnalysis.skipEndgameEstimate();
-              setShortlistSearch(undefined);
-              setSort("score");
+              if (shortlistActive) toggleView("all");
+              setSort("score", false, "all");
             }}
           >
             Skip endgame analysis
@@ -1379,7 +1387,8 @@ export default function Results({
             className={`result-scroll${shortlistActive ? " is-shortlist" : ""}`}
             ref={scroller}
             onScroll={(e) => {
-              if (!heldView) setScroll(e.currentTarget.scrollTop);
+              const top = e.currentTarget.scrollTop;
+              setScrollPositions((current) => ({ ...current, [view]: { sort, reversed, top } }));
             }}
             aria-label="Suggested moves"
           >
