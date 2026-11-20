@@ -247,7 +247,8 @@ export function orderGames<T extends Pick<Game, "id">>(
       byId.delete(id);
     }
   }
-  return ordered.concat([...byId.values()]);
+  // The game index is in creation order. Put new games above the saved order.
+  return [...byId.values()].reverse().concat(ordered);
 }
 export interface Dictionary {
   id: string;
