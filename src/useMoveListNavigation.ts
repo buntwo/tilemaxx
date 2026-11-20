@@ -1,31 +1,27 @@
 import { useState } from "react";
 import type { MoveStyle } from "../shared/move-results";
 
-export type MoveListView = "all" | "shortlist" | "style";
+type AlternateView = "all" | "shortlist";
+export type MoveListView = AlternateView | "style";
 
 export function useMoveListNavigation(searchId?: number, style?: MoveStyle) {
-  const [navigation, setNavigation] = useState<{
+  const [alternate, setAlternate] = useState<{
     searchId: number;
-    path: MoveListView[];
+    view: AlternateView;
   }>();
   const home: MoveListView = style ? "style" : "all";
-  const path: MoveListView[] = navigation && navigation.searchId === searchId
-    ? navigation.path : [home];
-  const view = path.at(-1) ?? home;
-  const previousView = path.at(-2);
+  const view: MoveListView = alternate && alternate.searchId === searchId
+    ? alternate.view
+    : home;
+  const returnView = view === home ? undefined : home;
 
-  function toggle(target: Exclude<MoveListView, "style">) {
-    if (searchId === undefined || (target === view && !previousView)) return false;
-    // Returning to a view already on the path drops the views opened after it.
-    const earlier = path.indexOf(target);
-    const next = target === view
-      ? path.slice(0, -1)
-      : earlier >= 0 ? path.slice(0, earlier + 1) : [...path, target];
-    setNavigation({ searchId, path: next });
+  function toggle(target: AlternateView) {
+    if (searchId === undefined || (target === view && !returnView)) return false;
+    setAlternate(target === view || target === home ? undefined : { searchId, view: target });
     return true;
   }
 
-  return { view, previousView, toggle, reset: () => setNavigation(undefined) };
+  return { view, returnView, toggle, reset: () => setAlternate(undefined) };
 }
 
 export type MoveListNavigation = ReturnType<typeof useMoveListNavigation>;

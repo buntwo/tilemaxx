@@ -363,7 +363,7 @@ export default function Results({
   const [candidates, setCandidates] = useState<Move[]>([]);
   const searchId = resultSet?.searchId;
   const selectedProfile = resultSet ? playingStyle : undefined;
-  const { view, previousView } = navigation;
+  const { view, returnView } = navigation;
   const shortlistActive = view === "shortlist";
   const profile = view === "style" ? selectedProfile : undefined;
   const bingoStyle = isBingoStyle(selectedProfile) ? selectedProfile : undefined;
@@ -807,17 +807,17 @@ export default function Results({
       {hunter.current?.error ? `Restart ${hunterLabel}` : "Run another 10 seconds"}
     </button>
   ) : undefined;
-  const returnViewLabel = previousView === "style" && selectedProfile
+  const returnViewLabel = returnView === "style" && selectedProfile
     ? isBingoStyle(selectedProfile)
       ? BINGO_STYLE_LABELS[selectedProfile]
       : PLAYER_PROFILE_LABELS[selectedProfile]
-    : previousView === "shortlist" ? "Shortlist" : "All moves";
+    : "All moves";
   const viewPicker = analysisGame && (
     <div className="result-view-picker" role="group" aria-label="Move list view">
       <button
         type="button"
         aria-pressed={view === "all"}
-        title={view === "all" && previousView ? `Return to ${returnViewLabel}` : undefined}
+        title={view === "all" && returnView ? `Return to ${returnViewLabel}` : undefined}
         onClick={() => toggleView("all")}
       >
         All moves
@@ -825,7 +825,7 @@ export default function Results({
       <button
         type="button"
         aria-pressed={view === "shortlist"}
-        title={view === "shortlist" && previousView ? `Return to ${returnViewLabel}` : undefined}
+        title={view === "shortlist" && returnView ? `Return to ${returnViewLabel}` : undefined}
         onClick={() => toggleView("shortlist")}
       >
         Shortlist <span>{requiredSquares ? filteredShortlist.length : shortlist.length}</span>
