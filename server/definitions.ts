@@ -75,6 +75,36 @@ export function openDefinitionIndex(path: string) {
   }
 }
 
+// Keep the small source and match sets on the outside of the indexed joins.
+// SQLite otherwise may scan the large dictionary tables before applying the keys.
+export const definitionLookupSql = `
+    WITH RECURSIVE sources AS (
+      SELECT id, license FROM definition_sources
+      WHERE word_language = ? AND definition_language = ?
+    ),
+    matches(source_id, spelling, spelling_key, part_of_speech) AS (
+      SELECT d.source_id, d.spelling, d.spelling_key, d.part_of_speech
+      FROM sources s CROSS JOIN definitions d ON d.source_id = s.id
+      WHERE d.tile_key = ?
+      UNION
+      SELECT a.source_id, a.spelling, a.target_key, a.target_part_of_speech
+      FROM sources s CROSS JOIN definition_aliases a ON a.source_id = s.id
+      WHERE a.tile_key = ?
+      UNION
+      SELECT m.source_id, m.spelling, a.target_key, a.target_part_of_speech
+      FROM matches m CROSS JOIN definition_aliases a
+        ON a.source_id = m.source_id AND a.spelling_key = m.spelling_key
+        AND (m.part_of_speech = '' OR a.part_of_speech = '' OR m.part_of_speech = a.part_of_speech)
+    )
+    SELECT DISTINCT d.source_id AS source, m.spelling, d.spelling AS headword,
+      d.part_of_speech AS partOfSpeech, d.glosses, d.source_url AS sourceUrl, s.license
+    FROM matches m
+    CROSS JOIN definitions d ON d.source_id = m.source_id AND d.spelling_key = m.spelling_key
+      AND (m.part_of_speech = '' OR m.part_of_speech = d.part_of_speech)
+    JOIN sources s ON s.id = d.source_id
+    ORDER BY m.spelling, d.spelling, d.part_of_speech, d.source_id
+  `;
+
 export function lookupDefinitions(
   db: DatabaseSync,
   word: string,
@@ -84,35 +114,7 @@ export function lookupDefinitions(
   const key = definitionTileKey(word);
   if (!key) return [];
   const rows = db
-    .prepare(
-      `
-    WITH RECURSIVE sources AS (
-      SELECT id, license FROM definition_sources
-      WHERE word_language = ? AND definition_language = ?
-    ),
-    matches(source_id, spelling, spelling_key, part_of_speech) AS (
-      SELECT d.source_id, d.spelling, d.spelling_key, d.part_of_speech
-      FROM sources s JOIN definitions d ON d.source_id = s.id
-      WHERE d.tile_key = ?
-      UNION
-      SELECT a.source_id, a.spelling, a.target_key, a.target_part_of_speech
-      FROM sources s JOIN definition_aliases a ON a.source_id = s.id
-      WHERE a.tile_key = ?
-      UNION
-      SELECT m.source_id, m.spelling, a.target_key, a.target_part_of_speech
-      FROM matches m JOIN definition_aliases a
-        ON a.source_id = m.source_id AND a.spelling_key = m.spelling_key
-        AND (m.part_of_speech = '' OR a.part_of_speech = '' OR m.part_of_speech = a.part_of_speech)
-    )
-    SELECT DISTINCT d.source_id AS source, m.spelling, d.spelling AS headword,
-      d.part_of_speech AS partOfSpeech, d.glosses, d.source_url AS sourceUrl, s.license
-    FROM matches m
-    JOIN definitions d ON d.source_id = m.source_id AND d.spelling_key = m.spelling_key
-      AND (m.part_of_speech = '' OR m.part_of_speech = d.part_of_speech)
-    JOIN sources s ON s.id = d.source_id
-    ORDER BY m.spelling, d.spelling, d.part_of_speech, d.source_id
-  `,
-    )
+    .prepare(definitionLookupSql)
     .all(wordLanguage, definitionLanguage, key, key);
   return (
     rows as unknown as Array<
