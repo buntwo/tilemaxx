@@ -35,9 +35,8 @@ function BagStatus({ bagSize, bagConfirmed, unseenPool }: LastPlayBag) {
         "Bag empty"
       ) : (
         <>
-          Bag: {bagSize} · {estimatedVowels && "≈"}
-          {Math.round((100 * unseenPool.totals.vowel) / unseenPool.total)}%
-          vowels
+          Bag: {bagSize} ·{" "}
+          {Math.round((100 * unseenPool.totals.vowel) / unseenPool.total)}% V
         </>
       )}
     </span>
