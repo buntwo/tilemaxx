@@ -269,7 +269,48 @@ test("playing style requests ranked pages and All moves restores the full list",
   expect(tooltip.getByText("-1.15").classList.contains("value-bad")).toBe(true);
   expect(tooltip.queryByText("Score breakdown")).toBeNull();
   expect(current().board.some(Boolean)).toBe(false);
-  await user.click(screen.getByRole("button", { name: "All moves" }));
+
+  const allMoves = screen.getByRole("button", { name: "All moves" });
+  const shortlist = screen.getByRole("button", { name: /^Shortlist/ });
+  const results = screen.getByLabelText("Suggested moves");
+  results.scrollTop = 12;
+  fireEvent.scroll(results);
+  vi.useFakeTimers();
+  try {
+    const hold = () => act(() => vi.advanceTimersByTime(450));
+    touch(allMoves, "pointerdown", { pointerType: "mouse" });
+    expect(allMoves.getAttribute("aria-pressed")).toBe("false");
+    hold();
+    expect(allMoves.getAttribute("aria-pressed")).toBe("true");
+    expect(all().length).toBeGreaterThan(1);
+    expect(results.scrollTop).toBe(0);
+    expect(picker).toHaveProperty("value", "learner");
+    touch(allMoves, "pointerup", { pointerType: "mouse" });
+    fireEvent.click(allMoves, { detail: 1 });
+    expect(allMoves.getAttribute("aria-pressed")).toBe("false");
+    expect(all()).toHaveLength(1);
+    expect(results.scrollTop).toBe(12);
+
+    touch(shortlist, "pointerdown");
+    hold();
+    expect(shortlist.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByLabelText("Suggested moves").classList.contains("is-shortlist")).toBe(true);
+    touch(shortlist, "pointercancel");
+    expect(shortlist.getAttribute("aria-pressed")).toBe("false");
+    expect(all()).toHaveLength(1);
+
+    touch(shortlist, "pointerdown");
+    touch(shortlist, "pointermove", { clientY: 50 });
+    hold();
+    expect(shortlist.getAttribute("aria-pressed")).toBe("false");
+    touch(shortlist, "pointerup");
+    fireEvent.click(shortlist, { detail: 1 });
+    expect(picker).toHaveProperty("value", "learner");
+  } finally {
+    vi.useRealTimers();
+  }
+
+  await user.click(allMoves);
   await waitFor(() => expect(all().length).toBeGreaterThan(1));
   expect(screen.queryByText("U 7")).toBeNull();
   expect(screen.getAllByRole("button", { name: /^Score breakdown for/ }).length).toBeGreaterThan(0);
@@ -396,6 +437,20 @@ test("Bingo Mercenary starts on demand, then follows new move searches", async (
   await user.click(button());
   expect(await screen.findByText("1. Simulating replies · 1/8 moves")).toBeTruthy();
   expect(screen.queryByRole("img", { name: /bingos?/ })).toBeNull();
+  const allMovesButton = screen.getByRole("button", { name: "All moves" });
+  vi.useFakeTimers();
+  try {
+    touch(allMovesButton, "pointerdown");
+    act(() => vi.advanceTimersByTime(450));
+    expect(screen.queryByText("1. Simulating replies · 1/8 moves")).toBeNull();
+    expect(screen.getByLabelText("Suggested moves")).toBeTruthy();
+    touch(allMovesButton, "pointerup");
+    fireEvent.click(allMovesButton, { detail: 1 });
+    expect(screen.getByText("1. Simulating replies · 1/8 moves")).toBeTruthy();
+    expect(cancellations).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
   await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
   expect(cancellations).toBe(1);
   await user.click(button());
