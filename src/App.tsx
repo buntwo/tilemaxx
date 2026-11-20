@@ -1371,7 +1371,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 <LastPlay game={activeFlight?.before ?? game} />
                 {warnings.length > 0 && (
                   <div className="board-warnings" role="alert">
-                    <TriangleAlert size={16} aria-hidden="true" />
+                    <TriangleAlert size={14} aria-hidden="true" />
                     <div>
                       {warnings.map((warning) => (
                         <p key={warning}>{warning}</p>
