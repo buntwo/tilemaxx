@@ -1043,7 +1043,6 @@ export default function Results({
               setSearchOpen(false);
               setOrdering(undefined);
               setShortlistSearch(undefined);
-              onPlayingStyleChange?.(undefined);
               setInspectedReply(undefined);
               setHeatmap(undefined);
               focusFindMoves.current = true;
