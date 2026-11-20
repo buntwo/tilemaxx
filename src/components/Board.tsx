@@ -20,7 +20,7 @@ import {
 import { BingoBadge } from "./MoveWord";
 import BoardCoordinates, { type CoordinateSelection } from "./BoardCoordinates";
 
-const WORD_SCORE_HOLD_MS = 450;
+const TILE_HOLD_MS = 450;
 
 export default function Board({
   template,
@@ -33,6 +33,7 @@ export default function Board({
   selectingSquares = false,
   disabled = false,
   onSelect,
+  onTileHold,
   paint,
   compact = false,
   entryDirection,
@@ -55,6 +56,7 @@ export default function Board({
   selectingSquares?: boolean;
   disabled?: boolean;
   onSelect?: (index: number, repeatTap?: boolean) => void;
+  onTileHold?: (index: number) => void;
   paint?: boolean;
   compact?: boolean;
   entryDirection?: "across" | "down";
@@ -69,34 +71,29 @@ export default function Board({
   overlay?: ReactNode;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
 }) {
-  const touch = useRef<{
+  const press = useRef<{
     index: number;
+    pointerId: number;
     x: number;
     y: number;
-    repeat: boolean;
+    repeat?: boolean;
   } | null>(null);
   const canceledTap = useRef(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const holdAction = useRef(onTileHold);
+  holdAction.current = onTileHold;
+  const canHoldTile = !!onTileHold;
   const [hoveredTile, setHoveredTile] = useState<number | null>(null);
-  const [pressedTile, setPressedTile] = useState<number | null>(null);
-  const scoreTile = hoveredTile ?? pressedTile;
-  useEffect(() => () => clearTimeout(holdTimer.current), []);
-  useEffect(() => {
-    if (pressedTile === null) return;
-    const dismiss = () => setPressedTile(null);
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") dismiss();
-    };
-    document.addEventListener("pointerdown", dismiss, true);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", dismiss, true);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [pressedTile]);
+  useEffect(() => () => clearTimeout(holdTimer.current), [board, canHoldTile]);
+  function cancelPress(pointerId: number) {
+    if (press.current?.pointerId !== pointerId) return;
+    clearTimeout(holdTimer.current);
+    press.current = null;
+    canceledTap.current = true;
+  }
   const words = useMemo(
-    () => (scoreTile === null ? undefined : wordScores?.(scoreTile)),
-    [scoreTile, wordScores],
+    () => (hoveredTile === null ? undefined : wordScores?.(hoveredTile)),
+    [hoveredTile, wordScores],
   );
   const wordTiles = new Set(words?.flatMap(({ cells }) => cells));
   const n = template.size,
@@ -107,7 +104,7 @@ export default function Board({
       style={{ "--size": n } as CSSProperties}
     >
       <div
-        className={`board-grid ${paint ? "paint-board" : ""} ${placed.size ? "has-move-preview" : ""}${wordScores ? " with-word-scores" : ""}`}
+        className={`board-grid ${paint ? "paint-board" : ""} ${placed.size ? "has-move-preview" : ""}`}
         aria-label={`${template.name} board`}
         data-preview-player={placed.size ? previewPlayer : undefined}
         onPointerOver={
@@ -166,61 +163,53 @@ export default function Board({
                         : selected === i
                   }
                   onPointerDown={(e) => {
-                    if (e.isPrimary === false) return;
+                    if (e.isPrimary === false || e.button !== 0) return;
                     clearTimeout(holdTimer.current);
                     canceledTap.current = false;
-                    touch.current = null;
+                    press.current = null;
+                    const touch = e.pointerType === "touch";
+                    const holdTile = canHoldTile && !!board[i];
                     // Keep the current input focused on desktop. Touch waits
                     // for click, after the browser finishes its focus handling.
-                    if (keepInputFocus && e.pointerType !== "touch")
-                      e.preventDefault();
-                    if (keepInputFocus && e.pointerType === "touch") {
-                      touch.current = {
+                    if (keepInputFocus && !touch) e.preventDefault();
+                    if (touch) setHoveredTile(null);
+                    if ((keepInputFocus && touch) || holdTile) {
+                      press.current = {
                         index: i,
+                        pointerId: e.pointerId,
                         x: e.clientX,
                         y: e.clientY,
-                        repeat: selected === i,
+                        repeat: touch ? selected === i : undefined,
                       };
-                      if (wordScores) {
-                        setHoveredTile(null);
-                        if (board[i]) {
-                          holdTimer.current = setTimeout(() => {
-                            canceledTap.current = true;
-                            setPressedTile(i);
-                          }, WORD_SCORE_HOLD_MS);
-                        }
-                      }
+                    }
+                    if (holdTile) {
+                      holdTimer.current = setTimeout(() => {
+                        canceledTap.current = true;
+                        holdAction.current?.(i);
+                      }, TILE_HOLD_MS);
                     }
                   }}
                   onPointerMove={(e) => {
+                    const active = press.current;
                     if (
-                      e.isPrimary !== false &&
-                      touch.current &&
-                      Math.hypot(
-                        e.clientX - touch.current.x,
-                        e.clientY - touch.current.y,
-                      ) > 10
-                    ) {
-                      clearTimeout(holdTimer.current);
-                      setPressedTile(null);
-                      touch.current = null;
-                      canceledTap.current = true;
-                    }
+                      active &&
+                      active.pointerId === e.pointerId &&
+                      Math.hypot(e.clientX - active.x, e.clientY - active.y) > 10
+                    ) cancelPress(e.pointerId);
                   }}
                   onPointerUp={(e) => {
-                    if (e.isPrimary !== false) clearTimeout(holdTimer.current);
+                    if (press.current?.pointerId === e.pointerId)
+                      clearTimeout(holdTimer.current);
                   }}
-                  onPointerCancel={(e) => {
-                    if (e.isPrimary === false) return;
-                    clearTimeout(holdTimer.current);
-                    setPressedTile(null);
-                    touch.current = null;
-                    canceledTap.current = true;
+                  onPointerCancel={(e) => cancelPress(e.pointerId)}
+                  onPointerLeave={(e) => {
+                    if (e.pointerType !== "touch" && press.current?.index === i)
+                      cancelPress(e.pointerId);
                   }}
                   onContextMenu={
-                    wordScores && board[i]
+                    canHoldTile && board[i]
                       ? (e) => {
-                          if (touch.current?.index === i) e.preventDefault();
+                          if (press.current?.index === i) e.preventDefault();
                         }
                       : undefined
                   }
@@ -229,18 +218,18 @@ export default function Board({
                   }}
                   onKeyDown={() => {
                     clearTimeout(holdTimer.current);
-                    touch.current = null;
+                    press.current = null;
                     canceledTap.current = false;
                   }}
                   onClick={(e) => {
                     clearTimeout(holdTimer.current);
-                    const tap = touch.current;
-                    touch.current = null;
+                    const tap = press.current;
+                    press.current = null;
+                    if (keepInputFocus) e.preventDefault();
                     if (canceledTap.current) {
                       canceledTap.current = false;
                       return;
                     }
-                    if (keepInputFocus) e.preventDefault();
                     // Do not focus on pointerup: Safari may move focus again
                     // before click. Remember the pre-blur selection instead.
                     onSelect?.(i, tap?.index === i ? tap.repeat : undefined);

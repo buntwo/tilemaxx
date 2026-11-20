@@ -9,7 +9,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
-import { ArrowDown, ArrowRight, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import Board from "./Board";
 import { parseBoardCoordinate } from "./BoardCoordinates";
 import {
@@ -17,6 +17,7 @@ import {
   inferBoardEntryDirection,
 } from "../../shared/board-entry";
 import { boardWordsAt } from "../../shared/game-scoring";
+import { moveLocation } from "../../shared/notation";
 import { rackLetters } from "../../shared/rack-entry";
 import {
   coordinate,
@@ -218,7 +219,9 @@ export function BoardInput({
   const n = template.size;
   const tile = selected === null ? "" : board[selected];
   const isBlank = Boolean(tile && tile === tile.toLowerCase());
-  const cursor = focused && selected !== null ? coordinate(selected, n) : "";
+  const cursor = focused && selected !== null
+    ? moveLocation({ row: Math.floor(selected / n), col: selected % n, direction })
+    : "";
   const toggleMark = readOnly ? undefined : moveFilter?.onToggle;
   const locating = coordinateQuery !== null && !readOnly && !toggleMark;
   const target = locating ? parseBoardCoordinate(coordinateQuery, n) : null;
@@ -446,12 +449,16 @@ export function BoardInput({
   function toggleBlank() {
     coordinatePrefix.current = null;
     if (selected === null) return;
-    if (tile) {
-      const next = [...board];
-      next[selected] = isBlank ? tile.toUpperCase() : tile.toLowerCase();
-      save(next, "blank");
-    } else setPendingBlank((v) => !v);
+    if (tile) togglePlacedBlank(selected);
+    else setPendingBlank((v) => !v);
     focus();
+  }
+  function togglePlacedBlank(index: number) {
+    const letter = board[index];
+    if (!letter) return;
+    const next = [...board];
+    next[index] = letter === letter.toLowerCase() ? letter.toUpperCase() : letter.toLowerCase();
+    save(next, "blank");
   }
 
   return (
@@ -473,6 +480,10 @@ export function BoardInput({
         markedSquares={moveFilter?.marks}
         selectingSquares={!!toggleMark}
         onSelect={toggleMark ?? select}
+        onTileHold={readOnly || toggleMark || locating ? undefined : (index) => {
+          resetHistory();
+          togglePlacedBlank(index);
+        }}
         entryDirection={direction}
         pendingBlank={pendingBlank}
         uncertain={uncertain}
@@ -607,24 +618,6 @@ export function BoardInput({
         </div>
         <div className="direct-entry-actions">
           <button
-            className="text-button direction-button"
-            disabled={readOnly || locating}
-            aria-label="Toggle entry direction"
-            title="Right/Down switches direction; Shift+Enter also toggles"
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() => {
-              toggleDirection();
-              focus();
-            }}
-          >
-            {direction === "across" ? (
-              <ArrowRight size={16} />
-            ) : (
-              <ArrowDown size={16} />
-            )}
-            {direction === "across" ? "Across" : "Down"}
-          </button>
-          <button
             className={`text-button ${pendingBlank || isBlank ? "active" : ""}`}
             disabled={readOnly || locating || selected === null}
             aria-label={`Blank tile: ${pendingBlank || isBlank ? "on" : "off"}`}
@@ -667,7 +660,7 @@ export function BoardEntryHelp({
 }) {
   return (
     <p id={id} className="direct-entry-help" hidden={hidden}>
-      Tap again to turn · Space then letter = blank · . skips a square
+      Tap again to turn · Hold a tile to toggle blank · Space then letter = blank · . skips a square
     </p>
   );
 }
