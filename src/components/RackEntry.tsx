@@ -36,6 +36,7 @@ import ExchangeAnalysis, { type ExchangeBingoEstimate } from "./ExchangeAnalysis
 import OptimalExchange from "./OptimalExchange";
 import ExchangeSuggestion, { exchangeAdviceDetail, type SwapAdvice } from "./ExchangeSuggestion";
 import OpponentRack from "./OpponentRack";
+import TilePool from "./TilePool";
 
 const SENTINEL = "\u200b";
 const EXCHANGE_CACHE_LIMIT = 16;
@@ -81,6 +82,8 @@ export default function RackEntry({
   const [cursor, setCursor] = useState(game.rack.length);
   const [focused, setFocused] = useState(false);
   const [selectAll, setSelectAll] = useState(false);
+  const [tilePoolOpen, setTilePoolOpen] = useState(false);
+  const tilePoolId = useId();
   const [mode, setMode] = useState<
     "entry" | "exclude" | "require" | "exchange"
   >("entry");
@@ -653,16 +656,19 @@ export default function RackEntry({
             >
               <Shuffle size={16} aria-hidden="true" />
             </button>
-            <span
+            <button
+              type="button"
               className="rack-bag"
-              role="img"
-              aria-label={bagLabel}
+              aria-label={`Unseen tiles, ${bagLabel}`}
+              aria-controls={tilePoolId}
+              aria-expanded={tilePoolOpen}
               title={bagLabel}
               data-empty={bagCount === 0 || undefined}
               data-digits={String(bagCount).length}
+              onClick={() => setTilePoolOpen((open) => !open)}
             >
               {bagCount}
-            </span>
+            </button>
           </>
         )}
       </div>
@@ -906,6 +912,12 @@ export default function RackEntry({
           }
         />
       )}
+      <TilePool
+        game={game}
+        id={tilePoolId}
+        open={tilePoolOpen}
+        onOpenChange={setTilePoolOpen}
+      />
     </div>
   );
 }
