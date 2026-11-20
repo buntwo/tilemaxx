@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { History } from "lucide-react";
+import { History, Info } from "lucide-react";
 import { opponentNameMatches } from "../../shared/game-index";
-import { localDate, MAX_GAME_NOTES, type Game } from "../../shared/model";
+import { localDate, MAX_GAME_NOTES, type Dictionary, type Game } from "../../shared/model";
 import { gamePlatforms } from "../premium-palettes";
 
 export function FullMoveHistoryIcon() {
@@ -44,6 +44,55 @@ export function GameMetadata({
         "Date not set"
       )}
     </>
+  );
+}
+
+export function GameOptionDetails({
+  game,
+  board,
+  dictionaries,
+  disabled,
+  onChooseDictionary,
+  onAboutWordLists,
+}: {
+  game: Pick<Game, "archived" | "startedOn" | "dictionaryId" | "notes">;
+  board: string;
+  dictionaries: readonly Dictionary[];
+  disabled: boolean;
+  onChooseDictionary: (id: string) => void;
+  onAboutWordLists: () => void;
+}) {
+  return (
+    <dl className="game-option-details">
+      {game.archived && <><dt>Status</dt><dd>Archived</dd></>}
+      <dt>Started</dt>
+      <dd><GameMetadata game={{ startedOn: game.startedOn }} /></dd>
+      <dt>Board</dt>
+      <dd>{board}</dd>
+      <dt><label htmlFor="game-option-dictionary">Word list</label></dt>
+      <dd className="game-word-list">
+        <select
+          id="game-option-dictionary"
+          aria-label="Game dictionary"
+          disabled={disabled}
+          value={game.dictionaryId}
+          onChange={(event) => onChooseDictionary(event.currentTarget.value)}
+        >
+          {dictionaries.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+        </select>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="About word lists"
+          title="About word lists"
+          disabled={disabled}
+          onClick={onAboutWordLists}
+        >
+          <Info size={15} aria-hidden="true" />
+        </button>
+      </dd>
+      {game.notes && <><dt>Notes</dt><dd className="game-option-notes">{game.notes}</dd></>}
+    </dl>
   );
 }
 

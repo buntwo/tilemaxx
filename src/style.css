@@ -1084,9 +1084,10 @@ label + label {
   padding: 14px;
 }
 .game-picker-trigger {
-  display: flex;
-  align-items: center;
-  gap: 9px;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 2px;
   max-width: 100%;
   min-height: 44px;
   padding: 0;
@@ -1097,6 +1098,13 @@ label + label {
   letter-spacing: inherit;
   text-align: left;
   border-radius: 4px;
+}
+.game-picker-trigger-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 .game-picker-title {
   min-width: 0;
@@ -1113,6 +1121,7 @@ label + label {
 }
 .game-picker-count {
   display: grid;
+  flex: none;
   min-width: 21px;
   height: 21px;
   padding-inline: 5px;
@@ -1303,79 +1312,9 @@ label + label {
 .board-thumbnail .thumbnail-premium {
   fill-opacity: 0.45;
 }
-.game-notes {
-  margin-top: 7px;
-  max-width: 55ch;
-  font-size: 12px;
-}
-.game-notes summary {
-  width: fit-content;
-  color: var(--primary);
-  cursor: pointer;
-}
-.game-notes p {
-  margin-top: 5px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.game-picker-label small,
-.game-title-meta {
+.game-picker-label small {
   color: var(--muted);
   font-size: 12px;
-}
-.game-title-meta > div {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.game-title-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 2px 8px;
-  margin-top: 3px;
-}
-.game-title-meta > span {
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--soft);
-}
-.game-word-list,
-.game-word-list label {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  max-width: 100%;
-  gap: 4px;
-}
-.game-word-list label {
-  flex-direction: row;
-  white-space: nowrap;
-  font: inherit;
-}
-.game-word-list select {
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-weight: 500;
-  text-overflow: ellipsis;
-}
-.game-word-list .icon-button {
-  flex: none;
-  width: 24px;
-  height: 24px;
-}
-.game-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-}
-.game-actions > button {
-  font-size: 11px;
-  min-height: 35px;
-  padding: 6px 8px;
 }
 .score-panel {
   margin-top: 12px;
@@ -1635,11 +1574,6 @@ label + label {
   display: flex;
   align-items: center;
   gap: 7px;
-}
-.manage-button {
-  font-size: 11px;
-  padding: 8px 12px;
-  min-height: 35px;
 }
 .workspace-grid {
   display: grid;
@@ -3584,6 +3518,29 @@ label + label {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+.game-options-modal .modal-heading {
+  margin-bottom: 14px;
+}
+.game-option-details {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 6px 12px;
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.game-option-details dt { color: var(--muted); }
+.game-option-details dd { margin: 0; overflow-wrap: anywhere; }
+.game-option-notes { white-space: pre-wrap; }
+.game-word-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.game-word-list select { min-width: 0; }
+.game-word-list .icon-button { flex: none; }
 .game-option-list > button {
   width: 100%;
   display: flex;
@@ -3592,7 +3549,8 @@ label + label {
   background: none;
   border: 0;
   border-bottom: 1px solid var(--line);
-  padding: 20px 2px;
+  min-height: 44px;
+  padding: 10px 2px;
   text-align: left;
 }
 .keyboard-shortcuts {
@@ -4017,13 +3975,6 @@ label + label {
   .eyebrow {
     font-size: 8px;
     letter-spacing: 1.4px;
-  }
-  .manage-button span {
-    display: none;
-  }
-  .manage-button {
-    min-width: 34px;
-    padding: 6px;
   }
   .board-wrap {
     padding: 11px 12px 4px 5px;
@@ -5916,70 +5867,43 @@ label + label {
 }
 .sidebar .profile-picker { padding-top: 12px; }
 .game-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   max-width: 1260px;
-  padding: 12px 0 10px;
+  padding: 10px 0 8px;
 }
 .stacked-game :is(.game-heading, .workspace-grid) {
   max-width: 620px;
   margin-inline: auto;
 }
-.stacked-game .game-heading-details {
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 2px 6px;
+.game-heading .game-title-row { grid-column: 1; }
+.game-heading .game-title-score { grid-column: 2; justify-self: center; }
+.game-heading .game-options-button {
+  grid-column: 3;
+  justify-self: end;
+  width: 28px;
+  height: 28px;
+  padding: 0;
 }
-.stacked-game .game-heading-details > :is(.game-title-meta, .game-notes) {
-  grid-column: 1 / -1;
-}
-.stacked-game .game-actions { flex: none; }
-.compact-game .game-heading {
-  display: grid;
-  grid-template-columns: var(--game-workspace-columns);
-  column-gap: var(--game-workspace-gap);
-}
-.compact-game .game-heading-details {
-  display: flex;
-  align-items: center;
-  gap: 5px 10px;
-  flex-wrap: wrap;
-}
-.compact-game .game-heading-details:has(.game-scoreboard) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  gap: 0 8px;
-}
-.compact-game .game-heading-details:has(.game-scoreboard) h1 {
+.game-heading h1 {
   font-size: clamp(21px, 2vw, 27px);
+  line-height: 1.15;
 }
-.game-title-row > h1 {
+.archived-game-title { min-width: 0; }
+.archived-game-title h1,
+.game-heading-platform {
   display: block;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.compact-game .game-heading-details:has(.game-scoreboard) .game-title-meta {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0 4px;
-}
-.compact-game .game-title-meta > div:first-child,
-.compact-game .board-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.compact-game .game-word-list {
-  grid-column: 1 / -1;
-}
-.compact-game .game-word-list select {
-  padding-block: 2px;
-  padding-inline: 4px;
-}
-.compact-game .game-heading-details .game-notes {
-  grid-column: 1 / -1;
+.game-heading-platform {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: normal;
 }
 .game-scoreboard {
   justify-content: center;
@@ -5989,31 +5913,24 @@ label + label {
   line-height: 1;
 }
 .game-scoreboard[data-outcome="untracked"] { font-size: 16px; }
-.compact-game .game-heading .game-title-meta { margin: 0; }
-.compact-game .game-heading .game-actions {
-  align-items: center;
-  flex-wrap: nowrap;
-  min-width: 0;
-}
-.compact-game .game-actions > button {
-  flex: none;
+.board-column > .board-toolbar {
+  border-top: 1px solid var(--line);
+  padding-inline: 2px;
 }
 .compact-game .board-name {
-  display: block;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
 }
 .compact-game .board-name svg {
-  margin-right: 5px;
+  margin-inline-end: 5px;
   vertical-align: -3px;
 }
 .compact-game :is(.board-size, .board-help, .board-actions) {
   flex: none;
   white-space: nowrap;
-}
-@media (max-width: 1280px) {
-  .compact-game .restore-game > span {
-    display: none;
-  }
 }
 .board-help { position: relative; }
 .board-help > summary { list-style: none; }
@@ -6051,26 +5968,40 @@ label + label {
 }
 .phone-layout.stacked-game :is(.game-heading, .workspace-grid) { max-width: 480px; }
 .phone-layout .game-heading {
-  padding: 6px 0 9px;
-  gap: 5px;
+  padding: 5px 0 4px;
+  gap: 2px;
 }
-.phone-layout .game-heading h1 { font-size: clamp(21px, 6vw, 25px); }
-.phone-layout .game-heading .game-title-score:not(.game-scoreboard) {
+.phone-layout .game-heading .game-title-row { gap: 2px; }
+.phone-layout .game-heading h1 { font-size: 17px; letter-spacing: -.3px; }
+.phone-layout .game-picker-trigger-line { gap: 3px; }
+.phone-layout .game-picker-chevron { width: 12px; height: 12px; }
+.phone-layout .game-picker-menu { width: min(340px, calc(100vw - 76px)); }
+.phone-layout .game-heading .game-title-score {
   justify-content: center;
-  min-height: 39px;
+  min-height: 34px;
+  padding-inline: 4px;
+  font-size: 14px;
+}
+.phone-layout .game-heading .game-score-totals { gap: 2px; padding-inline: 0; }
+.phone-layout .game-heading .game-title-score[data-turn] .game-score-totals {
   padding-inline: 6px;
-  font-size: 16px;
 }
-/* Phone badges have 6px horizontal padding: 6 + 7 = 13px. */
-.phone-layout .game-heading .game-title-score:not(.game-scoreboard) .game-score-turn-marker[data-player="you"] {
-  inset-inline-start: 7px;
-}
-.phone-layout .game-heading .game-title-score:not(.game-scoreboard) .game-score-turn-marker[data-player="opponent"] {
-  inset-inline-end: 7px;
-}
+.phone-layout .game-heading .game-score-turn-marker { width: 5px; height: 5px; }
+.phone-layout .game-heading .game-score-turn-marker[data-player="you"] { inset-inline-start: 2px; }
+.phone-layout .game-heading .game-score-turn-marker[data-player="opponent"] { inset-inline-end: 2px; }
+.phone-layout .game-heading .game-score-turn-marker > span { width: 1px; height: 1px; }
 .phone-layout .game-heading .game-score-replay { min-height: 44px; }
-.phone-layout .game-title-meta { margin-top: 0; }
-.phone-layout .manage-button { min-width: 44px; min-height: 44px; }
+.phone-layout .game-heading .game-options-button,
+.phone-layout .game-word-list .icon-button { width: 44px; height: 44px; }
+@media (max-width: 360px) {
+  .phone-layout .game-heading { margin-inline: -6px; }
+  .phone-layout .game-heading .game-title-row { gap: 1px; }
+  .phone-layout .game-heading h1 { font-size: 13px; letter-spacing: -.4px; }
+  .phone-layout .game-heading-platform { font-size: 11px; }
+  .phone-layout .game-heading :is(.game-picker-chevron, .game-picker-count, .full-move-history) {
+    display: none;
+  }
+}
 .phone-layout .archived-game-back { margin-top: 4px; }
 .phone-layout .board-panel {
   position: relative;

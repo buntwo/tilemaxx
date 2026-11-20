@@ -345,7 +345,7 @@ export default function GamePicker({
             aria-label="Switch game"
             aria-keyshortcuts="Alt+F"
             aria-description={
-              game?.fullMoveHistory ? "Full move history" : undefined
+              [game?.platform, game?.fullMoveHistory && "Full move history"].filter(Boolean).join(". ") || undefined
             }
             aria-expanded={open}
             aria-haspopup="menu"
@@ -363,24 +363,27 @@ export default function GamePicker({
               }
             }}
           >
-            <span className="game-picker-title">
-              {game?.name ?? "Select a game"}
-            </span>
-            {game?.fullMoveHistory && <FullMoveHistoryIcon />}
-            <ChevronRight
-              className="game-picker-chevron"
-              size={18}
-              aria-hidden="true"
-            />
-            {open && (
-              <span
-                className="game-picker-count"
-                aria-hidden="true"
-                title={`${games.length} active ${games.length === 1 ? "game" : "games"}`}
-              >
-                {games.length}
+            <span className="game-picker-trigger-line">
+              <span className="game-picker-title">
+                {game?.name ?? "Select a game"}
               </span>
-            )}
+              {game?.fullMoveHistory && <FullMoveHistoryIcon />}
+              <ChevronRight
+                className="game-picker-chevron"
+                size={18}
+                aria-hidden="true"
+              />
+              {open && (
+                <span
+                  className="game-picker-count"
+                  aria-hidden="true"
+                  title={`${games.length} active ${games.length === 1 ? "game" : "games"}`}
+                >
+                  {games.length}
+                </span>
+              )}
+            </span>
+            {game?.platform && <span className="game-heading-platform">{game.platform}</span>}
           </button>
         ) : (
           (game?.name ?? "No active games")
