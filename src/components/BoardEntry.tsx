@@ -264,6 +264,8 @@ export function BoardInput({
     };
   }, [defining]);
   const target = locating ? parseBoardCoordinate(coordinateQuery, n) : null;
+  const directionHint = direction === "across" ? "Down" : "Across";
+  const repeatHint = `${phoneLayout ? "Tap" : "Click"} again: ${directionHint}`;
   const instruction = pendingBlank
     ? "Type a blank’s letter"
     : atEnd
@@ -271,7 +273,7 @@ export function BoardInput({
         ? "Board edge"
         : "Board edge — choose another square"
       : historyControls
-        ? "Space: blank · Period: skip"
+        ? `Space: blank${skipPlayedTiles ? " · Period: skip" : ""} · ${repeatHint}`
         : "Type to enter";
   const status = defining
     ? "Tap a tile in a word"
