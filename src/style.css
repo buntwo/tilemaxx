@@ -6318,6 +6318,7 @@ label + label {
 .board-warnings {
   display: flex;
   align-items: flex-start;
+  justify-content: center;
   gap: 7px;
   margin: 8px;
   padding: 2px 8px;
