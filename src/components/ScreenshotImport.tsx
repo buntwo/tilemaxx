@@ -570,6 +570,7 @@ export default function ScreenshotImport({
               ) : (
                 <>
                   <BoardInput
+                    showTileEditButtons
                     template={
                       includePremiums
                         ? {

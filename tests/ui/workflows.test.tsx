@@ -2080,9 +2080,10 @@ test("direct entry, skip existing letters, blanks, erase, undo/redo and persiste
   ]).toEqual(["A", "R", "t"]);
   expect(cell("I10: T blank").classList.contains("blank")).toBe(true);
   await user.click(cell("I10: T blank"));
-  await user.click(cell("Blank tile: on"));
+  await user.keyboard("T");
   expect(current().board[143]).toBe("T");
-  await user.click(cell("Erase selected tile"));
+  await user.click(cell("I10: T"));
+  await user.keyboard("{Delete}");
   expect(current().board[143]).toBe("");
   await user.click(cell("Undo"));
   expect(current().board[143]).toBe("T");
@@ -2242,10 +2243,10 @@ test("repeat tap toggles direction and controls preserve the same input focus", 
   const input = entry();
   expect(selectedCell()).toBe("32");
   expect(document.activeElement).toBe(input);
-  expect(screen.getByText("3C · Type to enter")).toBeTruthy();
+  expect(screen.getByText("3C · Space: blank · .: skip")).toBeTruthy();
   await user.click(cell("C3: DW"));
   expect(boardDirection()).toBe("Down");
-  expect(screen.getByText("C3 · Type to enter")).toBeTruthy();
+  expect(screen.getByText("C3 · Space: blank · .: skip")).toBeTruthy();
   expect(selectedCell()).toBe("32");
   expect(document.activeElement).toBe(input);
   fireEvent.input(input, {
@@ -2770,13 +2771,8 @@ test.each(["phone Define", "desktop Define", "desktop right-click"] as const)("l
   const user = await start(phone ? 390 : 1200);
   const tile = await screen.findByRole("button", { name: "K8: E blank" });
   const empty = cell("B1: empty");
-  if (phone) {
-    expect(screen.queryByRole("button", { name: /^Blank tile:/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Erase selected tile" })).toBeNull();
-  } else {
-    expect(cell("Blank tile: off")).toBeTruthy();
-    expect(cell("Erase selected tile")).toBeTruthy();
-  }
+  expect(screen.queryByRole("button", { name: /^Blank tile:/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Erase selected tile" })).toBeNull();
   if (phone) {
     await user.click(tile);
     expect(document.activeElement).toBe(entry());
@@ -4155,7 +4151,7 @@ test("the phone layout keeps settings, the build version, board help and move fi
   expect(entryTools?.contains(main.getByRole("button", { name: "Define" }))).toBe(true);
   await user.click(cell("H8: DW, start"));
   await user.keyboard("C");
-  expect(main.getByText("8I · Type to enter")).toBeTruthy();
+  expect(main.getByText("8I · Space: blank · .: skip")).toBeTruthy();
   await user.click(undo);
   expect(current().board[112]).toBe("");
   await user.click(redo);
@@ -4732,7 +4728,7 @@ test("typing the opponent's last tile shows the adjusted loss and locks the boar
   expect(square).toHaveProperty("disabled", true);
   expect(entry()).toHaveProperty("disabled", true);
   expect(undo).toHaveProperty("disabled", true);
-  expect(board.getByRole("button", { name: "Erase selected tile" })).toHaveProperty("disabled", true);
+  expect(board.getByRole("button", { name: "Define" })).toHaveProperty("disabled", true);
   await user.click(square);
   await user.keyboard("Z{Backspace}");
   await user.click(undo);
@@ -4957,7 +4953,7 @@ test("on a phone the score updates before choosing a reply and a missing tile ca
   expect(scoreTotals()).toBe("0–12");
 });
 
-test("the board blank control corrects recorded scores and saves with undo and redo", async () => {
+test("holding a board tile corrects recorded scores and saves with undo and redo", async () => {
   const user = await start();
   const scores = within(screen.getByRole("region", { name: "Game scores" }));
   await user.click(cell("H8: DW, start"));
@@ -4969,8 +4965,16 @@ test("the board blank control corrects recorded scores and saves with undo and r
   await user.click(scores.getByText("Tracked move history"));
   const points = () => within(scores.getByRole("table", { name: "Tracked moves" }))
     .getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[2].textContent);
-  await user.click(cell("H8: C, start"));
-  await user.click(cell("Blank tile: off"));
+  const tile = cell("H8: C, start");
+  vi.useFakeTimers();
+  try {
+    touch(tile, "pointerdown", { pointerType: "mouse" });
+    act(() => vi.advanceTimersByTime(500));
+    touch(tile, "pointerup", { pointerType: "mouse" });
+    fireEvent.click(tile);
+  } finally {
+    vi.useRealTimers();
+  }
   expect(cell("H8: C blank, start")).toBeTruthy();
   expect(scoreTotals()).toBe("3–4");
   expect(points()).toEqual(["3", "4"]);
@@ -5005,7 +5009,7 @@ test("correcting the last opponent play updates the board, Last play, and histor
   await user.click(scores.getByText("Tracked move history"));
 
   await user.click(cell("H8: C, start"));
-  await user.click(cell("Blank tile: off"));
+  await user.keyboard(" C");
   const blank = cell("H8: C blank, start");
   expect(within(blank).getByText("0")).toBeTruthy();
   expect(scoreTotals()).toBe("0–4");
@@ -5024,32 +5028,21 @@ test("correcting the last opponent play updates the board, Last play, and histor
   await user.click(cell("Redo"));
   expect(lastPlay("CAT", 4)).toBeTruthy();
   await user.click(cell("H8: C blank, start"));
-  await user.click(cell("Blank tile: on"));
+  await user.keyboard("C");
   expect(lastPlay("CAT", 10)).toBeTruthy();
 
-  // Space marks the typed replacement as blank without using the hold gesture.
   await user.click(cell("H8: C, start"));
-  await user.keyboard(" C");
+  await user.keyboard("{Delete} C");
   expect(lastPlay("CAT", 4)).toBeTruthy();
   expect(latestMove()).toEqual([["1", "", "4", "(4) cAT"]]);
+  expect(cell("Edit last opponent move")).toBeTruthy();
 
   await user.click(cell("H8: C blank, start"));
-  await user.click(cell("Erase selected tile"));
+  await user.keyboard("{Delete}");
   expect(scoreTotals()).toBe("0–0");
   await user.keyboard("C");
   expect(lastPlay("CAT", 10)).toBeTruthy();
   expect(latestMove()).toEqual([["1", "", "10", "(10) CAT"]]);
-
-  await user.click(cell("H8: C, start"));
-  await user.keyboard("{Delete}");
-  await user.click(cell("Blank tile: off"));
-  await user.keyboard("C");
-  expect(lastPlay("CAT", 4)).toBeTruthy();
-  expect(latestMove()).toEqual([["1", "", "4", "(4) cAT"]]);
-  expect(cell("Edit last opponent move")).toBeTruthy();
-  await user.click(cell("H8: C blank, start"));
-  await user.keyboard("C");
-  expect(lastPlay("CAT", 10)).toBeTruthy();
 
   await user.click(cell("J8: T"));
   await user.keyboard("B");

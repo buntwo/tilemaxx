@@ -144,6 +144,7 @@ export function BoardInput({
   readOnly = false,
   skipPlayedTiles = false,
   phoneLayout = false,
+  showTileEditButtons = false,
   wordScores,
   definitionLanguage,
   moveFilter,
@@ -170,6 +171,7 @@ export function BoardInput({
   readOnly?: boolean;
   skipPlayedTiles?: boolean;
   phoneLayout?: boolean;
+  showTileEditButtons?: boolean;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
   definitionLanguage?: DefinitionLanguage;
   moveFilter?: MoveFilterSelection;
@@ -268,7 +270,9 @@ export function BoardInput({
       ? historyControls
         ? "Board edge"
         : "Board edge — choose another square"
-      : "Type to enter";
+      : historyControls
+        ? "Space: blank · .: skip"
+        : "Type to enter";
   const status = defining
     ? "Tap a tile in a word"
     : locating
@@ -687,7 +691,7 @@ export function BoardInput({
           {status}
         </div>
         <div className="direct-entry-actions">
-          {!phoneLayout && (
+          {showTileEditButtons && (
             <>
               <button
                 className={`text-button ${pendingBlank || isBlank ? "active" : ""}`}
