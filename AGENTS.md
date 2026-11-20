@@ -18,8 +18,8 @@
 
 ## Playing-style models
 
-- Keep Casual, Word-list learner, and Strong club player simple. Rank the moves each style spots with an additive utility and use special cases sparingly.
-- Casual and Word-list learner use static evaluation of the generated moves. Keep sampling and extra board solves out of those profiles. Strong may use bounded extra computation after cheap screening, on a shortlist of at most five candidates.
+- Keep Casual, Word-List Learner, and Strong Club Player simple. Rank the moves each style spots with an additive utility and use special cases sparingly.
+- Casual and Word-List Learner use static evaluation of the generated moves. Keep sampling and extra board solves out of those profiles. Strong may use bounded extra computation after cheap screening, on a shortlist of at most five candidates.
 - After changing a profile, run paired self-play with shared bag shuffles and swapped opening seats. Report all three head-to-head matchups with wins, losses, ties, and final spread. Include mean and median points per placement, points per turn, available, spotted, and played bingos, passes with legal moves, exchanges, top-score choice rate, representative decisions, and separate move generation and profile timings. Keep top raw score and sampled reply-adjusted points as separate baselines.
 
 ## Git and deployment
