@@ -52,7 +52,7 @@ export const guideFigures: GuideFigure[] = [
         x: 645,
         y: 701,
         name: "Board control strip",
-        hint: "Change entry direction, mark blanks, erase, undo, or redo.",
+        hint: "Check the selected square, mark blanks, erase, undo, or redo.",
       },
       {
         x: 345,

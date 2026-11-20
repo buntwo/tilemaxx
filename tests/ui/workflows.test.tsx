@@ -1943,6 +1943,11 @@ const selectedCell = () =>
   document
     .querySelector(".board-entry .square.selected")
     ?.getAttribute("data-cell");
+function boardDirection() {
+  const arrow = document.querySelector(".board-entry .entry-arrow svg");
+  if (arrow?.classList.contains("lucide-arrow-right")) return "Across";
+  if (arrow?.classList.contains("lucide-arrow-down")) return "Down";
+}
 
 test.each(["phone", "desktop"])(
   "the %s game footer shows and copies the current game's ID",
@@ -2041,7 +2046,7 @@ test("direct entry, skip existing letters, blanks, erase, undo/redo and persiste
 
 test("click and Alt+B share direction detection within the physical rack size", async () => {
   const user = await start();
-  const direction = () => cell("Toggle entry direction").textContent;
+  const direction = boardDirection;
   await user.click(cell("G8: empty"));
   await user.keyboard("CAT");
   await user.click(cell("G6: empty"));
@@ -2092,19 +2097,19 @@ test("right/down switch direction first, then advance; left/up always move witho
   expect(selectedCell()).toBe("113");
   await user.keyboard("{ArrowDown}");
   expect(selectedCell()).toBe("113");
-  expect(cell("Toggle entry direction").textContent).toContain("Down");
+  expect(boardDirection()).toBe("Down");
   await user.keyboard("{ArrowDown}");
   expect(selectedCell()).toBe("128");
   await user.keyboard("{ArrowLeft}{ArrowUp}");
   expect(selectedCell()).toBe("112");
-  expect(cell("Toggle entry direction").textContent).toContain("Down");
+  expect(boardDirection()).toBe("Down");
   await user.keyboard("{ArrowRight}");
   expect(selectedCell()).toBe("112");
-  expect(cell("Toggle entry direction").textContent).toContain("Across");
+  expect(boardDirection()).toBe("Across");
   await user.keyboard("{ArrowRight}");
   expect(selectedCell()).toBe("113");
   await user.keyboard("{Shift>}{Enter}{/Shift}");
-  expect(cell("Toggle entry direction").textContent).toContain("Down");
+  expect(boardDirection()).toBe("Down");
 });
 
 test("Enter on the board finds moves using the just-entered play and existing rack", async () => {
@@ -2118,7 +2123,7 @@ test("Enter on the board finds moves using the just-entered play and existing ra
   await user.click(cell("H8: DW, start"));
   expect(entry().getAttribute("enterkeyhint")).toBe("search");
   await user.keyboard("{Shift>}{Enter}{/Shift}");
-  expect(cell("Toggle entry direction").textContent).toContain("Down");
+  expect(boardDirection()).toBe("Down");
   expect(cell("Find moves")).toHaveProperty("disabled", false);
 
   await user.keyboard("{ArrowRight}CAT{Enter}");
@@ -2133,9 +2138,8 @@ test("a phone keyboard’s Shift flag on Enter still finds moves on the first pr
   await user.click(cell("H8: DW, start"));
   expect(entry().getAttribute("autocapitalize")).toBe("off");
   await user.keyboard("cat");
+  expect(boardDirection()).toBe("Across");
   fireEvent.keyDown(entry(), { key: "Enter", shiftKey: true });
-
-  expect(cell("Toggle entry direction").textContent).toContain("Across");
   expect(await screen.findByRole("button", { name: /^CATS, / })).toBeTruthy();
 });
 
@@ -2189,8 +2193,10 @@ test("repeat tap toggles direction and controls preserve the same input focus", 
   const input = entry();
   expect(selectedCell()).toBe("32");
   expect(document.activeElement).toBe(input);
+  expect(screen.getByText("3C · Type to enter")).toBeTruthy();
   await user.click(cell("C3: DW"));
-  expect(cell("Toggle entry direction").textContent).toContain("Down");
+  expect(boardDirection()).toBe("Down");
+  expect(screen.getByText("C3 · Type to enter")).toBeTruthy();
   expect(selectedCell()).toBe("32");
   expect(document.activeElement).toBe(input);
   fireEvent.input(input, {
@@ -2201,7 +2207,7 @@ test("repeat tap toggles direction and controls preserve the same input focus", 
   expect(current().board[32]).toBe("A");
   expect(selectedCell()).toBe("47");
   expect(entry()).toBe(input);
-  await user.click(cell("Toggle entry direction"));
+  await user.keyboard("{Shift>}{Enter}{/Shift}");
   expect(document.activeElement).toBe(input);
   await user.keyboard(" ");
   expect(document.querySelector(".pending-blank")).toBeTruthy();
@@ -2454,7 +2460,7 @@ test("focus moves between board, rack and moves without leaving an inactive curs
   expect(document.querySelector(".rack-tile.selected")).toBeNull();
   expect(selectedCell()).toBe("114");
   // Returning to the same square after blur must not turn the direction.
-  expect(cell("Toggle entry direction").textContent).toContain("Across");
+  expect(boardDirection()).toBe("Across");
   await user.click(screen.getByRole("heading", { name: "Possible moves" }));
   expect(selectedCell()).toBeUndefined();
   await user.click(cell("J8: empty"));
@@ -2643,7 +2649,7 @@ test("touch waits for click to focus the keyboard and toggles using selection fr
   fireEvent.click(square, { detail: 1 });
   expect(selectedCell()).toBe("112");
   expect(document.activeElement).toBe(entry());
-  expect(cell("Toggle entry direction").textContent).toContain("Across");
+  expect(boardDirection()).toBe("Across");
   touch(square, "pointerdown");
   touch(square, "pointerup");
   // Exercise a browser that transfers focus after pointerup, before click.
@@ -2653,18 +2659,18 @@ test("touch waits for click to focus the keyboard and toggles using selection fr
   fireEvent.mouseUp(square);
   fireEvent.click(square, { detail: 1 });
   expect(document.activeElement).toBe(entry());
-  expect(cell("Toggle entry direction").textContent).toContain("Down");
+  expect(boardDirection()).toBe("Down");
   expect(selectedCell()).toBe("112");
   touch(square, "pointerdown");
   touch(square, "pointerup");
   fireEvent.click(square, { detail: 1 });
-  expect(cell("Toggle entry direction").textContent).toContain("Across");
+  expect(boardDirection()).toBe("Across");
   await user.click(rackTile(1));
   expect(selectedCell()).toBeUndefined();
   touch(square, "pointerdown");
   touch(square, "pointerup");
   fireEvent.click(square, { detail: 1 });
-  expect(cell("Toggle entry direction").textContent).toContain("Across");
+  expect(boardDirection()).toBe("Across");
   await user.keyboard("CAT");
   expect(current().board.slice(112, 115).join("")).toBe("CAT");
   expect(current().past).toHaveLength(1);
@@ -2684,24 +2690,25 @@ test("scroll gestures and canceled board touches do not select or turn a square"
   expect(selectedCell()).toBeUndefined();
 });
 
-test("holding a played tile reveals its word score without editing and a tap still edits", async () => {
-  const user = await start();
+test.each(["touch", "mouse"])("a %s hold toggles a placed blank without moving the board cursor", async (pointerType) => {
+  const user = await start(pointerType === "touch" ? 390 : 1200);
   await user.click(cell("H8: DW, start"));
   await user.keyboard("CAT");
   await user.click(rackTile(1));
   const played = cell("I8: A");
-  const scores = () => document.querySelectorAll(".board-word-score");
+  const pointer = (type: string, extra = {}) => touch(played, type, { pointerType, ...extra });
 
   vi.useFakeTimers();
   try {
     const waitForHold = () => act(() => vi.advanceTimersByTime(500));
-    touch(played, "pointerdown");
-    touch(played, "pointermove", { clientY: 65 });
-    touch(played, "pointercancel");
+    pointer("pointerdown");
+    pointer("pointermove", { clientY: 65 });
+    pointer("pointercancel");
     waitForHold();
-    expect(scores()).toHaveLength(0);
+    expect(current().board[113]).toBe("A");
+    expect(selectedCell()).toBeUndefined();
 
-    touch(played, "pointerdown");
+    pointer("pointerdown");
     const context = new MouseEvent("contextmenu", {
       bubbles: true,
       cancelable: true,
@@ -2709,23 +2716,35 @@ test("holding a played tile reveals its word score without editing and a tap sti
     fireEvent(played, context);
     expect(context.defaultPrevented).toBe(true);
     waitForHold();
-    expect(scores()[0]?.textContent).toBe("10");
-    touch(played, "pointerup");
+    expect(cell("I8: A blank")).toBe(played);
+    expect(current().board[113]).toBe("a");
+    pointer("pointerup");
     fireEvent.click(played);
     expect(document.activeElement).not.toBe(entry());
     expect(selectedCell()).toBeUndefined();
-    expect(scores()).toHaveLength(1);
 
-    touch(played, "pointerdown");
-    touch(played, "pointerup");
+    fireEvent.click(cell("K8: empty"));
+    expect(selectedCell()).toBe("115");
+    pointer("pointerdown");
+    waitForHold();
+    pointer("pointerup");
+    fireEvent.click(played);
+    expect(current().board[113]).toBe("A");
+    expect(selectedCell()).toBe("115");
+    expect(document.activeElement).toBe(entry());
+
+    pointer("pointerdown");
+    pointer("pointerup");
     fireEvent.click(played);
     waitForHold();
-    expect(scores()).toHaveLength(0);
+    expect(current().board[113]).toBe("A");
     expect(selectedCell()).toBe("113");
     expect(document.activeElement).toBe(entry());
   } finally {
     vi.useRealTimers();
   }
+  await user.click(cell("Undo"));
+  expect(current().board[113]).toBe("a");
 });
 
 test("rack typo correction and persisted gaps keep subsequent tiles fixed and still solve", async () => {
@@ -3988,11 +4007,11 @@ test("the phone layout keeps settings, the build version, board help and move fi
   const entryTools = undo.closest(".direct-entry-actions");
   expect(main.getByText("Tap a square and type").closest(".direct-entry-tools")).toBeTruthy();
   expect(entryTools?.contains(redo)).toBe(true);
-  expect(entryTools?.contains(main.getByRole("button", { name: "Toggle entry direction" }))).toBe(true);
+  expect(main.queryByRole("button", { name: "Toggle entry direction" })).toBeNull();
   expect(entryTools?.contains(main.getByRole("button", { name: "Blank tile: off" }))).toBe(true);
   await user.click(cell("H8: DW, start"));
   await user.keyboard("C");
-  expect(main.getByText("I8 · Type to enter")).toBeTruthy();
+  expect(main.getByText("8I · Type to enter")).toBeTruthy();
   await user.click(undo);
   expect(current().board[112]).toBe("");
   await user.click(redo);
@@ -4545,7 +4564,7 @@ test("typing the opponent's last tile shows the adjusted loss and locks the boar
   const board = within(screen.getByRole("region", { name: "Game board" }));
   await board.findByRole("button", { name: /^H8: C/ });
   await user.click(board.getByRole("button", { name: /^J8:/ }));
-  expect(board.getByRole("button", { name: "Toggle entry direction" }).textContent).toBe("Across");
+  expect(boardDirection()).toBe("Across");
   await user.keyboard("T");
   expect(board.queryByRole("heading", { name: "You lose" })).toBeNull();
   expect(document.activeElement).toBe(entry());
@@ -4569,7 +4588,6 @@ test("typing the opponent's last tile shows the adjusted loss and locks the boar
   expect(square).toHaveProperty("disabled", true);
   expect(entry()).toHaveProperty("disabled", true);
   expect(undo).toHaveProperty("disabled", true);
-  expect(board.getByRole("button", { name: "Toggle entry direction" })).toHaveProperty("disabled", true);
   expect(board.getByRole("button", { name: "Erase selected tile" })).toHaveProperty("disabled", true);
   await user.click(square);
   await user.keyboard("Z{Backspace}");
@@ -4664,7 +4682,6 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   expect(titleScore()?.closest(".game-title-row")).toBeNull();
   const boardStrip = cell("Undo").closest(".board-panel .direct-entry-tools");
   expect(boardStrip?.contains(cell("Redo"))).toBe(true);
-  expect(boardStrip?.contains(cell("Toggle entry direction"))).toBe(true);
   expect(boardStrip?.textContent).toContain("Tap a square and type");
   expect(heading?.querySelector(".board-undo, .board-redo")).toBeNull();
 
@@ -5437,7 +5454,7 @@ test("Alt+B defaults to across on an empty board and groups the entered word", a
   const labels = () => [...overlay()!.querySelectorAll(".board-coordinate-label[data-match]")];
   await user.click(cell("H8: DW, start"));
   await user.keyboard("{ArrowDown}");
-  expect(cell("Toggle entry direction").textContent).toBe("Down");
+  expect(boardDirection()).toBe("Down");
 
   const rack = screen.getByRole("textbox", { name: "Rack letters" });
   await user.click(rackTile(1));
@@ -5476,7 +5493,7 @@ test("coordinate entry stops at edges, distinguishes two-digit rows, and can be 
   await user.keyboard("a{ArrowLeft}{ArrowRight}{ArrowLeft}");
   expect(status()).toContain("Column A");
   await user.keyboard("1");
-  expect(status()).toContain("A1");
+  expect(status()).toContain("1A");
   expect(overlay()).toBeNull();
   expect(selectedCell()).toBe("0");
   await user.keyboard("5");
@@ -5495,7 +5512,7 @@ test("coordinate entry stops at edges, distinguishes two-digit rows, and can be 
   await user.keyboard("h1");
   expect(overlay()).toBeNull();
   expect(selectedCell()).toBe("7");
-  expect(cell("Toggle entry direction").textContent).toBe("Across");
+  expect(boardDirection()).toBe("Across");
 
   await startCoordinate();
   await user.keyboard("h0");

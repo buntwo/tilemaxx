@@ -296,13 +296,14 @@ label + label {
   align-items: center;
   gap: 2px;
   margin-block-end: 36px;
-  margin-inline-end: min(0px, calc((var(--sidebar-width) - 220px) * .75));
 }
 .sidebar-collapse {
   flex: none;
   width: 44px;
   height: 44px;
   margin-inline-start: auto;
+  /* Center the 20px icon in its tap target and align it with New game. */
+  margin-inline-end: -12px;
   padding: 8px;
   border-radius: 14px;
 }
@@ -1765,11 +1766,6 @@ label + label {
   gap: 7px;
   font-size: 10px;
   color: var(--muted);
-}
-.direction-button {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--primary);
 }
 .entry-form {
   display: flex;
@@ -3707,7 +3703,6 @@ label + label {
   padding: 28px 18px;
   box-shadow: 10px 0 50px #0003;
 }
-.sidebar-overlay .sidebar-heading { margin-inline-end: 0; }
 .sidebar-scrim {
   position: fixed;
   inset: 0;
@@ -4355,7 +4350,7 @@ label + label {
   --word-highlight: light-dark(#dceccf, #b5d1a5);
   background-color: var(--word-highlight);
 }
-.board-grid.with-word-scores .square.occupied:not(.ghost) {
+.board-entry .square.occupied:not(.ghost) {
   -webkit-touch-callout: none;
 }
 .square.word-hover.blank {
@@ -5711,11 +5706,12 @@ label + label {
   justify-content: center;
   min-height: 44px;
   padding: 4px 5px;
-  font-size: 14px;
+  font-size: clamp(16px, 4.35vw, 18px);
 }
+.phone-layout .game-heading .game-score-delta { font-size: 12px; }
 .phone-layout .game-heading .game-score-totals { gap: 2px; padding-inline: 0; }
 .phone-layout .game-heading .game-title-score[data-turn] .game-score-totals {
-  padding-inline: 6px;
+  padding-inline: 8px;
 }
 .phone-layout .game-heading .game-score-turn-marker { width: 5px; height: 5px; }
 .phone-layout .game-heading .game-score-turn-marker[data-player="you"] { inset-inline-start: 2px; }
@@ -5750,10 +5746,6 @@ label + label {
   min-width: 36px;
 }
 .with-board-history .direct-entry-actions > .text-button { padding-inline: 4px; }
-.with-board-history .direct-entry-actions > .direction-button {
-  gap: 3px;
-  padding-inline: 2px;
-}
 .with-board-history .direct-entry-status {
   --board-status-line-height: 12px;
   min-width: 0;
@@ -5763,9 +5755,18 @@ label + label {
   line-height: var(--board-status-line-height);
 }
 .board-panel .board-import {
+  position: relative;
   flex: none;
   width: 30px;
   height: var(--board-strip-control-height);
+  margin-inline-end: 4px;
+}
+.board-import::after {
+  content: "";
+  position: absolute;
+  inset-block: 8px;
+  inset-inline-end: 0;
+  border-inline-end: 1px solid var(--line);
 }
 .board-panel .board-import:focus-visible { outline-offset: -2px; }
 .with-board-history .board-import + .direct-entry-status { padding-inline-start: 0; }
