@@ -269,7 +269,7 @@ export function BoardInput({
         ? "Board edge"
         : "Board edge — choose another square"
       : historyControls
-        ? `Space: blank${skipPlayedTiles ? " · Period: skip" : ""} · ${repeatHint}`
+        ? `Space: blank${skipPlayedTiles ? "" : " · Period: skip"} · ${repeatHint}`
         : "Type to enter";
   const status = defining
     ? `${phoneLayout ? "Tap" : "Click"} a tile in a word`
