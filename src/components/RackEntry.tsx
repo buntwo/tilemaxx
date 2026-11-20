@@ -56,8 +56,7 @@ export default function RackEntry({
   positionKey,
   exchangeAdvice,
   bagCount,
-  exchangeBag,
-  exchangeBagConfirmed,
+  bagConfirmed,
   exchangeScorelessTurns,
   opponentRack,
   preview,
@@ -72,8 +71,7 @@ export default function RackEntry({
   positionKey: string;
   exchangeAdvice?: SwapAdvice;
   bagCount: number;
-  exchangeBag: number;
-  exchangeBagConfirmed: boolean;
+  bagConfirmed: boolean;
   exchangeScorelessTurns: number;
   opponentRack: string;
   preview?: Move | null;
@@ -106,7 +104,7 @@ export default function RackEntry({
   const requireMode = mode === "require";
   const exchangeMode = mode === "exchange";
   const reviewing = !!onReviewEdit;
-  const bagLabel = `${bagCount} estimated ${bagCount === 1 ? "tile" : "tiles"} in the bag`;
+  const bagLabel = `${bagCount}${bagConfirmed ? "" : " estimated"} ${bagCount === 1 ? "tile" : "tiles"} in the bag`;
   const tools = useRef<HTMLDetailsElement>(null);
   const openExchange = useRef<{ reveal: boolean }>(null);
   const exchangeButton = useRef<HTMLButtonElement>(null);
@@ -142,11 +140,11 @@ export default function RackEntry({
   const exchangeSlots = Object.keys(exchangeMarks)
     .map(Number)
     .filter((i) => game.rack[i] === exchangeMarks[i]);
-  const optimalKey = JSON.stringify([slotKey, exchangeBag, exchangeScorelessTurns]);
+  const optimalKey = JSON.stringify([slotKey, bagCount, exchangeScorelessTurns]);
   const exchangeKey = JSON.stringify([optimalKey, exchangeSlots]);
   const activeSimulation =
     simulation?.key === exchangeKey ? simulation : undefined;
-  const canOpenOptimal = !opponentRack && exchangeBag > 0;
+  const canOpenOptimal = !opponentRack && bagCount > 0;
   const bingoMinimum = minimumBingoTiles(game.template);
   const enoughBingoTiles = splitRack(game).available.length >= bingoMinimum;
   const showingOptimal = canOpenOptimal && enoughBingoTiles && optimalOpen?.key === optimalKey;
@@ -863,7 +861,7 @@ export default function RackEntry({
         <OptimalExchange
           key={optimalKey}
           game={game}
-          bag={exchangeBag}
+          bag={bagCount}
           scorelessTurns={exchangeScorelessTurns}
           restoredResult={optimalOpen.result}
           onClose={() => {
@@ -889,8 +887,8 @@ export default function RackEntry({
           key={exchangeKey}
           game={game}
           slots={exchangeSlots}
-          bagSize={exchangeBag}
-          bagAssumed={!exchangeBagConfirmed}
+          bagSize={bagCount}
+          bagAssumed={!bagConfirmed}
           cachedResult={exchangeResults?.get(exchangeKey)}
           bingoEstimate={activeSimulation.bingoEstimate}
           onResult={cacheExchangeResult}

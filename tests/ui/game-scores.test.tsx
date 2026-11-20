@@ -101,6 +101,8 @@ test("archived score markers follow the saved final result while the board is be
 
 test("the score chart pairs adjacent plays and carries forward the score for a missing reply", () => {
   const game = gameWithScores(107, 67);
+  game.scoring!.you.moves = 2;
+  game.scoring!.opponent.moves = 1;
   game.trackedMoves = [
     { player: "opponent", word: "RATION", score: 67, at: "2026-11-17" },
     { player: "you", word: "PLANTED", score: 80, bingo: true, at: "2026-11-17" },
@@ -146,6 +148,8 @@ test("the score chart pairs adjacent plays and carries forward the score for a m
 
 test("consecutive plays by one player stay distinct in an older archived history", () => {
   const game = gameWithScores(54, 32);
+  game.scoring!.you.moves = 1;
+  game.scoring!.opponent.moves = 2;
   game.archived = true;
   game.past = ([
     { player: "opponent", label: "RAT", score: 12 },
@@ -167,4 +171,24 @@ test("consecutive plays by one player stay distinct in an older archived history
   expect(slider.getAttribute("aria-valuetext")).toBe(
     "Move 1. You 0 points. Opponent 12 points, RAT for 12 points",
   );
+});
+
+
+test("the score chart starts over after a scoring reset and keeps the saved move log", () => {
+  const game = gameWithScores(0, 70);
+  game.scoring!.historyStart = 1;
+  game.scoring!.opponent.moves = 1;
+  game.trackedMoves = [
+    { player: "opponent", word: "OLD", score: 30, at: "2026-11-17" },
+    { player: "opponent", word: "STEALER", score: 70, bingo: true, at: "2026-11-18" },
+  ];
+  const { rerender } = show(game);
+  expect(screen.getByRole("slider").getAttribute("aria-valuetext")).toBe(
+    "Move 2. You 0 points. Opponent 70 points, STEALER for 70 points, bingo",
+  );
+  expect(screen.getByText("Tracked move history").parentElement?.textContent).toContain("(2)");
+  const scoring = { ...emptyScoring(), historyStart: 2 };
+  rerender(<GameScores game={{ ...game, scoring }} onToggle={vi.fn()} onRecord={vi.fn()}
+    onCorrection={vi.fn()} onChange={vi.fn()} />);
+  expect(screen.queryByRole("figure", { name: "Score by move" })).toBeNull();
 });

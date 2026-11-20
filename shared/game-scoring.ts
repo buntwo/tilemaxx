@@ -970,11 +970,14 @@ export function trackReenteredTiles(
   if (!tracksScores(game) || !board.some((tile, i) => tile && !game.board[i]))
     return;
   const finished = Boolean(displayedGameScoring(game)?.end);
-  for (let i = game.past.length - 1; i >= 0; i--) {
-    const entry = game.past[i];
+  let original = game;
+  while (original.past.length) {
+    const entry = original.past.at(-1)!;
     if (!boardEditLabels.has(entry.label) || entry.player) return;
+    // Walk back with the board, scores, and move log from the same checkpoint.
+    original = undo(original);
     if (entry.label !== BOARD_EDIT_LABELS.erase) {
-      if (entry.trackedMoves) return;
+      if (entry.trackedMoves && !finished) return;
       continue;
     }
 
@@ -982,22 +985,17 @@ export function trackReenteredTiles(
     // Finished games also need the pre-erase board because they have no pending base.
     if (!entry.trackedMoves && !finished) continue;
     if (!entry.scoring || entry.scoring.pendingBase) return;
-    if (!board.every((tile, i) => Boolean(tile) === Boolean(entry.board[i])))
+    if (!board.every((tile, i) => Boolean(tile) === Boolean(entry.board[i]))) {
+      // A finished position may have been erased in several separate edits.
+      if (finished) continue;
       return;
-
-    const original = {
-      ...game,
-      board: entry.board,
-      past: game.past.slice(0, i),
-      scoring: entry.scoring,
-      trackedMoves: entry.trackedMoves ?? game.trackedMoves,
-    };
+    }
     if (!finished && !lastSearchRecordedOpponentTurn(original)) return;
     const corrected = trackBoardEdit(original, board);
     if (corrected.scoring?.pendingBase) return;
     return {
       scoring: corrected.scoring,
-      trackedMoves: corrected.trackedMoves ?? entry.trackedMoves,
+      trackedMoves: corrected.trackedMoves ?? original.trackedMoves,
     };
   }
 }
@@ -1358,7 +1356,7 @@ export function correctTrackedMove(
   return { ...game, ...history, past, trackedMoves: next, scoring };
 }
 
-function currentScoreStart(game: Game, moves: readonly TrackedMove[]) {
+export function currentScoreStart(game: Game, moves: readonly TrackedMove[]) {
   const { scoring } = game;
   if (scoring?.historyStart !== undefined && !scoring.imported)
     return scoring.historyStart;

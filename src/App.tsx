@@ -413,17 +413,19 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     },
     showGuide: () => openDialog("keyboard-shortcuts"),
   });
-  const availableUpdate = useAutoUpdate(
+  const updateBusy =
+    state.pending.length > 0 ||
+    !!dialog ||
+    formBusy ||
+    solver.calculating ||
+    styleExchange.pending ||
+    replyAnalysis.calculating ||
+    calculating ||
+    !!activeFlight;
+  const appUpdate = useAutoUpdate(
     state.online ? state.serverVersion : undefined,
     preferences.autoUpdate,
-    state.pending.length > 0 ||
-      !!dialog ||
-      formBusy ||
-      solver.calculating ||
-      styleExchange.pending ||
-      replyAnalysis.calculating ||
-      calculating ||
-      !!activeFlight,
+    updateBusy,
   );
   const moveReview = useMoveReview(
     narrowLayout && workspace === "games" && !gameOver,
@@ -1049,21 +1051,30 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               </button>
               <span className="app-version">
                 v{version}
-                {!preferences.autoUpdate && availableUpdate && (
-                  <span
+                {!preferences.autoUpdate && appUpdate.availableVersion && (
+                  <button
+                    type="button"
                     className="app-update-icon"
-                    role="img"
-                    aria-label={`Update available · v${availableUpdate}`}
-                    tabIndex={0}
+                    disabled={updateBusy || appUpdate.updating}
+                    aria-label="Update and reload"
+                    aria-description={`Version ${appUpdate.availableVersion} is available.`}
+                    onClick={appUpdate.requestUpdate}
                   >
                     <CircleArrowUp size={14} aria-hidden="true" />
                     <span className="app-update-tooltip" aria-hidden="true">
-                      Update available · v{availableUpdate}
+                      {appUpdate.updating
+                        ? "Updating…"
+                        : updateBusy
+                          ? "Update available when Tilemaxx is idle"
+                          : "Update and reload"}
                     </span>
-                  </span>
+                  </button>
                 )}
               </span>
             </div>
+            {!preferences.autoUpdate && appUpdate.updateError && (
+              <p className="app-update-error" role="status">{appUpdate.updateError}</p>
+            )}
           </div>
           <div className="profile-picker">
             {profile && (
@@ -1403,9 +1414,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   onReviewEdit={moveReview.showing ? editPosition : undefined}
                   positionKey={signature}
                   exchangeAdvice={exchangeAdvice}
-                  bagCount={replyAnalysis.minimumBag}
-                  exchangeBag={replyAnalysis.bagSize}
-                  exchangeBagConfirmed={replyAnalysis.bagConfirmed}
+                  bagCount={replyAnalysis.bagSize}
+                  bagConfirmed={replyAnalysis.bagConfirmed}
                   exchangeScorelessTurns={replyAnalysis.scorelessTurns}
                   opponentRack={replyAnalysis.opponentRack}
                   preview={

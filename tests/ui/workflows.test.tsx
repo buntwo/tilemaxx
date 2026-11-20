@@ -5492,12 +5492,12 @@ test("the existing one-worker preference enables the editable limit at one", asy
   expect(settings.getByText("Compute worker limit").nextElementSibling?.textContent).toBe("1");
 });
 
-test("the version shows an available update when automatic updates are off", async () => {
+test("the version offers a manual update when automatic updates are off", async () => {
   const user = await start();
   const settings = () => within(screen.getByRole("dialog", { name: "Settings" }));
   const autoUpdate = () =>
     settings().getByRole("checkbox", { name: "Automatically reload when an update is available" });
-  const updateIcon = () => screen.queryByRole("img", { name: /^Update available/ });
+  const updateIcon = () => screen.queryByRole("button", { name: "Update and reload" });
   await user.click(cell("Settings"));
   await user.click(autoUpdate());
   await user.click(settings().getByRole("button", { name: "Close dialog" }));
@@ -5509,8 +5509,30 @@ test("the version shows an available update when automatic updates are off", asy
   remote.version = `${major}.${minor}.${patch + 1}`;
   await act(() => store.refresh());
   expect(updateIcon()?.parentElement).toBe(screen.getByText(`v${version}`));
-  expect(updateIcon()?.textContent?.trim()).toBe(`Update available · v${remote.version}`);
+  expect(updateIcon()?.textContent?.trim()).toBe("Update and reload");
+  expect(updateIcon()?.getAttribute("aria-description")).toBe(`Version ${remote.version} is available.`);
   expect(updateIcon()?.tabIndex).toBe(0);
+
+  const visible = vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+  const reloadAttempt = vi.fn();
+  const setItem = Storage.prototype.setItem;
+  const storage = vi.spyOn(Storage.prototype, "setItem").mockImplementation(
+    function (this: Storage, key, value) {
+      if (this === sessionStorage && key === "tilemaxx:automatic-update-attempt") {
+        reloadAttempt(value);
+        throw new Error("Navigation blocked by test");
+      }
+      setItem.call(this, key, value);
+    },
+  );
+  try {
+    expect(reloadAttempt).not.toHaveBeenCalled();
+    await user.click(updateIcon()!);
+    await waitFor(() => expect(reloadAttempt).toHaveBeenCalledWith(`${version} → ${remote.version}`));
+  } finally {
+    storage.mockRestore();
+    visible.mockRestore();
+  }
 
   await user.click(cell("Settings"));
   await user.click(autoUpdate());
@@ -5660,6 +5682,22 @@ test("Option+U and Option+Y undo and redo game history", async () => {
   await user.click(guide.getByRole("button", { name: "Close dialog" }));
   await user.keyboard("{Alt>}y{/Alt}");
   expect(placed()).toBe("CAT");
+});
+
+test("Alt+B leaves Define mode and focuses coordinate entry", async () => {
+  const game = remote.games[0];
+  game.board.splice(game.template.start, 3, ..."CAT");
+  game.revision++;
+  const user = await start();
+  await screen.findByRole("button", { name: "H8: C, start" });
+  await user.click(cell("Define"));
+  expect(entry()).toHaveProperty("disabled", true);
+  await user.keyboard("{Alt>}b{/Alt}");
+  expect(entry()).toHaveProperty("disabled", false);
+  expect(document.activeElement).toBe(entry());
+  await user.keyboard("h6");
+  expect(selectedCell()).toBe("82");
+  expect(document.querySelector(".board-grid[data-defining]")).toBeNull();
 });
 
 test("Alt+B defaults to across on an empty board and groups the entered word", async () => {
@@ -5986,6 +6024,8 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
     screen.getByRole("button", { name: "Update reply analysis" }),
   );
   expect(opponentRack()).toBeNull();
+  if (!phone)
+    expect(panel.getByRole("button", { name: "Unseen tiles, 1 tile in the bag" }).textContent).toBe("1");
   expect(panel.queryByText("You")).toBeNull();
   expect(panel.queryByText("Opponent")).toBeNull();
   expect(screen.getByRole("heading", { name: "Possible moves" })).toBeTruthy();
