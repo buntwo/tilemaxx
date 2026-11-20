@@ -1,7 +1,10 @@
+import type { BingoStyle } from "../shared/bingo-styles";
+import { laneOpeningBonus, LANE_MIN_BAG } from "../shared/tactician-lanes";
 import { sampleBingoDeals, type BingoDeal } from "../shared/bingo-replies";
 import {
   chooseHunterCandidates,
   chooseHunterFinalists,
+  dealUtility,
   exactHunterDeals,
   hunterClose,
   hunterPool,
@@ -12,6 +15,8 @@ import {
   HUNTER_INITIAL,
   HUNTER_MAX,
   HUNTER_SCORE_LEADERS,
+  TACTICIAN_FINALISTS,
+  type HunterOutcome,
   type HunterPosition,
   type RankedHunterMove,
 } from "../shared/bingo-hunter";
@@ -27,7 +32,7 @@ import { createCandidatePool } from "./candidate-analysis-pool";
 import { createBingoCeilingSearch } from "./parallel-bingo-ceilings";
 
 export type HunterStageProgress = {
-  phase: "exact" | "screen" | "screen-replies" | "sample" | "checkpoint" | "refine" | "ceiling-discovery" | "ceiling-replies";
+  phase: "exact" | "screen" | "screen-replies" | "sample" | "follow-up" | "checkpoint" | "refine" | "ceiling-discovery" | "ceiling-replies";
   done: number;
   total: number;
 };
@@ -49,7 +54,8 @@ const MAX_EXACT_MOVES = 4_096;
 const MAX_EXACT_EVALUATIONS = 750_000;
 const now = () => performance.timeOrigin + performance.now();
 
-type Scores = Map<Move, number[]>;
+const LANE_DEALS = [0, 1, 2, 3].map(index => index * HUNTER_INITIAL / 4);
+type Scores = Map<Move, HunterOutcome[]>;
 const compareUtility = (a: RankedHunterMove, b: RankedHunterMove) =>
   b.utility.total - a.utility.total || b.utility.playPoints - a.utility.playPoints;
 type Phase =
@@ -57,6 +63,7 @@ type Phase =
   | "screen"
   | "screen-replies"
   | "sample"
+  | "follow-up"
   | "checkpoint"
   | "refine"
   | "ceilings"
@@ -68,10 +75,12 @@ export function createBingoHunterSession(
   moves: readonly Move[],
   odds: RackOdds | undefined,
   workerLimit: number,
+  style: BingoStyle = "bingo-hunter",
 ) {
   const { pool, opponentSize } = hunterPool(position);
   const { template, bagSize } = position;
   const limit = Math.min(workerLimit, 8);
+  const tactician = style === "tactician";
   const draw = Math.min(bagSize, template.rackSize);
   const seed = profileWordHash(
     `${position.board.join(".")}:${rackComposition(position.rack)}:${bagSize}`,
@@ -105,13 +114,19 @@ export function createBingoHunterSession(
       : { screen: moves, base: moves, laneOrder: [], limited: false };
   const boardScores: Scores = new Map(),
     replyScores: Scores = new Map(),
-    exactScores: Scores = new Map();
+    exactScores: Scores = new Map(),
+    followUpScores: Scores = new Map();
   const needsScreen = wide.screen.length > HUNTER_CANDIDATES;
   const stages: HunterProgress["phase"][] = [];
-  if (exact) stages.push("exact");
-  else {
+  if (exact) {
+    stages.push("exact");
+    if (tactician) stages.push("follow-up");
+  } else {
     if (needsScreen) stages.push("screen", "screen-replies");
-    stages.push("sample", "checkpoint", "refine", "ceiling-discovery", "ceiling-replies");
+    stages.push("sample");
+    if (tactician) stages.push("follow-up");
+    stages.push("checkpoint", "refine");
+    if (!tactician) stages.push("ceiling-discovery", "ceiling-replies");
   }
   let limited = wide.limited;
   let phase: Phase = !moves.length
@@ -144,6 +159,7 @@ export function createBingoHunterSession(
     deals: readonly BingoDeal[],
     count: number,
     enumerate = false,
+    tactics?: "reply" | "follow-up",
   ) {
     return slate
       .map(
@@ -155,6 +171,7 @@ export function createBingoHunterSession(
             scores.get(move)?.slice(0, count) ?? [],
             deals,
             enumerate,
+            tactics,
           ),
         }),
       )
@@ -163,7 +180,7 @@ export function createBingoHunterSession(
 
   function shortlist() {
     const before = rank(wide.screen, boardScores, draws, SCREEN_DEALS);
-    const after = rank(wide.screen, replyScores, common, REPLY_SCREEN_DEALS);
+    const after = rank(wide.screen, replyScores, common, REPLY_SCREEN_DEALS, false, tactician ? "reply" : undefined);
     const peaks = new Map(
       before.map(({ move, utility }) => [move, utility.highestBingo]),
     );
@@ -185,34 +202,55 @@ export function createBingoHunterSession(
 
   function snapshot() {
     const deals = exact ?? common;
-    const scores = exact ? exactScores : replyScores;
+    const baseScores = exact ? exactScores : replyScores;
     const sampleFloor = Math.min(
       MIN_PROVISIONAL_DEALS,
-      sharedCount(candidates, scores) || MIN_PROVISIONAL_DEALS,
+      sharedCount(candidates, baseScores) || MIN_PROVISIONAL_DEALS,
     );
     // A prefix of the exact enumeration can bias the estimate. Publish a move
     // only after all of its weighted deals have been checked.
     const comparable = candidates.filter(
       (move) =>
-        (scores.get(move)?.length ?? 0) >= (exact?.length ?? sampleFloor),
+        (baseScores.get(move)?.length ?? 0) >= (exact?.length ?? sampleFloor),
     );
-    const count = sharedCount(comparable, scores);
-    const rows = rank(comparable, scores, deals, count, !!exact);
-    const finalistSet = new Set(finalists);
+    const count = sharedCount(comparable, baseScores);
+    const followUpCount = sharedCount(finalists, followUpScores);
+    const refinedTactics = tactician && followUpCount >= (exact?.length ?? MIN_PROVISIONAL_DEALS);
+    const scores = refinedTactics ? followUpScores : baseScores;
+    const rows = rank(comparable, baseScores, deals, count, !!exact, tactician ? "reply" : undefined);
     const finalistCount = sharedCount(finalists, scores);
-    const ranked = finalists.length
-      ? [
-          ...rank(finalists, scores, deals, finalistCount),
-          ...rows.filter(({ move }) => !finalistSet.has(move)),
-        ].sort(compareUtility)
-      : rows;
+    let ranked = rows;
+    if (refinedTactics) {
+      // Utility is comparable only among moves with complete follow-up data for the same deals.
+      ranked = rank(finalists, scores, deals, finalistCount, !!exact, "follow-up");
+      if (bagSize >= LANE_MIN_BAG && finalistCount > LANE_DEALS[LANE_DEALS.length - 1]) {
+        const bestChance = Math.max(...ranked.map(({ utility }) => utility.bingoChance));
+        for (const { move, utility } of ranked) {
+          const outcomes = scores.get(move)!;
+          const gain = LANE_DEALS.reduce((total, index) => {
+            const outcome = outcomes[index];
+            return total + (typeof outcome === "number" ? 0 : outcome.laneGain ?? 0);
+          }, 0) / LANE_DEALS.length;
+          const bonus = laneOpeningBonus(gain, bestChance);
+          utility.tactics!.laneBonus = bonus;
+          utility.total += bonus;
+        }
+        ranked.sort(compareUtility);
+      }
+    } else if (!tactician && finalists.length) {
+      const finalistSet = new Set(finalists);
+      ranked = [...rank(finalists, scores, deals, finalistCount),
+        ...rows.filter(({ move }) => !finalistSet.has(move))].sort(compareUtility);
+    }
     const [best, ...others] = ranked;
     if (best && !exact) {
+      const fixedPoints = (utility: RankedHunterMove["utility"]) =>
+        utility.weightedPlayPoints + (utility.tactics?.laneBonus ?? 0);
       for (const item of others) {
         item.utility.close = hunterClose(
-          best.utility.weightedPlayPoints - item.utility.weightedPlayPoints,
-          scores.get(best.move)!.slice(0, best.utility.samples),
-          scores.get(item.move)!.slice(0, item.utility.samples),
+          fixedPoints(best.utility) - fixedPoints(item.utility),
+          scores.get(best.move)!.slice(0, best.utility.samples).map(dealUtility),
+          scores.get(item.move)!.slice(0, item.utility.samples).map(dealUtility),
         );
         best.utility.close ||= item.utility.close;
       }
@@ -220,13 +258,13 @@ export function createBingoHunterSession(
     return {
       ranked: ranked.slice(0, HUNTER_CANDIDATES),
       summary: {
-        checked: comparable.length,
+        checked: ranked.length,
         limited,
         canContinue: phase !== "done",
         ceilingPass: phase === "ceilings",
         ceilings: ceilingSearch?.results(),
         finalistsRefined:
-          finalistCount > count && finalists.length < comparable.length,
+          refinedTactics || (finalistCount > count && finalists.length < comparable.length),
       } satisfies HunterSummary,
     };
   }
@@ -251,6 +289,7 @@ export function createBingoHunterSession(
       deals: BingoDeal[],
       target: number,
       label: HunterProgress["phase"],
+      followUp = false,
     ) {
       const pending = slate.filter(
         (move) => (scores.get(move)?.length ?? 0) < target,
@@ -261,22 +300,31 @@ export function createBingoHunterSession(
       report({ phase: label, done: checked, total: slate.length });
       await workers.run(
         pending.map(
-          (move): Extract<CandidateJob, { kind: "bingo-hunter" }> => ({
-            kind: "bingo-hunter",
-            position,
-            move,
-            beforeReply: label === "screen",
-            deals: deals.slice(scores.get(move)?.length ?? 0, target),
-            deadline,
-            wavesRemaining: 1,
-          }),
+          (move): Extract<CandidateJob, { kind: "bingo-hunter" }> => {
+            const offset = scores.get(move)?.length ?? 0;
+            return {
+              kind: "bingo-hunter",
+              position,
+              move,
+              beforeReply: label === "screen",
+              deals: deals.slice(offset, target),
+              tactics: tactician ? {
+                followUp,
+                laneDeals: followUp && bagSize >= LANE_MIN_BAG
+                  ? LANE_DEALS.filter(index => index >= offset && index < target).map(index => index - offset)
+                  : [],
+              } : undefined,
+              deadline,
+              wavesRemaining: 1,
+            };
+          },
         ),
         ({ move }, result) => {
           if (result.kind !== "bingo-hunter")
             throw new Error(
               result.kind === "error"
                 ? result.message
-                : "Bingo hunter could not finish a search.",
+                : "Could not finish the bingo analysis.",
             );
           const saved = scores.get(move) ?? [];
           if (result.outcomes.length) {
@@ -319,7 +367,11 @@ export function createBingoHunterSession(
               ))
             )
               return finish();
-            phase = "done";
+            if (tactician) {
+              finalists = rank(candidates, exactScores, exact!, exact!.length, true, "reply")
+                .slice(0, TACTICIAN_FINALISTS).map(({ move }) => move);
+            }
+            phase = tactician ? "follow-up" : "done";
             break;
           case "screen":
             if (
@@ -360,18 +412,25 @@ export function createBingoHunterSession(
             )
               return finish();
             finalists = chooseHunterFinalists(
-              rank(candidates, replyScores, common, HUNTER_INITIAL),
+              rank(candidates, replyScores, common, HUNTER_INITIAL, false, tactician ? "reply" : undefined),
+              tactician ? TACTICIAN_FINALISTS : undefined,
             ).map(({ move }) => move);
-            phase = "checkpoint";
+            phase = tactician ? "follow-up" : "checkpoint";
+            break;
+          case "follow-up":
+            if (!(await batch(finalists, followUpScores, exact ?? common, exact?.length ?? HUNTER_INITIAL, "follow-up", true)))
+              return finish();
+            phase = exact ? "done" : "checkpoint";
             break;
           case "checkpoint":
             if (
               !(await batch(
                 finalists,
-                replyScores,
+                tactician ? followUpScores : replyScores,
                 common,
                 HUNTER_CHECKPOINT,
                 "checkpoint",
+                tactician,
               ))
             )
               return finish();
@@ -381,15 +440,16 @@ export function createBingoHunterSession(
             if (
               !(await batch(
                 finalists,
-                replyScores,
+                tactician ? followUpScores : replyScores,
                 common,
                 HUNTER_MAX,
                 "refine",
+                tactician,
               ))
             )
               return finish();
             // Publish the normal ranking before spending time on long shots.
-            phase = "ceilings";
+            phase = tactician ? "done" : "ceilings";
             return finish();
           case "ceilings": {
             ceilingSearch ??= createBingoCeilingSearch(position,

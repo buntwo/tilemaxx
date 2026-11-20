@@ -1,3 +1,4 @@
+import { BINGO_STYLE_LABELS, isBingoStyle, type BingoStyle } from "../shared/bingo-styles";
 import { BINGO_HUNTER_SLICE_MS, createBingoHunterSession } from "./parallel-bingo-hunter";
 import { dictionaryText } from "./word-list-cache";
 import { Lexicon, parseWords } from "../shared/lexicon";
@@ -32,7 +33,7 @@ import { loadWordFrequencies } from "./word-frequencies";
 import { rackComposition } from "../shared/rack-entry";
 
 let activeHunter: { id: number; searchId: number; abort: AbortController; finished: Promise<unknown> } | undefined;
-let hunterSession: { searchId: number; key: string; lastId?: number; session: ReturnType<typeof createBingoHunterSession> } | undefined;
+const hunterSessions = new Map<BingoStyle, { searchId: number; key: string; lastId?: number; session: ReturnType<typeof createBingoHunterSession> }>();
 type SolveRequest = Extract<SolverRequest, { kind: "solve" }>;
 const results = new Map<number, MoveResultIndex & { position: SolveRequest; lexicon: Lexicon; odds?: ReturnType<RackBingoIndex["calculate"]> }>();
 let models: { lexicon: Lexicon; templateKey: string; choose: ReturnType<typeof createPlayerProfiles> } | undefined;
@@ -52,7 +53,7 @@ const ENDGAME_ESTIMATE_MOVE_MS = 80;
 async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind: "page" }>) {
   const result = results.get(searchId);
   const { profile, profileBagSize = 0, profileSeed = 0 } = query;
-  if (result && profile && profile !== "bingo-hunter" && !result.hasProfile(query)) {
+  if (result && profile && !isBingoStyle(profile) && !result.hasProfile(query)) {
     try {
       const frequencies = await loadWordFrequencies(result.position.template.rules);
       if (results.get(searchId) !== result) return post({ id, kind: "page" });
@@ -153,7 +154,8 @@ async function boardBingoOdds(
 }
 
 async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
-  const { id, searchId, bagSize, workerLimit } = request;
+  const { id, searchId, bagSize, workerLimit, style = "bingo-hunter" } = request;
+  const hunterSession = hunterSessions.get(style);
   const result = results.get(searchId);
   if (!result) {
     post({ id, kind: "bingo-hunter", error: "Find moves again to reload this position." });
@@ -163,7 +165,7 @@ async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
   const previous = activeHunter;
   if (request.resumeFrom !== undefined &&
     (hunterSession?.searchId !== searchId || hunterSession.key !== key || hunterSession.lastId !== request.resumeFrom)) {
-    post({ id, kind: "bingo-hunter", error: "This search has expired. Run Bingo hunter again." });
+    post({ id, kind: "bingo-hunter", error: `This search has expired. Run ${BINGO_STYLE_LABELS[style]} again.` });
     return;
   }
   previous?.abort.abort();
@@ -171,13 +173,13 @@ async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
   const started = performance.now();
   try {
     if (request.resumeFrom === undefined) {
-      hunterSession = {
+      hunterSessions.set(style, {
         searchId, key,
         session: createBingoHunterSession(result.lexicon, { ...result.position, ...request },
-          result.moves, result.odds, computeWorkerLimit(workerLimit)),
-      };
+          result.moves, result.odds, computeWorkerLimit(workerLimit), style),
+      });
     }
-    const current = hunterSession!;
+    const current = hunterSessions.get(style)!;
     const finished = (async () => {
       await previous?.finished.catch(() => {});
       return current.session.run(abort.signal,
@@ -187,13 +189,13 @@ async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
     })();
     activeHunter = { id, searchId, abort, finished };
     const { ranked, summary } = await finished;
-    if (abort.signal.aborted || hunterSession !== current) return;
+    if (abort.signal.aborted || hunterSessions.get(style) !== current) return;
     current.lastId = id;
-    result.setProfile({ profile: "bingo-hunter", profileBagSize: bagSize, profileSeed: id }, ranked);
+    result.setProfile({ profile: style, profileBagSize: bagSize, profileSeed: id }, ranked);
     post({ id, kind: "bingo-hunter", summary });
   } catch (error) {
     if (!abort.signal.aborted)
-      post({ id, kind: "bingo-hunter", error: error instanceof Error ? error.message : "Bingo hunter stopped unexpectedly." });
+      post({ id, kind: "bingo-hunter", error: error instanceof Error ? error.message : `${BINGO_STYLE_LABELS[style]} stopped unexpectedly.` });
   } finally {
     if (activeHunter?.id === id) activeHunter = undefined;
   }
@@ -209,7 +211,8 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       return;
     case "discard":
       if (activeHunter?.searchId === request.searchId) activeHunter.abort.abort();
-      if (hunterSession?.searchId === request.searchId) hunterSession = undefined;
+      for (const [style, session] of hunterSessions)
+        if (session.searchId === request.searchId) hunterSessions.delete(style);
       results.delete(request.searchId);
       return;
     case "cancel":

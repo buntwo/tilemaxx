@@ -1,3 +1,4 @@
+import { BINGO_STYLES, BINGO_STYLE_LABELS, isBingoStyle } from "../../shared/bingo-styles";
 import { useBingoHunter } from "../useBingoHunter";
 import type { HunterProgress } from "../parallel-bingo-hunter";
 import type { RunBingoHunter } from "../useSolver";
@@ -100,6 +101,7 @@ const hunterStageLabels: Record<HunterProgress["phase"], string> = {
   screen: "Screening bingo setups",
   "screen-replies": "Screening opponent replies",
   sample: "Simulating replies",
+  "follow-up": "Checking follow-up plays",
   checkpoint: "Comparing bingo finalists",
   refine: "Refining bingo estimates",
   "ceiling-discovery": "Finding high-scoring bingo setups",
@@ -357,11 +359,14 @@ export default function Results({
   const shortlistActive =
     !!analysisGame && !!resultSet && shortlistSearch === resultSet.searchId;
   const profile = resultSet && !shortlistActive ? playingStyle : undefined;
-  const hunterSelected = profile === "bingo-hunter";
+  const bingoStyle = isBingoStyle(profile) ? profile : undefined;
+  const hunterSelected = !!bingoStyle;
+  const hunterLabel = bingoStyle && BINGO_STYLE_LABELS[bingoStyle];
   const hunterKey = hunterSelected && resultSet?.total && !busy && !error && !invalid
-    ? JSON.stringify([analysisKey, resultSet.searchId, bagSize, scorelessTurns, replyAnalysis.opponentHasFinalTurn])
+    ? JSON.stringify([bingoStyle, analysisKey, resultSet.searchId, bagSize, scorelessTurns, replyAnalysis.opponentHasFinalTurn])
     : undefined;
   const hunter = useBingoHunter(hunterKey, runBingoHunter, {
+    style: bingoStyle,
     gameId: analysisGame?.id,
     searchId: resultSet?.searchId,
     findMovesRequest,
@@ -761,7 +766,7 @@ export default function Results({
     <span role="status">
       {hunterProgress
         ? `${hunterProgress.stage}. ${hunterStageLabels[hunterProgress.phase]}`
-        : "Starting Bingo hunter…"}
+        : `Starting ${hunterLabel}…`}
       {!!hunterProgress?.total && ` · ${hunterProgress.done}/${hunterProgress.total} moves`}
     </span>
   );
@@ -770,7 +775,7 @@ export default function Results({
   ) : hunterResult?.canContinue ? (
     <button type="button" className="button secondary"
       onClick={() => hunter.start(hunter.current?.error ? undefined : hunterResult.id)}>
-      {hunter.current?.error ? "Restart Bingo hunter" : "Run another 10 seconds"}
+      {hunter.current?.error ? `Restart ${hunterLabel}` : "Run another 10 seconds"}
     </button>
   ) : undefined;
   const viewPicker = analysisGame && (
@@ -839,7 +844,9 @@ export default function Results({
         {PLAYER_PROFILES.map((profile) => (
           <option key={profile} value={profile}>{PLAYER_PROFILE_LABELS[profile]}</option>
         ))}
-        {runBingoHunter && <option value="bingo-hunter">Bingo hunter</option>}
+        {runBingoHunter && BINGO_STYLES.map(style => (
+          <option key={style} value={style}>{BINGO_STYLE_LABELS[style]}</option>
+        ))}
       </select>
     </div>
   );
@@ -1178,7 +1185,7 @@ export default function Results({
           ) : (
             <>
               <p role="status">{hunter.current?.error ?? (invalid
-                ? "Check tile counts before running Bingo hunter."
+                ? `Check tile counts before running ${hunterLabel}.`
                 : hunterResult?.canContinue
                   ? "Search paused before enough moves could be compared."
                   : hunterResult?.limited
@@ -1186,7 +1193,7 @@ export default function Results({
                     : "Rank moves by weighted play points now and expected bingo points after the reply. Bingos count in full.")}</p>
               {hunterAction ?? (
                 <button type="button" className="button primary" disabled={!hunterKey} onClick={() => hunter.start()}>
-                  Run Bingo hunter
+                  Run {hunterLabel}
                 </button>
               )}
             </>

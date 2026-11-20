@@ -1,5 +1,7 @@
 import type { BingoDeal } from "../shared/bingo-replies";
-import { createHunterEvaluator, type HunterPosition } from "../shared/bingo-hunter";
+import {
+  createHunterEvaluator, createTacticianEvaluator, type HunterOutcome, type HunterPosition,
+} from "../shared/bingo-hunter";
 import { findBingoCeiling, prepareCeilingReplies, type BingoCeiling, type CeilingReply } from "../shared/bingo-ceilings";
 import { checkBoardBingoMove, type BoardOdds } from "../shared/bingo-odds";
 import { EndgameSearchLimitError, type EndgameLine } from "../shared/endgame";
@@ -36,6 +38,7 @@ export type CandidateJob =
       move: Move;
       deals: BingoDeal[];
       beforeReply: boolean;
+      tactics?: { followUp: boolean; laneDeals: number[] };
       deadline: number;
       wavesRemaining: number;
     }
@@ -86,7 +89,7 @@ export type CandidateJob =
 
 export type CandidateResult =
   | { kind: "histogram"; board: ReturnType<typeof summarizeReplyBoard> }
-  | { kind: "bingo-hunter"; outcomes: number[]; blocked?: boolean }
+  | { kind: "bingo-hunter"; outcomes: HunterOutcome[]; blocked?: boolean }
   | { kind: "bingo-ceiling"; ceiling?: BingoCeiling }
   | { kind: "bingo-ceiling-replies"; replies: CeilingReply[]; blocked?: boolean }
   | { kind: "endgame"; line: EndgameLine; elapsed: number }
@@ -115,7 +118,7 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
     | { key: string; session: ReturnType<typeof createReplyEndgameSession> }
     | undefined;
   // Reuse prepared boards across deals for the current candidate.
-  let hunter: { key: string; evaluate: ReturnType<typeof createHunterEvaluator> } | undefined;
+  let hunter: { key: string; evaluate: ReturnType<typeof createHunterEvaluator> | ReturnType<typeof createTacticianEvaluator> } | undefined;
   // An Optimal Exchange pool handles one position across batches.
   let exchangeSolver: ReturnType<typeof prepareSolver> | undefined;
   let exchangeReplies: ReturnType<typeof createExchangeReplyCheck> | undefined;
@@ -125,15 +128,17 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
       switch (job.kind) {
         case "bingo-hunter": {
           const deadline = started + (job.deadline - performance.timeOrigin - started) / job.wavesRemaining;
-          const outcomes: number[] = [];
+          const outcomes: HunterOutcome[] = [];
           if (deadline <= started) return { kind: "bingo-hunter", outcomes };
-          const key = job.move.id;
+          const key = JSON.stringify([job.move.id, job.tactics?.followUp]);
           if (hunter?.key !== key)
-            hunter = { key, evaluate: createHunterEvaluator(lexicon, job.position, job.move) };
-          for (const deal of job.deals) {
+            hunter = { key, evaluate: job.tactics
+              ? createTacticianEvaluator(lexicon, job.position, job.move, job.tactics.followUp)
+              : createHunterEvaluator(lexicon, job.position, job.move) };
+          for (const [index, deal] of job.deals.entries()) {
             if (performance.now() >= deadline) break;
             try {
-              outcomes.push(hunter.evaluate(deal, job.beforeReply, deadline));
+              outcomes.push(hunter.evaluate(deal, job.beforeReply, deadline, job.tactics?.laneDeals.includes(index)));
             } catch (error) {
               if (error instanceof SearchLimitError) {
                 if (error.reason === "nodes" || error.reason === "moves")

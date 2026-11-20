@@ -1,3 +1,4 @@
+import { isBingoStyle, type BingoStyle } from "./bingo-styles";
 import type { BoardOddsResult, RackOdds } from "./bingo-odds";
 import type { EndgameEstimate } from "./endgame-estimate";
 import { isBingo, type BingoRules, type Move } from "./model";
@@ -6,7 +7,7 @@ import { shortlistMoves } from "./move-shortlist";
 import type { PlayerProfile, ProfileUtility, RankedProfileMove } from "./player-profiles";
 import type { HunterUtility, RankedHunterMove } from "./bingo-hunter";
 
-export type MoveStyle = PlayerProfile | "bingo-hunter";
+export type MoveStyle = PlayerProfile | BingoStyle;
 
 export const MOVE_HEAD_SIZE = 30;
 export const MOVE_PAGE_SIZE = 64;
@@ -231,7 +232,7 @@ export class MoveResultIndex {
     ranks: Map<string, number>;
   };
 
-  private hunterOrder?: MoveResultIndex["profileOrder"];
+  private hunterOrders = new Map<BingoStyle, NonNullable<MoveResultIndex["profileOrder"]>>();
 
   constructor(
     readonly moves: readonly Move[],
@@ -272,7 +273,8 @@ export class MoveResultIndex {
   }
 
   hasProfile(query: MoveQuery) {
-    return this.profileOrder?.key === utilityKey(query);
+    const order = isBingoStyle(query.profile) ? this.hunterOrders.get(query.profile) : this.profileOrder;
+    return order?.key === utilityKey(query);
   }
 
   setProfile(query: ProfileQuery, ranked: readonly RankedMove[]) {
@@ -282,7 +284,7 @@ export class MoveResultIndex {
       ranked,
       ranks: new Map(ranked.map(({ move }, index) => [move.id, index + 1])),
     };
-    if (query.profile === "bingo-hunter") this.hunterOrder = order;
+    if (isBingoStyle(query.profile)) this.hunterOrders.set(query.profile, order);
     else this.profileOrder = order;
     this.ordered = undefined;
   }
@@ -315,7 +317,7 @@ export class MoveResultIndex {
     const word = filter.trim().toUpperCase();
     const estimates =
       this.endgame?.id === endgameId ? this.endgame?.estimates : undefined;
-    const profileOrder = profile === "bingo-hunter" ? this.hunterOrder : this.profileOrder;
+    const profileOrder = isBingoStyle(profile) ? this.hunterOrders.get(profile) : this.profileOrder;
     const ranked = profile && profileOrder?.key === utilityKey({ profile, profileBagSize, profileSeed, profileScorelessTurns })
       ? profileOrder : undefined;
     const source = profile ? ranked?.moves ?? [] : this.moves;
@@ -361,7 +363,7 @@ export class MoveResultIndex {
       scoreRanks: Object.fromEntries(
         rows.map(({ id }) => [id, this.scoreRanks.get(id)!]),
       ),
-      styleChoice: ranked && profile !== "bingo-hunter" ? { move: ranked.moves[0] } : undefined,
+      styleChoice: ranked && !isBingoStyle(profile) ? { move: ranked.moves[0] } : undefined,
       utilities: ranked && Object.fromEntries(rows.map(({ id }) => {
         const rank = ranked.ranks.get(id)!;
         return [id, { ...ranked.ranked[rank - 1].utility, rank }];

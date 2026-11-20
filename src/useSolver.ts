@@ -1,3 +1,4 @@
+import { isBingoStyle } from "../shared/bingo-styles";
 import type { HunterProgress } from "./parallel-bingo-hunter";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Game, Move } from "../shared/model";
@@ -493,7 +494,7 @@ export function useSolver(positionKey: string, game: Game | undefined) {
       const page = result?.kind === "page" ? result.page : undefined;
       const { profile, profileBagSize = 0, profileSeed = 0 } = options;
       const choice = !page?.error && page?.styleChoice;
-      if (profile && profile !== "bingo-hunter" && choice) {
+      if (profile && !isBingoStyle(profile) && choice) {
         const key = styleChoiceKey(searchId, profile, profileBagSize, profileSeed);
         setStyleChoices((current) => {
           if (current.has(key)) return current;
