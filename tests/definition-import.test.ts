@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { importDefinitions } from "../server/definition-import";
-import { lookupDefinitions, openDefinitionIndex } from "../server/definitions";
+import {
+  definitionLookupSql,
+  lookupDefinitions,
+  openDefinitionIndex,
+} from "../server/definitions";
 
 function jsonl(...entries: unknown[]) {
   return entries.map((entry) => JSON.stringify(entry)).join("\r\n");
@@ -160,4 +164,27 @@ test("a failed refresh keeps the previous definitions and a valid replacement re
   assert.equal((await importDefinitions(data)).sources[0].status, "imported");
   assert.equal(lookupDefinitions(db, "CHIEN", "fr", "fr").length, 1);
   assert.deepEqual(lookupDefinitions(db, "CHAT", "fr", "fr"), []);
+});
+
+test("lookup seeks the tile and spelling indexes without scanning definitions or aliases", (t) => {
+  const db = openDefinitionIndex(":memory:");
+  t.after(() => db.close());
+  const plan = db
+    .prepare(`EXPLAIN QUERY PLAN ${definitionLookupSql}`)
+    .all("fr", "en", "cote", "cote")
+    .map((row) => String(row.detail))
+    .join("\n");
+
+  for (const index of [
+    "definitions_tiles",
+    "definition_alias_tiles",
+    "definition_alias_spellings",
+    "definitions_spellings",
+  ]) {
+    assert.match(
+      plan,
+      new RegExp(`SEARCH .* USING (?:COVERING )?INDEX ${index} `),
+    );
+  }
+  assert.doesNotMatch(plan, /SCAN (?:d|a)\b/);
 });
