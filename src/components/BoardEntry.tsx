@@ -652,19 +652,7 @@ export function BoardInput({
           {status}
         </div>
         <div className="direct-entry-actions">
-          {phoneLayout ? (
-            <button
-              type="button"
-              className="text-button board-define"
-              disabled={!lookupLanguage || !board.some(Boolean)}
-              onClick={() => {
-                input.current?.blur();
-                setDefining((current) => !current);
-              }}
-            >
-              {defining ? "Cancel" : "Define"}
-            </button>
-          ) : (
+          {!phoneLayout && (
             <>
               <button
                 className={`text-button ${pendingBlank || isBlank ? "active" : ""}`}
@@ -692,6 +680,19 @@ export function BoardInput({
                 <Trash2 size={15} />
               </button>
             </>
+          )}
+          {(definitionLanguage || historyControls) && (
+            <button
+              type="button"
+              className="text-button board-define"
+              disabled={!lookupLanguage || !board.some(Boolean)}
+              onClick={() => {
+                input.current?.blur();
+                setDefining((current) => !current);
+              }}
+            >
+              {defining ? "Cancel" : "Define"}
+            </button>
           )}
           {historyControls}
         </div>
