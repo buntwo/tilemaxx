@@ -5843,12 +5843,18 @@ label + label {
   gap: 1px;
   white-space: nowrap;
 }
-:is(.with-board-history .direct-entry-actions, .board-mode-history) > button {
+.with-board-history .direct-entry-actions > button:where(:not(.board-undo, .board-redo)) {
   min-width: 36px;
 }
 .with-board-history .direct-entry-actions > .text-button { padding-inline: 4px; }
-.board-panel .direct-entry-actions > .board-define { min-width: 44px; }
+.board-panel .direct-entry-actions > .board-define {
+  min-width: 44px;
+  justify-content: center;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+}
 .board-panel .direct-entry-actions > .board-define:not(:disabled) { color: var(--primary); }
+.board-panel .direct-entry-actions > .board-define:hover:not(:disabled) { background: var(--soft); }
 .with-board-history .direct-entry-status {
   min-width: 0;
   padding-inline-start: 10px;
@@ -5870,13 +5876,20 @@ label + label {
   border-inline-end: 1px solid var(--line);
 }
 .with-board-history .board-import + .direct-entry-status { padding-inline-start: 0; }
-.board-undo { position: relative; }
+.board-panel :is(.board-undo, .board-redo) {
+  width: var(--board-strip-control-height);
+  padding-inline: 0;
+}
+.board-undo {
+  position: relative;
+  margin-inline-start: 4px;
+}
 :is(.board-undo, .board-redo):not(:disabled) { color: var(--primary); }
 .board-undo::before {
   content: "";
   position: absolute;
-  left: 0;
-  inset-block: 3px;
+  inset-inline-start: -3px;
+  inset-block: 2px;
   border-left: 1px solid var(--line);
 }
 .board-mode-history {
@@ -6074,7 +6087,8 @@ label + label {
 .app-shell:not(.phone-layout) .board-panel .board-wrap { padding: 1px 14px 2px 9px; }
 .board-panel {
   --board-lane-height: 24px;
-  --board-strip-control-height: calc(var(--board-lane-height) - 2px);
+  --board-strip-inset: 2px;
+  --board-strip-control-height: calc(var(--board-lane-height) - 2 * var(--board-strip-inset));
 }
 .app-shell:not(.phone-layout) .board-panel:has(> .last-play-lane) { padding-top: 0; }
 /* Equal tracks also keep the lanes matched when their text wraps. */
@@ -6194,7 +6208,7 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .last-play-breakdown tfoot tr > * { padding-top: 5px; }
 .board-panel :is(.with-board-history, .move-square-controls, .board-review-actions) {
   margin-block: 0;
-  padding-block: 1px;
+  padding-block: var(--board-strip-inset);
   min-height: var(--board-lane-height);
   border: 0;
   box-shadow: inset 0 1px var(--line);

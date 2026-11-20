@@ -2739,7 +2739,11 @@ test("scroll gestures and canceled board touches do not select or turn a square"
   expect(selectedCell()).toBeUndefined();
 });
 
-test.each(["desktop", "phone"])("looking up a board intersection on %s shows both French words without editing the tile", async (layout) => {
+test.each([
+  ["phone Define", true, true],
+  ["desktop Define", false, true],
+  ["desktop right-click", false, false],
+] as const)("looking up a board intersection with %s shows both French words without editing the tile", async (_method, phone, useDefineButton) => {
   const board = emptyBoard(15);
   board.splice(112, 4, ..."COTe");
   board[70] = "L";
@@ -2766,12 +2770,17 @@ test.each(["desktop", "phone"])("looking up a board intersection on %s shows bot
     }));
   });
   vi.stubGlobal("fetch", fetchDefinitions);
-  const user = await start(layout === "phone" ? 390 : 1200);
+  const user = await start(phone ? 390 : 1200);
   const tile = await screen.findByRole("button", { name: "K8: E blank" });
   const empty = cell("B1: empty");
-  if (layout === "phone") {
+  if (phone) {
     expect(screen.queryByRole("button", { name: /^Blank tile:/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Erase selected tile" })).toBeNull();
+  } else {
+    expect(cell("Blank tile: off")).toBeTruthy();
+    expect(cell("Erase selected tile")).toBeTruthy();
+  }
+  if (useDefineButton) {
     await user.click(tile);
     expect(document.activeElement).toBe(entry());
     await user.click(cell("Define"));
@@ -2789,7 +2798,7 @@ test.each(["desktop", "phone"])("looking up a board intersection on %s shows bot
     expect(fireEvent.contextMenu(tile, { button: 2 })).toBe(false);
   }
 
-  const tip = within(layout === "phone"
+  const tip = within(useDefineButton
     ? screen.getByRole("dialog", { name: "Words at K8" })
     : screen.getByRole("region", { name: "Word definitions" }));
   await tip.findByText("moon");
@@ -2805,7 +2814,7 @@ test.each(["desktop", "phone"])("looking up a board intersection on %s shows bot
   expect(selectedCell()).toBeUndefined();
   expect(fetchDefinitions.mock.calls.filter(([url]) => url.startsWith("/api/definitions?"))
     .map(([url]) => url)).toEqual(["/api/definitions?language=fr&word=COTE&word=LUNE"]);
-  if (layout === "phone") {
+  if (useDefineButton) {
     await user.click(tip.getByRole("button", { name: "Close dialog" }));
     expect(screen.queryByRole("dialog", { name: "Words at K8" })).toBeNull();
     expect(cell("Define")).toBeTruthy();
