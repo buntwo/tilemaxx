@@ -31,6 +31,7 @@ import {
   Search,
   Settings,
   Smartphone,
+  TriangleAlert,
   Undo2,
   Wifi,
   X,
@@ -1346,7 +1347,21 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             onBack={openMyGames}
           />
         ) : game ? (
-          <GameWorkspace narrow={narrowLayout} reviewing={moveReview.showing}>
+          <GameWorkspace
+            narrow={narrowLayout}
+            reviewing={moveReview.showing}
+            hasWarnings={warnings.length > 0}
+          >
+            {warnings.length > 0 && (
+              <div className="board-warnings" role="alert">
+                <TriangleAlert size={16} aria-hidden="true" />
+                <div>
+                  {warnings.map((warning) => (
+                    <p key={warning}>{warning}</p>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="board-column">
               <section
                 ref={boardPanel}
@@ -1569,16 +1584,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   }
                   onCancelBoardOdds={solver.cancelBoardOdds}
                 />
-              )}
-              {warnings.length > 0 && (
-                <div className="board-warnings">
-                  <Info size={17} />
-                  <div>
-                    {warnings.map((w) => (
-                      <p key={w}>{w}</p>
-                    ))}
-                  </div>
-                </div>
               )}
               {!phoneLayout && (
                 <div className="companion-note">
