@@ -583,6 +583,12 @@ export default function Results({
     replyAnalysis.detail.result?.kind === "distribution"
       ? followHistogram.moveId
       : undefined;
+  const unstyledSquarePage = useMoveResults(
+    profile && requiredSquares ? resultSet : null,
+    { filter, requiredSquares, sort: "score", offset: 0 },
+    fetchPage,
+    !busy && !error,
+  );
   const page = useMoveResults(
     resultSet,
     {
@@ -628,14 +634,15 @@ export default function Results({
   const pagePending = shortlistActive
     ? shortlistResult?.searchId !== searchId
     : page.pending;
-  // Bingo hunter ranks a subset. The base search already counted all legal bingos.
-  const bingoCount = hunterSelected || (!profile && !requiredSquares)
+  // Style rankings can omit legal plays. Use the same counts as No style.
+  const countPage = profile ? unstyledSquarePage : page;
+  const bingoCount = !requiredSquares
     ? resultSet?.bingoCount ?? 0
     : shortlistActive
       ? filteredShortlist.filter((move) => isBingo(bingoRules, move.tiles.length)).length
-      : page.bingoCount;
-  const showLegalMoveCount = hunterSelected && (!hunterResult?.checked || pagePending);
-  const showListCount = (requiredSquares || profile) && !showLegalMoveCount;
+      : countPage.bingoCount;
+  const moveCount = !requiredSquares ? totalMoves : shortlistActive ? total : countPage.total;
+  const moveCountPending = requiredSquares && (shortlistActive ? pagePending : countPage.pending);
   const formattedBingoCount = bingoCount.toLocaleString();
   const bingoLabel = `${formattedBingoCount} ${bingoCount === 1 ? "bingo" : "bingos"}`;
   useEffect(() => {
@@ -974,16 +981,16 @@ export default function Results({
                 className="count-badge result-bingo-count"
                 role="img"
                 aria-label={bingoLabel}
-                title={hunterSelected ? `${bingoLabel} across all legal moves` : bingoLabel}
+                title={!requiredSquares ? `${bingoLabel} across all legal moves` : bingoLabel}
               >
                 <Trophy size={11} aria-hidden="true" />
                 {formattedBingoCount}
               </span>
             )}
-            <span className="count-badge" title={hunterSelected
-              ? showLegalMoveCount ? "All legal moves" : "Moves in the Bingo hunter list"
-              : requiredSquares ? "Moves covering the selected squares" : undefined}>
-              {showListCount && pagePending ? "…" : (showListCount ? total : totalMoves).toLocaleString()}
+            <span className="count-badge" title={requiredSquares
+              ? "Moves covering the selected squares"
+              : "All legal moves"}>
+              {moveCountPending ? "…" : moveCount.toLocaleString()}
             </span>
           </div>
         )}

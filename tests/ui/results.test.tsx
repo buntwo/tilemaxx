@@ -21,7 +21,13 @@ import type {
   ReplyDistribution,
 } from "../../shared/reply-analysis";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
-import { MoveResultIndex, type MoveResults } from "../../shared/move-results";
+import {
+  MoveResultIndex,
+  type MoveResults,
+  type MoveStyle,
+  type RequiredSquares,
+} from "../../shared/move-results";
+import { PLAYER_PROFILES } from "../../shared/player-profiles";
 import { moveRowHeight, type FetchMovePage } from "../../src/useMoveResults";
 import { useReplyAnalysis } from "../../src/useReplyAnalysis";
 import type { RankEndgame } from "../../src/useSolver";
@@ -135,6 +141,8 @@ function setup(
     analysisGame?: Game;
     replyEnabled?: boolean;
     defense?: DefenseResults;
+    playingStyle?: MoveStyle;
+    requiredSquares?: RequiredSquares;
     fetchPage?: FetchMovePage;
     rankEndgame?: (index: MoveResultIndex) => RankEndgame;
     onBoardOdds?: (moves: Move[], bagSize: number) => BoardOddsResult | void;
@@ -170,6 +178,8 @@ function setup(
     return (
       <Results
         results={results}
+        playingStyle={options.playingStyle}
+        requiredSquares={options.requiredSquares}
         fetchPage={fetchPage}
         fetchShortlist={fetchShortlist}
         busy=""
@@ -241,6 +251,55 @@ test("the header counts bingos outside the visible page and across placements", 
   await user.type(screen.getByRole("textbox", { name: "Filter moves" }), "ZZZ");
   await screen.findByRole("heading", { name: "No matching words" });
   expect(screen.getByRole("img", { name: "2 bingos" })).toBe(badge);
+});
+
+test.each(PLAYER_PROFILES)("%s badges count all legal moves before and after ranking", async (playingStyle) => {
+  const index = new MoveResultIndex(moves, { ...PRESETS[0], rackSize: 4 });
+  let finishRanking: () => void;
+  const ranked = new Promise<void>((resolve) => { finishRanking = resolve; });
+  const fetchPage = vi.fn<FetchMovePage>(async (_id, query) => {
+    await ranked;
+    index.setProfile(query, [{
+      move: moves[1],
+      utility: {
+        total: 10, points: 10, premium: 0, familiarity: 0,
+        crosswords: 0, length: 0, leave: 0, goingOut: 0,
+      },
+    }]);
+    return index.page(query);
+  });
+  setup(false, { playingStyle, rackSize: 4, fetchPage });
+  expect(screen.getByText("Loading move list…")).toBeTruthy();
+  expect(screen.getByTitle("All legal moves").textContent).toBe("3");
+  const badge = screen.getByRole("img", { name: "1 bingo" });
+  expect(fetchPage).toHaveBeenCalledWith(0, expect.objectContaining({ profile: playingStyle }));
+
+  await act(async () => finishRanking());
+  expect(rows()).toHaveLength(1);
+  expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
+  expect(screen.getByTitle("All legal moves").textContent).toBe("3");
+  expect(screen.getByRole("img", { name: "1 bingo" })).toBe(badge);
+});
+
+test("a style still counts all legal moves covering the selected squares", async () => {
+  const requiredSquares = { size: 15, indices: [115] };
+  const index = new MoveResultIndex(moves, { ...PRESETS[0], rackSize: 4 });
+  const fetchPage = vi.fn<FetchMovePage>(async (_id, query) => {
+    if (query.profile) index.setProfile(query, []);
+    return index.page(query);
+  });
+  const { user } = setup(true, { playingStyle: "casual", rackSize: 4, requiredSquares, fetchPage });
+  await screen.findByRole("heading", { name: "No matching words" });
+  const count = screen.getByTitle("Moves covering the selected squares");
+  expect(count.textContent).toBe("1");
+  expect(screen.getByRole("img", { name: "1 bingo" })).toBeTruthy();
+  expect(fetchPage).toHaveBeenCalledWith(0, expect.objectContaining({
+    profile: undefined, requiredSquares,
+  }));
+
+  await user.type(screen.getByRole("textbox", { name: "Filter moves" }), "ZZZ");
+  await waitFor(() => expect(count.textContent).toBe("0"));
+  expect(screen.queryByRole("img", { name: "1 bingo" })).toBeNull();
 });
 
 test("scrolling and filtering use worker pages and ignore out-of-order results", async () => {
