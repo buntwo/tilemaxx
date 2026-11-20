@@ -2198,6 +2198,7 @@ test("board entry skips played tiles by default and Backspace returns over them"
   await user.click(screen.getByRole("button", { name: /^I8:/ }));
   await user.keyboard("A T");
   await user.click(cell("H8: DW, start"));
+  expect(screen.getByText("8H · Space: blank · Period: skip · Click again: Down")).toBeTruthy();
   await user.keyboard("C");
   expect(selectedCell()).toBe("115");
   await user.keyboard("{Backspace}");
@@ -2218,6 +2219,7 @@ test("board entry skips played tiles by default and Backspace returns over them"
   ).toBe(false);
   await user.click(settings.getByRole("button", { name: "Close dialog" }));
   await user.click(screen.getByRole("button", { name: /^H8: C/ }));
+  expect(screen.getByText("8H · Space: blank · Click again: Down")).toBeTruthy();
   await user.keyboard("CQ");
   expect(current().board.slice(112, 116)).toEqual(["C", "Q", "t", "r"]);
 });
@@ -2243,10 +2245,10 @@ test("repeat tap toggles direction and controls preserve the same input focus", 
   const input = entry();
   expect(selectedCell()).toBe("32");
   expect(document.activeElement).toBe(input);
-  expect(screen.getByText("3C · Space: blank · Period: skip")).toBeTruthy();
+  expect(screen.getByText("3C · Space: blank · Period: skip · Click again: Down")).toBeTruthy();
   await user.click(cell("C3: DW"));
   expect(boardDirection()).toBe("Down");
-  expect(screen.getByText("C3 · Space: blank · Period: skip")).toBeTruthy();
+  expect(screen.getByText("C3 · Space: blank · Period: skip · Click again: Across")).toBeTruthy();
   expect(selectedCell()).toBe("32");
   expect(document.activeElement).toBe(input);
   fireEvent.input(input, {
@@ -4151,7 +4153,7 @@ test("the phone layout keeps settings, the build version, board help and move fi
   expect(entryTools?.contains(main.getByRole("button", { name: "Define" }))).toBe(true);
   await user.click(cell("H8: DW, start"));
   await user.keyboard("C");
-  expect(main.getByText("8I · Space: blank · Period: skip")).toBeTruthy();
+  expect(main.getByText("8I · Space: blank · Period: skip · Tap again: Down")).toBeTruthy();
   await user.click(undo);
   expect(current().board[112]).toBe("");
   await user.click(redo);
