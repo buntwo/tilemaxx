@@ -5849,17 +5849,16 @@ label + label {
   gap: 1px;
   white-space: nowrap;
 }
-.with-board-history .direct-entry-actions > button:where(:not(.board-undo, .board-redo)) {
-  min-width: 36px;
-}
 .with-board-history .direct-entry-actions > .text-button { padding-inline: 4px; }
 .board-panel .direct-entry-actions > .board-define {
-  min-width: 44px;
+  min-width: 46px;
+  min-height: 24px;
   justify-content: center;
-  border: 1px solid currentColor;
+  border: 1px solid var(--line);
   border-radius: 5px;
+  background: light-dark(#f2f5f0, #29372e);
+  color: var(--existing-letter);
 }
-.board-panel .direct-entry-actions > .board-define:not(:disabled) { color: var(--primary); }
 .board-panel .direct-entry-actions > .board-define:hover:not(:disabled) { background: var(--soft); }
 .with-board-history .direct-entry-status {
   min-width: 0;
@@ -5895,7 +5894,7 @@ label + label {
   content: "";
   position: absolute;
   inset-inline-start: -3px;
-  inset-block: 2px;
+  inset-block: 6px;
   border-left: 1px solid var(--line);
 }
 .board-mode-history {
@@ -6092,27 +6091,12 @@ label + label {
 .app-shell:not(.phone-layout) .board-panel { padding-top: 5px; }
 .app-shell:not(.phone-layout) .board-panel .board-wrap { padding: 1px 14px 2px 9px; }
 .board-panel {
-  --board-lane-height: 24px;
-  --board-strip-inset: 2px;
-  --board-strip-control-height: calc(var(--board-lane-height) - 2 * var(--board-strip-inset));
+  --board-strip-height: 33px;
+  --board-strip-control-height: 28px;
+  --board-strip-inset: calc((var(--board-strip-height) - var(--board-strip-control-height)) / 2);
 }
 .app-shell:not(.phone-layout) .board-panel:has(> .last-play-lane) { padding-top: 0; }
-/* Equal tracks also keep the lanes matched when their text wraps. */
-.board-panel:has(> .last-play-lane) {
-  display: grid;
-  grid-template: "last-play" 1fr "warnings" auto "board" auto "controls" 1fr / minmax(0, 1fr);
-}
-.board-panel > .last-play-lane { grid-area: last-play; }
-.board-panel > .board-warnings { grid-area: warnings; }
-.board-panel > .board-entry { grid-area: board; }
-.board-panel > :is(.move-square-controls, .board-review-actions) { grid-area: controls; }
-.board-panel:has(> .last-play-lane) > .board-entry:has(> .with-board-history) {
-  grid-row: board-start / controls-end;
-  display: grid;
-  grid-template-rows: subgrid;
-}
-.board-panel > .board-entry > .with-board-history { grid-row: 2; }
-.board-panel :is(.last-play-row, .board-warnings) { min-height: var(--board-lane-height); }
+.board-panel :is(.last-play-row, .board-warnings) { min-height: 24px; }
 .board-warnings {
   margin: 8px;
   padding: 2px 8px;
@@ -6130,7 +6114,6 @@ label + label {
 .board-panel > .board-warnings + .board-entry > .board-wrap { padding-block-start: 0; }
 .last-play-lane {
   position: relative;
-  display: grid;
 }
 .last-play-row {
   display: flex;
@@ -6215,7 +6198,7 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .board-panel :is(.with-board-history, .move-square-controls, .board-review-actions) {
   margin-block: 0;
   padding-block: var(--board-strip-inset);
-  min-height: var(--board-lane-height);
+  min-height: var(--board-strip-height);
   border: 0;
   box-shadow: inset 0 1px var(--line);
 }
