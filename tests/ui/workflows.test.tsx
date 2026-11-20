@@ -28,7 +28,7 @@ import {
   type Game,
 } from "../../shared/model";
 import { Lexicon } from "../../shared/lexicon";
-import { solve, solvePositionWithBaseline } from "../../shared/solver";
+import { inspectBoard, solve, solvePositionWithBaseline } from "../../shared/solver";
 import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
 import { REPLY_LIMIT, REPLY_SAMPLES, replyEndgameLine, type ReplyDistribution, type ReplyRequest, type ReplyWorkerMessage } from "../../shared/reply-analysis";
 import { MoveResultIndex } from "../../shared/move-results";
@@ -100,6 +100,12 @@ class SolverWorker {
     this.reply = !!url?.pathname.endsWith("/reply.worker.ts");
   }
   protected rackOdds = {};
+  protected boardWarnings(
+    _lexicon: Lexicon,
+    _request: Extract<SolverRequest, { kind: "solve" }>,
+  ): string[] {
+    return [];
+  }
   protected exchangeRequest(
     _request: Extract<SolverRequest, { kind: "solve" }>,
   ): Extract<SolverMessage, { kind: "moves" }>["exchange"] {
@@ -135,11 +141,8 @@ class SolverWorker {
       return;
     }
     if (request.kind !== "solve") return;
-    const { moves, topScore } = solvePositionWithBaseline(
-      new Lexicon(["AT", "CAT", "CATS", "ACT", "DOG", "RAT", "ART", "TAR"]),
-      request,
-      request.template,
-    );
+    const lexicon = new Lexicon(["AT", "CAT", "CATS", "ACT", "DOG", "RAT", "ART", "TAR"]);
+    const { moves, topScore } = solvePositionWithBaseline(lexicon, request, request.template);
     const result = new MoveResultIndex(moves, request.template);
     this.results.set(request.id, result);
     queueMicrotask(() => {
@@ -148,7 +151,7 @@ class SolverWorker {
           kind: "moves",
           id: request.id,
           results: result.summary(request.id, topScore),
-          warnings: [],
+          warnings: this.boardWarnings(lexicon, request),
           stages: { moves: 1, indexing: 0.5 },
           exchange: this.exchangeRequest(request),
         },
@@ -4242,6 +4245,43 @@ test("phone rack entry reveals the tiles above the keyboard and restores the pag
   );
   expect(scrollTo).toHaveBeenCalledTimes(1);
   expect(rack.closest(".move-review")).toBeTruthy();
+});
+
+test.each([
+  { layout: "phone", width: 390 },
+  { layout: "desktop", width: 950 },
+])("on $layout, dictionary warnings appear above the board after finding moves", async ({ layout, width }) => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: layout === "phone" && query === "(max-width: 650px)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  class ValidatingWorker extends SolverWorker {
+    protected boardWarnings(
+      lexicon: Lexicon,
+      request: Extract<SolverRequest, { kind: "solve" }>,
+    ) {
+      return inspectBoard(lexicon, request.board, request.template);
+    }
+  }
+  vi.stubGlobal("Worker", ValidatingWorker);
+
+  const user = await start(width);
+  const board = screen.getByRole("region", { name: "Game board" });
+  const workspace = board.closest<HTMLElement>(".workspace-grid")!;
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("ZAT");
+  await typeRack(user, "CATS");
+  await user.keyboard("{Enter}");
+
+  const warning = await within(workspace).findByRole("alert");
+  expect(warning.textContent).toBe("Not in this dictionary: ZAT.");
+  expect(workspace.firstElementChild).toBe(warning);
+  expect(workspace.classList.contains("move-review")).toBe(layout === "phone");
+
+  await user.click(cell("H8: Z, start"));
+  await user.keyboard("C");
+  expect(within(workspace).queryByRole("alert")).toBeNull();
 });
 
 test.each([

@@ -16,7 +16,12 @@ export function useMoveReview(
   };
 }
 
-type Props = { narrow: boolean; reviewing: boolean; children: ReactNode };
+type Props = {
+  narrow: boolean;
+  reviewing: boolean;
+  hasWarnings: boolean;
+  children: ReactNode;
+};
 type Snapshot = Map<HTMLElement, DOMRect> | null;
 
 function bounds(element: HTMLElement) {
@@ -52,6 +57,14 @@ export default class GameWorkspace extends Component<Props, object, Snapshot> {
   }
 
   componentDidUpdate(previous: Props, _state: object, snapshot: Snapshot) {
+    const root = this.root.current;
+    if (root && this.props.hasWarnings && !previous.hasWarnings) {
+      const warning = root.querySelector(".board-warnings")?.getBoundingClientRect();
+      const viewportTop = window.visualViewport?.offsetTop ?? 0;
+      const viewportBottom = viewportTop + (window.visualViewport?.height ?? window.innerHeight);
+      if (warning && (warning.top < viewportTop || warning.bottom > viewportBottom))
+        root.scrollIntoView?.({ block: "start", behavior: "instant" });
+    }
     if (!this.props.narrow || !snapshot) {
       if (previous.narrow && !this.props.narrow) this.stopMotion();
       return;
@@ -59,16 +72,16 @@ export default class GameWorkspace extends Component<Props, object, Snapshot> {
     // Measure the old layout before React moves it, including any in-flight
     // transforms so a quick reversal can start from the current positions.
     this.stopMotion();
-    const root = this.root.current;
     if (root && this.props.reviewing) {
-      const boardTop =
-        root.querySelector(".board-panel")?.getBoundingClientRect().top ?? 0;
+      const contentTop =
+        root.querySelector(".board-warnings, .board-panel")
+          ?.getBoundingClientRect().top ?? 0;
       const firstMove = root
         .querySelector(".result-row")
         ?.getBoundingClientRect();
       if (
-        boardTop < 0 ||
-        (boardTop > 8 && firstMove && firstMove.bottom > window.innerHeight)
+        contentTop < 0 ||
+        (contentTop > 8 && firstMove && firstMove.bottom > window.innerHeight)
       )
         root.scrollIntoView?.({
           block: "start",
