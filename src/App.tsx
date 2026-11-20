@@ -966,7 +966,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         workspace === "games" && (compactGame ? "compact-game" : "stacked-game"),
         narrowLayout && "phone-layout",
         sidebarOverlay && "sidebar-overlay",
-        !sidebarCollapsed && "sidebar-pinned",
         !sidebarVisible && "sidebar-collapsed",
       ].filter(Boolean).join(" ")}
       data-static-previews={preferences.pulseMovePreviews ? undefined : true}
