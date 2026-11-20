@@ -9,8 +9,8 @@ export function choose(n: number, k: number): number {
   return result;
 }
 const vowels = "AEIOU";
-const legacyFrenchLexulousCounts = [
-  8, 2, 2, 3, 15, 2, 2, 2, 8, 1, 1, 5, 3, 5, 6, 2, 1, 6, 6, 6, 6, 2, 1, 1, 1,
+const frenchCounts = [
+  9, 2, 2, 3, 15, 2, 2, 2, 8, 1, 1, 5, 3, 6, 6, 2, 1, 6, 6, 6, 6, 2, 1, 1, 1,
   1, 2,
 ];
 const distributions = {
@@ -18,10 +18,7 @@ const distributions = {
     9, 2, 2, 4, 12, 2, 3, 2, 9, 1, 1, 4, 2, 6, 8, 2, 1, 6, 4, 6, 4, 2, 2, 1, 2,
     1, 2,
   ],
-  "scrabble-fr": [
-    9, 2, 2, 3, 15, 2, 2, 2, 8, 1, 1, 5, 3, 6, 6, 2, 1, 6, 6, 6, 6, 2, 1, 1, 1,
-    1, 2,
-  ],
+  "scrabble-fr": frenchCounts,
   wwf: [
     9, 2, 2, 5, 13, 2, 3, 4, 8, 1, 1, 4, 2, 5, 8, 2, 1, 6, 5, 7, 4, 2, 2, 1, 2,
     1, 2,
@@ -46,9 +43,7 @@ const distributions = {
     8, 2, 2, 3, 11, 2, 2, 2, 8, 1, 1, 3, 2, 5, 7, 2, 1, 5, 3, 5, 3, 2, 2, 1, 3,
     1, 2,
   ],
-  "lexulous-fr": legacyFrenchLexulousCounts.map((count, i) =>
-    TILE_SYMBOLS[i] === "N" ? 6 : count,
-  ),
+  "lexulous-fr": frenchCounts,
   "lexulous-it": [
     14, 3, 6, 3, 11, 3, 2, 2, 12, 0, 0, 5, 5, 5, 15, 3, 1, 6, 6, 6, 5, 3, 0, 0,
     0, 2, 2,
@@ -66,12 +61,15 @@ export function getTileCounts(
   const counts =
     distributions[id === "super" || id === "super-lexulous" ? id : rules];
   if (tileCounts) {
-    // Older games saved the French preset at creation time with only five Ns.
+    // Older French Lexulous presets saved eight As with either five or six Ns.
     const legacyFrenchBag =
       id === "lexulous" &&
       rules === "lexulous-fr" &&
+      tileCounts.A === 8 &&
+      (tileCounts.N === 5 || tileCounts.N === 6) &&
       TILE_SYMBOLS.every(
-        (symbol, i) => tileCounts[symbol] === legacyFrenchLexulousCounts[i],
+        (symbol, i) =>
+          symbol === "A" || symbol === "N" || tileCounts[symbol] === frenchCounts[i],
       );
     if (!legacyFrenchBag) return tileCounts;
   }
