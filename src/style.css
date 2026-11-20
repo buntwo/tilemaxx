@@ -5589,7 +5589,7 @@ label + label {
   grid-template-columns: var(--game-heading-edge) minmax(0, 1fr) auto minmax(0, 1fr) var(--game-heading-edge);
   grid-template-rows: 32px minmax(17px, auto);
   gap: 0 2px;
-  padding: 10px 0 8px;
+  padding: 8px 0;
 }
 .game-heading:has(> .menu-button) { --game-heading-edge: 32px; }
 .game-heading > .menu-button { grid-area: 1 / 1 / span 2; }
@@ -5651,7 +5651,6 @@ label + label {
 }
 .phone-layout .game-heading {
   --phone-title-row: 28px;
-  padding-block-start: 5px;
   margin-inline: clamp(-6px, calc(12vw - 46.8px), 0px);
   column-gap: 1px;
   grid-template-rows: var(--phone-title-row) minmax(16px, auto);
@@ -5692,11 +5691,11 @@ label + label {
   align-self: stretch;
   justify-content: center;
   min-height: 44px;
-  padding: 4px 5px;
-  font-size: 20px;
+  padding: 3px 5px;
+  font-size: 22px;
 }
 .phone-layout .game-heading .game-title-score[data-outcome="untracked"] { font-size: 18px; }
-.phone-layout .game-heading .game-score-delta { font-size: 8.5px; }
+.phone-layout .game-heading .game-score-delta { font-size: 9.3px; }
 .phone-layout .game-heading .game-score-totals { gap: 2px; padding-inline: 0; }
 .phone-layout .game-heading .game-title-score[data-turn] .game-score-totals {
   --score-chevron-inset: 0px;
