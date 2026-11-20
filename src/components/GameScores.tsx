@@ -21,14 +21,6 @@ import ScoreBreakdown from "./ScoreBreakdown";
 import ScoreChart from "./ScoreChart";
 import TurnReview from "./TurnReview";
 
-const ringDots = Array.from({ length: 8 }, (_, index) => {
-  const angle = (index * Math.PI) / 4;
-  return {
-    left: `${50 + Math.cos(angle) * 42}%`,
-    top: `${50 + Math.sin(angle) * 42}%`,
-  };
-});
-
 function ScorePlayerMarker({
   player,
   turn,
@@ -39,33 +31,24 @@ function ScorePlayerMarker({
   winner?: Player;
 }) {
   const won = winner === player;
-  const active = turn === player;
+  if (!won && turn !== player) return null;
   const label = won
     ? player === "you"
       ? "You won"
       : "Opponent won"
-    : active
-      ? player === "you"
-        ? "Your turn"
-        : "Opponent’s turn"
-      : undefined;
+    : player === "you"
+      ? "Your turn"
+      : "Opponent’s turn";
   return (
     <span
-      className="score-player-marker"
-      data-status={won ? "winner" : active ? "turn" : "waiting"}
-      role={label ? "img" : undefined}
+      className={won ? "score-player-marker" : "score-player-marker score-turn-chevron"}
+      data-status={won ? "winner" : "turn"}
+      role="img"
       aria-label={label}
-      aria-hidden={label ? undefined : true}
     >
-      {won ? (
+      {won && (
         <span className="bingo-badge score-winner">
           <Trophy size={10} aria-hidden="true" />
-        </span>
-      ) : (
-        <span className="score-turn-circle">
-          {ringDots.map((style, index) => (
-            <span key={index} style={style} />
-          ))}
         </span>
       )}
     </span>

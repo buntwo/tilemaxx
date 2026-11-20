@@ -1043,34 +1043,33 @@ label + label {
   justify-content: center;
   padding-inline: 18px;
 }
+.score-turn-chevron {
+  background: currentColor;
+  clip-path: polygon(0 16%, 33% 0, 100% 50%, 33% 100%, 0 84%, 48% 50%);
+}
+.score-turn-chevron[data-player="opponent"],
+.score-players [data-player="opponent"] .score-turn-chevron {
+  scale: -1 1;
+}
+@media (forced-colors: active) {
+  .score-turn-chevron {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+}
 .game-score-turn-marker {
   position: absolute;
   top: 50%;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+  translate: 0 -50%;
+  width: 7px;
+  height: 11px;
+  color: light-dark(#41677a, #add2e3);
 }
-/* The badge has 8px horizontal padding: 8 + 5 = 13px to each marker's center. */
 .game-score-turn-marker[data-player="you"] {
-  inset-inline-start: 5px;
-  transform: translate(-50%, -50%);
+  inset-inline-start: var(--score-chevron-inset, 5px);
 }
 .game-score-turn-marker[data-player="opponent"] {
-  inset-inline-end: 5px;
-  transform: translate(50%, -50%);
-}
-.game-score-turn-marker[data-status="turn"] {
-  width: 8px;
-  height: 8px;
-  background: light-dark(#41677a, #add2e3);
-}
-.game-score-turn-marker > span {
-  position: absolute;
-  width: 1.6px;
-  height: 1.6px;
-  border-radius: 50%;
-  background: light-dark(#7c8386, #b5b8bd);
-  transform: translate(-50%, -50%);
+  inset-inline-end: var(--score-chevron-inset, 5px);
 }
 .game-score-separator {
   opacity: 0.7;
@@ -1412,31 +1411,17 @@ label + label {
   height: 18px;
 }
 .score-players [data-player="you"] .score-player-marker {
-  inset-inline-end: calc(100% + 5px);
+  inset-inline-end: calc(100% + var(--score-marker-gap, 5px));
 }
 .score-players [data-player="opponent"] .score-player-marker {
-  inset-inline-start: calc(100% + 5px);
+  inset-inline-start: calc(100% + var(--score-marker-gap, 5px));
 }
-.score-turn-circle {
-  position: relative;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-}
-.score-turn-circle > span {
-  position: absolute;
-  width: 1.7px;
-  height: 1.7px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: var(--muted);
-}
-.score-player-marker[data-status="turn"] .score-turn-circle {
+.score-player-marker.score-turn-chevron {
+  --score-marker-gap: 7px;
   width: 12px;
-  height: 12px;
-  background: var(--primary);
+  height: 18px;
+  color: var(--primary);
 }
-.score-player-marker[data-status="turn"] .score-turn-circle > span { display: none; }
 .score-player-marker .score-winner {
   display: grid;
   place-items: center;
@@ -5713,12 +5698,9 @@ label + label {
 .phone-layout .game-heading .game-score-delta { font-size: 12px; }
 .phone-layout .game-heading .game-score-totals { gap: 2px; padding-inline: 0; }
 .phone-layout .game-heading .game-title-score[data-turn] .game-score-totals {
-  padding-inline: 8px;
+  --score-chevron-inset: 0px;
+  padding-inline: 11px;
 }
-.phone-layout .game-heading .game-score-turn-marker { width: 5px; height: 5px; }
-.phone-layout .game-heading .game-score-turn-marker[data-player="you"] { inset-inline-start: 2px; }
-.phone-layout .game-heading .game-score-turn-marker[data-player="opponent"] { inset-inline-end: 2px; }
-.phone-layout .game-heading .game-score-turn-marker > span { width: 1px; height: 1px; }
 .phone-layout .game-heading .game-options-button,
 .phone-layout .game-word-list .icon-button { width: 44px; height: 44px; }
 @media (max-width: 430px) {
