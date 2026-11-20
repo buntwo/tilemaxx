@@ -1061,8 +1061,8 @@ label + label {
   position: absolute;
   top: 50%;
   translate: 0 -50%;
-  width: 7px;
-  height: 11px;
+  width: calc(7em / 22);
+  height: 0.5em;
   color: light-dark(#41677a, #add2e3);
 }
 .game-score-turn-marker[data-player="you"] {
