@@ -2983,7 +2983,7 @@ label + label {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--muted);
   padding: 18px 0 25px;
   margin-top: 20px;
@@ -2997,7 +2997,7 @@ label + label {
 }
 .workspace-footer-meta .dictionary-sources-button {
   padding-inline: 0;
-  font-size: 11px;
+  font-size: inherit;
   white-space: nowrap;
 }
 .game-id {
@@ -3005,7 +3005,6 @@ label + label {
   align-items: center;
   min-width: 0;
   gap: 8px;
-  font-size: 11px;
 }
 .game-id > span { flex-shrink: 0; }
 .game-id code {
@@ -3940,10 +3939,7 @@ label + label {
     margin-top: 15px;
   }
   .workspace-footer-meta .dictionary-sources-button { min-height: 44px; }
-  .game-id {
-    gap: 4px;
-    font-size: inherit;
-  }
+  .game-id { gap: 4px; }
   .game-id .icon-button {
     width: 44px;
     height: 44px;
