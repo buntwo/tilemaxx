@@ -61,7 +61,6 @@ import {
   revealTileTargets,
   rackTileRects,
 } from "./components/tile-motion";
-import TilePool from "./components/TilePool";
 import { useReplyAnalysis } from "./useReplyAnalysis";
 import { rackComposition, splitRack } from "../shared/rack-entry";
 import BoardStudio from "./components/BoardStudio";
@@ -1482,7 +1481,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   }
                   flyingRack={activeFlight}
                 />
-                <TilePool key={`tile-pool:${game.id}`} game={game} />
               </section>
             </div>
             <div className="results-column">

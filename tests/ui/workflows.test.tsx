@@ -2958,36 +2958,49 @@ test("custom template creation/editing persists one template and built-ins have 
 test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters", async () => {
   const user = await start();
   const bag = (count: number) =>
-    screen.getByRole("img", { name: `${count} estimated tiles in the bag` }).textContent;
-  expect(bag(93)).toBe("93");
+    screen.getByRole("button", {
+      name: `Unseen tiles, ${count} estimated tiles in the bag`,
+    });
+  expect(bag(93).textContent).toBe("93");
   await typeRack(user, "A ");
-  expect(bag(91)).toBe("91");
+  expect(bag(91).textContent).toBe("91");
   await user.click(cell("H8: DW, start"));
   await user.keyboard(" Q");
-  expect(bag(90)).toBe("90");
-  await user.click(
-    screen.getByText(/unseen tiles?$/, {
-      selector: ".tile-pool summary strong",
-    }),
-  );
+  expect(bag(90).textContent).toBe("90");
+  expect(bag(90).getAttribute("aria-expanded")).toBe("false");
+  await user.click(bag(90));
+  expect(bag(90).getAttribute("aria-expanded")).toBe("true");
   const pool = () =>
     within(screen.getByRole("list", { name: "Unseen tile counts" }));
   expect(
     pool().getByRole("listitem", { name: "Blank: 0 unseen" }),
   ).toBeTruthy();
   expect(pool().getByRole("listitem", { name: "Q: 1 unseen" })).toBeTruthy();
-  const filter = screen.getByRole("combobox", { name: "Filter unseen tiles" });
+  const filter = screen.getByRole<HTMLSelectElement>("combobox", { name: "Filter unseen tiles" });
   await user.selectOptions(filter, "remaining");
   expect(pool().queryByRole("listitem", { name: /^Blank:/ })).toBeNull();
   await user.selectOptions(filter, "high");
   expect(pool().queryByRole("listitem", { name: /^A:/ })).toBeNull();
   expect(pool().getByRole("listitem", { name: "Q: 1 unseen" })).toBeTruthy();
+  const summary = screen.getByText(/unseen tiles?$/, {
+    selector: ".tile-pool summary strong",
+  });
+  const details = summary.closest("details")!;
+  await user.click(summary);
+  await waitFor(() => expect(bag(90).getAttribute("aria-expanded")).toBe("false"));
+  expect(details.open).toBe(false);
+  bag(90).focus();
+  await user.keyboard("{Enter}");
+  expect(details.open).toBe(true);
+  expect(filter.value).toBe("high");
   await user.click(screen.getByRole("button", { name: "Undo" }));
-  expect(bag(91)).toBe("91");
+  expect(bag(91).textContent).toBe("91");
   await user.selectOptions(filter, "all");
   expect(
     pool().getByRole("listitem", { name: "Blank: 1 unseen" }),
   ).toBeTruthy();
+  await user.click(bag(91));
+  expect(details.open).toBe(false);
 });
 
 test("the Lexulous bag icon and Optimal exchange both subtract an eight-tile opponent rack", async () => {
@@ -3004,9 +3017,9 @@ test("the Lexulous bag icon and Optimal exchange both subtract an eight-tile opp
   board.splice(0, 51, ...tiles.slice(0, 51));
   remote.games[0] = { ...game(), revision: 1, template, board, rack: tiles.slice(51, 59).join("") };
   const user = await start();
-  const bag = await screen.findByRole("img", { name: "22 estimated tiles in the bag" });
+  const bag = await screen.findByRole("button", { name: "Unseen tiles, 22 estimated tiles in the bag" });
   expect(bag.textContent).toBe("22");
-  expect(screen.queryByRole("img", { name: "23 estimated tiles in the bag" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Unseen tiles, 23 estimated tiles in the bag" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Optimal exchange" }));
   const exchange = within(screen.getByRole("region", { name: "Optimal exchange" }));
   expect(exchange.getByText("Bingo chance after the opponent’s turn")).toBeTruthy();
@@ -5642,7 +5655,7 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
   };
   const visibleRack = await panel.findByRole("img", { name: "Opponent rack: J, J, blank" });
   expect([...visibleRack.children].map((tile) => tile.textContent)).toEqual(["J", "J", ""]);
-  expect(panel.getByRole("img", { name: "0 estimated tiles in the bag" }).textContent).toBe("0");
+  expect(panel.getByRole("button", { name: "Unseen tiles, 0 estimated tiles in the bag" }).textContent).toBe("0");
   expectLabeledRacks();
   expect(panel.getByText("Rack tools").closest(".rack-lane")).toBe(opponentRack()?.parentElement);
   expect(panel.queryByRole("button", { name: "Optimal exchange" })).toBeNull();
