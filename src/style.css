@@ -24,9 +24,9 @@
   --primary: #235d48;
   --primary-hover: #184a37;
   --soft: #e8f0e8;
-  --tile: #dcc59c;
-  --tile-edge: #b49a70;
-  --tile-text: #1b231d;
+  --tile: #e8d8b4;
+  --tile-edge: #c7b691;
+  --tile-text: #26332a;
   --blank-tile: #d1e5f2;
   --blank-ink: #294c67;
   --archive-tile: #8054a5;
@@ -61,8 +61,8 @@
   --primary: #a7ceb3;
   --primary-hover: #c0dfc8;
   --soft: #304338;
-  --tile: #c6ae86;
-  --tile-edge: #987d56;
+  --tile: #cbbb95;
+  --tile-edge: #9e8e67;
   --tile-warning: #ff8e83;
   --point-loss-low: #cc9f98;
   --point-loss-mid: #f58c80;
@@ -88,8 +88,8 @@
     --primary: #a7ceb3;
     --primary-hover: #c0dfc8;
     --soft: #304338;
-    --tile: #c6ae86;
-    --tile-edge: #987d56;
+    --tile: #cbbb95;
+    --tile-edge: #9e8e67;
     --tile-warning: #ff8e83;
     --point-loss-low: #cc9f98;
     --point-loss-mid: #f58c80;
