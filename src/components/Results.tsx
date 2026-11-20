@@ -697,9 +697,9 @@ export default function Results({
     () => ({}),
     [resultSet, filter, requiredSquares, sort, reversed, view, profile, analysisKey],
   );
-  const definitions = useDefinitionTooltip(definitionLanguage, definitionPosition);
   const touchDefinitions = phoneLayout && !!definitionLanguage;
   const definitionHold = useDefinitionHold(touchDefinitions, definitionPosition);
+  const definitions = useDefinitionTooltip(definitionLanguage, definitionPosition, definitionHold.locked);
   const definitionMoveId = definitions.id && definitions.anchor?.dataset.moveId;
   useEffect(() => {
     setScrollPositions({});

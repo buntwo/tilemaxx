@@ -28,6 +28,7 @@ type Selection = {
 export function useDefinitionTooltip(
   language: DefinitionLanguage | undefined,
   positionKey: unknown,
+  sheetLocked = false,
 ) {
   const id = useId();
   const [selection, setSelection] = useState<Selection>();
@@ -109,6 +110,7 @@ export function useDefinitionTooltip(
           <DefinitionSheet
             language={language}
             selection={selection}
+            locked={sheetLocked}
             onClose={close}
           />
         ) : (
@@ -217,20 +219,25 @@ function DefinitionTooltip({
 function DefinitionSheet({
   language,
   selection,
+  locked,
   onClose,
 }: {
   language: DefinitionLanguage;
   selection: Extract<Selection, { kind: "sheet" }>;
+  locked: boolean;
   onClose: () => void;
 }) {
   const result = useDefinitionLookup(language, selection.words);
   return (
     <Modal
       title={selection.title}
-      className="definition-sheet"
+      className={
+        locked ? "definition-sheet waiting-for-release" : "definition-sheet"
+      }
       onClose={onClose}
+      closeDisabled={locked}
     >
-      <div aria-live="polite">
+      <div aria-live="polite" inert={locked}>
         <DefinitionContent
           language={language}
           words={selection.words}
