@@ -5496,8 +5496,8 @@ test("typing in the game picker filters active games by opponent name", async ()
   expect(document.activeElement).toBe(search());
   await user.keyboard("sMiTh");
   expect(options()).toHaveLength(2);
-  expect(options()[0].textContent).toMatch(/^2Jo SmithWordfeud/);
-  expect(options()[1].textContent).toMatch(/^3Jo SmithScrabble GO/);
+  expect(options()[0].textContent).toMatch(/^1Jo SmithScrabble GO/);
+  expect(options()[1].textContent).toMatch(/^2Jo SmithWordfeud/);
   expect(screen.queryByRole("menuitem", { name: /Reorder/ })).toBeNull();
 
   await user.keyboard("x{ArrowDown}{Enter}");
@@ -5507,7 +5507,7 @@ test("typing in the game picker filters active games by opponent name", async ()
   expect(options()).toHaveLength(0);
   await user.keyboard("{Backspace}{ArrowDown}{ArrowDown}{Enter}");
   expect(await screen.findByRole("heading", { name: "Jo Smith" })).toBeTruthy();
-  expect(localStorage.getItem("tilewise:game")).toBe("third");
+  expect(localStorage.getItem("tilewise:game")).toBe("second");
 
   trigger.focus();
   await user.keyboard("{ArrowDown}");
@@ -5524,16 +5524,16 @@ test("typing in the game picker filters active games by opponent name", async ()
   expect(document.activeElement).toBe(trigger);
 });
 
-test("reordering My games saves the profile order without switching games", async () => {
-  remote.games.push({ ...game(), id: "second", name: "Second game" });
-  await store.refresh();
+test("new games appear above the saved order without changing the selected game", async () => {
   const user = await start();
+  remote.games.push({ ...game(), id: "second", name: "Second game" });
+  await act(() => store.refresh());
   await user.click(cell("Switch game"));
   const handle = screen.getByRole("menuitem", { name: "Reorder First game" });
   expect(handle.closest("[data-selected]")).toBeTruthy();
   expect(screen.getByTitle("2 active games").textContent).toBe("2");
   handle.focus();
-  await user.keyboard("{ArrowDown}");
+  await user.keyboard("{ArrowUp}");
   const options = () =>
     screen
       .getAllByRole("menuitemradio")
@@ -5542,16 +5542,28 @@ test("reordering My games saves the profile order without switching games", asyn
         item.querySelector("strong")?.textContent,
       ]);
   const reordered = [
-    ["1", "Second game"],
-    ["2", "First game"],
+    ["1", "First game"],
+    ["2", "Second game"],
   ];
   await waitFor(() => expect(options()).toEqual(reordered));
-  expect(remote.profiles[0].gameOrder).toEqual(["second", "g"]);
+  expect(remote.profiles[0].gameOrder).toEqual(["g", "second"]);
   expect(cell("Switch game").textContent).toContain("First game");
+  remote.games.push({
+    ...game(),
+    id: "third",
+    name: "New arrival",
+    startedOn: "2020-01-01",
+  });
   await act(() => store.refresh());
-  expect(options()).toEqual(reordered);
+  expect(options()).toEqual([
+    ["1", "New arrival"],
+    ["2", "First game"],
+    ["3", "Second game"],
+  ]);
+  expect(remote.profiles[0].gameOrder).toEqual(["g", "second"]);
+  expect(cell("Switch game").textContent).toContain("First game");
   await user.keyboard("{Escape}");
-  expect(screen.queryByTitle("2 active games")).toBeNull();
+  expect(screen.queryByTitle("3 active games")).toBeNull();
 });
 
 test.each([false, true])("the endgame heading and opponent rack follow the bag count (phone %s)", async (phone) => {
