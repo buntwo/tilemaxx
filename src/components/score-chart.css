@@ -124,9 +124,11 @@
   margin: 7px 0 0;
 }
 .score-chart-tooltip dl > div { display: contents; }
+.score-chart-tooltip dt { color: var(--existing-letter); }
 .score-chart-tooltip dd { margin: 0; }
 
 .score-chart-total {
+  padding-inline-start: 8px;
   text-align: right;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
