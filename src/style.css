@@ -1983,6 +1983,11 @@ label + label {
   color: var(--primary);
   border-color: var(--primary);
 }
+.result-view-picker button {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
 .result-view-picker span { margin-left: 3px; font-variant-numeric: tabular-nums; }
 .reply-heatmap .defense-help { margin: 5px 0; }
 .reply-heat-board .board-wrap { max-width: 390px; margin: auto; }
