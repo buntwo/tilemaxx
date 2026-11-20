@@ -4830,6 +4830,7 @@ test("the board blank control corrects recorded scores and saves with undo and r
   expect(cell("H8: C blank, start")).toBeTruthy();
   expect(scoreTotals()).toBe("3–4");
   expect(points()).toEqual(["3", "4"]);
+  expect(cell("Last play: You CATS 3 pts 8H")).toBeTruthy();
   expect(scores.queryByRole("button", { name: "Keep as correction" })).toBeNull();
   await user.click(cell("Undo"));
   expect(scoreTotals()).toBe("6–10");
@@ -4841,6 +4842,56 @@ test("the board blank control corrects recorded scores and saves with undo and r
   await act(() => store.refresh());
   expect(remote.games[0].board[112]).toBe("c");
   expect(remote.games[0].trackedMoves?.map(({ score }) => score)).toEqual([4, 3]);
+});
+
+test("correcting the last opponent play updates the board, Last play, and history without finding moves again", async () => {
+  const user = await start();
+  const scores = within(screen.getByRole("region", { name: "Game scores" }));
+  const lastPlay = (word: string, points: number) =>
+    cell(`Last play: Opp ${word} ${points} pts 8H`);
+  const latestMove = () => within(scores.getByRole("table", { name: "Tracked moves" }))
+    .getAllByRole("row").slice(1).map((row) =>
+      within(row).getAllByRole("cell").map((value) => value.textContent),
+    );
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT");
+  await typeRack(user, "S");
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  expect(lastPlay("CAT", 10)).toBeTruthy();
+  await user.click(scores.getByText("Tracked move history"));
+
+  await user.click(cell("H8: C, start"));
+  await user.click(cell("Blank tile: off"));
+  const blank = cell("H8: C blank, start");
+  expect(within(blank).getByText("0")).toBeTruthy();
+  expect(scoreTotals()).toBe("0–4");
+  expect(latestMove()).toEqual([["1", "", "4", "(4) cAT"]]);
+  expect(trackedScore().getAttribute("data-turn")).toBe("you");
+  expect(cell("Edit last opponent move")).toBeTruthy();
+  await user.hover(blank);
+  expect(screen.getByLabelText("CAT across, 4 points")).toBeTruthy();
+  await user.click(lastPlay("CAT", 4));
+  const breakdown = within(screen.getByRole("table", { name: "Last play point breakdown" }));
+  expect(breakdown.getByText("2 × 2 DW")).toBeTruthy();
+  expect(breakdown.getByText("4 pts")).toBeTruthy();
+
+  await user.click(cell("Undo"));
+  expect(lastPlay("CAT", 10)).toBeTruthy();
+  await user.click(cell("Redo"));
+  expect(lastPlay("CAT", 4)).toBeTruthy();
+  await user.click(cell("H8: C blank, start"));
+  await user.click(cell("Blank tile: on"));
+  expect(lastPlay("CAT", 10)).toBeTruthy();
+
+  await user.click(cell("J8: T"));
+  await user.keyboard("B");
+  expect(lastPlay("CAB", 14)).toBeTruthy();
+  expect(scoreTotals()).toBe("0–14");
+  expect(latestMove()).toEqual([["1", "", "14", "(14) CAB"]]);
+  await store.flush();
+  await act(() => store.refresh());
+  expect(lastPlay("CAB", 14)).toBeTruthy();
+  expect(remote.games[0].trackedMoves?.map(({ word, score }) => [word, score])).toEqual([["CAB", 14]]);
 });
 
 test("editing the rack terminates an active search and permits new input", async () => {

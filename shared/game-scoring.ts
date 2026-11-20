@@ -873,13 +873,29 @@ export function lastSearchRecordedOpponentTurn(game: Game) {
     !tracksScores(game)
   )
     return;
-  const entry = game.past.at(-1);
+  let index = game.past.length - 1;
+  // A correction keeps the recorded turn and adds its own undo step.
+  while (index >= 0) {
+    const entry = game.past[index];
+    if (
+      !entry.trackedMoves ||
+      (entry.label !== BOARD_EDIT_LABELS.blank &&
+        entry.label !== BOARD_EDIT_LABELS.enter)
+    )
+      break;
+    index--;
+  }
+  const entry = game.past[index];
   if (!entry?.recordedOnSearch || entry.player !== "opponent" || !entry.review)
     return;
-  const after = [...entry.review.board];
-  for (const { index, letter } of entry.review.tiles) after[index] = letter;
+  const moves = trackedMoveHistory(game);
+  const last = moves.at(-1);
+  if (last?.player !== "opponent" || last.at !== entry.at) return;
+  const review = last.review ?? entry.review;
+  const after = [...review.board];
+  for (const { index, letter } of review.tiles) after[index] = letter;
   if (game.board.every((tile, i) => tile === after[i]))
-    return { entry, review: entry.review };
+    return { entry, review, moves, corrected: index !== game.past.length - 1 };
 }
 
 export function reopenSearchRecordedOpponentPlay(
@@ -889,9 +905,25 @@ export function reopenSearchRecordedOpponentPlay(
   const last = lastSearchRecordedOpponentTurn(game);
   if (
     !last ||
-    (board && !last.review.tiles.some(({ index, letter }) => board[index] !== letter))
+    (board && !last.review.tiles.some(({ index }) => !board[index]))
   )
     return game;
+  if (last.corrected) {
+    // Keep the corrected turn as an undo checkpoint and retain any rescoring
+    // of earlier moves while the last turn is being revised.
+    const trackedMoves = last.moves.slice(0, -1);
+    const history = remember(game, BOARD_EDIT_LABELS.enter);
+    history.past[history.past.length - 1].trackedMoves = last.moves;
+    return {
+      ...game,
+      ...history,
+      trackedMoves,
+      scoring: {
+        ...updateScoreTotals(game, last.moves, trackedMoves),
+        pendingBase: last.review.board,
+      },
+    };
+  }
   const previous = undo(game);
   let past = previous.past;
   // A folded entry is the undo boundary for the letters too. Restore that

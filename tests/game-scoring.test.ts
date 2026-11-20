@@ -11,6 +11,7 @@ import {
   emptyScoring,
   endGameManually,
   gameScoreTotals,
+  lastRecordedBoardPlay,
   nextPlayerToMove,
   pendingOpponentPlay,
   pendingOpponentTurns,
@@ -376,7 +377,7 @@ test("opponent rack-out waits for complete valid counts and a scoreable play", (
   assert.deepEqual(redo(restored).scoring, finished.scoring);
 });
 
-test("an opponent play recorded on search can be edited after saving or redoing it", () => {
+test("corrections to an opponent play recorded on search rescore it immediately after saving or redoing it", () => {
   const game = { ...fixture(), rack: "S" };
   const { start } = game.template;
   const edits = new BoardEditHistory();
@@ -392,13 +393,39 @@ test("an opponent play recorded on search can be edited after saving or redoing 
   const correctedBoard = [...redone.board];
   correctedBoard[start] = "c";
   const corrected = edits.apply(redone, correctedBoard, "blank");
-  assert.equal(corrected.scoring?.opponent.points, 0);
-  assert.deepEqual(trackedMoveHistory(corrected), []);
-  const rescored = recordOpponentPlayForSearch(corrected);
-  assert.equal(rescored.scoring?.opponent.points, 4);
-  assert.deepEqual(rescored.past.map(({ label }) => label), ["CAT"]);
-  assert.deepEqual(undo(rescored).board, game.board);
-  assert.deepEqual(redo(undo(rescored)).scoring, rescored.scoring);
+  assert.equal(corrected.scoring?.opponent.points, 4);
+  assert.equal(corrected.scoring?.pendingBase, undefined);
+  assert.equal(nextPlayerToMove(corrected), "you");
+  const [move] = trackedMoveHistory(corrected);
+  assert.equal(move.at, trackedMoveHistory(redone)[0].at);
+  assert.equal(move.review?.tiles[0].letter, "c");
+  const last = lastRecordedBoardPlay(corrected);
+  assert.equal(last?.move, move);
+  assert.equal(last?.breakdown?.score, 4);
+  assert.equal(last?.main?.tiles[0].blank, true);
+  assert.equal(boardWordsAt(corrected, start)[0].score, 4);
+  assert.equal(recordOpponentPlayForSearch(corrected), corrected);
+  assert.deepEqual(undo(corrected).board, opening);
+  assert.deepEqual(undo(corrected).scoring, redone.scoring);
+  assert.deepEqual(redo(undo(corrected)).scoring, corrected.scoring);
+
+  const reopened = reopenSearchRecordedOpponentPlay(corrected);
+  assert.equal(reopened.scoring?.opponent.points, 0);
+  assert.equal(pendingOpponentPlay(reopened)?.score, 4);
+  assert.deepEqual(trackedMoveHistory(undo(reopened)), [move]);
+  const extended = [...corrected.board];
+  extended[start + 3] = "S";
+  const revised = recordOpponentPlayForSearch(edits.apply(reopened, extended, "enter"));
+  assert.deepEqual(trackedMoveHistory(revised).map(({ word, score }) => [word, score]), [
+    ["CATS", 6],
+  ]);
+
+  const erasedBoard = [...corrected.board];
+  erasedBoard[start + 2] = "";
+  const erased = edits.apply(corrected, erasedBoard, "erase");
+  assert.equal(pendingOpponentPlay(erased)?.word, "CA");
+  assert.deepEqual(trackedMoveHistory(erased), []);
+  assert.deepEqual(trackedMoveHistory(undo(erased)), [move]);
 });
 
 test("an explicitly reopened play can take more tiles, while a fresh placement can be a second opponent turn", () => {

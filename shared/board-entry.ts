@@ -89,7 +89,8 @@ export class BoardEditHistory {
 
   apply(game: Game, board: Board, kind: EditKind): Game {
     if (board.every((letter, i) => letter === game.board[i])) return game;
-    const editable = reopenSearchRecordedOpponentPlay(game, board);
+    const editable =
+      kind === "erase" ? reopenSearchRecordedOpponentPlay(game, board) : game;
     const continuing =
       (this.group?.kind === kind && sameEditPosition(this.group.game, editable));
     const reopened = editable !== game;
@@ -99,7 +100,7 @@ export class BoardEditHistory {
     // is nothing left to rescore on the next search. Undo should restore it.
     const removed = reopenedFrom && !scoring?.pendingBase;
     const reuseBoundary =
-      continuing || (reopened && editable.past.length === game.past.length);
+      continuing || (reopened && editable.past.length >= game.past.length);
     const snapshot = removed ? reopenedFrom : editable;
     const next = {
       ...editable,
