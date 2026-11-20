@@ -907,57 +907,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const boardModeHistory = game && (
     <div className="board-mode-history">{boardHistoryControls}</div>
   );
-  const boardToolbar = game && (
-    <div className="board-toolbar">
-      <div>
-        <span className="board-name" title={boardName}>
-          <Grid2X2 size={16} />
-          {boardName}
-        </span>
-        <span className="board-size">{boardSize}</span>
-        <details
-          className="board-help"
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && event.currentTarget.open) {
-              event.currentTarget.open = false;
-              event.currentTarget.querySelector("summary")?.focus();
-            }
-          }}
-        >
-          <summary
-            className="icon-button"
-            aria-label="Board help"
-            title="Board help"
-          >
-            <CircleHelp size={16} />
-          </summary>
-          <div className="board-help-content">
-            <BoardEntryHelp />
-            {boardLegend}
-          </div>
-        </details>
-      </div>
-      <div className="board-actions">
-        <button
-          className="icon-button"
-          aria-label="Import screenshot"
-          title="Import screenshot"
-          disabled={boardLocked}
-          onClick={() => openDialog("screenshot")}
-        >
-          <ImagePlus size={17} />
-        </button>
-        <button
-          className="icon-button"
-          aria-label="Move history"
-          title="Move history"
-          onClick={() => openDialog("history")}
-        >
-          <History size={17} />
-        </button>
-      </div>
-    </div>
-  );
   return (
     <div
       ref={shell}
@@ -993,18 +942,20 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             changeSidebarVisibility(false);
         }}
       >
-        <button
-          ref={sidebarCollapseButton}
-          type="button"
-          className="icon-button sidebar-collapse"
-          aria-label="Collapse sidebar"
-          title="Collapse sidebar"
-          aria-controls="tilemaxx-sidebar"
-          onClick={() => changeSidebarVisibility(false)}
-        >
-          <Menu size={20} aria-hidden="true" />
-        </button>
-        <Brand />
+        <div className="sidebar-heading">
+          <Brand />
+          <button
+            ref={sidebarCollapseButton}
+            type="button"
+            className="icon-button sidebar-collapse"
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+            aria-controls="tilemaxx-sidebar"
+            onClick={() => changeSidebarVisibility(false)}
+          >
+            <Menu size={20} aria-hidden="true" />
+          </button>
+        </div>
         <button
           className="button new-game"
           disabled={!state.online}
@@ -1294,7 +1245,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             hasWarnings={warnings.length > 0}
           >
             <div className="board-column">
-              {compactGame && boardToolbar}
               <section
                 ref={boardPanel}
                 aria-label="Game board"
@@ -1357,6 +1307,20 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     !moveReview.showing &&
                     !squareFilter.selecting &&
                     boardHistoryControls
+                  }
+                  statusAction={
+                    compactGame && !boardLocked && !game.board.some(Boolean) && (
+                      <button
+                        type="button"
+                        className="icon-button board-import"
+                        aria-label="Import screenshot"
+                        aria-haspopup="dialog"
+                        title="Import screenshot"
+                        onClick={() => openDialog("screenshot")}
+                      >
+                        <ImagePlus size={16} aria-hidden="true" />
+                      </button>
+                    )
                   }
                   moveFilter={{
                     marks: squareFilter.marks,
@@ -2048,25 +2012,21 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 <ArrowUpRight size={16} />
               </button>
             )}
-            {!compactGame && (
-              <>
-                <button disabled={formBusy || boardLocked} onClick={() => openDialog("screenshot")}>
-                  <ImagePlus size={19} />
-                  <span><strong>Import screenshot</strong></span>
-                  <ArrowUpRight size={16} />
-                </button>
-                <button disabled={formBusy} onClick={() => openDialog("history")}>
-                  <History size={19} />
-                  <span><strong>Move history</strong></span>
-                  <ArrowUpRight size={16} />
-                </button>
-                <button disabled={formBusy} onClick={() => openDialog("board-help")}>
-                  <CircleHelp size={19} />
-                  <span><strong>Board help</strong></span>
-                  <ArrowUpRight size={16} />
-                </button>
-              </>
-            )}
+            <button disabled={formBusy || boardLocked} onClick={() => openDialog("screenshot")}>
+              <ImagePlus size={19} />
+              <span><strong>Import screenshot</strong></span>
+              <ArrowUpRight size={16} />
+            </button>
+            <button disabled={formBusy} onClick={() => openDialog("history")}>
+              <History size={19} />
+              <span><strong>Move history</strong></span>
+              <ArrowUpRight size={16} />
+            </button>
+            <button disabled={formBusy} onClick={() => openDialog("board-help")}>
+              <CircleHelp size={19} />
+              <span><strong>Board help</strong></span>
+              <ArrowUpRight size={16} />
+            </button>
             <button disabled={formBusy} onClick={() => openDialog("rename")}>
               <Pencil size={19} />
               <span>

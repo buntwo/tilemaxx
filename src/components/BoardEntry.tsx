@@ -55,6 +55,7 @@ export default function BoardEntry({
   onSolve,
   moveFilter,
   historyControls,
+  statusAction,
   overlay,
 }: {
   ref?: Ref<BoardEntryHandle>;
@@ -70,6 +71,7 @@ export default function BoardEntry({
   onSolve?: () => void;
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
+  statusAction?: ReactNode;
   overlay?: ReactNode;
 }) {
   const history = useRef(new BoardEditHistory());
@@ -102,6 +104,7 @@ export default function BoardEntry({
       onSolve={onSolve}
       moveFilter={moveFilter}
       historyControls={historyControls}
+      statusAction={statusAction}
       overlay={overlay}
       onBreak={() => history.current.reset()}
       onChange={(board, kind) => {
@@ -135,6 +138,7 @@ export function BoardInput({
   wordScores,
   moveFilter,
   historyControls,
+  statusAction,
   overlay,
 }: {
   ref?: Ref<BoardEntryHandle>;
@@ -158,6 +162,7 @@ export function BoardInput({
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
+  statusAction?: ReactNode;
   overlay?: ReactNode;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
@@ -599,6 +604,7 @@ export function BoardInput({
         <div className="direct-entry-status" role="status">
           {status}
         </div>
+        {statusAction}
         <div className="direct-entry-actions">
           <button
             className="text-button direction-button"
