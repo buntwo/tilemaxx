@@ -24,8 +24,9 @@
   --primary: #235d48;
   --primary-hover: #184a37;
   --soft: #e8f0e8;
-  --tile: #f4e9ce;
-  --tile-edge: #daccaa;
+  --tile: #dcc59c;
+  --tile-edge: #b49a70;
+  --tile-text: #1b231d;
   --blank-tile: #d1e5f2;
   --blank-ink: #294c67;
   --archive-tile: #8054a5;
@@ -60,8 +61,8 @@
   --primary: #a7ceb3;
   --primary-hover: #c0dfc8;
   --soft: #304338;
-  --tile: #d7c7a3;
-  --tile-edge: #a99b7b;
+  --tile: #c6ae86;
+  --tile-edge: #987d56;
   --tile-warning: #ff8e83;
   --point-loss-low: #cc9f98;
   --point-loss-mid: #f58c80;
@@ -87,8 +88,8 @@
     --primary: #a7ceb3;
     --primary-hover: #c0dfc8;
     --soft: #304338;
-    --tile: #d7c7a3;
-    --tile-edge: #a99b7b;
+    --tile: #c6ae86;
+    --tile-edge: #987d56;
     --tile-warning: #ff8e83;
     --point-loss-low: #cc9f98;
     --point-loss-mid: #f58c80;
@@ -673,7 +674,7 @@ label + label {
   align-items: center;
   justify-content: center;
   background: var(--tile);
-  color: #364238;
+  color: var(--tile-text);
   width: 34px;
   height: 34px;
   border-radius: 5px;
@@ -1690,7 +1691,7 @@ label + label {
 .square.occupied {
   transition: none;
   background: var(--tile);
-  color: #364238;
+  color: var(--tile-text);
   box-shadow:
     inset 0 -2px var(--tile-edge),
     0 1px 2px #0001;
@@ -1825,7 +1826,7 @@ label + label {
   border-bottom: 3px solid var(--tile-edge);
   border-radius: 6px;
   background: var(--tile);
-  color: #364238;
+  color: var(--tile-text);
   box-shadow: 0 2px 2px #00000006;
 }
 .rack-tile small {
@@ -2164,7 +2165,7 @@ label + label {
   font-size: 27px;
   font-weight: 550;
   background: var(--tile);
-  color: #4d5d48;
+  color: var(--tile-text);
   box-shadow:
     inset 0 -3px var(--tile-edge),
     0 5px 10px #574b2f0a;
@@ -2172,6 +2173,7 @@ label + label {
 }
 .illustrated-tiles > .illustrated-tile-green {
   background: #d9e4ce;
+  color: #4d5d48;
   box-shadow: inset 0 -3px #c2d1b4;
 }
 .illustrated-tiles > span:nth-child(2) {
@@ -2638,7 +2640,7 @@ label + label {
 .reply-known-rack > span:last-child { display: flex; gap: 3px; }
 .reply-known-rack b {
   background: var(--tile);
-  color: var(--tile-text, #283d36);
+  color: var(--tile-text);
   border-radius: 3px;
   width: 19px;
   line-height: 19px;
@@ -4698,7 +4700,7 @@ label + label {
   place-items: center;
   font-size: min(1em, 54cqi);
   background: var(--tile);
-  color: #364238;
+  color: var(--tile-text);
   box-shadow: inset 0 -2px var(--tile-edge);
 }
 @container (max-width: 34px) {
@@ -4738,7 +4740,7 @@ label + label {
   place-items: center;
   transform-origin: top left;
   background: var(--tile);
-  color: #364238;
+  color: var(--tile-text);
   border-radius: 5px;
   font-weight: 630;
   line-height: 1;
@@ -4901,7 +4903,7 @@ label + label {
   padding: 0 3px;
   border-radius: 4px;
   background: var(--tile);
-  color: #364238;
+  color: var(--tile-text);
   font-size: 10px;
   font-weight: 700;
 }
