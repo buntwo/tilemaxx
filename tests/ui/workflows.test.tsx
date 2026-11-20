@@ -227,7 +227,7 @@ test("compare mode selects moves without playing and switches model without reru
   expect(screen.queryByRole("article", { name: /^Analysis for/ })).toBeNull();
 });
 
-test("All moves and Shortlist toggle back to the previous move view", async () => {
+test("All moves and Shortlist share the selected playing style as their return view", async () => {
   const requested: string[] = [];
   class ProfileWorker extends SolverWorker {
     postMessage(request: SolverRequest) {
@@ -286,16 +286,19 @@ test("All moves and Shortlist toggle back to the previous move view", async () =
   await user.click(shortlist);
   expect(shortlist.getAttribute("aria-pressed")).toBe("true");
   expect(suggested().classList.contains("is-shortlist")).toBe(true);
+  expect(shortlist.title).toBe("Return to Word-List Learner");
   await user.click(shortlist);
-  expect(allMoves.getAttribute("aria-pressed")).toBe("true");
-  await user.click(allMoves);
+  expect(allMoves.getAttribute("aria-pressed")).toBe("false");
   await waitFor(() => expect(all()).toHaveLength(1));
   expect(picker).toHaveProperty("value", "learner");
   expect(suggested().scrollTop).toBe(12);
 
   await user.click(shortlist);
   expect(suggested().classList.contains("is-shortlist")).toBe(true);
-  await user.click(shortlist);
+  await user.click(allMoves);
+  expect(allMoves.getAttribute("aria-pressed")).toBe("true");
+  expect(allMoves.title).toBe("Return to Word-List Learner");
+  await user.click(allMoves);
   expect(await screen.findByText("U 7")).toBeTruthy();
   expect(picker).toHaveProperty("value", "learner");
 });

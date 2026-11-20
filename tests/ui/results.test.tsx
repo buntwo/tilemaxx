@@ -1579,6 +1579,11 @@ test("a fresh move search opens All moves even after viewing the Shortlist", asy
   const allMoves = () => screen.getByRole("button", { name: "All moves" });
   await user.click(shortlist());
   expect(shortlist().getAttribute("aria-pressed")).toBe("true");
+  await user.click(shortlist());
+  expect(allMoves().getAttribute("aria-pressed")).toBe("true");
+  await user.click(allMoves());
+  expect(allMoves().getAttribute("aria-pressed")).toBe("true");
+  await user.click(shortlist());
   rerun();
   expect(allMoves().getAttribute("aria-pressed")).toBe("true");
   expect(shortlist().getAttribute("aria-pressed")).toBe("false");
