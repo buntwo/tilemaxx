@@ -15,11 +15,11 @@ export function useDefinitionHold(enabled: boolean, position: unknown) {
     pointerId: number;
     x: number;
     y: number;
-    timer: ReturnType<typeof setTimeout>;
+    startedAt: number;
+    open: (anchor: HTMLElement) => void;
   }>(undefined);
   const held = useRef<HTMLElement>(undefined);
   const cancel = useCallback(() => {
-    clearTimeout(press.current?.timer);
     press.current = undefined;
   }, []);
 
@@ -35,15 +35,24 @@ export function useDefinitionHold(enabled: boolean, position: unknown) {
       held.current = undefined;
     }
     function release(event: globalThis.PointerEvent) {
-      if (event.pointerId === press.current?.pointerId) cancel();
+      const active = press.current;
+      if (!active || event.pointerId !== active.pointerId) return;
+      cancel();
+      if (
+        event.type !== "pointerup" ||
+        event.timeStamp - active.startedAt < HOLD_MS ||
+        movedTooFar(event, active) ||
+        !active.anchor.isConnected ||
+        active.anchor.closest("button:disabled")
+      )
+        return;
+      // Keep the sheet out of the way until the finger is lifted.
+      held.current = active.anchor;
+      active.open(active.anchor);
     }
     function move(event: globalThis.PointerEvent) {
       const active = press.current;
-      if (
-        active?.pointerId === event.pointerId &&
-        Math.hypot(event.clientX - active.x, event.clientY - active.y) >
-          MAX_MOVEMENT
-      )
+      if (active?.pointerId === event.pointerId && movedTooFar(event, active))
         cancel();
     }
     function suppressReleaseClick(event: MouseEvent) {
@@ -89,11 +98,8 @@ export function useDefinitionHold(enabled: boolean, position: unknown) {
         pointerId,
         x: clientX,
         y: clientY,
-        timer: setTimeout(() => {
-          if (!anchor.isConnected || anchor.closest("button:disabled")) return;
-          held.current = anchor;
-          open(anchor);
-        }, HOLD_MS),
+        startedAt: event.timeStamp,
+        open,
       };
     },
     ownsContextMenu(target: EventTarget) {
@@ -103,4 +109,13 @@ export function useDefinitionHold(enabled: boolean, position: unknown) {
       );
     },
   };
+}
+
+function movedTooFar(
+  event: globalThis.PointerEvent,
+  start: { x: number; y: number },
+) {
+  return (
+    Math.hypot(event.clientX - start.x, event.clientY - start.y) > MAX_MOVEMENT
+  );
 }
