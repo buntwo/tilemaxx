@@ -8,8 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { ArrowDown, ArrowRight, Star } from "lucide-react";
-import type { DefinitionLanguage } from "../../shared/definitions";
-import { boardWordsThrough, type boardWordsAt } from "../../shared/game-scoring";
+import type { boardWordsAt } from "../../shared/game-scoring";
 import {
   type Board as BoardState,
   type BoardTemplate,
@@ -20,7 +19,6 @@ import {
 } from "../../shared/model";
 import { BingoBadge } from "./MoveWord";
 import BoardCoordinates, { type CoordinateSelection } from "./BoardCoordinates";
-import { useDefinitionTooltip } from "./DefinitionTooltip";
 import { canHoverWithMouse } from "../move-preview";
 
 const TILE_HOLD_MS = 450;
@@ -48,8 +46,9 @@ export default function Board({
   coordinateSelection,
   overlay,
   wordScores,
-  definitionLanguage,
-  onDefinitionPick,
+  defining = false,
+  definedSquare,
+  onDefine,
 }: {
   template: BoardTemplate;
   board: BoardState;
@@ -75,8 +74,9 @@ export default function Board({
   coordinateSelection?: CoordinateSelection;
   overlay?: ReactNode;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
-  definitionLanguage?: DefinitionLanguage;
-  onDefinitionPick?: () => void;
+  defining?: boolean;
+  definedSquare?: number;
+  onDefine?: (tile: HTMLButtonElement, index: number) => boolean;
 }) {
   const press = useRef<{
     index: number;
@@ -91,8 +91,6 @@ export default function Board({
   holdAction.current = onTileHold;
   const canHoldTile = !!onTileHold;
   const [hoveredTile, setHoveredTile] = useState<number | null>(null);
-  const definitions = useDefinitionTooltip(definitionLanguage, board);
-  const defining = !!onDefinitionPick;
   useEffect(() => () => clearTimeout(holdTimer.current), [board, canHoldTile]);
   function cancelPress(pointerId: number) {
     if (press.current?.pointerId !== pointerId) return;
@@ -134,7 +132,7 @@ export default function Board({
           })
         }
         onPointerLeave={wordScores && (() => setHoveredTile(null))}
-        onContextMenu={definitionLanguage && !defining ? (event) => {
+        onContextMenu={onDefine && !defining ? (event) => {
           if (
             event.defaultPrevented ||
             (event.button !== 2 && !event.ctrlKey) ||
@@ -143,11 +141,8 @@ export default function Board({
             !(event.target instanceof Element)
           ) return;
           const tile = event.target.closest<HTMLButtonElement>("button[data-cell]");
-          if (!tile) return;
-          const words = boardWordsThrough(board, n, Number(tile.dataset.cell));
-          if (!words.length) return;
-          event.preventDefault();
-          definitions.open(tile, words);
+          if (tile && onDefine(tile, Number(tile.dataset.cell)))
+            event.preventDefault();
         } : undefined}
       >
         <span className="axis corner" />
@@ -174,7 +169,7 @@ export default function Board({
                   type="button"
                   key={i}
                   data-cell={i}
-                  data-definition-open={definitions.anchor?.dataset.cell === String(i) || undefined}
+                  data-definition-open={definedSquare === i || undefined}
                   disabled={disabled || (defining && !board[i])}
                   tabIndex={compact && !overlay ? -1 : undefined}
                   className={`square ${bonus.toLowerCase()} ${tile ? "occupied" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}${wordTiles.has(i) ? " word-hover" : ""}${marked ? " move-filter-square" : ""}`}
@@ -257,12 +252,8 @@ export default function Board({
                       canceledTap.current = false;
                       return;
                     }
-                    if (onDefinitionPick) {
-                      const words = boardWordsThrough(board, n, i);
-                      if (words.length) {
-                        definitions.openSheet(e.currentTarget, words, `Words at ${coordinate(i, n)}`);
-                        onDefinitionPick();
-                      }
+                    if (defining) {
+                      onDefine?.(e.currentTarget, i);
                       return;
                     }
                     // Do not focus on pointerup: Safari may move focus again
@@ -336,7 +327,6 @@ export default function Board({
       {coordinateSelection && (
         <BoardCoordinates size={n} selection={coordinateSelection} />
       )}
-      {definitions.popup}
     </div>
   );
 }
