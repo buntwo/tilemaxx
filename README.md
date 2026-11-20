@@ -69,6 +69,33 @@ Tilemaxx ships with **Wordnik (2021)** and **ENABLE**, so you can try it right a
 
 Imported lists are available to every profile on the server. To remove one, use its trash button in **Word lists**. If a saved game uses that list, choose a different list in the game first. See [THIRD_PARTY.md](THIRD_PARTY.md) for sources and licenses.
 
+## Import definition files
+
+Download the definition exports manually and place them in `data/definitions/` in the checkout whose data you want to update. Use these filenames so the importer can identify the language of the word and of its definitions.
+
+| File | Definitions | Source |
+| --- | --- | --- |
+| `fr.jsonl.gz` | French words, French definitions | [French Wiktionnaire export](https://kaikki.org/frwiktionary/rawdata.html) |
+| `fr-en.jsonl.gz` | French words, English glosses | [French entries from English Wiktionary](https://kaikki.org/dictionary/French/) |
+| `en.jsonl.gz` | English words, English definitions | [English entries from English Wiktionary](https://kaikki.org/dictionary/English/) |
+| `en.tsv` | English words, English definitions | User-supplied [CrowdsourcedDefs CSW24 TSV](https://github.com/jvc56/CrowdsourcedDefs/tree/main/editions/2) |
+
+Wiktionary inputs use Wiktextract JSON Lines, also accepted uncompressed as `fr.jsonl`, `fr-en.jsonl`, and `en.jsonl`. The TSV uses one word and one definition per row. Keep all inputs and the generated database in the ignored data directory.
+
+Run the importer from the checkout after installing dependencies.
+
+```sh
+npm run import:definitions
+```
+
+On a Docker Compose installation, put the same files in the host's mounted `data/definitions/` directory and run the bundled importer inside the current container.
+
+```sh
+docker compose exec -T tilemaxx node dist-server/import-definitions.js
+```
+
+The command finds the installed exports and builds `data/definitions/definitions.sqlite`. Rerun it after replacing an export. It skips unchanged sources and keeps each previous index usable if its replacement fails. Wait for files to finish copying before running it. Set `DATA_DIR` if the checkout uses a different data directory. The index preserves accented spellings, links Wiktionary entries to their sources, and keeps these definition sources independent of the word lists used to validate plays.
+
 ## Deploy with Docker Compose
 
 On a host with Git and Docker Compose, run these commands from the folder where you keep your Compose projects.
