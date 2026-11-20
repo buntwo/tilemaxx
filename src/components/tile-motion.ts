@@ -43,13 +43,14 @@ export function prepareTileFlight(
   move: Move,
   rack: HTMLElement | null,
   board: HTMLElement | null,
+  revealOnNarrowLayout: boolean,
 ) {
   if (!canAnimateTiles()) return;
   const slots = rackSlotsForMove(game, move.tiles);
   if (!slots) return;
   const sources = rack ? rackTileRects(rack, slots) : [];
   const reveal =
-    window.matchMedia("(max-width: 650px)").matches ||
+    revealOnNarrowLayout ||
     !sources.every(tileVisible) ||
     !move.tiles.every(({ index }) =>
       tileVisible(

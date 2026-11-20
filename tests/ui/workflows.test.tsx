@@ -51,15 +51,15 @@ import {
 } from "../opponent-endgame-fixture";
 
 let remote: AppState & { version?: string };
-let workspaceWidth: number;
-const workspaceObservers = new Set<(width: number) => void>();
+let shellWidth: number;
+const shellObservers = new Set<(width: number) => void>();
 
-function resizeWorkspace(width: number) {
-  workspaceWidth = width;
-  for (const notify of workspaceObservers) notify(width);
+function resizeShell(width: number) {
+  shellWidth = width;
+  for (const notify of shellObservers) notify(width);
 }
 
-class WorkspaceResizeObserver {
+class ShellResizeObserver {
   private readonly notify: (width: number) => void;
 
   constructor(callback: (entries: { contentRect: { width: number } }[]) => void) {
@@ -67,12 +67,12 @@ class WorkspaceResizeObserver {
   }
 
   observe() {
-    workspaceObservers.add(this.notify);
-    this.notify(workspaceWidth);
+    shellObservers.add(this.notify);
+    this.notify(shellWidth);
   }
 
   disconnect() {
-    workspaceObservers.delete(this.notify);
+    shellObservers.delete(this.notify);
   }
 }
 
@@ -513,12 +513,7 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
 });
 
 test("phone analysis taps preview and select a move without offering Play", async () => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(max-width: 650px)",
-    addEventListener() {},
-    removeEventListener() {},
-  }));
-  const user = await start();
+  const user = await start(390);
   await typeRack(user, "CATS");
   await user.keyboard("{Enter}");
   await user.click(await screen.findByRole("button", { name: "Analyze" }));
@@ -1353,11 +1348,6 @@ test("Super Lexulous can be created under the Lexulous platform", async () => {
 });
 
 test("calculation timing waits for reply histograms and stays fixed for follow-up requests", async () => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query !== "(max-width: 650px)",
-    addEventListener() {},
-    removeEventListener() {},
-  }));
   type ReplySummary = Extract<ReplyRequest, { kind: "reply-summary" }>;
   type BoardOdds = Extract<SolverRequest, { kind: "board-odds" }>;
   let replies: { worker: SolverWorker; request: ReplySummary } | undefined;
@@ -1603,11 +1593,6 @@ test("reply histograms keep the score leaders, add extra candidates, and check a
 });
 
 test("board check uses the current filtered moves, and cancelled results stay out of the list", async () => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query !== "(max-width: 650px)",
-    addEventListener() {},
-    removeEventListener() {},
-  }));
   type Search = Parameters<SolverWorker["postMessage"]>[0];
   let pending:
     | { worker: SolverWorker; id: number; candidates: GameMove[] }
@@ -1688,8 +1673,8 @@ test("board check uses the current filtered moves, and cancelled results stay ou
 });
 
 test.each(["narrow", "wide"])("%s results stream bingo odds after replies finish and discard odds for an older bag size", async (layout) => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: layout === "narrow" && query === "(max-width: 650px)",
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
     addEventListener() {},
     removeEventListener() {},
   }));
@@ -1778,13 +1763,13 @@ test.each(["narrow", "wide"])("%s results stream bingo odds after replies finish
 });
 
 beforeEach(() => {
-  workspaceWidth = 950;
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query !== "(max-width: 650px)" && query !== "(max-width: 800px)",
+  shellWidth = 1200;
+  vi.stubGlobal("matchMedia", () => ({
+    matches: true,
     addEventListener() {},
     removeEventListener() {},
   }));
-  vi.stubGlobal("ResizeObserver", WorkspaceResizeObserver);
+  vi.stubGlobal("ResizeObserver", ShellResizeObserver);
   localStorage.clear();
   history.replaceState(null, "", "/");
   remote = {
@@ -1925,8 +1910,8 @@ beforeEach(() => {
   );
 });
 afterEach(() => clearTimeout(store.timer));
-async function start(width = matchMedia("(max-width: 650px)").matches ? 390 : workspaceWidth) {
-  workspaceWidth = width;
+async function start(width = shellWidth) {
+  shellWidth = width;
   const user = userEvent.setup();
   render(<App />);
   await screen.findByRole("heading", { name: /First game/ });
@@ -1962,14 +1947,7 @@ const selectedCell = () =>
 test.each(["phone", "desktop"])(
   "the %s game footer shows and copies the current game's ID",
   async (layout) => {
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      matches:
-        (layout === "phone" && query === "(max-width: 650px)") ||
-        (layout === "desktop" && query === "(min-width: 1000px)"),
-      addEventListener() {},
-      removeEventListener() {},
-    }));
-    const user = await start();
+    const user = await start(layout === "phone" ? 390 : 1200);
     const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     const footer = () =>
       within(
@@ -2150,12 +2128,7 @@ test("Enter on the board finds moves using the just-entered play and existing ra
 });
 
 test("a phone keyboard’s Shift flag on Enter still finds moves on the first press", async () => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(max-width: 650px)",
-    addEventListener() {},
-    removeEventListener() {},
-  }));
-  const user = await start();
+  const user = await start(390);
   await typeRack(user, "S");
   await user.click(cell("H8: DW, start"));
   expect(entry().getAttribute("autocapitalize")).toBe("off");
@@ -3708,12 +3681,7 @@ test.each(["phone", "tablet", "desktop"])(
       startedOn: "2026-02-18",
       notes: "Club round",
     });
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: query === "(max-width: 650px)" && layout === "phone",
-      addEventListener() {},
-      removeEventListener() {},
-    }));
-    const user = await start(layout === "phone" ? 360 : layout === "tablet" ? 700 : 950);
+    const user = await start(layout === "phone" ? 360 : layout === "tablet" ? 820 : 1200);
     await waitFor(() => expect(current().revision).toBe(1));
     const heading = cell("Game options").closest("header")!;
     expect(within(heading).getByText("Lexulous · Test words")).toBeTruthy();
@@ -3725,7 +3693,7 @@ test.each(["phone", "tablet", "desktop"])(
     expect(moves.compareDocumentPosition(scores)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.queryByRole("combobox", { name: "Game dictionary" })).toBeNull();
     const toolbar = document.querySelector(".board-column > .board-toolbar");
-    expect(Boolean(toolbar)).toBe(layout === "desktop");
+    expect(Boolean(toolbar)).toBe(layout !== "phone");
     if (toolbar) expect(toolbar.nextElementSibling?.getAttribute("aria-label")).toBe("Game board");
     const options = await openGameOptions(user);
     expect(options.getByRole("combobox", { name: "Game dictionary" })).toBeTruthy();
@@ -3848,16 +3816,12 @@ test("the sidebar checker uses the selected list or local file independently of 
   expect(remote.dictionaries.map(({ id }) => id)).toEqual(["test", "house"]);
 });
 
-test.each([1320, 760, 390])("the sidebar collapses and reopens at %ipx", async (width) => {
-  const overlay = width <= 800;
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches:
-      (query === "(max-width: 800px)" && overlay) ||
-      (query === "(max-width: 650px)" && width <= 650),
-    addEventListener() {},
-    removeEventListener() {},
-  }));
-  const user = await start(width === 1320 ? 1050 : width - 30);
+test.each([
+  { width: 1320, overlay: false },
+  { width: 820, overlay: true },
+  { width: 390, overlay: true },
+])("the sidebar collapses and reopens at $width px", async ({ width, overlay }) => {
+  const user = await start(width);
   const sidebar = () => screen.queryByRole("complementary", { name: "Sidebar" });
   const open = () => screen.getByRole("button", { name: "Open sidebar" });
   const collapse = () => within(sidebar()!).getByRole("button", { name: "Collapse sidebar" });
@@ -3882,42 +3846,49 @@ test.each([1320, 760, 390])("the sidebar collapses and reopens at %ipx", async (
   }
 });
 
-test("the same game header and score history follow available workspace width", async () => {
-  vi.stubGlobal("matchMedia", () => ({
-    matches: false,
-    addEventListener() {},
-    removeEventListener() {},
-  }));
-  const user = await start(690);
-  const header = screen.getByRole("heading", { name: "First game" }).closest("header");
+test("resizing changes the game layout once and preserves open score history", async () => {
+  const user = await start(751);
+  const header = screen.getByRole("heading", { name: "First game" }).closest("header")!;
   const scores = screen.getByRole("region", { name: "Game scores" });
   const history = within(scores).getByText("Tracked move history");
   await user.click(history);
-  const shell = header?.closest(".app-shell");
-  expect(shell?.classList.contains("stacked-game")).toBe(true);
+  const shell = header.closest(".app-shell")!;
   const boardToolbar = () => document.querySelector(".board-column > .board-toolbar");
+  const sidebar = () => screen.queryByRole("complementary", { name: "Sidebar" });
+  expect(shell.classList.contains("stacked-game")).toBe(true);
+  expect(shell.classList.contains("phone-layout")).toBe(true);
   expect(boardToolbar()).toBeNull();
+
+  for (const width of [752, 800, 801, 960, 991, 992, 1150, 1500]) {
+    act(() => resizeShell(width));
+    expect(shell.classList.contains("compact-game"), String(width)).toBe(true);
+    expect(shell.classList.contains("phone-layout"), String(width)).toBe(false);
+    expect(!!sidebar(), String(width)).toBe(width >= 992);
+    expect(boardToolbar()?.nextElementSibling?.getAttribute("aria-label")).toBe("Game board");
+    expect(screen.getByRole("region", { name: "Game scores" })).toBe(scores);
+    expect(history.closest("details")?.open).toBe(true);
+  }
+
   await user.click(cell("Collapse sidebar"));
-  act(() => resizeWorkspace(720));
-  const open = within(header!).getByRole("button", { name: "Open sidebar" });
-  expect(open.querySelector(".lucide-menu")).toBeTruthy();
-  expect(shell?.classList.contains("compact-game")).toBe(true);
-  expect(boardToolbar()?.nextElementSibling?.getAttribute("aria-label")).toBe("Game board");
-  expect(screen.getByRole("region", { name: "Game scores" })).toBe(scores);
+  expect(shell.classList.contains("compact-game")).toBe(true);
+  await user.click(within(header).getByRole("button", { name: "Open sidebar" }));
+  expect(shell.classList.contains("compact-game")).toBe(true);
+
+  act(() => resizeShell(820));
+  expect(sidebar()).toBeNull();
+  await user.click(within(header).getByRole("button", { name: "Open sidebar" }));
+  expect(shell.classList.contains("compact-game")).toBe(true);
+  expect(shell.querySelector(".sidebar-scrim")).toBeTruthy();
+  act(() => resizeShell(751));
+  expect(shell.classList.contains("stacked-game")).toBe(true);
+  expect(shell.classList.contains("phone-layout")).toBe(true);
+  expect(boardToolbar()).toBeNull();
   expect(history.closest("details")?.open).toBe(true);
-  await user.click(open);
-  act(() => resizeWorkspace(719));
-  expect(shell?.classList.contains("stacked-game")).toBe(true);
   expect(document.querySelector(".breadcrumb, .topbar")).toBeNull();
 });
 
 test.each([false, true])("the sidebar opens the illustrated guide (phone %s)", async (phone) => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: phone ? ["(max-width: 650px)", "(max-width: 800px)"].includes(query) : query === "(min-width: 1000px)",
-    addEventListener() {},
-    removeEventListener() {},
-  }));
-  const user = await start(phone ? 360 : 950);
+  const user = await start(phone ? 360 : 1200);
   if (phone)
     await user.click(screen.getByRole("button", { name: "Open sidebar" }));
   const menu = within(screen.getByRole("complementary", { name: "Sidebar" }));
@@ -3948,11 +3919,6 @@ test.each([false, true])("the sidebar opens the illustrated guide (phone %s)", a
 });
 
 test("the phone layout keeps settings, the build version, board help and move filtering accessible", async () => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: ["(max-width: 650px)", "(max-width: 800px)"].includes(query),
-    addEventListener() {},
-    removeEventListener() {},
-  }));
   const user = await start(360);
   const main = within(screen.getByRole("main"));
   const menu = main.getByRole("button", { name: "Open sidebar" });
@@ -4040,11 +4006,6 @@ test("the phone layout keeps settings, the build version, board help and move fi
 });
 
 test("entering the opponent's final tile updates the score and ends the game on the phone", async () => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(max-width: 650px)",
-    addEventListener() {},
-    removeEventListener() {},
-  }));
   const fixture = remote.games[0];
   fixture.revision = 1;
   fixture.board.splice(112, 3, "C", "A", "T");
@@ -4056,7 +4017,7 @@ test("entering the opponent's final tile updates the score and ends the game on 
   fixture.template.tileCounts = Object.fromEntries(
     TILE_SYMBOLS.map((symbol) => [symbol, Number("ACQST".includes(symbol))]),
   );
-  const user = await start();
+  const user = await start(390);
   await waitFor(() => expect(scoreTotals()).toBe("20–10"));
   expect(trackedScore().getAttribute("data-outcome")).toBe("playing");
   expect(trackedScore().classList.contains("value-good")).toBe(false);
@@ -4202,8 +4163,8 @@ test.each([
 );
 
 test("phone rack entry reveals the tiles above the keyboard and restores the page when it closes", async () => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(max-width: 650px)",
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
     addEventListener() {},
     removeEventListener() {},
   }));
@@ -4223,7 +4184,7 @@ test("phone rack entry reveals the tiles above the keyboard and restores the pag
     scrollY = (args as ScrollToOptions).top!;
   });
 
-  const user = await start();
+  const user = await start(390);
   const rack = screen.getByRole("group", { name: "Your rack tiles" });
   vi.spyOn(rack, "getBoundingClientRect").mockImplementation(
     () => new DOMRect(28, 640 - scrollY, 334, 52),
@@ -4280,11 +4241,6 @@ test.each([
   { layout: "phone", width: 390 },
   { layout: "desktop", width: 950 },
 ])("on $layout, dictionary warnings appear between Last play and the board", async ({ layout, width }) => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: layout === "phone" && query === "(max-width: 650px)",
-    addEventListener() {},
-    removeEventListener() {},
-  }));
   class ValidatingWorker extends SolverWorker {
     protected boardWarnings(
       lexicon: Lexicon,
@@ -4339,7 +4295,7 @@ test.each([
   { layout: "narrow laptop", width: 690 },
 ])("on a $layout, searching moves the rack beside the board and selecting it resumes editing", async ({ layout, width }) => {
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: layout === "phone" && query === "(max-width: 650px)",
+    matches: query !== "(any-hover: hover)",
     addEventListener() {},
     removeEventListener() {},
   }));
@@ -4404,12 +4360,12 @@ test.each([
 });
 
 test.each(["phone", "desktop"])("%s square selection filters moves without editing the board", async (layout) => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === (layout === "phone" ? "(max-width: 650px)" : "(min-width: 1000px)"),
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
     addEventListener() {},
     removeEventListener() {},
   }));
-  const user = await start();
+  const user = await start(layout === "phone" ? 390 : 1200);
   await typeRack(user, "CATS");
   await user.keyboard("{Enter}");
   const catRows = () => screen.findAllByRole("button", { name: /^CAT, / });
@@ -4666,7 +4622,7 @@ test("turning tracking on after a screenshot restores the saved move scores", as
 
 test("score tracking records typed opponent moves and solver plays across undo, redo and saving", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(min-width: 1000px)" || query === "(any-hover: hover)",
+    matches: query === "(any-hover: hover)",
     addEventListener() {},
     removeEventListener() {},
   }));
@@ -4796,11 +4752,6 @@ test("two opponent plays entered before a reply both make it into the score hist
 });
 
 test("on a phone the score updates before choosing a reply and a missing tile can be added to that turn", async () => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(max-width: 650px)",
-    addEventListener() {},
-    removeEventListener() {},
-  }));
   const user = await start(390);
   await user.click(cell("H8: DW, start"));
   await user.keyboard("CAT");
@@ -5641,8 +5592,8 @@ test("active game options show the tracked score inline with your score first", 
 });
 
 test("typing in the game picker filters active games by opponent name", async () => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(min-width: 1000px)",
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
     addEventListener() {},
     removeEventListener() {},
   }));
@@ -5734,13 +5685,6 @@ test("new games appear above the saved order without changing the selected game"
 });
 
 test.each([false, true])("the endgame heading and opponent rack follow the bag count (phone %s)", async (phone) => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: phone
-      ? query === "(max-width: 650px)"
-      : query === "(min-width: 1000px)",
-    addEventListener() {},
-    removeEventListener() {},
-  }));
   const game = remote.games[0];
   game.rack = "CAT";
   game.excludedRackSlots = [2];
@@ -5751,7 +5695,7 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
     ]),
   );
   game.revision++;
-  const user = await start();
+  const user = await start(phone ? 390 : 1200);
   const panel = within(screen.getByRole("region", { name: "Your rack" }));
   const yourRack = panel.getByRole("group", { name: "Your rack tiles" });
   const opponentRack = () =>
@@ -6133,7 +6077,7 @@ test("exchange simulation starts on open, shows draw scores, and closes when mar
 test.each(["rack", "results"])("the %s exchange suggestion preserves holds and opens the inline panel", async (source) => {
   const fromResults = source === "results";
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(max-width: 650px)" && fromResults,
+    matches: query !== "(prefers-reduced-motion: reduce)",
     addEventListener() {},
     removeEventListener() {},
   }));
@@ -6157,7 +6101,7 @@ test.each(["rack", "results"])("the %s exchange suggestion preserves holds and o
       }
     },
   );
-  const user = await start();
+  const user = await start(fromResults ? 390 : 1200);
   await typeRack(user, "CATSUVW");
   await user.click(rackTile(7));
   await user.keyboard("{ArrowDown}");
@@ -6283,11 +6227,6 @@ test("style exchanges replace general advice and ignore stale worker replies", a
 });
 
 test("a new search after playing starts with highest points", async () => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query !== "(max-width: 650px)",
-    addEventListener() {},
-    removeEventListener() {},
-  }));
   const user = await start();
   await typeRack(user, "CATS");
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
@@ -6337,11 +6276,6 @@ test("the empty Possible moves tiles keep their word and colors until the panel 
 
 test.each([false, true])("the header star finds moves once even when Solve endgame is available (phone %s)", async (phone) => {
   remote.games[0] = { ...playBeforeRefill(), rack: "DSD" };
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: phone && query === "(max-width: 650px)",
-    addEventListener() {},
-    removeEventListener() {},
-  }));
   const searches: string[] = [];
   let finish: (() => void) | undefined;
   vi.stubGlobal("Worker", class extends SolverWorker {
@@ -6355,7 +6289,7 @@ test.each([false, true])("the header star finds moves once even when Solve endga
     }
   });
 
-  const user = await start();
+  const user = await start(phone ? 390 : 1200);
   const panel = within(screen.getByRole("region", { name: "Possible moves" }));
   const star = await panel.findByRole("button", { name: "Find moves shortcut" });
   expect(star.closest("header")).toBeTruthy();
@@ -6378,7 +6312,7 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   const played = playBeforeRefill();
   remote.games[0] = { ...played, trackScores: true, scoring: emptyScoring() };
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === (phone ? "(max-width: 650px)" : "(any-hover: hover)"),
+    matches: !phone && query === "(any-hover: hover)",
     addEventListener() {},
     removeEventListener() {},
   }));
@@ -6397,7 +6331,7 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
     }
   }
   vi.stubGlobal("Worker", WorkerWithEndgame);
-  const user = await start();
+  const user = await start(phone ? 390 : 1200);
   expect(screen.queryByRole("button", { name: "Solve endgame" })).toBeNull();
   await user.click(rackTile(3));
   await user.keyboard("D");
@@ -6667,12 +6601,7 @@ test("an active empty-bag game can solve with two partial racks and no refill hi
 
 
 test.each([false, true])("closing Possible moves clears its preview and returns to Find moves (phone %s)", async (phone) => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: phone && query === "(max-width: 650px)",
-    addEventListener() {},
-    removeEventListener() {},
-  }));
-  const user = await start();
+  const user = await start(phone ? 390 : 1200);
   await typeRack(user, "CATS");
   const possible = () => within(screen.getByRole("region", { name: "Possible moves" }));
   await user.click(possible().getByRole("button", { name: "Find moves" }));

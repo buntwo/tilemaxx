@@ -113,7 +113,7 @@ import { useGamePlayingStyle } from "./useGamePlayingStyle";
 import { profileWordHash } from "../shared/player-profiles";
 import OfflineStatus from "./components/OfflineStatus";
 import { useAutoUpdate } from "./useAutoUpdate";
-import { useWorkspaceWidth } from "./useWorkspaceWidth";
+import { useWorkspaceLayout } from "./useWorkspaceLayout";
 import { store, useStore } from "./store";
 import { premiumPalette } from "./premium-palettes";
 import NewGameDialog from "./components/NewGameDialog";
@@ -229,18 +229,6 @@ function GameLoadStatus({ id, error }: { id: string; error?: string }) {
   );
 }
 
-function useMediaQuery(query: string) {
-  const [matches, setMatches] = useState(() => matchMedia(query).matches);
-  useEffect(() => {
-    const media = matchMedia(query);
-    const update = () => setMatches(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, [query]);
-  return matches;
-}
-
 export default function App() {
   const preferenceState = useWorkspacePreferences();
   const concurrencyHint = browserConcurrency();
@@ -263,8 +251,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   concurrencyHint: number | undefined;
   workerLimit: number;
 }) {
-  const phoneLayout = useMediaQuery("(max-width: 650px)");
-  const sidebarOverlay = useMediaQuery("(max-width: 800px)");
   const sidebarOpenButton = useRef<HTMLButtonElement>(null);
   const sidebarCollapseButton = useRef<HTMLButtonElement>(null);
   const conflictBanner = useRef<HTMLDivElement>(null);
@@ -282,7 +268,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const rackRefill = useRef<{ position: string; from: Element | null } | null>(null);
   const state = useStore(),
     data = state.data;
-  const { main, twoColumns } = useWorkspaceWidth(!!data);
+  const { shell, narrowLayout, sidebarOverlay } = useWorkspaceLayout(!!data);
   const [profileId, setProfileId] = useState(saved("tilewise:profile")),
     [gameId, setGameId] = useState(saved("tilewise:game"));
   const [dialog, setDialog] = useState<Dialog>(null),
@@ -341,7 +327,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   }, [openId, editId]);
   const signature = game ? positionSignature(game) : "";
   const gameOver = !!game?.scoring?.end && !game.archived;
-  const narrowLayout = !twoColumns;
   const compactGame = workspace === "games" && !narrowLayout;
   const solver = useSolver(signature, game);
   const [findMovesRequest, setFindMovesRequest] = useState(0);
@@ -699,7 +684,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       const next = playTrackedMove(game, move, replyAnalysis.bagSize);
       const destination = positionSignature(next);
       const motion = preferences.animatePlayedTiles
-        ? prepareTileFlight(game, move, rackPanel.current, boardPanel.current)
+        ? prepareTileFlight(
+            game, move, rackPanel.current, boardPanel.current, narrowLayout,
+          )
         : undefined;
       rackRefill.current = replyAnalysis.bagSize > 0
         ? { position: destination, from: document.activeElement }
@@ -973,7 +960,15 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   );
   return (
     <div
-      className={`app-shell${workspace === "games" ? (compactGame ? " compact-game" : " stacked-game") : ""}${phoneLayout ? " phone-layout" : ""}${!sidebarVisible ? " sidebar-collapsed" : ""}`}
+      ref={shell}
+      className={[
+        "app-shell",
+        workspace === "games" && (compactGame ? "compact-game" : "stacked-game"),
+        narrowLayout && "phone-layout",
+        sidebarOverlay && "sidebar-overlay",
+        !sidebarCollapsed && "sidebar-pinned",
+        !sidebarVisible && "sidebar-collapsed",
+      ].filter(Boolean).join(" ")}
       data-static-previews={preferences.pulseMovePreviews ? undefined : true}
       data-premium-palette={premiumPalette(
         workspace === "games" ? game?.platform : undefined,
@@ -1154,7 +1149,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           </div>
         </div>
       </aside>
-      <main ref={main} className="main-content">
+      <main className="main-content">
         {viewingArchivedGame && (
           <button
             className="button secondary archive-back archived-game-back"
@@ -1428,7 +1423,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     )
                   }
                   onSolve={solve}
-                  phoneLayout={phoneLayout}
+                  phoneLayout={narrowLayout}
                   onReviewEdit={moveReview.showing ? editPosition : undefined}
                   positionKey={signature}
                   exchangeAdvice={exchangeAdvice}
@@ -1504,7 +1499,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     </button>
                   }
                   onPreview={previewMove}
-                  phoneLayout={phoneLayout}
+                  phoneLayout={narrowLayout}
                   onPlay={play}
                   onSolve={solve}
                   onCancelSearch={solver.cancelSearch}
@@ -1533,7 +1528,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   onCancelBoardOdds={solver.cancelBoardOdds}
                 />
               )}
-              {!phoneLayout && (
+              {!narrowLayout && (
                 <div className="companion-note">
                   <span className="note-icon">
                     <BookOpen size={19} />
@@ -1582,11 +1577,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             </button>
           </div>
         )}
-        {(!phoneLayout || openId) && (
+        {(!narrowLayout || openId) && (
           <footer className="workspace-footer">
-            {!phoneLayout && <span>Less guessing. More good words.</span>}
+            {!narrowLayout && <span>Less guessing. More good words.</span>}
             {openId && <GameId id={openId} onNotice={notify} />}
-            {!phoneLayout && <span>Tilemaxx · Local & personal</span>}
+            {!narrowLayout && <span>Tilemaxx · Local & personal</span>}
           </footer>
         )}
       </main>
@@ -1629,7 +1624,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           dictionaries={data.dictionaries}
           currentDictionaryId={game?.dictionaryId}
           opponentSuggestions={recentOpponentNames(data.games, profileId)}
-          phoneLayout={phoneLayout}
+          phoneLayout={narrowLayout}
           online={state.online}
           onCreate={async (input) => {
             const created = await store.createGame(input);
@@ -1886,7 +1881,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         />
       )}
       {dialog === "ui-guide" && (
-        <UiGuide phoneLayout={phoneLayout} onClose={() => setDialog(null)} />
+        <UiGuide phoneLayout={narrowLayout} onClose={() => setDialog(null)} />
       )}
       {dialog === "keyboard-shortcuts" && (
         <KeyboardShortcuts onClose={() => setDialog(null)} />
