@@ -1086,6 +1086,7 @@ label + label {
 }
 .game-score-replay {
   border: 1px solid transparent;
+  padding-block: 3px;
 }
 .game-score-replay:hover {
   border-color: currentColor;
@@ -3593,9 +3594,6 @@ label + label {
   margin-top: 14px;
   min-height: 44px;
 }
-.archived-game-back + .workspace-heading {
-  padding-top: 12px;
-}
 .archive-games {
   list-style: none;
   margin: 0;
@@ -5589,6 +5587,7 @@ label + label {
   --game-heading-edge: 0px;
   display: grid;
   grid-template-columns: var(--game-heading-edge) minmax(0, 1fr) auto minmax(0, 1fr) var(--game-heading-edge);
+  grid-template-rows: 32px minmax(17px, auto);
   gap: 0 2px;
   padding: 10px 0 8px;
 }
@@ -5611,7 +5610,7 @@ label + label {
   padding: 0;
 }
 .game-heading h1 {
-  font-size: clamp(21px, 2vw, 27px);
+  font-size: 27px;
   line-height: 1.15;
 }
 .archived-game-title { min-width: 0; }
@@ -5634,8 +5633,8 @@ label + label {
 .game-scoreboard {
   justify-content: center;
   min-width: 94px;
-  min-height: 47px;
-  font-size: clamp(20px, 2vw, 26px);
+  min-height: 49px;
+  font-size: 26px;
   line-height: 1;
 }
 .game-scoreboard[data-outcome="untracked"] { font-size: 16px; }
@@ -5655,8 +5654,9 @@ label + label {
   padding-block-start: 5px;
   margin-inline: clamp(-6px, calc(12vw - 46.8px), 0px);
   column-gap: 1px;
-  grid-template-rows: var(--phone-title-row) auto;
+  grid-template-rows: var(--phone-title-row) minmax(16px, auto);
 }
+.phone-layout .game-heading h1 { font-size: 21px; }
 .phone-layout .game-heading:has(> .menu-button) { --game-heading-edge: 36px; }
 .phone-layout .game-heading > .menu-button { justify-self: end; }
 .phone-layout .game-heading > .game-options-button { margin-inline-end: -8px; }
@@ -5693,7 +5693,7 @@ label + label {
   justify-content: center;
   min-height: 44px;
   padding: 4px 5px;
-  font-size: clamp(16px, 4.35vw, 18px);
+  font-size: 18px;
 }
 .phone-layout .game-heading .game-score-delta { font-size: 12px; }
 .phone-layout .game-heading .game-score-totals { gap: 2px; padding-inline: 0; }
