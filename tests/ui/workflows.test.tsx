@@ -1091,13 +1091,9 @@ test("the retired French Scrabble board opens as a saved game and stays out of N
   remote.games[0].dictionaryId = "french";
   remote.games[0].revision++;
   const user = await start();
-  await waitFor(() =>
-    expect(
-      screen.getByRole<HTMLSelectElement>("combobox", {
-        name: "Game dictionary",
-      }).value,
-    ).toBe("french"),
-  );
+  const options = await openGameOptions(user);
+  expect(options.getByRole<HTMLSelectElement>("combobox", { name: "Game dictionary" }).value).toBe("french");
+  await user.click(options.getByRole("button", { name: "Close dialog" }));
   await user.click(screen.getByRole("button", { name: "New game" }));
   const dialog = within(screen.getByRole("dialog", { name: "New game" }));
   expect(dialog.queryByRole("option", { name: /French Scrabble/ })).toBeNull();
@@ -1938,6 +1934,10 @@ async function start(width = matchMedia("(max-width: 650px)").matches ? 390 : wo
 }
 const entry = () => screen.getByRole("textbox", { name: "Type on board" });
 const cell = (name: string) => screen.getByRole("button", { name });
+async function openGameOptions(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(cell("Game options"));
+  return within(screen.getByRole("dialog", { name: "Game options" }));
+}
 const trackedScore = () =>
   screen.queryByRole("button", { name: "Replay finish animation" }) ??
   screen.getByRole("group", { name: "Tracked score" });
@@ -2458,10 +2458,9 @@ test("undo does not restore a played move list from a different dictionary", asy
   await user.click(
     (await screen.findAllByRole("button", { name: /^CATS, / }))[0],
   );
-  await user.selectOptions(
-    screen.getByRole("combobox", { name: "Game dictionary" }),
-    "other",
-  );
+  const options = await openGameOptions(user);
+  await user.selectOptions(options.getByRole("combobox", { name: "Game dictionary" }), "other");
+  await user.click(options.getByRole("button", { name: "Close dialog" }));
   await user.click(screen.getByRole("button", { name: "Undo" }));
   expect(current().rack).toBe("CATS");
   expect(screen.queryByLabelText("Suggested moves")).toBeNull();
@@ -3236,14 +3235,18 @@ test("multiple games retain separate racks and word lists", async () => {
     store.snapshot.data!.games.find((g) => g.name === "Second game")!.startedOn,
   ).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   await typeRack(user, "DOG");
-  const dictionary = () =>
-    screen.getByRole<HTMLSelectElement>("combobox", { name: "Game dictionary" });
-  await user.selectOptions(dictionary(), "other");
+  const dictionary = (options: Awaited<ReturnType<typeof openGameOptions>>) =>
+    options.getByRole<HTMLSelectElement>("combobox", { name: "Game dictionary" });
+  let options = await openGameOptions(user);
+  await user.selectOptions(dictionary(options), "other");
+  await user.click(options.getByRole("button", { name: "Close dialog" }));
   await act(() => store.flush());
   await user.click(cell("Switch game"));
   await user.click(screen.getByRole("menuitemradio", { name: /^First game/ }));
   expect(current().rack).toBe("CAT");
-  expect(dictionary().value).toBe("test");
+  options = await openGameOptions(user);
+  expect(dictionary(options).value).toBe("test");
+  await user.click(options.getByRole("button", { name: "Close dialog" }));
   expect(remote.games.find((g) => g.name === "Second game")?.dictionaryId).toBe(
     "other",
   );
@@ -3257,7 +3260,8 @@ test("multiple games retain separate racks and word lists", async () => {
   ).toBe("DOG");
   await user.click(cell("Switch game"));
   await user.click(screen.getByRole("menuitemradio", { name: /^Second game/ }));
-  expect(dictionary().value).toBe("other");
+  options = await openGameOptions(user);
+  expect(dictionary(options).value).toBe("other");
 });
 
 test("archive rows show saved tracked scores and outcome colors from summaries", async () => {
@@ -3600,8 +3604,10 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   expect(cell("Archived games").getAttribute("aria-current")).toBe("page");
   expect(cell("My games").getAttribute("aria-current")).toBeNull();
   expect(rackTile(1).getAttribute("aria-label")).toBe("Rack tile 1: D");
-  await user.click(screen.getByText("Notes", { selector: "summary" }));
-  expect(screen.getByText("Review the endgame.")).toBeTruthy();
+  const details = await openGameOptions(user);
+  expect(details.getByText("Review the endgame.")).toBeTruthy();
+  expect(details.getByText("Archived", { exact: true })).toBeTruthy();
+  await user.click(details.getByRole("button", { name: "Close dialog" }));
   expect(cell("H8: Z, start").classList.contains("archive-edit")).toBe(false);
   await user.click(cell("I8: empty"));
   await user.keyboard("Z");
@@ -3620,11 +3626,13 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   expect(remote.games.find((g) => g.id === "archived")?.archivedBoard).toEqual(
     archivedBoard,
   );
-  await user.click(cell("Restore game"));
+  await user.click((await openGameOptions(user)).getByRole("button", { name: "Restore game" }));
   expect(cell("I8: empty")).toBeTruthy();
   expect(cell("H8: Z, start")).toBeTruthy();
   expect(screen.queryByText("Check tile counts")).toBeNull();
-  expect(screen.getByText("Review the endgame.")).toBeTruthy();
+  const restored = await openGameOptions(user);
+  expect(restored.getByText("Review the endgame.")).toBeTruthy();
+  await user.click(restored.getByRole("button", { name: "Close dialog" }));
   await store.flush();
   expect(remote.games.find((g) => g.id === "archived")).toMatchObject({
     archived: true,
@@ -3689,27 +3697,39 @@ test("the game picker and archive show the full move history icon on complete ga
 });
 
 test.each(["phone", "tablet", "desktop"])(
-  "the word list is in the game metadata on the %s layout",
+  "the %s header shows the platform and keeps game details in Game options",
   async (layout) => {
+    Object.assign(remote.games[0], {
+      revision: 1,
+      platform: "Lexulous",
+      startedOn: "2026-02-18",
+      notes: "Club round",
+    });
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query === "(max-width: 650px)" && layout === "phone",
       addEventListener() {},
       removeEventListener() {},
     }));
-    await start(layout === "phone" ? 360 : 950);
+    const user = await start(layout === "phone" ? 360 : layout === "tablet" ? 700 : 950);
+    await waitFor(() => expect(current().revision).toBe(1));
+    const heading = cell("Game options").closest("header")!;
+    expect(within(heading).getByText("Lexulous")).toBeTruthy();
+    expect(within(heading).getByRole("group", { name: "Tracked score" })).toBeTruthy();
+    expect(heading.querySelector("time")).toBeNull();
+    expect(heading.querySelector(".board-toolbar")).toBeNull();
     const scores = screen.getByRole("region", { name: "Game scores" });
     const moves = screen.getByRole("heading", { name: "Possible moves" });
-    const dictionary = screen.getByRole("combobox", {
-      name: "Game dictionary",
-    });
     expect(moves.compareDocumentPosition(scores)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(dictionary.closest(".game-title-meta")).toBeTruthy();
-    expect(dictionary.compareDocumentPosition(scores)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
-    expect(moves.compareDocumentPosition(dictionary)).toBe(
-      Node.DOCUMENT_POSITION_PRECEDING,
-    );
+    expect(screen.queryByRole("combobox", { name: "Game dictionary" })).toBeNull();
+    const toolbar = document.querySelector(".board-column > .board-toolbar");
+    expect(Boolean(toolbar)).toBe(layout === "desktop");
+    if (toolbar) expect(toolbar.nextElementSibling?.getAttribute("aria-label")).toBe("Game board");
+    const options = await openGameOptions(user);
+    expect(options.getByRole("combobox", { name: "Game dictionary" })).toBeTruthy();
+    expect(options.getByText("Club round")).toBeTruthy();
+    expect(options.getByText("Started", { exact: true })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Game options" }).querySelector("time")?.dateTime).toBe("2026-02-18");
+    expect(options.getByText("Scrabble · 15 × 15")).toBeTruthy();
   },
 );
 
@@ -3722,12 +3742,14 @@ test("word lists confirm removal, display a conflict and update the game selecto
     description: "Imported word list",
   });
   const user = await start();
-  const picker = screen.getByRole("combobox", { name: "Game dictionary" });
-  await screen.findByRole("option", { name: "House words" });
+  let options = await openGameOptions(user);
+  const gameDictionary = () => options.getByRole<HTMLSelectElement>("combobox", { name: "Game dictionary" });
+  const picker = gameDictionary();
+  await options.findByRole("option", { name: "House words" });
   await user.selectOptions(picker, "house");
   await waitFor(() => expect(remote.games[0].dictionaryId).toBe("house"));
-  const wordLists = screen.getByRole("button", { name: "About word lists" });
-  await user.click(wordLists);
+  const wordLists = () => options.getByRole("button", { name: "About word lists" });
+  await user.click(wordLists());
   expect(screen.queryByRole("button", { name: "Remove Test words" })).toBeNull();
   const remove = () =>
     user.click(screen.getByRole("button", { name: "Remove House words" }));
@@ -3747,15 +3769,18 @@ test("word lists confirm removal, display a conflict and update the game selecto
   );
   await user.click(screen.getByRole("button", { name: "Keep word list" }));
   await user.click(screen.getByRole("button", { name: "Close dialog" }));
-  await user.selectOptions(picker, "test");
+  options = await openGameOptions(user);
+  await user.selectOptions(gameDictionary(), "test");
   await waitFor(() => expect(remote.games[0].dictionaryId).toBe("test"));
-  await user.click(wordLists);
+  await user.click(wordLists());
   await remove();
   await confirm();
   expect(await screen.findByText("House words removed.")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Remove House words" })).toBeNull();
-  expect(screen.queryByRole("option", { name: "House words" })).toBeNull();
-  expect((picker as HTMLSelectElement).value).toBe("test");
+  await user.click(screen.getByRole("button", { name: "Close dialog" }));
+  options = await openGameOptions(user);
+  expect(options.queryByRole("option", { name: "House words" })).toBeNull();
+  expect(gameDictionary().value).toBe("test");
 });
 
 test("the sidebar checker uses the selected list or local file independently of the game", async () => {
@@ -3867,13 +3892,14 @@ test("the same game header and score history follow available workspace width", 
   await user.click(history);
   const shell = header?.closest(".app-shell");
   expect(shell?.classList.contains("stacked-game")).toBe(true);
-  expect(header?.querySelector(".board-toolbar")).toBeNull();
+  const boardToolbar = () => document.querySelector(".board-column > .board-toolbar");
+  expect(boardToolbar()).toBeNull();
   await user.click(cell("Collapse sidebar"));
   act(() => resizeWorkspace(720));
   const open = within(header!).getByRole("button", { name: "Open sidebar" });
   expect(open.querySelector(".lucide-menu")).toBeTruthy();
   expect(shell?.classList.contains("compact-game")).toBe(true);
-  expect(header?.querySelector(".board-toolbar")).toBeTruthy();
+  expect(boardToolbar()?.nextElementSibling?.getAttribute("aria-label")).toBe("Game board");
   expect(screen.getByRole("region", { name: "Game scores" })).toBe(scores);
   expect(history.closest("details")?.open).toBe(true);
   await user.click(open);

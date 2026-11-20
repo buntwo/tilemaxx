@@ -34,13 +34,13 @@ export const guideFigures: GuideFigure[] = [
         x: 471,
         y: 35,
         name: "Game header",
-        hint: "Find the game name, tracked score, and word list.",
+        hint: "Find the game name, platform, and centered score.",
       },
       {
         x: 1312,
         y: 36,
         name: "Game options",
-        hint: "Edit, duplicate, or archive the current game.",
+        hint: "See the word list and notes, or edit, duplicate, or archive the game.",
       },
       {
         x: 249,

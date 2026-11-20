@@ -84,7 +84,7 @@ import useKeyboardShortcuts from "./useKeyboardShortcuts";
 import {
   GameDetailFields,
   FullMoveHistoryIcon,
-  GameMetadata,
+  GameOptionDetails,
   readGameDetails,
 } from "./components/GameDetails";
 import ArchivedGames, { type ArchiveSort } from "./components/ArchivedGames";
@@ -814,32 +814,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       onChange={update}
     />
   );
-  const dictionarySelector = game && (
-    <div className="game-word-list">
-      <label>
-        Word list
-        <select
-          aria-label="Game dictionary"
-          value={game.dictionaryId}
-          onChange={(e) => update({ ...game, dictionaryId: e.target.value })}
-        >
-          {data.dictionaries.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <button
-        type="button"
-        className="icon-button"
-        aria-label="About word lists"
-        onClick={() => openDialog("dictionaries")}
-      >
-        <Info size={13} aria-hidden="true" />
-      </button>
-    </div>
-  );
   const conflictGames = Object.values(state.conflicts).map((remote) => {
     const local = state.games[remote.id] ?? remote;
     return {
@@ -1188,73 +1162,43 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         )}
         {workspace === "games" && (
           <header className="workspace-heading game-heading">
-            <div className="game-heading-details">
-              <div className="game-title-row">
-                {sidebarButton}
-                {selectedGame?.archived ? (
-                  <h1>{selectedGame.name}</h1>
-                ) : (
-                  <GamePicker
-                    ref={gamePicker}
-                    key={profileId}
-                    game={selectedGame}
-                    games={activeGames}
-                    onChoose={chooseGame}
-                    onReorder={(ids) => store.reorderGames(profileId, ids)}
-                  />
-                )}
-                {selectedGame?.archived && selectedGame.fullMoveHistory && (
-                  <FullMoveHistoryIcon />
-                )}
-              </div>
-              {headlineScore}
-              {selectedGame && (
-                <div className="game-title-meta">
-                  <div>
-                    <GameMetadata game={selectedGame} />
+            <div className="game-title-row">
+              {sidebarButton}
+              {selectedGame?.archived ? (
+                <div className="archived-game-title">
+                  <div className="game-picker-trigger-line">
+                    <h1 title={selectedGame.name}>{selectedGame.name}</h1>
+                    {selectedGame.fullMoveHistory && <FullMoveHistoryIcon />}
                   </div>
-                  {selectedGame.archived && <span>Archived</span>}
-                  {dictionarySelector}
+                  {selectedGame.platform && (
+                    <span className="game-heading-platform" title={selectedGame.platform}>
+                      {selectedGame.platform}
+                    </span>
+                  )}
                 </div>
-              )}
-              {game?.notes && (
-                <details className="game-notes" key={game.id}>
-                  <summary>Notes</summary>
-                  <p>{game.notes}</p>
-                </details>
+              ) : (
+                <GamePicker
+                  ref={gamePicker}
+                  key={profileId}
+                  game={selectedGame}
+                  games={activeGames}
+                  onChoose={chooseGame}
+                  onReorder={(ids) => store.reorderGames(profileId, ids)}
+                />
               )}
             </div>
+            {headlineScore}
             {game && (
-              <div className="game-actions">
-                {compactGame && boardToolbar}
-                {game.archived && (
-                  <button
-                    className="button secondary restore-game"
-                    aria-label="Restore game"
-                    title="Restore game"
-                    disabled={boardLocked || !game.archivedBoard}
-                    onClick={() => {
-                      update(restoreArchivedGame(game));
-                      notify(
-                        game.archivedState
-                          ? "Archived position restored."
-                          : "Archived board restored.",
-                      );
-                    }}
-                  >
-                    <Undo2 size={16} /> <span>Restore game</span>
-                  </button>
-                )}
-                <button
-                  className="button secondary manage-button"
-                  aria-label="Game options"
-                  title="Game options"
-                  onClick={() => openDialog("manage")}
-                >
-                  <MoreHorizontal size={18} />
-                  <span>Game options</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                className="icon-button game-options-button"
+                aria-label="Game options"
+                aria-haspopup="dialog"
+                title="Game options"
+                onClick={() => openDialog("manage")}
+              >
+                <MoreHorizontal size={18} aria-hidden="true" />
+              </button>
             )}
           </header>
         )}
@@ -1353,6 +1297,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             hasWarnings={warnings.length > 0}
           >
             <div className="board-column">
+              {compactGame && boardToolbar}
               <section
                 ref={boardPanel}
                 aria-label="Game board"
@@ -2079,10 +2024,33 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         <Modal
           title="Game options"
           subtitle={game.name}
+          className="game-options-modal"
           onClose={() => setDialog(null)}
           closeDisabled={formBusy}
         >
+          <GameOptionDetails
+            game={game}
+            board={`${boardName} · ${boardSize}`}
+            dictionaries={data.dictionaries}
+            disabled={formBusy}
+            onChooseDictionary={(dictionaryId) => update({ ...game, dictionaryId })}
+            onAboutWordLists={() => openDialog("dictionaries")}
+          />
           <div className="game-option-list" aria-busy={formBusy}>
+            {game.archived && (
+              <button
+                disabled={formBusy || boardLocked || !game.archivedBoard}
+                onClick={() => {
+                  update(restoreArchivedGame(game));
+                  setDialog(null);
+                  notify(game.archivedState ? "Archived position restored." : "Archived board restored.");
+                }}
+              >
+                <Undo2 size={19} />
+                <span><strong>Restore game</strong></span>
+                <ArrowUpRight size={16} />
+              </button>
+            )}
             {!compactGame && (
               <>
                 <button disabled={formBusy || boardLocked} onClick={() => openDialog("screenshot")}>
