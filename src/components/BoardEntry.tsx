@@ -13,11 +13,12 @@ import {
 import { Trash2 } from "lucide-react";
 import Board from "./Board";
 import { parseBoardCoordinate } from "./BoardCoordinates";
+import { useDefinitionTooltip } from "./DefinitionTooltip";
 import {
   BoardEditHistory,
   inferBoardEntryDirection,
 } from "../../shared/board-entry";
-import { boardWordsAt } from "../../shared/game-scoring";
+import { boardWordsAt, boardWordsThrough } from "../../shared/game-scoring";
 import { definitionLanguageForRules, type DefinitionLanguage } from "../../shared/definitions";
 import { moveLocation } from "../../shared/notation";
 import { rackLetters } from "../../shared/rack-entry";
@@ -237,6 +238,12 @@ export function BoardInput({
   const toggleMark = readOnly ? undefined : moveFilter?.onToggle;
   const locating = coordinateQuery !== null && !readOnly && !toggleMark;
   const lookupLanguage = readOnly || toggleMark || locating ? undefined : definitionLanguage;
+  const definitions = useDefinitionTooltip(lookupLanguage, board);
+  const canDefine =
+    !!lookupLanguage &&
+    (phoneLayout
+      ? board.some(Boolean)
+      : selected !== null && boardWordsThrough(board, n, selected).length > 0);
   useLayoutEffect(() => setDefining(false), [board, phoneLayout, lookupLanguage]);
   useEffect(() => {
     if (!defining) return;
@@ -493,6 +500,31 @@ export function BoardInput({
     save(next, "blank");
   }
 
+  function openDefinition(anchor: HTMLButtonElement, index: number) {
+    const words = boardWordsThrough(board, n, index);
+    if (!words.length) return false;
+    if (defining) {
+      definitions.openSheet(anchor, words, `Words at ${coordinate(index, n)}`);
+      setDefining(false);
+    } else {
+      definitions.open(anchor, words);
+    }
+    return true;
+  }
+
+  function define() {
+    if (phoneLayout) {
+      input.current?.blur();
+      setDefining((current) => !current);
+      return;
+    }
+    if (selected === null) return;
+    const anchor = entry.current?.querySelector<HTMLButtonElement>(
+      `button[data-cell="${selected}"]`,
+    );
+    if (anchor) openDefinition(anchor, selected);
+  }
+
   return (
     <div
       ref={entry}
@@ -521,8 +553,11 @@ export function BoardInput({
         pendingBlank={pendingBlank}
         uncertain={uncertain}
         wordScores={readOnly || toggleMark || locating ? undefined : wordScores}
-        definitionLanguage={lookupLanguage}
-        onDefinitionPick={defining ? () => setDefining(false) : undefined}
+        defining={defining}
+        definedSquare={
+          definitions.anchor ? Number(definitions.anchor.dataset.cell) : undefined
+        }
+        onDefine={lookupLanguage ? openDefinition : undefined}
         keepInputFocus={!toggleMark}
         coordinateSelection={
           locating ? (target ?? { row: null, column: null }) : undefined
@@ -685,11 +720,11 @@ export function BoardInput({
             <button
               type="button"
               className="text-button board-define"
-              disabled={!lookupLanguage || !board.some(Boolean)}
-              onClick={() => {
-                input.current?.blur();
-                setDefining((current) => !current);
+              disabled={!canDefine}
+              onPointerDown={(event) => {
+                if (!phoneLayout) event.preventDefault();
               }}
+              onClick={define}
             >
               {defining ? "Cancel" : "Define"}
             </button>
@@ -699,6 +734,7 @@ export function BoardInput({
         {!historyControls && help}
       </div>
       {historyControls && help}
+      {definitions.popup}
     </div>
   );
 }

@@ -2739,11 +2739,8 @@ test("scroll gestures and canceled board touches do not select or turn a square"
   expect(selectedCell()).toBeUndefined();
 });
 
-test.each([
-  ["phone Define", true, true],
-  ["desktop Define", false, true],
-  ["desktop right-click", false, false],
-] as const)("looking up a board intersection with %s shows both French words without editing the tile", async (_method, phone, useDefineButton) => {
+test.each(["phone Define", "desktop Define", "desktop right-click"] as const)("looking up a board intersection with %s shows both French words without editing the tile", async (method) => {
+  const phone = method === "phone Define";
   const board = emptyBoard(15);
   board.splice(112, 4, ..."COTe");
   board[70] = "L";
@@ -2780,7 +2777,7 @@ test.each([
     expect(cell("Blank tile: off")).toBeTruthy();
     expect(cell("Erase selected tile")).toBeTruthy();
   }
-  if (useDefineButton) {
+  if (phone) {
     await user.click(tile);
     expect(document.activeElement).toBe(entry());
     await user.click(cell("Define"));
@@ -2791,6 +2788,16 @@ test.each([
     expect(empty).toHaveProperty("disabled", false);
     await user.click(cell("Define"));
     await user.click(tile);
+  } else if (method === "desktop Define") {
+    const define = cell("Define");
+    expect(define).toHaveProperty("disabled", true);
+    await user.click(empty);
+    expect(define).toHaveProperty("disabled", true);
+    await user.click(tile);
+    expect(define).toHaveProperty("disabled", false);
+    await user.click(define);
+    expect(document.activeElement).toBe(entry());
+    expect(empty).toHaveProperty("disabled", false);
   } else {
     expect(fireEvent.contextMenu(empty, { button: 2 })).toBe(true);
     touch(tile, "contextmenu", { button: 2 });
@@ -2798,7 +2805,7 @@ test.each([
     expect(fireEvent.contextMenu(tile, { button: 2 })).toBe(false);
   }
 
-  const tip = within(useDefineButton
+  const tip = within(phone
     ? screen.getByRole("dialog", { name: "Words at K8" })
     : screen.getByRole("region", { name: "Word definitions" }));
   await tip.findByText("moon");
@@ -2811,10 +2818,11 @@ test.each([
   expect(tip.getByText("Down")).toBeTruthy();
   expect(tip.getByText("LUNE")).toBeTruthy();
   expect(current().board[115]).toBe("e");
-  expect(selectedCell()).toBeUndefined();
+  expect(selectedCell()).toBe(method === "desktop Define" ? "115" : undefined);
+  expect(tile.getAttribute("data-definition-open")).toBe("true");
   expect(fetchDefinitions.mock.calls.filter(([url]) => url.startsWith("/api/definitions?"))
     .map(([url]) => url)).toEqual(["/api/definitions?language=fr&word=COTE&word=LUNE"]);
-  if (useDefineButton) {
+  if (phone) {
     await user.click(tip.getByRole("button", { name: "Close dialog" }));
     expect(screen.queryByRole("dialog", { name: "Words at K8" })).toBeNull();
     expect(cell("Define")).toBeTruthy();
