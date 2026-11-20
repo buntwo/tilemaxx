@@ -9,6 +9,10 @@ export function choose(n: number, k: number): number {
   return result;
 }
 const vowels = "AEIOU";
+const legacyFrenchLexulousCounts = [
+  8, 2, 2, 3, 15, 2, 2, 2, 8, 1, 1, 5, 3, 5, 6, 2, 1, 6, 6, 6, 6, 2, 1, 1, 1,
+  1, 2,
+];
 const distributions = {
   scrabble: [
     9, 2, 2, 4, 12, 2, 3, 2, 9, 1, 1, 4, 2, 6, 8, 2, 1, 6, 4, 6, 4, 2, 2, 1, 2,
@@ -42,10 +46,9 @@ const distributions = {
     8, 2, 2, 3, 11, 2, 2, 2, 8, 1, 1, 3, 2, 5, 7, 2, 1, 5, 3, 5, 3, 2, 2, 1, 3,
     1, 2,
   ],
-  "lexulous-fr": [
-    8, 2, 2, 3, 15, 2, 2, 2, 8, 1, 1, 5, 3, 5, 6, 2, 1, 6, 6, 6, 6, 2, 1, 1, 1,
-    1, 2,
-  ],
+  "lexulous-fr": legacyFrenchLexulousCounts.map((count, i) =>
+    TILE_SYMBOLS[i] === "N" ? 6 : count,
+  ),
   "lexulous-it": [
     14, 3, 6, 3, 11, 3, 2, 2, 12, 0, 0, 5, 5, 5, 15, 3, 1, 6, 6, 6, 5, 3, 0, 0,
     0, 2, 2,
@@ -58,15 +61,20 @@ const distributions = {
 };
 
 export function getTileCounts(
-  template: Pick<BoardTemplate, "id" | "rules" | "tileCounts">,
+  { id, rules, tileCounts }: Pick<BoardTemplate, "id" | "rules" | "tileCounts">,
 ) {
-  if (template.tileCounts) return template.tileCounts;
   const counts =
-    distributions[
-      template.id === "super" || template.id === "super-lexulous"
-        ? template.id
-        : template.rules
-    ];
+    distributions[id === "super" || id === "super-lexulous" ? id : rules];
+  if (tileCounts) {
+    // Older games saved the French preset at creation time with only five Ns.
+    const legacyFrenchBag =
+      id === "lexulous" &&
+      rules === "lexulous-fr" &&
+      TILE_SYMBOLS.every(
+        (symbol, i) => tileCounts[symbol] === legacyFrenchLexulousCounts[i],
+      );
+    if (!legacyFrenchBag) return tileCounts;
+  }
   return Object.fromEntries(
     TILE_SYMBOLS.map((symbol, i) => [symbol, counts[i]]),
   );

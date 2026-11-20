@@ -78,8 +78,9 @@ test("Classic Lexulous combines one board with language-specific bags and values
   const french = templateForLanguage(classic, "fr");
   assert.deepEqual(french.premiums, classic.premiums);
   const frenchPool = unseenTiles({ board: [], rack: "" }, french);
-  assert.equal(frenchPool.total, 100);
+  assert.equal(frenchPool.total, 101);
   assert.equal(getTileCounts(french).E, 15);
+  assert.equal(getTileCounts(french).N, 6);
   assert.equal(frenchPool.tiles.find(({ symbol }) => symbol === "Q")?.score, 8);
 
   const italian = templateForLanguage(classic, "it");
@@ -93,6 +94,24 @@ test("Classic Lexulous combines one board with language-specific bags and values
     italianPool.tiles.find(({ symbol }) => symbol === "Q")?.score,
     12,
   );
+});
+
+test("saved French Lexulous presets count six Ns and preserve custom distributions", () => {
+  const classic = PRESETS.find(({ id }) => id === "lexulous")!;
+  const french = templateForLanguage(classic, "fr");
+  const legacyCounts = { ...getTileCounts(french), N: 5 };
+  const saved = { ...french, tileCounts: legacyCounts };
+  const pool = unseenTiles({ board: Array<string>(6).fill("N"), rack: "" }, saved);
+  assert.deepEqual(pool.excess, []);
+  assert.equal(pool.tiles.find(({ symbol }) => symbol === "N")?.count, 0);
+  assert.equal(pool.total, 95);
+
+  const adjustedCounts = { ...legacyCounts, E: 14 };
+  assert.equal(
+    getTileCounts({ ...saved, tileCounts: adjustedCounts }),
+    adjustedCounts,
+  );
+  assert.equal(getTileCounts({ ...saved, id: "custom" }), legacyCounts);
 });
 
 test("French Wordfeud uses the standard board and the French tile bag", () => {
