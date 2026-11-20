@@ -271,7 +271,7 @@ export function BoardInput({
         ? "Board edge"
         : "Board edge — choose another square"
       : historyControls
-        ? "Space: blank · .: skip"
+        ? "Space: blank · Period: skip"
         : "Type to enter";
   const status = defining
     ? "Tap a tile in a word"
