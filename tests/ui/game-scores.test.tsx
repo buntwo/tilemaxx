@@ -44,19 +44,17 @@ test("partial scores keep their explanation instead of claiming a complete score
   expect(container.querySelector(".score-margin")).toBeNull();
 });
 
-test.each(["you", "opponent"] as const)("Game scores marks %s's turn and preserves the other circle", (turn) => {
+test.each(["you", "opponent"] as const)("Game scores shows a single chevron for %s's turn", (turn) => {
   const game = gameWithScores(340, 346);
   game.scoring!.you.moves = 12;
   game.scoring!.opponent.moves = 12;
   game.trackedMoves = [{ player: turn === "you" ? "opponent" : "you", word: "CAT", score: 3, at: "2026-11-17" }];
   const { container } = show(game);
   const active = screen.getByRole("img", { name: turn === "you" ? "Your turn" : "Opponent’s turn" });
+  expect(active.classList.contains("score-turn-chevron")).toBe(true);
   expect(active.getAttribute("data-status")).toBe("turn");
   expect(active.closest("[data-player]")?.getAttribute("data-player")).toBe(turn);
-  const waiting = container.querySelector('.score-player-marker[data-status="waiting"]')!;
-  expect(waiting.getAttribute("aria-hidden")).toBe("true");
-  expect(waiting.querySelectorAll(".score-turn-circle > span")).toHaveLength(8);
-  expect(container.querySelectorAll(".score-player-marker")).toHaveLength(2);
+  expect(container.querySelectorAll(".score-player-marker")).toHaveLength(1);
   expect(container.querySelector(".score-winner")).toBeNull();
 });
 
@@ -69,7 +67,7 @@ test.each(["new", "partial", "archived"])("%s scores do not guess a turn or winn
   if (state === "partial") game.scoring!.incomplete = true;
   if (state === "archived") game.archived = true;
   const { container } = show(game);
-  expect(container.querySelectorAll('.score-player-marker[data-status="waiting"]')).toHaveLength(2);
+  expect(container.querySelector(".score-player-marker")).toBeNull();
   expect(container.querySelector(".score-winner")).toBeNull();
 });
 
@@ -81,7 +79,7 @@ test.each([
   const game = gameWithScores(you, opponent);
   game.scoring!.end = { out: "you", rackPoints };
   const { container } = show(game);
-  expect(container.querySelector('[data-status="turn"]')).toBeNull();
+  expect(container.querySelector(".score-turn-chevron")).toBeNull();
   expect(container.querySelectorAll(".score-winner")).toHaveLength(winner ? 1 : 0);
   if (name) {
     const marker = screen.getByRole("img", { name });
