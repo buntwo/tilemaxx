@@ -482,6 +482,35 @@ test("replacing the only tile of a search-recorded turn matches toggling or over
   assert.equal(trackedMoveHistory(revised).length, 2);
 });
 
+test("finished games rescore tiles erased in separate edits in either refill order", () => {
+  const game = fixture();
+  const { start } = game.template;
+  const cat = [...game.board];
+  cat.splice(start, 3, ..."CAT");
+  const edits = new BoardEditHistory();
+  const finished = endGameManually(
+    recordOpponentPlayForSearch(edits.apply(game, cat, "enter")),
+    { manual: true },
+  );
+  function change(game: Game, offset: number, letter: string, kind: "erase" | "enter") {
+    const board = [...game.board];
+    board[start + offset] = letter;
+    return new BoardEditHistory().apply(game, board, kind);
+  }
+  const erased = change(change(finished, 0, "", "erase"), 1, "", "erase");
+  for (const [first, second] of [[0, 1], [1, 0]]) {
+    const letters = ["c", "a"];
+    const partial = change(erased, first, letters[first], "enter");
+    const loaded = gameSchema.parse(JSON.parse(JSON.stringify(partial)));
+    const corrected = change(loaded, second, letters[second], "enter");
+    assert.equal(corrected.scoring?.opponent.points, 2);
+    assert.equal(lastRecordedBoardPlay(corrected)?.breakdown?.score, 2);
+    assert.deepEqual(trackedMoveHistory(corrected)[0].review?.tiles.map(({ letter }) => letter), ["c", "a", "T"]);
+    assert.deepEqual(undo(corrected).scoring, loaded.scoring);
+    assert.deepEqual(redo(undo(corrected)).trackedMoves, corrected.trackedMoves);
+  }
+});
+
 test("an explicitly reopened play can take more tiles, while a fresh placement can be a second opponent turn", () => {
   const game = fixture();
   const { start } = game.template;

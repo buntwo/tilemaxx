@@ -243,6 +243,9 @@ export function BoardInput({
   const definitions = useDefinitionTooltip(lookupLanguage, board);
   const canDefine = !!lookupLanguage && board.some(Boolean);
   useLayoutEffect(() => setDefining(false), [board, phoneLayout, lookupLanguage]);
+  useLayoutEffect(() => {
+    if (locating && !defining && document.activeElement !== input.current) focus();
+  }, [locating, defining]);
   useEffect(() => {
     if (!defining) return;
     function outside(event: PointerEvent) {
@@ -294,7 +297,7 @@ export function BoardInput({
       setCoordinateQuery("");
       // Clear any pinned move before focusing the board keyboard.
       if (document.activeElement === input.current) onSelect?.();
-      focus();
+      if (!defining) focus();
       return "opened";
     },
   }));

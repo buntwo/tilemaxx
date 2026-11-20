@@ -4,6 +4,7 @@ import { ChevronDown, Pencil, Plus, Trophy } from "lucide-react";
 import { isBingo, type Game, type Player } from "../../shared/model";
 import {
   correctTrackedMove,
+  currentScoreStart,
   displayedGameScoring,
   emptyScoring,
   gameScoreTotals,
@@ -122,6 +123,7 @@ export default function GameScores({
     total: (totals[move.player] += move.score),
   }));
   const newestMoves = [...moves].reverse();
+  const chartMoves = moves.slice(currentScoreStart(game, history));
   return (
     <section className="panel score-panel" aria-label="Game scores">
       <div className="score-header">
@@ -253,7 +255,7 @@ export default function GameScores({
           )}
         </div>
       )}
-      {!!moves.length && <ScoreChart moves={moves} />}
+      {!!chartMoves.length && <ScoreChart moves={chartMoves} />}
       <details className="score-history">
         <summary>
           <span>

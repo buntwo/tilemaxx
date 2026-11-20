@@ -23,7 +23,6 @@ const plotBottom = chartHeight - 32;
 
 type ChartMove = Pick<TrackedMove, "player" | "word" | "score" | "bingo"> & {
   number: number;
-  total: number;
 };
 type ScorePair = {
   first: number;
@@ -41,14 +40,13 @@ function pairMoves(moves: readonly ChartMove[]) {
     const next = moves[index + 1];
     const last = next && next.player !== first.player ? next : first;
     if (last !== first) index++;
+    const totals = { ...pairs[pairs.length - 1].totals };
+    totals[first.player] += first.score;
+    if (last !== first) totals[last.player] += last.score;
     pairs.push({
       first: first.number,
       last: last.number,
-      totals: {
-        ...pairs[pairs.length - 1].totals,
-        [first.player]: first.total,
-        [last.player]: last.total,
-      },
+      totals,
       plays: { [first.player]: first, [last.player]: last },
     });
   }
