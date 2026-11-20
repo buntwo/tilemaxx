@@ -1413,7 +1413,7 @@ test("the definition lookup starts after half a second over the letters and foll
   }
 });
 
-test("holding only the letters on a phone opens a definition sheet and consumes the release click", async () => {
+test("holding only the letters on a phone opens a definition sheet after release and consumes the click", async () => {
   const fetchDefinition = vi.fn().mockResolvedValue(new Response(JSON.stringify({
     available: true,
     entries: [[{ spelling: "cats", headword: "cat", partOfSpeech: "noun", glosses: ["Domestic felines."] }]],
@@ -1425,6 +1425,7 @@ test("holding only the letters on a phone opens a definition sheet and consumes 
   const touch = (target: Element, type: string, clientX = 20) => {
     const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX });
     Object.assign(event, { pointerType: "touch", pointerId: 1, isPrimary: true });
+    Object.defineProperty(event, "timeStamp", { value: Date.now() });
     fireEvent(target, event);
   };
   vi.useFakeTimers();
@@ -1451,9 +1452,11 @@ test("holding only the letters on a phone opens a definition sheet and consumes 
     expect(fetchDefinition).not.toHaveBeenCalled();
     expect(fireEvent.contextMenu(letters)).toBe(false);
     await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(screen.queryByRole("dialog", { name: "CATS" })).toBeNull();
+    expect(fetchDefinition).not.toHaveBeenCalled();
+    await act(async () => touch(letters, "pointerup"));
     const sheet = screen.getByRole("dialog", { name: "CATS" });
     expect(within(sheet).getByText("Domestic felines.")).toBeTruthy();
-    touch(sheet, "pointerup");
     expect(fireEvent.click(sheet, { detail: 1 })).toBe(false);
     expect(screen.getByRole("dialog", { name: "CATS" })).toBe(sheet);
     expect(onPlay).not.toHaveBeenCalled();
