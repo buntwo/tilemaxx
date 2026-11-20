@@ -4538,14 +4538,12 @@ label + label {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 47px;
-  padding: 0 8px 3px 9px;
+  padding-inline: 9px 8px;
   font-size: 12px;
   color: var(--muted);
 }
 .move-square-controls > span { margin-right: auto; }
 .move-square-controls .text-button {
-  min-height: 32px;
   padding-inline: 4px;
 }
 .direct-entry-tools {
@@ -5832,7 +5830,6 @@ label + label {
 .phone-layout .board-panel {
   position: relative;
   overflow: visible;
-  padding-bottom: 2px;
 }
 .phone-layout .board-panel .board-wrap { padding-block: 4px 2px; }
 .board-panel .with-board-history {
@@ -5853,28 +5850,25 @@ label + label {
 .board-panel .direct-entry-actions > .board-define { min-width: 44px; }
 .board-panel .direct-entry-actions > .board-define:not(:disabled) { color: var(--primary); }
 .with-board-history .direct-entry-status {
-  --board-status-line-height: 12px;
   min-width: 0;
-  padding-inline-start: calc((var(--board-strip-control-height) - var(--board-status-line-height)) / 2);
+  padding-inline-start: 10px;
   overflow: hidden;
   font-size: 10px;
-  line-height: var(--board-status-line-height);
+  line-height: 12px;
 }
 .board-panel .board-import {
   position: relative;
   flex: none;
   width: 30px;
-  height: var(--board-strip-control-height);
   margin-inline-end: 4px;
 }
 .board-import::after {
   content: "";
   position: absolute;
-  inset-block: 8px;
+  inset-block: 3px;
   inset-inline-end: 0;
   border-inline-end: 1px solid var(--line);
 }
-.board-panel .board-import:focus-visible { outline-offset: -2px; }
 .with-board-history .board-import + .direct-entry-status { padding-inline-start: 0; }
 .board-undo { position: relative; }
 :is(.board-undo, .board-redo):not(:disabled) { color: var(--primary); }
@@ -5882,8 +5876,7 @@ label + label {
   content: "";
   position: absolute;
   left: 0;
-  top: 8px;
-  bottom: 8px;
+  inset-block: 3px;
   border-left: 1px solid var(--line);
 }
 .board-mode-history {
@@ -6017,9 +6010,8 @@ label + label {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 47px;
   gap: 6px;
-  padding: 0 7px 3px 9px;
+  padding-inline: 9px 7px;
   font-size: 12px;
   color: var(--muted);
 }
@@ -6030,14 +6022,13 @@ label + label {
   display: grid;
   place-items: center;
   min-width: 44px;
-  min-height: 44px;
   padding: 0;
   border: 0;
   border-radius: 7px;
   background: none;
 }
 .board-review-play > .button {
-  min-height: 30px;
+  min-height: var(--board-strip-control-height);
   padding: 0 9px;
   font-size: 12px;
   pointer-events: none;
@@ -6079,13 +6070,29 @@ label + label {
 .compact-game .board-column { grid-area: 1 / 1; }
 .compact-game .results-column { grid-area: 1 / 2 / span 2; }
 .compact-game .game-scores-column { grid-area: 2 / 1; }
-.app-shell:not(.phone-layout) .board-panel { padding: 5px 0 2px; }
+.app-shell:not(.phone-layout) .board-panel { padding-top: 5px; }
 .app-shell:not(.phone-layout) .board-panel .board-wrap { padding: 1px 14px 2px 9px; }
 .board-panel {
-  --board-strip-control-height: 32px;
+  --board-lane-height: 24px;
+  --board-strip-control-height: calc(var(--board-lane-height) - 2px);
 }
 .app-shell:not(.phone-layout) .board-panel:has(> .last-play-lane) { padding-top: 0; }
-.board-panel :is(.last-play-row, .board-warnings) { min-height: 24px; }
+/* Equal tracks also keep the lanes matched when their text wraps. */
+.board-panel:has(> .last-play-lane) {
+  display: grid;
+  grid-template: "last-play" 1fr "warnings" auto "board" auto "controls" 1fr / minmax(0, 1fr);
+}
+.board-panel > .last-play-lane { grid-area: last-play; }
+.board-panel > .board-warnings { grid-area: warnings; }
+.board-panel > .board-entry { grid-area: board; }
+.board-panel > :is(.move-square-controls, .board-review-actions) { grid-area: controls; }
+.board-panel:has(> .last-play-lane) > .board-entry:has(> .with-board-history) {
+  grid-row: board-start / controls-end;
+  display: grid;
+  grid-template-rows: subgrid;
+}
+.board-panel > .board-entry > .with-board-history { grid-row: 2; }
+.board-panel :is(.last-play-row, .board-warnings) { min-height: var(--board-lane-height); }
 .board-warnings {
   margin: 8px;
   padding: 2px 8px;
@@ -6103,11 +6110,13 @@ label + label {
 .board-panel > .board-warnings + .board-entry > .board-wrap { padding-block-start: 0; }
 .last-play-lane {
   position: relative;
+  display: grid;
 }
 .last-play-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  align-content: center;
   gap: 0 8px;
   padding-inline: 8px;
   border-bottom: 1px solid var(--line);
@@ -6185,13 +6194,27 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .last-play-breakdown tfoot tr > * { padding-top: 5px; }
 .board-panel :is(.with-board-history, .move-square-controls, .board-review-actions) {
   margin-block: 0;
-  padding-block: 0;
-  min-height: calc(var(--board-strip-control-height) + 1px);
-  border-top: 1px solid var(--line);
+  padding-block: 1px;
+  min-height: var(--board-lane-height);
+  border: 0;
+  box-shadow: inset 0 1px var(--line);
 }
-.board-panel
-  :is(.direct-entry-actions, .move-square-controls, .board-mode-history, .board-review-actions) > button {
+.board-panel :is(
+  .direct-entry-actions > button, .move-square-controls > button,
+  .board-mode-history > button, .board-review-actions > button, .board-import
+) {
   min-height: var(--board-strip-control-height);
+  padding-block: 0;
+}
+.board-panel :is(.direct-entry-actions, .board-mode-history) > .icon-button,
+.board-panel .board-import {
+  height: var(--board-strip-control-height);
+}
+.board-panel :is(
+  .direct-entry-actions > button, .move-square-controls > button,
+  .board-mode-history > button, .board-review-actions > button, .board-import
+):focus-visible {
+  outline-offset: -2px;
 }
 .compact-game .rack-panel {
   margin-top: 6px;
