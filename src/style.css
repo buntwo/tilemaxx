@@ -2472,8 +2472,7 @@ label + label {
 }
 .definition-tooltip i,
 .definition-muted,
-.definition-heading span,
-.definition-credit { color: var(--muted); }
+.definition-heading span { color: var(--muted); }
 .definition-word + .definition-word {
   border-top: 1px solid var(--line);
   margin-top: 8px;
@@ -2496,7 +2495,6 @@ label + label {
   gap: 2px 8px;
 }
 .definition-glosses > div { display: contents; }
-.definition-tooltip .definition-credit { margin-top: 5px; font-size: 11px; }
 .reply-cell {
   display: grid;
   justify-items: center;
@@ -2990,6 +2988,18 @@ label + label {
   padding: 18px 0 25px;
   margin-top: 20px;
 }
+.workspace-footer-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.workspace-footer-meta .dictionary-sources-button {
+  padding-inline: 0;
+  font-size: 11px;
+  white-space: nowrap;
+}
 .game-id {
   display: flex;
   align-items: center;
@@ -3115,6 +3125,12 @@ label + label {
 .modal-heading .icon-button {
   flex-shrink: 0;
 }
+.dictionary-sources .modal-inner > p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.dictionary-sources .modal-inner > p + p { margin-top: 12px; }
+.dictionary-sources a { color: var(--primary); }
 .modal input:not([type="checkbox"]):not([type="file"]),
 .modal textarea,
 .modal select {
@@ -3923,6 +3939,7 @@ label + label {
     padding: 4px 0 0;
     margin-top: 15px;
   }
+  .workspace-footer-meta .dictionary-sources-button { min-height: 44px; }
   .game-id {
     gap: 4px;
     font-size: inherit;

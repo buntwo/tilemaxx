@@ -2015,6 +2015,22 @@ test.each(["phone", "desktop"])(
   },
 );
 
+test.each([390, 1200])("the footer opens the dictionary credits at %i px", async (width) => {
+  const user = await start(width);
+  const footer = screen.getByRole("main").querySelector<HTMLElement>("footer.workspace-footer")!;
+  await user.click(within(footer).getByRole("button", { name: "Dictionary sources" }));
+
+  const credits = within(screen.getByRole("dialog", { name: "Dictionary sources" }));
+  expect(credits.getByRole("link", { name: "English Wiktionary" }).getAttribute("href"))
+    .toBe("https://en.wiktionary.org/");
+  expect(credits.getByRole("link", { name: "CC BY-SA 4.0" }).getAttribute("href"))
+    .toBe("https://creativecommons.org/licenses/by-sa/4.0/");
+  expect(credits.getByRole("link", { name: "Kaikki’s Wiktextract exports" }).getAttribute("href"))
+    .toBe("https://kaikki.org/");
+  await user.click(credits.getByRole("button", { name: "Close dialog" }));
+  expect(screen.queryByRole("dialog", { name: "Dictionary sources" })).toBeNull();
+});
+
 test("board hover shows both word scores on a shared ending and keeps them across tile gaps", async () => {
   const user = await start();
   await user.click(cell("G8: empty"));
@@ -2742,7 +2758,8 @@ test("right-clicking a board intersection looks up both French words without edi
     return new Response(JSON.stringify({
       available: true,
       entries: [
-        [{ spelling: "côte", headword: "côte", glosses: ["coast"] },
+        [{ spelling: "côte", headword: "côte", glosses: ["coast"], license: "CC BY-SA 4.0",
+          sourceUrl: "https://en.wiktionary.org/wiki/c%C3%B4te#French" },
           { spelling: "côté", headword: "côté", glosses: ["side"] }],
         [{ spelling: "lune", headword: "lune", glosses: ["moon"] }],
       ],
@@ -2761,7 +2778,9 @@ test("right-clicking a board intersection looks up both French words without edi
   await tip.findByText("moon");
   expect(tip.getByText("Across")).toBeTruthy();
   expect(tip.getByText("COTE")).toBeTruthy();
-  expect(tip.getByText("côte")).toBeTruthy();
+  expect(tip.getByRole("link", { name: "côte" }).getAttribute("href"))
+    .toBe("https://en.wiktionary.org/wiki/c%C3%B4te#French");
+  expect(tip.queryByText(/CC BY-SA 4\.0/)).toBeNull();
   expect(tip.getByText("côté")).toBeTruthy();
   expect(tip.getByText("Down")).toBeTruthy();
   expect(tip.getByText("LUNE")).toBeTruthy();
