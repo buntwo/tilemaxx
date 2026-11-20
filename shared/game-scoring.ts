@@ -886,12 +886,7 @@ export function lastSearchRecordedOpponentTurn(game: Game) {
   // A correction keeps the recorded turn and adds its own undo step.
   while (index >= 0) {
     const entry = game.past[index];
-    if (
-      !entry.trackedMoves ||
-      (entry.label !== BOARD_EDIT_LABELS.blank &&
-        entry.label !== BOARD_EDIT_LABELS.enter)
-    )
-      break;
+    if (!boardEditLabels.has(entry.label)) break;
     index--;
   }
   const entry = game.past[index];
@@ -917,11 +912,14 @@ export function reopenSearchRecordedOpponentPlay(
     (board && !last.review.tiles.some(({ index }) => !board[index]))
   )
     return game;
-  if (last.corrected) {
-    // Keep the corrected turn as an undo checkpoint and retain any rescoring
-    // of earlier moves while the last turn is being revised.
+  if (board || last.corrected) {
+    // Keep the recorded turn as an undo checkpoint. An erase can be followed
+    // by a replacement, in which case its original review and time are reused.
     const trackedMoves = last.moves.slice(0, -1);
-    const history = remember(game, BOARD_EDIT_LABELS.enter);
+    const history = remember(
+      game,
+      board ? BOARD_EDIT_LABELS.erase : BOARD_EDIT_LABELS.enter,
+    );
     history.past[history.past.length - 1].trackedMoves = last.moves;
     return {
       ...game,
@@ -963,6 +961,45 @@ export function reopenSearchRecordedOpponentPlay(
       pendingBase: last.review.board,
     },
   };
+}
+
+export function trackReenteredTiles(
+  game: Game,
+  board: Board,
+): Pick<Game, "scoring" | "trackedMoves"> | undefined {
+  if (!tracksScores(game) || !board.some((tile, i) => tile && !game.board[i]))
+    return;
+  const finished = Boolean(displayedGameScoring(game)?.end);
+  for (let i = game.past.length - 1; i >= 0; i--) {
+    const entry = game.past[i];
+    if (!boardEditLabels.has(entry.label) || entry.player) return;
+    if (entry.label !== BOARD_EDIT_LABELS.erase) {
+      if (entry.trackedMoves) return;
+      continue;
+    }
+
+    // A reopened opponent turn saves its original log in the erase step.
+    // Finished games also need the pre-erase board because they have no pending base.
+    if (!entry.trackedMoves && !finished) continue;
+    if (!entry.scoring || entry.scoring.pendingBase) return;
+    if (!board.every((tile, i) => Boolean(tile) === Boolean(entry.board[i])))
+      return;
+
+    const original = {
+      ...game,
+      board: entry.board,
+      past: game.past.slice(0, i),
+      scoring: entry.scoring,
+      trackedMoves: entry.trackedMoves ?? game.trackedMoves,
+    };
+    if (!finished && !lastSearchRecordedOpponentTurn(original)) return;
+    const corrected = trackBoardEdit(original, board);
+    if (corrected.scoring?.pendingBase) return;
+    return {
+      scoring: corrected.scoring,
+      trackedMoves: corrected.trackedMoves ?? entry.trackedMoves,
+    };
+  }
 }
 
 function recordOpponentTurn(

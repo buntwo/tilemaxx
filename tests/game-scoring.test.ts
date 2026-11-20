@@ -257,7 +257,8 @@ test("correcting a finished rack-out transfers the corrected opponent rack value
   const end = { out: "you", rackPoints: 0, endedOn: localDate() };
   assert.deepEqual(finished.scoring?.end, end);
   const board = [...finished.board];
-  board[opening.tiles.find(({ letter }) => letter === "A")!.index] = "a";
+  const square = opening.tiles.find(({ letter }) => letter === "A")!.index;
+  board[square] = "a";
   const corrected = new BoardEditHistory().apply(finished, board, "blank");
   assert.deepEqual(corrected.scoring?.end, { ...end, rackPoints: 1 });
   assert.deepEqual(gameScoreTotals(corrected.scoring), {
@@ -266,6 +267,13 @@ test("correcting a finished rack-out transfers the corrected opponent rack value
   });
   assert.deepEqual(undo(corrected).scoring, finished.scoring);
   assert.deepEqual(redo(undo(corrected)).scoring, corrected.scoring);
+
+  const withoutTile = [...finished.board];
+  withoutTile[square] = "";
+  const edits = new BoardEditHistory();
+  const reentered = edits.apply(edits.apply(finished, withoutTile, "erase"), board, "enter");
+  assert.deepEqual(reentered.scoring, corrected.scoring);
+  assert.deepEqual(reentered.trackedMoves, corrected.trackedMoves);
 
   const archived = archiveGame(finished);
   const sandbox = new BoardEditHistory().apply(archived, board, "blank");
@@ -426,6 +434,52 @@ test("corrections to an opponent play recorded on search rescore it immediately 
   assert.equal(pendingOpponentPlay(erased)?.word, "CA");
   assert.deepEqual(trackedMoveHistory(erased), []);
   assert.deepEqual(trackedMoveHistory(undo(erased)), [move]);
+});
+
+test("replacing the only tile of a search-recorded turn matches toggling or overwriting it", () => {
+  const played = crossedCat();
+  const { start, size } = played.template;
+  const square = start + size;
+  const edits = new BoardEditHistory();
+  const board = [...played.board];
+  board[square] = "T";
+  const recorded = recordOpponentPlayForSearch(edits.apply(played, board, "enter"));
+  assert.equal(lastRecordedBoardPlay(recorded)?.move.word, "RAT");
+  const withoutTile = [...board];
+  withoutTile[square] = "";
+  const erased = edits.apply(recorded, withoutTile, "erase");
+  assert.equal(erased.scoring?.pendingBase, undefined);
+  assert.equal(trackedMoveHistory(erased).length, 2);
+
+  // Re-entering still finds the original turn after a remount or reload.
+  const saved = gameSchema.parse(JSON.parse(JSON.stringify(erased)));
+  for (const [letter, kind] of [
+    ["T", "enter"],
+    ["t", "blank"],
+    ["S", "enter"],
+  ] as const) {
+    const replacement = [...board];
+    replacement[square] = letter;
+    const direct = new BoardEditHistory().apply(recorded, replacement, kind);
+    const reentered = new BoardEditHistory().apply(saved, replacement, "enter");
+    assert.deepEqual(reentered.scoring, direct.scoring);
+    assert.deepEqual(trackedMoveHistory(reentered), trackedMoveHistory(direct));
+    assert.equal(
+      lastRecordedBoardPlay(reentered)?.breakdown?.score,
+      lastRecordedBoardPlay(direct)?.breakdown?.score,
+    );
+    assert.equal(nextPlayerToMove(reentered), "you");
+    assert.equal(recordOpponentPlayForSearch(reentered), reentered);
+    assert.deepEqual(undo(reentered).board, withoutTile);
+    assert.deepEqual(undo(undo(reentered)).board, board);
+    assert.deepEqual(redo(undo(reentered)).trackedMoves, reentered.trackedMoves);
+  }
+
+  const differentPlay = [...withoutTile];
+  differentPlay[start + 2] = "S";
+  const revised = edits.apply(erased, differentPlay, "enter");
+  assert.equal(pendingOpponentPlay(revised)?.word, "CATS");
+  assert.equal(trackedMoveHistory(revised).length, 2);
 });
 
 test("an explicitly reopened play can take more tiles, while a fresh placement can be a second opponent turn", () => {

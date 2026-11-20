@@ -4985,6 +4985,30 @@ test("correcting the last opponent play updates the board, Last play, and histor
   await user.click(cell("Blank tile: on"));
   expect(lastPlay("CAT", 10)).toBeTruthy();
 
+  // Space marks the typed replacement as blank without using the hold gesture.
+  await user.click(cell("H8: C, start"));
+  await user.keyboard(" C");
+  expect(lastPlay("CAT", 4)).toBeTruthy();
+  expect(latestMove()).toEqual([["1", "", "4", "(4) cAT"]]);
+
+  await user.click(cell("H8: C blank, start"));
+  await user.click(cell("Erase selected tile"));
+  expect(scoreTotals()).toBe("0–0");
+  await user.keyboard("C");
+  expect(lastPlay("CAT", 10)).toBeTruthy();
+  expect(latestMove()).toEqual([["1", "", "10", "(10) CAT"]]);
+
+  await user.click(cell("H8: C, start"));
+  await user.keyboard("{Delete}");
+  await user.click(cell("Blank tile: off"));
+  await user.keyboard("C");
+  expect(lastPlay("CAT", 4)).toBeTruthy();
+  expect(latestMove()).toEqual([["1", "", "4", "(4) cAT"]]);
+  expect(cell("Edit last opponent move")).toBeTruthy();
+  await user.click(cell("H8: C blank, start"));
+  await user.keyboard("C");
+  expect(lastPlay("CAT", 10)).toBeTruthy();
+
   await user.click(cell("J8: T"));
   await user.keyboard("B");
   expect(lastPlay("CAB", 14)).toBeTruthy();
