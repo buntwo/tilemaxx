@@ -44,6 +44,7 @@ export type BoardEntryHandle = {
 export default function BoardEntry({
   ref,
   game,
+  skipPlayedTiles,
   hideHelp,
   readOnly,
   displayBoard,
@@ -58,6 +59,7 @@ export default function BoardEntry({
 }: {
   ref?: Ref<BoardEntryHandle>;
   game: Game;
+  skipPlayedTiles: boolean;
   hideHelp?: boolean;
   readOnly?: boolean;
   displayBoard?: BoardState;
@@ -89,6 +91,7 @@ export default function BoardEntry({
         )
       }
       hideHelp={hideHelp}
+      skipPlayedTiles={skipPlayedTiles}
       readOnly={readOnly}
       archivedBoard={game.archived ? game.archivedBoard : undefined}
       template={game.template}
@@ -128,6 +131,7 @@ export function BoardInput({
   inputLabel = "Type on board",
   hideHelp = false,
   readOnly = false,
+  skipPlayedTiles = false,
   wordScores,
   moveFilter,
   historyControls,
@@ -150,6 +154,7 @@ export function BoardInput({
   inputLabel?: string;
   hideHelp?: boolean;
   readOnly?: boolean;
+  skipPlayedTiles?: boolean;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
@@ -162,6 +167,8 @@ export function BoardInput({
   const [atEnd, setAtEnd] = useState(false);
   const [coordinateQuery, setCoordinateQuery] = useState<string | null>(null);
   const coordinatePrefix = useRef<string | null>(null);
+  // Backspace reverses an automatic jump without erasing the intervening tiles.
+  const skippedSteps = useRef(new Map<number, number>());
   const input = useRef<HTMLInputElement>(null);
   const focusing = useRef(false);
   const shiftHeld = useRef(false);
@@ -169,12 +176,14 @@ export function BoardInput({
   breakHistory.current = onBreak;
   const resetHistory = () => {
     coordinatePrefix.current = null;
+    skippedSteps.current.clear();
     breakHistory.current?.();
   };
   useEffect(() => {
     const reset = () => {
       breakHistory.current?.();
       coordinatePrefix.current = null;
+      skippedSteps.current.clear();
       shiftHeld.current = false;
       setFocused(false);
       setPendingBlank(false);
@@ -380,7 +389,10 @@ export function BoardInput({
     }
     let i = selected;
     if (backspace && !tile) {
+      const from = skippedSteps.current.get(i);
+      skippedSteps.current.delete(i);
       i =
+        from ??
         neighbor(
           i,
           direction === "down" ? -1 : 0,
@@ -399,6 +411,8 @@ export function BoardInput({
       blank = pendingBlank,
       end = atEnd;
     const nextBoard = [...board];
+    const dr = direction === "down" ? 1 : 0;
+    const dc = direction === "across" ? 1 : 0;
     for (const char of text) {
       if (char === " ") {
         if (!end) blank = !blank;
@@ -408,13 +422,16 @@ export function BoardInput({
       if (char !== ".")
         nextBoard[i] = blank ? char.toLowerCase() : char.toUpperCase();
       blank = false;
-      const next = neighbor(
-        i,
-        direction === "down" ? 1 : 0,
-        direction === "across" ? 1 : 0,
-      );
+      const adjacent = neighbor(i, dr, dc);
+      let next = adjacent;
+      if (skipPlayedTiles && char !== ".") {
+        while (next !== null && nextBoard[next]) next = neighbor(next, dr, dc);
+      }
       if (next === null) end = true;
-      else i = next;
+      else {
+        if (next !== adjacent) skippedSteps.current.set(next, i);
+        i = next;
+      }
     }
     save(nextBoard, "enter");
     setSelected(i);

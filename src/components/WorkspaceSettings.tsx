@@ -8,6 +8,7 @@ const defaults = {
   highlightRackPreview: true,
   pulseMovePreviews: true,
   animatePlayedTiles: true,
+  skipPlayedTiles: true,
   autoUpdate: true,
   limitComputeWorkers: false,
   computeWorkerCap: 1,
@@ -24,7 +25,10 @@ const sections = [
   },
   {
     title: "Gameplay",
-    options: [["animatePlayedTiles", "Animate tiles when playing a move"]],
+    options: [
+      ["animatePlayedTiles", "Animate tiles when playing a move"],
+      ["skipPlayedTiles", "Skip played tiles during board entry"],
+    ],
   },
   {
     title: "Updates",
@@ -41,6 +45,7 @@ function readPreferences(): Preferences {
       highlightRackPreview: saved?.highlightRackPreview !== false,
       pulseMovePreviews: saved?.pulseMovePreviews !== false,
       animatePlayedTiles: saved?.animatePlayedTiles !== false,
+      skipPlayedTiles: saved?.skipPlayedTiles !== false,
       autoUpdate: saved?.autoUpdate !== false,
       limitComputeWorkers: (saved?.limitComputeWorkers ?? saved?.singleComputeWorker) === true,
       computeWorkerCap: isWorkerCount(saved?.computeWorkerCap)

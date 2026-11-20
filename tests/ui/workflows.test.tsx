@@ -2163,6 +2163,50 @@ test("a phone keyboard’s Shift flag on Enter still finds moves on the first pr
   expect(await screen.findByRole("button", { name: /^CATS, / })).toBeTruthy();
 });
 
+test("board entry skips played tiles by default and Backspace returns over them", async () => {
+  const user = await start();
+  await user.click(screen.getByRole("button", { name: /^I8:/ }));
+  await user.keyboard("A T");
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("C");
+  expect(selectedCell()).toBe("115");
+  await user.keyboard("{Backspace}");
+  expect(selectedCell()).toBe("112");
+  expect(current().board.slice(112, 116)).toEqual(["", "A", "t", ""]);
+  await user.paste("C R");
+  expect(current().board.slice(112, 116)).toEqual(["C", "A", "t", "r"]);
+
+  await user.click(cell("Settings"));
+  const settings = within(screen.getByRole("dialog", { name: "Settings" }));
+  const skip = settings.getByRole<HTMLInputElement>("checkbox", {
+    name: "Skip played tiles during board entry",
+  });
+  expect(skip.checked).toBe(true);
+  await user.click(skip);
+  expect(
+    JSON.parse(localStorage.getItem("tilemaxx:workspace-preferences")!).skipPlayedTiles,
+  ).toBe(false);
+  await user.click(settings.getByRole("button", { name: "Close dialog" }));
+  await user.click(screen.getByRole("button", { name: /^H8: C/ }));
+  await user.keyboard("CQ");
+  expect(current().board.slice(112, 116)).toEqual(["C", "Q", "t", "r"]);
+});
+
+test("skipping a played run down to the edge stops pasted entry in that column", async () => {
+  const user = await start();
+  await user.click(screen.getByRole("button", { name: /^H14:/ }));
+  await user.keyboard("{ArrowDown}AT");
+  await user.click(screen.getByRole("button", { name: /^H13:/ }));
+  await user.keyboard("{ArrowDown}");
+  await user.paste("CATS");
+  expect([187, 202, 217].map((square) => current().board[square])).toEqual([
+    "C", "A", "T",
+  ]);
+  expect(current().board.filter(Boolean)).toHaveLength(3);
+  expect(selectedCell()).toBe("187");
+  expect(screen.getByRole("status").textContent).toContain("Board edge");
+});
+
 test("repeat tap toggles direction and controls preserve the same input focus", async () => {
   const user = await start();
   await user.click(cell("C3: DW"));
@@ -5077,7 +5121,7 @@ test("workspace settings keep board previews visible with plain rack tiles and p
       (name) =>
         within(dialog().getByRole("group", { name })).getAllByRole("checkbox").length,
     ),
-  ).toEqual([2, 1, 1]);
+  ).toEqual([2, 2, 1]);
   expect(hardwareInfo().getByText("Browser concurrency hint").nextElementSibling?.textContent).toBe("8");
   expect(computeLimit()).toBe("8");
   expect(option(workerOption).checked).toBe(false);
