@@ -6038,7 +6038,7 @@ label + label {
   --board-strip-control-height: 32px;
 }
 .app-shell:not(.phone-layout) .board-panel:has(> .last-play-lane) { padding-top: 0; }
-.board-panel :is(.last-play-summary, .board-warnings) { min-height: 24px; }
+.board-panel :is(.last-play-row, .board-warnings) { min-height: 24px; }
 .board-warnings {
   margin: 8px;
   padding: 2px 8px;
@@ -6057,23 +6057,38 @@ label + label {
 .last-play-lane {
   position: relative;
 }
-.last-play-summary {
+.last-play-row {
   display: flex;
-  align-items: center;
-  justify-content: center;
   flex-wrap: wrap;
-  gap: 2px 4px;
-  width: 100%;
-  padding: 2px 8px;
-  border: 0;
+  align-items: center;
+  gap: 0 8px;
+  padding-inline: 8px;
   border-bottom: 1px solid var(--line);
   border-radius: 10px 10px 0 0;
   background: color-mix(in srgb, var(--surface) 80%, var(--soft));
   color: var(--existing-letter);
-  font: inherit;
   font-size: 12px;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
+}
+.last-play-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+.last-play-bag {
+  flex: none;
+  margin-inline-start: auto;
+  padding-block: 2px;
+  white-space: nowrap;
 }
 button.last-play-summary { cursor: pointer; }
 button.last-play-summary:focus-visible { outline-offset: -2px; }

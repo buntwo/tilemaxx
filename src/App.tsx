@@ -45,7 +45,7 @@ import BoardEntry, {
   type BoardEntryHandle,
 } from "./components/BoardEntry";
 import BoardFinishOverlay from "./components/BoardFinishOverlay";
-import LastPlay from "./components/LastPlay";
+import LastPlay, { type LastPlayBag } from "./components/LastPlay";
 import { useGameFinish } from "./useGameFinish";
 import {
   GameCalculations,
@@ -162,6 +162,7 @@ const workspaceHashes = {
 type Workspace = keyof typeof workspaceHashes;
 type TileFlight = NonNullable<ReturnType<typeof prepareTileFlight>> & {
   before: Game;
+  bag: LastPlayBag;
   destination: string;
   move: Move;
   reviewing: boolean;
@@ -698,6 +699,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         motion && {
           ...motion,
           before: game,
+          bag: {
+            bagSize: replyAnalysis.bagSize,
+            bagConfirmed: replyAnalysis.bagConfirmed,
+            unseenPool: replyAnalysis.unseenPool,
+          },
           destination,
           move,
           reviewing: moveReview.showing,
@@ -1262,7 +1268,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   }
                 }}
               >
-                <LastPlay game={activeFlight?.before ?? game} />
+                <LastPlay
+                  game={activeFlight?.before ?? game}
+                  bag={activeFlight?.bag ?? replyAnalysis}
+                />
                 {warnings.length > 0 && (
                   <div className="board-warnings" role="alert">
                     {warnings.map((warning, index) => (
