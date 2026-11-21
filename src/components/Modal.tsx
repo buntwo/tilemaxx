@@ -6,6 +6,7 @@ export default function Modal({
   children,
   onClose,
   closeDisabled = false,
+  focusTitle = false,
   wide = false,
   className = "",
 }: {
@@ -14,6 +15,7 @@ export default function Modal({
   children: ReactNode;
   onClose: () => void;
   closeDisabled?: boolean;
+  focusTitle?: boolean;
   wide?: boolean;
   className?: string;
 }) {
@@ -41,7 +43,13 @@ export default function Modal({
       <div className="modal-inner">
         <header className="modal-heading">
           <div>
-            <h2 id={titleId}>{title}</h2>
+            <h2
+              id={titleId}
+              tabIndex={focusTitle ? -1 : undefined}
+              data-initial-focus={focusTitle || undefined}
+            >
+              {title}
+            </h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
           <button

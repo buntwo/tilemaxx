@@ -1470,6 +1470,7 @@ test.each(["pointerup", "touchend"])("a phone word hold opens immediately and un
     act(() => vi.advanceTimersByTime(32));
     expect(definition.closest("[inert]")).toBeNull();
     expect(close).toHaveProperty("disabled", false);
+    expect(document.activeElement).toBe(within(sheet).getByRole("heading", { name: "CATS" }));
     touch(close, "pointerdown");
     touch(close, "pointerup");
     fireEvent.click(close, { detail: 1 });
