@@ -102,7 +102,7 @@ export function createBingoHunterSession(
     SCREEN_DEALS,
     randomGenerator(seed ^ 0x8c748391),
   );
-  const exact = bagSize <= 3 ? exactHunterDeals(pool, bagSize) : undefined;
+  const exact = bagSize <= 2 ? exactHunterDeals(pool, bagSize) : undefined;
   const exactLimit =
     exact &&
     Math.min(MAX_EXACT_MOVES, Math.floor(MAX_EXACT_EVALUATIONS / exact.length));
