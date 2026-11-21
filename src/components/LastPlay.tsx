@@ -19,13 +19,13 @@ export type LastPlayBag = {
 function BagStatus({ bagSize, bagConfirmed, unseenPool }: LastPlayBag) {
   if (!unseenPool || unseenPool.excess.length) return null;
   const estimatedCount = !bagConfirmed && unseenPool.total > 0;
-  const estimatedVowels = bagSize < unseenPool.total;
+  const includesOpponentRack = bagSize < unseenPool.total;
   const title = [
     estimatedCount &&
       "Bag count assumes one opponent with a full rack where possible.",
     bagSize > 0 &&
-      estimatedVowels &&
-      "Vowel estimate uses all unseen tiles, including the opponent’s rack. Blanks count toward the total.",
+      includesOpponentRack &&
+      "The vowel percentage and blank count use all unseen tiles, including the opponent’s rack. Blanks count toward the total.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -37,7 +37,8 @@ function BagStatus({ bagSize, bagConfirmed, unseenPool }: LastPlayBag) {
       ) : (
         <>
           Bag: {bagSize} ·{" "}
-          {Math.round((100 * unseenPool.totals.vowel) / unseenPool.total)}% V
+          {Math.round((100 * unseenPool.totals.vowel) / unseenPool.total)}% V ·{" "}
+          {unseenPool.totals.blank} B
         </>
       )}
     </span>

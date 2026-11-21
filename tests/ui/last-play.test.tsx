@@ -133,13 +133,13 @@ test("an older score entry with no recoverable position shows its recorded word 
   expect(screen.queryByRole("button")).toBeNull();
 });
 
-test("the bag status includes blanks in the vowel percentage and follows the bag count", () => {
+test("the bag status shows remaining blanks beside the vowel percentage", () => {
   const game = opponentBingo();
   const unseenPool = unseenTiles(game, game.template);
   const bag = { bagSize: 83, bagConfirmed: false, unseenPool };
   const { rerender } = render(<LastPlay game={game} bag={bag} />);
 
-  const status = screen.getByText("Bag: 83 · 42% V");
+  const status = screen.getByText("Bag: 83 · 42% V · 2 B");
   expect(status.title).toContain("including the opponent’s rack");
   expect(status.closest("button")).toBeNull();
   expect(
@@ -151,7 +151,19 @@ test("the bag status includes blanks in the vowel percentage and follows the bag
   rerender(
     <LastPlay game={game} bag={{ ...bag, bagSize: 90, bagConfirmed: true }} />,
   );
-  expect(screen.getByText("Bag: 90 · 42% V").title).toBe("");
+  expect(screen.getByText("Bag: 90 · 42% V · 2 B").title).toBe("");
+
+  const blanksOnRack = {
+    ...game,
+    rack: "??",
+  };
+  rerender(
+    <LastPlay
+      game={blanksOnRack}
+      bag={{ ...bag, unseenPool: unseenTiles(blanksOnRack, game.template) }}
+    />,
+  );
+  expect(screen.getByText("Bag: 83 · 43% V · 0 B")).toBeTruthy();
 
   rerender(
     <LastPlay game={game} bag={{ ...bag, bagSize: 0, bagConfirmed: true }} />,
