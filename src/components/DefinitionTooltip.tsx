@@ -247,6 +247,7 @@ function DefinitionSheet({
   return (
     <Modal
       title={selection.title}
+      focusTitle
       className={
         locked ? "definition-sheet waiting-for-release" : "definition-sheet"
       }

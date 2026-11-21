@@ -2533,6 +2533,7 @@ label + label {
   margin-bottom: 8px;
 }
 .definition-sheet .modal-heading h2 { font-size: 18px; }
+.definition-sheet .modal-heading h2:focus { outline: none; }
 .definition-sheet .modal-heading .icon-button { width: 44px; height: 44px; }
 .reply-cell {
   display: grid;

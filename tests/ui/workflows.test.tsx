@@ -2836,7 +2836,11 @@ test.each(["phone Define", "desktop Define", "desktop right-click"] as const)("l
   expect(fetchDefinitions.mock.calls.filter(([url]) => url.startsWith("/api/definitions?"))
     .map(([url]) => url)).toEqual(["/api/definitions?language=fr&word=COTE&word=LUNE"]);
   if (phone) {
-    await user.click(tip.getByRole("button", { name: "Close dialog" }));
+    const close = tip.getByRole("button", { name: "Close dialog" });
+    expect(document.activeElement).toBe(tip.getByRole("heading", { name: "Words at K8" }));
+    await user.tab();
+    expect(document.activeElement).toBe(close);
+    await user.click(close);
     expect(screen.queryByRole("dialog", { name: "Words at K8" })).toBeNull();
     expect(cell("Define")).toBeTruthy();
     expect(empty).toHaveProperty("disabled", false);
