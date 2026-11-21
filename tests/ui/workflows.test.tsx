@@ -2081,6 +2081,81 @@ test("your play warns on a missing tile and stays drafted through a rack correct
   expect(document.querySelector(".own-play-actions")).toBeNull();
 });
 
+test("record anyway confirms the actual rack leave inline before saving a play", async () => {
+  const user = await start(390);
+  await typeRack(user, "CAER");
+  await user.click(screen.getByText("Rack tools", { selector: "summary" }));
+  await user.click(cell("Enter your play"));
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT");
+  const record = cell("Record anyway");
+  expect(record.getAttribute("aria-expanded")).toBe("false");
+  expect(cell("J8: T, missing T from rack")).toBeTruthy();
+
+  await user.click(record);
+  const confirmation = () => within(screen.getByRole("form", { name: "Rack after play" }));
+  const leave = () => confirmation().getByRole<HTMLInputElement>("textbox", { name: "Rack after play" });
+  expect(leave().value).toBe("ER");
+  expect(document.activeElement).toBe(leave());
+  expect(record.getAttribute("aria-expanded")).toBe("true");
+  expect(document.querySelector(".direct-entry-status")?.textContent).toContain("Missing T");
+  expect(current().board.every((tile) => !tile)).toBe(true);
+  expect(current().rack).toBe("CAER");
+
+  await user.click(confirmation().getByRole("button", { name: "Back" }));
+  expect(screen.queryByRole("form", { name: "Rack after play" })).toBeNull();
+  expect(document.activeElement).toBe(record);
+  expect(cell("J8: T, missing T from rack")).toBeTruthy();
+  await user.click(record);
+  await user.clear(leave());
+  await user.type(leave(), "ABCDE");
+  const confirm = confirmation().getByRole<HTMLButtonElement>("button", { name: "Confirm play" });
+  expect(confirm.disabled).toBe(true);
+  expect(confirmation().getByText("Enter at most 4 tiles.")).toBeTruthy();
+  await user.clear(leave());
+  await user.type(leave(), "Q?");
+  expect(confirm.disabled).toBe(false);
+  await user.click(confirm);
+
+  expect(current().board.slice(112, 115).join("")).toBe("CAT");
+  expect(current().rack).toBe("Q?");
+  expect(current().scoring?.you.points).toBe(10);
+  expect(current().trackedMoves?.[0]).toMatchObject({
+    player: "you", word: "CAT", score: 10, review: { rack: "CATQ?" },
+  });
+  expect(screen.queryByRole("form", { name: "Rack after play" })).toBeNull();
+  expect(cell("Find moves")).toBeTruthy();
+  await user.click(cell("Undo"));
+  expect(current().rack).toBe("CAER");
+  expect(current().board.every((tile) => !tile)).toBe(true);
+  await user.click(cell("Redo"));
+  expect(current().rack).toBe("Q?");
+  expect(current().trackedMoves?.[0].review?.rack).toBe("CATQ?");
+});
+
+test("record anyway with an empty leave can finish the game based on the corrected rack", async () => {
+  const sample = game();
+  remote.games[0] = {
+    ...sample, rack: "CA", revision: 1,
+    template: {
+      ...sample.template, rackSize: 3,
+      tileCounts: Object.fromEntries(TILE_SYMBOLS.map(tile => [tile, Number("CATXYZ".includes(tile))])),
+    },
+  };
+  const user = await start(1200);
+  await waitFor(() => expect(current().rack).toBe("CA"));
+  await user.click(screen.getByText("Rack tools", { selector: "summary" }));
+  await user.click(cell("Enter your play"));
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT");
+  await user.click(cell("Record anyway"));
+  const leave = screen.getByRole("textbox", { name: "Rack after play" });
+  expect(leave).toHaveProperty("value", "");
+  await user.keyboard("{Enter}");
+  expect(current().rack).toBe("");
+  expect(current().scoring?.end).toMatchObject({ out: "you", rackPoints: 22 });
+});
+
 test("cancelling your play discards the draft and returns to opponent board entry", async () => {
   const user = await start();
   await typeRack(user, "CAT");

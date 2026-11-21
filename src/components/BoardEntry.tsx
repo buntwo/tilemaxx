@@ -14,6 +14,7 @@ import { Trash2 } from "lucide-react";
 import Board from "./Board";
 import BoardHistoryControls from "./BoardHistoryControls";
 import MoveWord from "./MoveWord";
+import OwnPlayRackConfirmation from "./OwnPlayRackConfirmation";
 import { parseBoardCoordinate } from "./BoardCoordinates";
 import { useDefinitionTooltip } from "./DefinitionTooltip";
 import {
@@ -23,7 +24,7 @@ import {
 import { boardWordsAt, boardWordsThrough } from "../../shared/game-scoring";
 import { definitionLanguageForRules, type DefinitionLanguage } from "../../shared/definitions";
 import { moveLocation } from "../../shared/notation";
-import { missingRackLabel, prepareOwnPlay } from "../../shared/own-play";
+import { missingRackLabel, prepareOwnPlay, type OwnPlayRackCorrection } from "../../shared/own-play";
 import { rackLetters } from "../../shared/rack-entry";
 import {
   coordinate,
@@ -97,6 +98,7 @@ export default function BoardEntry({
   onSolve?: () => void;
   ownPlay?: {
     onPlay: (move: Move) => void;
+    onRecordAnyway: (correction: OwnPlayRackCorrection) => void;
     onCancel: () => void;
     onFixRack: () => void;
   };
@@ -107,6 +109,9 @@ export default function BoardEntry({
 }) {
   const history = useRef(new BoardEditHistory());
   const input = useRef<BoardInputHandle>(null);
+  const recordAnyway = useRef<HTMLButtonElement>(null);
+  const rackConfirmationId = useId();
+  const [confirmingRack, setConfirmingRack] = useState(false);
   const [draftHistory, setDraftHistory] = useState<DraftHistory>(() => ({
     current: { board: game.board, direction: "across" },
     past: [],
@@ -116,8 +121,14 @@ export default function BoardEntry({
   const draft = ownPlay
     ? prepareOwnPlay(game, draftHistory.current.board, draftHistory.current.direction)
     : undefined;
-  const move = draft?.move;
+  const placement = draft?.placement;
+  const missing = !!draft?.missing.size;
+  const move = missing ? undefined : placement;
+  const checkingRack = missing && confirmingRack && !!placement;
+  const displayMove = checkingRack ? placement : move;
   const enteringOwnPlay = !!ownPlay;
+
+  useEffect(() => setConfirmingRack(false), [draftHistory.current, game.rack]);
 
   useLayoutEffect(() => {
     if (enteringOwnPlay) input.current?.focusStartSquare();
@@ -144,6 +155,11 @@ export default function BoardEntry({
 
   function confirm() {
     if (move) ownPlay?.onPlay(move);
+  }
+
+  function closeRackConfirmation() {
+    setConfirmingRack(false);
+    recordAnyway.current?.focus({ preventScroll: true });
   }
 
   return (
@@ -208,20 +224,44 @@ export default function BoardEntry({
       {draft && ownPlay && (
         <div className="own-play-actions" role="group" aria-label="Enter your play">
           <span aria-live="polite">
-            {move
-              ? <><strong><MoveWord move={move} rules={game.template} /></strong> · {move.score} pts</>
-              : draft.tiles.length && !draft.missing.size
+            {displayMove
+              ? <><strong><MoveWord move={displayMove} rules={game.template} /></strong> · {displayMove.score} pts</>
+              : draft.tiles.length && !placement
                 ? "Place one connected word"
                 : "Your play"}
           </span>
           <div className="own-play-buttons">
-            {!!draft.missing.size && (
-              <button type="button" className="text-button" onClick={ownPlay.onFixRack}>Fix rack</button>
+            {missing && (
+              <button type="button" className="text-button" onClick={() => {
+                setConfirmingRack(false);
+                ownPlay.onFixRack();
+              }}>Fix rack</button>
+            )}
+            {missing && placement && (
+              <button
+                ref={recordAnyway}
+                type="button"
+                className="text-button"
+                aria-expanded={checkingRack}
+                aria-controls={checkingRack ? rackConfirmationId : undefined}
+                onClick={() => setConfirmingRack(!checkingRack)}
+              >
+                Record anyway
+              </button>
             )}
             <button type="button" className="text-button" onClick={ownPlay.onCancel}>Cancel</button>
             <button className="button primary" type="button" disabled={!move} onClick={confirm}>Play</button>
           </div>
         </div>
+      )}
+      {ownPlay && checkingRack && (
+        <OwnPlayRackConfirmation
+          id={rackConfirmationId}
+          game={game}
+          placement={placement}
+          onBack={closeRackConfirmation}
+          onConfirm={ownPlay.onRecordAnyway}
+        />
       )}
     </>
   );

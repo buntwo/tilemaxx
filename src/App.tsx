@@ -65,6 +65,7 @@ import {
 } from "./components/tile-motion";
 import { useReplyAnalysis } from "./useReplyAnalysis";
 import { rackComposition, splitRack } from "../shared/rack-entry";
+import { playOwnMoveWithRackCorrection, type OwnPlayRackCorrection } from "../shared/own-play";
 import BoardStudio from "./components/BoardStudio";
 import ScreenshotImport from "./components/ScreenshotImport";
 import { hasCustomPremiums, importBoard } from "../shared/screenshot";
@@ -709,20 +710,30 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     if (move && narrowLayout && player === "you") moveReview.open();
     setPreview(move ? { move, analysis, player } : null);
   }
-  function play(move: Move, useRackMarks = true) {
+  function play(
+    move: Move,
+    { useRackMarks = true, correction }: {
+      useRackMarks?: boolean;
+      correction?: OwnPlayRackCorrection;
+    } = {},
+  ) {
     if (!game || activeFlight || boardLocked) return;
     try {
-      const next = playTrackedMove(game, move, replyAnalysis.bagSize, useRackMarks);
+      const corrected = correction && playOwnMoveWithRackCorrection(
+        game, correction, replyAnalysis.bagConfirmed ? replyAnalysis.bagSize : undefined,
+      );
+      const bagSize = corrected?.bagSize ?? replyAnalysis.bagSize;
+      const next = corrected?.game ?? playTrackedMove(game, move, bagSize, useRackMarks);
       const rackPosition = useRackMarks
         ? game
         : { ...game, excludedRackSlots: undefined, requiredRackSlots: undefined };
       const destination = positionSignature(next);
-      const motion = preferences.animatePlayedTiles
+      const motion = !correction && preferences.animatePlayedTiles
         ? prepareTileFlight(
             rackPosition, move, rackPanel.current, boardPanel.current, narrowLayout,
           )
         : undefined;
-      rackRefill.current = replyAnalysis.bagSize > 0
+      rackRefill.current = bagSize > 0
         ? { position: destination, from: document.activeElement }
         : null;
       solver.rememberResults();
@@ -1343,7 +1354,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   onSelect={editPosition}
                   onSolve={hasPlayableRack && !activeFlight ? solve : undefined}
                   ownPlay={enteringOwnPlay ? {
-                    onPlay: (move) => play(move, false),
+                    onPlay: (move) => play(move, { useRackMarks: false }),
+                    onRecordAnyway: (correction) => play(correction.move, { correction }),
                     onCancel: cancelOwnPlay,
                     onFixRack: () => rackEntry.current?.focusEntry(),
                   } : undefined}

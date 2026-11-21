@@ -5935,6 +5935,37 @@ label + label {
   font-size: 11px;
 }
 .own-play-buttons .button { min-width: 44px; }
+.own-play-rack-confirmation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.own-play-rack-confirmation label { font-weight: 650; }
+.own-play-rack-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 5px;
+}
+.own-play-rack-field input {
+  min-width: 0;
+  min-height: 36px;
+  padding: 4px 8px;
+  font-size: 16px;
+}
+.own-play-rack-field :is(.button, .text-button) {
+  min-height: 36px;
+  padding: 0 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.phone-layout .own-play-rack-field :is(input, .button, .text-button) { min-height: 44px; }
+.own-play-rack-confirmation small { color: var(--muted); }
+.own-play-rack-confirmation .own-play-rack-error { color: var(--value-bad); }
+
 .with-board-history .board-import + .direct-entry-status { padding-inline-start: 0; }
 .board-panel :is(.board-undo, .board-redo) {
   width: var(--board-strip-control-height);

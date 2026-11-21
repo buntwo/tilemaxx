@@ -40,7 +40,12 @@ import {
   undo,
   type Game,
 } from "../shared/model";
-import { missingRackLabel, prepareOwnPlay } from "../shared/own-play";
+import {
+  missingRackLabel,
+  playOwnMoveWithRackCorrection,
+  prepareOwnPlay,
+  prepareOwnPlayRackCorrection,
+} from "../shared/own-play";
 import { PRESETS } from "../shared/presets";
 import { importBoard } from "../shared/screenshot";
 import { solve } from "../shared/solver";
@@ -70,17 +75,48 @@ test("direct play spends matching tiles first, honors designated blanks, and ide
   draft.splice(start, 4, ..."SSsE");
   const short = prepareOwnPlay(game, draft, "across");
   assert.deepEqual([...short.missing], [[start + 1, "S"]]);
-  assert.equal(short.move, undefined);
+  assert.equal(short.placement?.word, "SSSE");
 
   const ready = prepareOwnPlay({ ...game, rack: "S??E" }, draft, "across");
   assert.deepEqual(ready.tiles.map(({ letter }) => letter), ["S", "s", "s", "E"]);
-  assert.equal(ready.move?.word, "SSSE");
-  assert.equal(ready.move?.score, 4);
-  assert.equal(ready.move?.leave, "");
-  assert.equal(ready.move?.blanks, 2);
+  assert.equal(ready.placement?.word, "SSSE");
+  assert.equal(ready.placement?.score, 4);
+  assert.equal(ready.placement?.leave, "");
+  assert.equal(ready.placement?.blanks, 2);
 
   const empty = prepareOwnPlay({ ...game, rack: "" }, draft, "across");
   assert.equal(missingRackLabel(empty.missing), "S ×2, blank, E");
+});
+
+test("a confirmed leave reconstructs the rack for review and keeps the original rack for undo", () => {
+  const game = { ...fixture(), rack: "CAER", excludedRackSlots: [0], requiredRackSlots: [3] };
+  const draft = [...game.board];
+  draft.splice(game.template.start, 3, ..."CAT");
+  const { placement, missing } = prepareOwnPlay(game, draft, "across");
+  assert.ok(placement);
+  assert.equal(missingRackLabel(missing), "T");
+  assert.equal(placement.leave, "ER");
+  assert.equal(placement.score, 10);
+  assert.deepEqual(prepareOwnPlayRackCorrection(game, placement, "123"),
+    { error: "Enter letters or ? for a blank." });
+  assert.deepEqual(prepareOwnPlayRackCorrection(game, placement, "ABCDE"),
+    { error: "Enter at most 4 tiles." });
+  assert.deepEqual(prepareOwnPlayRackCorrection(game, placement, "QQ"),
+    { error: "Tile count exceeded for Q." });
+  const correction = prepareOwnPlayRackCorrection(game, placement, "q ?");
+  assert.ok("before" in correction);
+  assert.equal(correction.before, "CATQ?");
+
+  const next = gameSchema.parse(playOwnMoveWithRackCorrection(game, correction, 90).game);
+  assert.equal(next.rack, "Q?");
+  assert.equal(next.scoring?.you.points, 10);
+  assert.equal(next.trackedMoves?.at(-1)?.review?.rack, "CATQ?");
+  const previous = undo(next);
+  assert.equal(previous.rack, "CAER");
+  assert.deepEqual(previous.excludedRackSlots, [0]);
+  assert.deepEqual(previous.requiredRackSlots, [3]);
+  assert.deepEqual(previous.board, game.board);
+  assert.equal(redo(previous).trackedMoves?.at(-1)?.review?.rack, "CATQ?");
 });
 
 test("the turn indicator follows the latest recorded word, including consecutive plays by one player", () => {
