@@ -1,4 +1,4 @@
-import { BINGO_STYLES, BINGO_STYLE_LABELS, isBingoStyle } from "../../shared/bingo-styles";
+import { SIMULATED_STYLES, SIMULATED_STYLE_LABELS, isSimulatedStyle } from "../../shared/simulated-styles";
 import { useBingoHunter } from "../useBingoHunter";
 import type { HunterProgress } from "../parallel-bingo-hunter";
 import type { RunBingoHunter } from "../useSolver";
@@ -114,6 +114,9 @@ const hunterStageLabels: Record<HunterProgress["phase"], string> = {
   refine: "Refining bingo estimates",
   "ceiling-discovery": "Finding high-scoring bingo setups",
   "ceiling-replies": "Checking replies to high-scoring setups",
+  "master-screen": "Comparing plays and replies",
+  "master-refine": "Refining Master estimates",
+  "master-endgame": "Solving known-rack endings",
 };
 
 function formatOdds(chance: number, exact: boolean) {
@@ -369,9 +372,9 @@ export default function Results({
   const { view, returnView } = navigation;
   const shortlistActive = view === "shortlist";
   const profile = view === "style" ? selectedProfile : undefined;
-  const bingoStyle = isBingoStyle(selectedProfile) ? selectedProfile : undefined;
+  const bingoStyle = isSimulatedStyle(selectedProfile) ? selectedProfile : undefined;
   const hunterSelected = !!bingoStyle && view === "style";
-  const hunterLabel = bingoStyle && BINGO_STYLE_LABELS[bingoStyle];
+  const hunterLabel = bingoStyle && SIMULATED_STYLE_LABELS[bingoStyle];
   const hunterKey = bingoStyle && resultSet?.total && !busy && !error && !invalid
     ? JSON.stringify([bingoStyle, analysisKey, resultSet.searchId, bagSize, scorelessTurns, replyAnalysis.opponentHasFinalTurn])
     : undefined;
@@ -823,8 +826,8 @@ export default function Results({
     </button>
   ) : undefined;
   const returnViewLabel = returnView === "style" && selectedProfile
-    ? isBingoStyle(selectedProfile)
-      ? BINGO_STYLE_LABELS[selectedProfile]
+    ? isSimulatedStyle(selectedProfile)
+      ? SIMULATED_STYLE_LABELS[selectedProfile]
       : PLAYER_PROFILE_LABELS[selectedProfile]
     : "All moves";
   const viewPicker = analysisGame && (
@@ -882,8 +885,8 @@ export default function Results({
         {PLAYER_PROFILES.map((profile) => (
           <option key={profile} value={profile}>{PLAYER_PROFILE_LABELS[profile]}</option>
         ))}
-        {runBingoHunter && BINGO_STYLES.map(style => (
-          <option key={style} value={style}>{BINGO_STYLE_LABELS[style]}</option>
+        {runBingoHunter && SIMULATED_STYLES.map(style => (
+          <option key={style} value={style}>{SIMULATED_STYLE_LABELS[style]}</option>
         ))}
       </select>
     </div>
@@ -1227,7 +1230,9 @@ export default function Results({
                   ? "Search paused before enough moves could be compared."
                   : hunterResult?.limited
                     ? "The search reached its complexity limit."
-                    : "Rank moves by weighted play points now and expected bingo points after the reply. Bingos count in full.")}</p>
+                    : bingoStyle === "master"
+                      ? "Compare your score, their reply, and what you can play next."
+                      : "Rank moves by weighted play points now and expected bingo points after the reply. Bingos count in full.")}</p>
               {hunterAction ?? (
                 <button type="button" className="button primary" disabled={!hunterKey} onClick={() => hunter.start()}>
                   Run {hunterLabel}
@@ -1311,6 +1316,7 @@ export default function Results({
             <div className="reply-controls">
               {hunterStatus ?? (
                 <span role="status">
+                  {hunterResult.passRecommended ? "Master recommends passing · " : ""}
                   {hunterResult.checked} candidates checked
                   {hunterResult.canContinue && (hunterResult.ceilingPass ? " · High-ceiling setups ready to check" : " · Provisional")}
                   {hunterResult.ceilings?.length === 0 && !hunterResult.canContinue && " · No high-ceiling setups found"}

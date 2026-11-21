@@ -1,4 +1,5 @@
-import { BINGO_STYLE_LABELS, isBingoStyle, type BingoStyle } from "../shared/bingo-styles";
+import { SIMULATED_STYLE_LABELS, isSimulatedStyle, type SimulatedStyle } from "../shared/simulated-styles";
+import { createMasterSession } from "./parallel-master";
 import { BINGO_HUNTER_SLICE_MS, createBingoHunterSession } from "./parallel-bingo-hunter";
 import { dictionaryText } from "./word-list-cache";
 import { Lexicon, parseWords } from "../shared/lexicon";
@@ -33,7 +34,7 @@ import { loadWordFrequencies } from "./word-frequencies";
 import { rackComposition } from "../shared/rack-entry";
 
 let activeHunter: { id: number; searchId: number; abort: AbortController; finished: Promise<unknown> } | undefined;
-const hunterSessions = new Map<BingoStyle, { searchId: number; key: string; lastId?: number; session: ReturnType<typeof createBingoHunterSession> }>();
+const hunterSessions = new Map<SimulatedStyle, { searchId: number; key: string; lastId?: number; session: ReturnType<typeof createBingoHunterSession> | ReturnType<typeof createMasterSession> }>();
 type SolveRequest = Extract<SolverRequest, { kind: "solve" }>;
 const results = new Map<number, MoveResultIndex & { position: SolveRequest; lexicon: Lexicon; odds?: ReturnType<RackBingoIndex["calculate"]> }>();
 let models: { lexicon: Lexicon; templateKey: string; choose: ReturnType<typeof createPlayerProfiles> } | undefined;
@@ -53,7 +54,7 @@ const ENDGAME_ESTIMATE_MOVE_MS = 80;
 async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind: "page" }>) {
   const result = results.get(searchId);
   const { profile, profileBagSize = 0, profileSeed = 0 } = query;
-  if (result && profile && !isBingoStyle(profile) && !result.hasProfile(query)) {
+  if (result && profile && !isSimulatedStyle(profile) && !result.hasProfile(query)) {
     try {
       const frequencies = await loadWordFrequencies(result.position.template.rules);
       if (results.get(searchId) !== result) return post({ id, kind: "page" });
@@ -165,7 +166,7 @@ async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
   const previous = activeHunter;
   if (request.resumeFrom !== undefined &&
     (hunterSession?.searchId !== searchId || hunterSession.key !== key || hunterSession.lastId !== request.resumeFrom)) {
-    post({ id, kind: "bingo-hunter", error: `This search has expired. Run ${BINGO_STYLE_LABELS[style]} again.` });
+    post({ id, kind: "bingo-hunter", error: `This search has expired. Run ${SIMULATED_STYLE_LABELS[style]} again.` });
     return;
   }
   previous?.abort.abort();
@@ -175,8 +176,11 @@ async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
     if (request.resumeFrom === undefined) {
       hunterSessions.set(style, {
         searchId, key,
-        session: createBingoHunterSession(result.lexicon, { ...result.position, ...request },
-          result.moves, result.odds, computeWorkerLimit(workerLimit), style),
+        session: style === "master"
+          ? createMasterSession(result.lexicon, { ...result.position, ...request },
+            result.moves, computeWorkerLimit(workerLimit))
+          : createBingoHunterSession(result.lexicon, { ...result.position, ...request },
+            result.moves, result.odds, computeWorkerLimit(workerLimit), style),
       });
     }
     const current = hunterSessions.get(style)!;
@@ -195,7 +199,7 @@ async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
     post({ id, kind: "bingo-hunter", summary });
   } catch (error) {
     if (!abort.signal.aborted)
-      post({ id, kind: "bingo-hunter", error: error instanceof Error ? error.message : `${BINGO_STYLE_LABELS[style]} stopped unexpectedly.` });
+      post({ id, kind: "bingo-hunter", error: error instanceof Error ? error.message : `${SIMULATED_STYLE_LABELS[style]} stopped unexpectedly.` });
   } finally {
     if (activeHunter?.id === id) activeHunter = undefined;
   }

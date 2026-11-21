@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { isBingoStyle } from "../shared/bingo-styles";
+import { isSimulatedStyle } from "../shared/simulated-styles";
 import type { MoveStyle } from "../shared/move-results";
 import { PLAYER_PROFILES } from "../shared/player-profiles";
 
@@ -12,7 +12,7 @@ export function useGamePlayingStyle(gameId?: string) {
     if (!key) return;
     try {
       const value = localStorage.getItem(key) ?? undefined;
-      return isBingoStyle(value)
+      return isSimulatedStyle(value)
         ? value
         : PLAYER_PROFILES.find((profile) => profile === value);
     } catch {

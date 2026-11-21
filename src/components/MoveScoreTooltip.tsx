@@ -1,4 +1,4 @@
-import { BINGO_STYLE_LABELS, isBingoStyle } from "../../shared/bingo-styles";
+import { SIMULATED_STYLE_LABELS, isSimulatedStyle } from "../../shared/simulated-styles";
 import { ORDINARY_FOLLOW_UP_WEIGHT } from "../../shared/bingo-hunter";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -26,10 +26,43 @@ type UtilityDetails = {
 };
 
 function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
+  if ("kind" in utility) {
+    const factors = utility.endgame !== undefined
+      ? [{ label: "Exact endgame continuation", value: utility.endgame - utility.score }]
+      : [
+        { label: "Expected opponent reply", value: utility.reply },
+        { label: "Expected follow-up", value: utility.followUp },
+        { label: "Rack leave difference", value: utility.leave },
+        { label: "Final rack adjustments", value: utility.rackAdjustment },
+      ];
+    return (
+      <div className="score-breakdown-content">
+        <div>Master · Rank {utility.rank}</div>
+        <ul>
+          <li className="score-breakdown-line"><span>Play points now</span><span>{utility.score}</span></li>
+          {factors.map(({ label, value }) => (
+            <li className="score-breakdown-line" key={label}>
+              <span>{label}</span><span className={scoreTone(value)}>{formatUtility(value)}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="score-breakdown-line score-breakdown-total">
+          <strong>{utility.endgame !== undefined ? "Endgame swing" : "Utility"}</strong>
+          <strong>{formatUtility(utility.total)}</strong>
+        </div>
+        {utility.endgame === undefined && (
+          <div className="move-score-adjustment">
+            {utility.exactDeals ? "All possible tile deals" : `${utility.samples} shared tile deals`}
+            {utility.bingoChance > 0 && ` · ${formatUtility(utility.bingoChance * 100)}% bingo next turn`}
+          </div>
+        )}
+      </div>
+    );
+  }
   if ("playPoints" in utility) {
     return (
       <div className="score-breakdown-content">
-        <div>{isBingoStyle(profile) && BINGO_STYLE_LABELS[profile]} · Rank {utility.rank}</div>
+        <div>{isSimulatedStyle(profile) && SIMULATED_STYLE_LABELS[profile]} · Rank {utility.rank}</div>
         <ul>
           <li className="score-breakdown-line">
             <span>Play points now</span>
@@ -106,7 +139,7 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
   return (
     <div className="score-breakdown-content">
       <div>
-        {!isBingoStyle(profile) && PLAYER_PROFILE_LABELS[profile]} · Rank {utility.rank}
+        {!isSimulatedStyle(profile) && PLAYER_PROFILE_LABELS[profile]} · Rank {utility.rank}
       </div>
       <ul>
         {factors.map(

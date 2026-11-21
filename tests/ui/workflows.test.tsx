@@ -501,6 +501,14 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
       const move = index.moves[0];
       const playWeight = move.tiles.length === 7 ? 1 : .75;
       const weightedPlayPoints = move.score * playWeight;
+      if (style === "master") {
+        index.setProfile({ profile: style, profileBagSize: request.bagSize, profileSeed: request.id }, [{
+          move, utility: { kind: "master", score: move.score, reply: -21, followUp: 19, leave: 4,
+            rackAdjustment: 0, bingoChance: 0.3, total: move.score + 2, samples: 40, exactDeals: false, endgame: undefined },
+        }]);
+        this.onmessage?.({ data: { id: request.id, kind: "bingo-hunter", summary: { checked: 1, limited: false } } });
+        return;
+      }
       index.setProfile({ profile: style, profileBagSize: request.bagSize, profileSeed: request.id }, [{ move, utility: {
         playPoints: move.score, playWeight, weightedPlayPoints, nextBingoPoints: 21,
         bingoChance: .3, meanBingoScore: 70, highestBingo: 104, samples: 80, exact: false, close: false,
@@ -518,7 +526,7 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
   await user.keyboard("{Enter}");
   const select = await screen.findByRole("combobox", { name: "Playing style" });
   expect(Array.from(select.querySelectorAll("option"), (option) => option.textContent)).toEqual([
-    "No style", "Casual", "Word-List Learner", "Strong Club Player", "Bingo Mercenary", "Bingo Tactician",
+    "No style", "Casual", "Word-List Learner", "Strong Club Player", "Bingo Mercenary", "Bingo Tactician", "Master",
   ]);
   await user.selectOptions(select, "tactician");
   expect(requests).toHaveLength(0);
@@ -543,6 +551,13 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
   expect(requests.map(({ style }) => style)).toEqual(["tactician", "bingo-hunter", "tactician"]);
   expect(requests[2].resumeFrom).toBe(requests[0].id);
   expect((await openUtility()).getByText("Bingo Tactician · Rank 1")).toBeTruthy();
+  await user.selectOptions(select, "master");
+  await user.click(screen.getByRole("button", { name: "Run Master" }));
+  const master = await openUtility();
+  expect(master.getByText("Master · Rank 1")).toBeTruthy();
+  expect(master.getByText("Expected follow-up")).toBeTruthy();
+  expect(master.getByText("Rack leave difference")).toBeTruthy();
+  expect(master.getByText("40 shared tile deals · 30% bingo next turn")).toBeTruthy();
 });
 
 test("phone analysis taps preview and select a move without offering Play", async () => {

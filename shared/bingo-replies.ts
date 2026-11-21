@@ -55,7 +55,7 @@ export function createBingoReplySearch<T>(
         );
       return replies.get(opponent) ?? null;
     },
-    bingo(reply: Move | null, rack: string, deadline: number) {
+    followUp(reply: Move | null, rack: string, deadline: number) {
       const key = reply?.id ?? null;
       const cached = followups.get(key);
       if (cached) followups.delete(key);
