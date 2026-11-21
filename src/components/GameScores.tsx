@@ -18,6 +18,7 @@ import {
 import { scoreTone, signedPoints } from "../score-tone";
 import Modal from "./Modal";
 import MoveWord, { BingoBadge } from "./MoveWord";
+import { DefinitionWord } from "./MoveDefinitions";
 import ScoreBreakdown from "./ScoreBreakdown";
 import ScoreChart from "./ScoreChart";
 import TurnReview from "./TurnReview";
@@ -303,7 +304,7 @@ export default function GameScores({
                               move.bingo ? "bingo-move-word" : undefined
                             }
                           >
-                            {move.notation}
+                            <DefinitionWord word={move.word}>{move.notation}</DefinitionWord>
                           </span>
                         </button>{" "}
                         <small className="score-move-total">
@@ -335,7 +336,7 @@ export default function GameScores({
                               move.bingo ? "bingo-move-word" : undefined
                             }
                           >
-                            {move.notation}
+                            <DefinitionWord word={move.word}>{move.notation}</DefinitionWord>
                           </span>
                         </button>
                       </div>

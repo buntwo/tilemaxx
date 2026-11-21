@@ -3,6 +3,7 @@ import type { Move } from "../../shared/model";
 import { moveLocation } from "../../shared/notation";
 import { formatUtility } from "./MoveScoreTooltip";
 import { BingoBadge } from "./MoveWord";
+import { DefinitionWord } from "./MoveDefinitions";
 
 function percent(chance: number) {
   return chance > 0 && chance < 0.0001
@@ -28,18 +29,18 @@ export default function HighCeilingSetups({
               <button type="button" className="button secondary" data-move-preview-action
                 aria-label={`Preview ${move.word} at ${moveLocation(move)}`}
                 aria-pressed={selected === move.id} onClick={() => onPreview(move)}>
-                {move.word} {move.score}
+                <DefinitionWord word={move.word} /> {move.score}
               </button>
               <span>
                 <span aria-hidden="true">→ </span>
-                <BingoBadge /> <strong className="bingo-move-word">{bingo.word} {bingo.score}</strong>
+                <BingoBadge /> <strong className="bingo-move-word"><DefinitionWord word={bingo.word} /> {bingo.score}</strong>
                 {" · "}{!exact && !chance
                   ? "No hits in reply sample"
                   : `${exact ? "" : "≈"}${percent(chance)} after reply`}
               </span>
               {selected === move.id && (
                 <button type="button" className="button secondary" data-move-preview-action onClick={() => onPlay(move)}>
-                  Play {move.word}
+                  Play <DefinitionWord word={move.word} />
                 </button>
               )}
             </div>

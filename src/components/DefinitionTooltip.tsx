@@ -67,6 +67,20 @@ export function useDefinitionTooltip(
     };
   }, [language, selection?.kind, close]);
 
+  useEffect(() => {
+    if (!selection) return;
+    const observer = new MutationObserver(() => {
+      if (!selection.anchor.isConnected || selection.anchor.closest("dialog:not([open]), [hidden]")) close();
+    });
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["open", "hidden"],
+    });
+    return () => observer.disconnect();
+  }, [selection, close]);
+
   function open(anchor: HTMLElement, words: TargetWord[]) {
     if (!language || !words.length) return;
     cancelTimer();
@@ -123,7 +137,9 @@ export function useDefinitionTooltip(
             onLeave={leave}
           />
         ),
-        document.body,
+        selection.kind === "sheet"
+          ? document.body
+          : selection.anchor.closest("dialog[open]") ?? document.body,
       ),
   };
 }

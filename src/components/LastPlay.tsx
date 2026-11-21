@@ -5,6 +5,7 @@ import { moveLocation } from "../../shared/notation";
 import { wordBonuses, type Game } from "../../shared/model";
 import type { unseenTiles } from "../../shared/tile-pool";
 import MoveWord from "./MoveWord";
+import { DefinitionWord } from "./MoveDefinitions";
 
 type RecordedPlay = NonNullable<ReturnType<typeof lastRecordedBoardPlay>>;
 type ScoredWord = NonNullable<RecordedPlay["main"]>;
@@ -101,7 +102,9 @@ function LastPlayLane({
       setPinned(false);
     }
     function outside(event: PointerEvent) {
-      if (!lane.current?.contains(event.target as Node)) close();
+      const target = event.target;
+      if (target instanceof Element && target.closest(".definition-sheet, .definition-tooltip")) return;
+      if (!lane.current?.contains(target as Node)) close();
     }
     function escape(event: KeyboardEvent) {
       if (event.key === "Escape") close();
@@ -168,7 +171,7 @@ function LastPlayLane({
               {[main, ...breakdown.words.filter((word) => word !== main)].map(
                 (word) => (
                   <tr key={`${word.cells[0]}:${word.direction}`}>
-                    <th scope="row">{word.word}</th>
+                    <th scope="row"><DefinitionWord word={word.word} /></th>
                     <td className="last-play-notation">
                       {location(word, size)}
                     </td>

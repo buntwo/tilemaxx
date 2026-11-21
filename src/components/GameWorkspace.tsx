@@ -1,4 +1,6 @@
 import { Component, createRef, useState, type ReactNode } from "react";
+import type { Rules } from "../../shared/model";
+import { MoveDefinitions } from "./MoveDefinitions";
 import { canAnimateTiles } from "./tile-motion";
 
 export function useMoveReview(
@@ -17,6 +19,8 @@ export function useMoveReview(
 }
 
 type Props = {
+  definitionRules: Rules;
+  positionKey: string;
   narrow: boolean;
   reviewing: boolean;
   hasWarnings: boolean;
@@ -117,12 +121,18 @@ export default class GameWorkspace extends Component<Props, object, Snapshot> {
 
   render() {
     return (
-      <div
-        ref={this.root}
-        className={`workspace-grid${this.props.reviewing ? " move-review" : ""}`}
+      <MoveDefinitions
+        rules={this.props.definitionRules}
+        position={this.props.positionKey}
+        phoneLayout={this.props.narrow}
       >
-        {this.props.children}
-      </div>
+        <div
+          ref={this.root}
+          className={`workspace-grid${this.props.reviewing ? " move-review" : ""}`}
+        >
+          {this.props.children}
+        </div>
+      </MoveDefinitions>
     );
   }
 }

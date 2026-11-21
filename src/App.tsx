@@ -1260,6 +1260,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           />
         ) : game ? (
           <GameWorkspace
+            definitionRules={game.template.rules}
+            positionKey={signature}
             narrow={narrowLayout}
             reviewing={moveReview.showing}
             hasWarnings={warnings.length > 0}

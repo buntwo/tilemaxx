@@ -1,5 +1,6 @@
 import { moveLetters } from "../../shared/notation";
 import { Trophy } from "lucide-react";
+import { DefinitionWord } from "./MoveDefinitions";
 import {
   isBingo,
   type BingoRules,
@@ -75,10 +76,10 @@ export default function MoveWord(props: MoveWordProps) {
       ? isBingo(props.rules, props.move.tiles.length)
       : props.bingo;
   return bingo ? (
-    <span className="bingo-move-word">
+    <DefinitionWord word={word} className="bingo-move-word">
       {word} <BingoBadge />
-    </span>
+    </DefinitionWord>
   ) : (
-    word
+    <DefinitionWord word={word} />
   );
 }

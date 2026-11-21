@@ -6,6 +6,7 @@ import { splitRack } from "../../shared/rack-entry";
 import { unseenTiles } from "../../shared/tile-pool";
 import { usePractice } from "./usePractice";
 import { BingoBadge } from "./MoveWord";
+import { DefinitionWord } from "./MoveDefinitions";
 import MiniTiles from "./MiniTiles";
 
 export const exchangePercent = new Intl.NumberFormat(undefined, {
@@ -201,7 +202,7 @@ export default function ExchangeAnalysis({
                           example.bingo ? "bingo-move-word" : undefined
                         }
                       >
-                        {example.word}
+                        <DefinitionWord word={example.word} />
                       </strong>
                       <span className="exchange-example-score">
                         {example.score} pts
