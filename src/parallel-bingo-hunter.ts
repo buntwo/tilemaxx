@@ -1,4 +1,4 @@
-import type { BingoStyle } from "../shared/bingo-styles";
+import type { SimulatedStyle } from "../shared/simulated-styles";
 import { laneOpeningBonus, LANE_MIN_BAG } from "../shared/tactician-lanes";
 import { sampleBingoDeals, type BingoDeal } from "../shared/bingo-replies";
 import {
@@ -32,19 +32,22 @@ import { createCandidatePool } from "./candidate-analysis-pool";
 import { createBingoCeilingSearch } from "./parallel-bingo-ceilings";
 
 export type HunterStageProgress = {
-  phase: "exact" | "screen" | "screen-replies" | "sample" | "follow-up" | "checkpoint" | "refine" | "ceiling-discovery" | "ceiling-replies";
+  phase: "exact" | "screen" | "screen-replies" | "sample" | "follow-up" | "checkpoint" | "refine" | "ceiling-discovery" | "ceiling-replies" | "master-screen" | "master-refine" | "master-endgame";
   done: number;
   total: number;
 };
 export type HunterProgress = HunterStageProgress & { stage: number };
 export type HunterSummary = {
   checked: number;
+  passRecommended?: boolean;
   limited: boolean;
   canContinue?: boolean;
   finalistsRefined?: boolean;
   ceilingPass?: boolean;
   ceilings?: BingoCeilingResult[];
 };
+
+type BingoSimulationStyle = Exclude<SimulatedStyle, "master">;
 
 export const BINGO_HUNTER_SLICE_MS = 10_000;
 const SCREEN_DEALS = 48;
@@ -75,7 +78,7 @@ export function createBingoHunterSession(
   moves: readonly Move[],
   odds: RackOdds | undefined,
   workerLimit: number,
-  style: BingoStyle = "bingo-hunter",
+  style: BingoSimulationStyle = "bingo-hunter",
 ) {
   const { pool, opponentSize } = hunterPool(position);
   const { template, bagSize } = position;

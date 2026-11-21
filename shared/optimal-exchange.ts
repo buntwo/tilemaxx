@@ -152,7 +152,7 @@ export function createExchangeReplyCheck(
           ...swaps.map(
             ({ leave, draw }) =>
               !ended &&
-              search.bingo(
+              search.followUp(
                 reply,
                 canonical(leave + deal.bag.slice(0, draw)),
                 deadline,

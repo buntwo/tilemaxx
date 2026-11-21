@@ -18,6 +18,14 @@ Bingo Tactician also scores the change in usable bingo lanes across four shared 
 
 Both styles run on demand in 10-second slices and keep their rankings separate. Once a style has run in a game, it starts again on new **Find moves** searches while selected. Use the **Utility breakdown** to see which terms apply to each recommendation.
 
+## Master
+
+Choose **Master** in **Playing style** and select **Run Master**. The progress counter shows how many candidates it has checked. Once you have run it in a game, new **Find moves** searches run Master again while it stays selected.
+
+Master starts with score and rack leave to find up to 12 placements worth testing. It samples the opposing rack and bag without replacement and reuses the same deals across candidates. For each deal, it models the opponent’s reply and your following turn. It gives full credit to the current score, subtracts the opponent’s reply and leave, then adds 65% of your follow-up score and leave and 35% of your current leave. Finished deals use the actual points and final rack adjustments.
+
+Master screens with eight shared deals and checks up to four finalists with 40 shared deals. With up to two tiles in the bag it enumerates their possible orders and weights them by multiplicity. With an empty bag and up to ten tiles across the racks, it also searches a shortlist of known-rack endgames, including passing when allowed. The **Utility breakdown** shows the terms and sample count or the exact swing of the checked line. Each run has a 10-second limit and can resume if a sampling phase needs more time.
+
 ## How the model works
 
 1. **Spot moves.** Each simulated player has a seeded vocabulary that stays consistent across turns. The player looks at a fraction of available board locations. Long placements and assigning blanks are harder to spot. Vertical words are harder for Casual to recognize, with a smaller effect for Learner and Strong. Learner and Strong also recall more short study words and bingos with likely letter combinations. Every new cross word still has to be familiar.

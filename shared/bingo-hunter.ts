@@ -332,7 +332,7 @@ function createBingoEvaluator(
       if (bingo || !followUp) return { bingo, ordinary: 0 };
       const maxMs = deadline - performance.now();
       if (maxMs <= 0) throw new SearchLimitError("time");
-      return { bingo: 0, ordinary: solver.bestScore(rack, { maxMs }) };
+      return { bingo: 0, ordinary: solver.bestScore(rack, { maxMs: Math.min(maxMs, limits.maxMs) }) };
     });
   let laneScore: ReturnType<typeof createBingoLaneScorer> | undefined;
   let originalLaneScore: number | undefined;
@@ -347,7 +347,7 @@ function createBingoEvaluator(
 
     if (canBingo || followUp) {
       const rack = sortTiles(move.leave + deal.bag.slice(0, draw));
-      Object.assign(result, search.bingo(reply, rack, deadline));
+      Object.assign(result, search.followUp(reply, rack, deadline));
     }
     if (!checkLane) return result;
     laneScore ??= createBingoLaneScorer(lexicon, template);

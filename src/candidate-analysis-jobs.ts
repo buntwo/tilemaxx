@@ -1,3 +1,5 @@
+import { createMasterEvaluator, type MasterAction, type MasterOutcome, type MasterPolicy } from "../shared/master-evaluation";
+import { masterEndgame } from "../shared/master-endgame";
 import type { BingoDeal } from "../shared/bingo-replies";
 import {
   createHunterEvaluator, createTacticianEvaluator, type HunterOutcome, type HunterPosition,
@@ -24,7 +26,7 @@ import {
   type ReplySearchLimit,
   type sampleReplyRacks,
 } from "../shared/reply-analysis";
-import { prepareSolver, SearchLimitError } from "../shared/solver";
+import { createSolverFactory, prepareSolver, SearchLimitError } from "../shared/solver";
 
 type CandidateMove = { position: ReplyPosition; move: Move };
 export type CandidateJob =
@@ -41,6 +43,21 @@ export type CandidateJob =
       tactics?: { followUp: boolean; laneDeals: number[] };
       deadline: number;
       wavesRemaining: number;
+    }
+  | {
+      kind: "master-deals";
+      position: HunterPosition;
+      action: MasterAction;
+      policy: MasterPolicy;
+      deals: BingoDeal[];
+      deadline: number;
+    }
+  | {
+      kind: "master-endgame";
+      position: HunterPosition;
+      action: MasterAction;
+      opponent: string;
+      deadline: number;
     }
   | {
       kind: "bingo-ceiling";
@@ -90,6 +107,8 @@ export type CandidateJob =
 export type CandidateResult =
   | { kind: "histogram"; board: ReturnType<typeof summarizeReplyBoard> }
   | { kind: "bingo-hunter"; outcomes: HunterOutcome[]; blocked?: boolean }
+  | { kind: "master-deals"; outcomes: MasterOutcome[]; blocked?: boolean }
+  | { kind: "master-endgame"; spread?: number }
   | { kind: "bingo-ceiling"; ceiling?: BingoCeiling }
   | { kind: "bingo-ceiling-replies"; replies: CeilingReply[]; blocked?: boolean }
   | { kind: "endgame"; line: EndgameLine; elapsed: number }
@@ -119,6 +138,8 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
     | undefined;
   // Reuse prepared boards across deals for the current candidate.
   let hunter: { key: string; evaluate: ReturnType<typeof createHunterEvaluator> | ReturnType<typeof createTacticianEvaluator> } | undefined;
+  let masterFactory: ReturnType<typeof createSolverFactory> | undefined;
+  let masterEvaluator: { key: string; evaluate: ReturnType<typeof createMasterEvaluator> } | undefined;
   // An Optimal Exchange pool handles one position across batches.
   let exchangeSolver: ReturnType<typeof prepareSolver> | undefined;
   let exchangeReplies: ReturnType<typeof createExchangeReplyCheck> | undefined;
@@ -149,6 +170,34 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
             }
           }
           return { kind: "bingo-hunter", outcomes };
+        }
+        case "master-deals": {
+          const deadline = Math.min(job.deadline - performance.timeOrigin, started + 2_000);
+          const outcomes: MasterOutcome[] = [];
+          if (deadline <= started) return { kind: job.kind, outcomes };
+          masterFactory ??= createSolverFactory(lexicon, job.position.template, true);
+          const { action } = job;
+          const key = action.move?.id ?? `draw:${action.draw}:${action.leave}`;
+          if (masterEvaluator?.key !== key) masterEvaluator = {
+            key,
+            evaluate: createMasterEvaluator(masterFactory, job.position, action, job.policy),
+          };
+          for (const deal of job.deals) {
+            if (performance.now() >= deadline) break;
+            try {
+              outcomes.push(masterEvaluator.evaluate(deal, deadline));
+            } catch (error) {
+              if (!(error instanceof SearchLimitError)) throw error;
+              return { kind: job.kind, outcomes, blocked: error.reason !== "time" };
+            }
+          }
+          return { kind: job.kind, outcomes };
+        }
+        case "master-endgame": {
+          masterFactory ??= createSolverFactory(lexicon, job.position.template, true);
+          const deadline = Math.min(job.deadline - performance.timeOrigin, started + 200);
+          const result = masterEndgame(masterFactory, job.position, job.action, job.opponent, deadline, 400);
+          return { kind: job.kind, spread: result };
         }
         case "bingo-ceiling": {
           const deadline = Math.min(started + 350, job.deadline - performance.timeOrigin);

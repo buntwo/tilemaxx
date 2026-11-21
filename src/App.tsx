@@ -1,4 +1,4 @@
-import { isBingoStyle } from "../shared/bingo-styles";
+import { isSimulatedStyle } from "../shared/simulated-styles";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ImagePlus,
@@ -347,7 +347,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   );
   const [playingStyle, selectPlayingStyle] = useGamePlayingStyle(game?.id);
   const moveListNavigation = useMoveListNavigation(solver.results?.searchId, playingStyle);
-  const exchangeProfile = !isBingoStyle(playingStyle) ? playingStyle : undefined;
+  const exchangeProfile = !isSimulatedStyle(playingStyle) ? playingStyle : undefined;
   const exchangeSeed = game ? profileWordHash(game.id) : 0;
   const exchangeSearch = solver.results?.searchId;
   const exchangeChoice = exchangeProfile && exchangeSearch !== undefined
