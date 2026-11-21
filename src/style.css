@@ -2302,7 +2302,7 @@ label + label {
   max-width: 100%;
   font-size: var(--move-word-size);
 }
-.result-letters[data-definition-hold] {
+[data-definition-hold] {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;

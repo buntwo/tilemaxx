@@ -1,5 +1,6 @@
 import { moveLocation } from "../../shared/notation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { definitionLanguageForRules } from "../../shared/definitions";
 import { Check, ChevronUp, LoaderCircle, Swords, X } from "lucide-react";
 import type { EndgameLine } from "../../shared/endgame";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
@@ -16,12 +17,14 @@ import CalculationIndicator from "./CalculationIndicator";
 import MoveTimingButton from "./MoveTimingButton";
 import { BingoBadge, MoveLetters } from "./MoveWord";
 import OptimalReplyDetails from "./OptimalReplyDetails";
+import { useMoveDefinitions } from "./useMoveDefinitions";
 
 export default function OpponentEndgameResults({
   game,
   opponentRack,
   result,
   timing,
+  phoneLayout,
   onClose,
   onPreview,
 }: {
@@ -29,11 +32,20 @@ export default function OpponentEndgameResults({
   opponentRack: string;
   result: OpponentEndgameResult;
   timing: OpponentEndgameTiming;
+  phoneLayout: boolean;
   onClose: () => void;
   onPreview: (move: Move | null) => void;
 }) {
   const [selected, setSelected] = useState<EndgameLine>();
   const detailId = useId();
+  const definitionPosition = useMemo(() => ({ result, selected }), [result, selected]);
+  const definitions = useMoveDefinitions(
+    result.lines.some((line) => line.line[0])
+      ? definitionLanguageForRules(game.template.rules)
+      : undefined,
+    definitionPosition,
+    phoneLayout,
+  );
   const panel = useRef<HTMLElement>(null);
   useEffect(() => {
     const firstMove =
@@ -108,6 +120,7 @@ export default function OpponentEndgameResults({
                     className={`result-row${selected === line ? " pinned" : ""}${bingo ? " bingo" : ""}`}
                     type="button"
                     aria-expanded={selected === line}
+                    aria-describedby={move ? definitions.descriptionId(move.id) : undefined}
                     aria-controls={selected === line ? detailId : undefined}
                     onPointerEnter={(event) => {
                       if (move && !selected && canHoverWithMouse(event.pointerType))
@@ -120,18 +133,24 @@ export default function OpponentEndgameResults({
                     onClick={() => toggleSelection(line)}
                     onContextMenu={(event) => {
                       event.preventDefault();
-                      toggleSelection(line);
+                      if (!definitions.ownsContextMenu(event.target))
+                        toggleSelection(line);
                     }}
                   >
                     <span className="result-word result-stack">
                       <span className="result-rank">{index + 1}</span>
-                      <span className="result-letters">
-                        {move ? (
-                          <MoveLetters move={move} size={game.template.size} board={game.board} />
-                        ) : (
-                          "Pass"
-                        )}
-                      </span>
+                      {move ? (
+                        <span className="result-letters" {...definitions.wordProps(move.word, move.id)}>
+                          <MoveLetters
+                            move={move}
+                            size={game.template.size}
+                            board={game.board}
+                            showTileTitles={!definitions.available}
+                          />
+                        </span>
+                      ) : (
+                        <span className="result-letters">Pass</span>
+                      )}
                       <small className="result-word-detail">
                         {bingo && <BingoBadge full />}
                         <span className="result-word-note">
@@ -179,7 +198,14 @@ export default function OpponentEndgameResults({
       )}
       <footer className="results-foot">
         {result.lines.length > 0 && (
-          <span>Select an opponent move to preview its line</span>
+          <span>
+            Select an opponent move to preview its line
+            {definitions.touch
+              ? " · hold a word to define"
+              : definitions.mouse
+                ? " · hover over a word to define"
+                : ""}
+          </span>
         )}
         <MoveTimingButton timing={timing} />
       </footer>
@@ -201,9 +227,11 @@ export default function OpponentEndgameResults({
             line={selected}
             opponentRack={opponentRack}
             firstPlayer="opponent"
+            definitions={definitions}
           />
         </section>
       )}
+      {definitions.popup}
     </section>
   );
 }

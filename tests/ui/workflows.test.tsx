@@ -6638,6 +6638,16 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
     }
   }
   vi.stubGlobal("Worker", WorkerWithEndgame);
+  const request = fetch;
+  const lookup = vi.fn(async (url: string, options?: RequestInit) => {
+    if (!url.startsWith("/api/definitions?")) return request(url, options);
+    const word = new URL(url, "http://localhost").searchParams.get("word");
+    return new Response(JSON.stringify({
+      available: true,
+      entries: [[{ spelling: word?.toLowerCase(), glosses: ["Sample definition."] }]],
+    }));
+  });
+  vi.stubGlobal("fetch", lookup);
   const user = await start(phone ? 390 : 1200);
   expect(screen.queryByRole("button", { name: "Solve endgame" })).toBeNull();
   await user.click(rackTile(3));
@@ -6669,6 +6679,48 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   expect(dialog.getByText("Total elapsed time")).toBeTruthy();
   expect(dialog.getByText(/^Options 1–\d+$/)).toBeTruthy();
   await user.click(dialog.getByRole("button", { name: "Close dialog" }));
+
+  expect(result.getByText(phone ? /hold a word to define/ : /hover over a word to define/)).toBeTruthy();
+  async function define(letters: Element, word: string, row: Element) {
+    vi.useFakeTimers();
+    try {
+      const attribute = row.hasAttribute("aria-expanded") ? "aria-expanded" : "aria-pressed";
+      const before = row.getAttribute(attribute);
+      if (phone) {
+        touch(letters, "pointerdown");
+        expect(fireEvent.contextMenu(letters)).toBe(false);
+        await act(() => vi.advanceTimersByTimeAsync(450));
+        const sheet = screen.getByRole("dialog", { name: word });
+        expect(within(sheet).getByText("Sample definition.")).toBeTruthy();
+        touch(sheet, "pointerup");
+        expect(fireEvent.click(letters, { detail: 1 })).toBe(false);
+        act(() => vi.advanceTimersByTime(32));
+        const close = within(sheet).getByRole("button", { name: "Close dialog" });
+        touch(close, "pointerdown");
+        fireEvent.click(close, { detail: 1 });
+        expect(screen.queryByRole("dialog", { name: word })).toBeNull();
+      } else {
+        touch(letters, "pointerover", { pointerType: "mouse", buttons: 0 });
+        await act(() => vi.advanceTimersByTimeAsync(500));
+        const tooltip = screen.getByRole("tooltip");
+        expect(within(tooltip).getByText("Sample definition.")).toBeTruthy();
+        expect(row.getAttribute("aria-describedby")).toBe(tooltip.id);
+        touch(letters, "pointerout", { pointerType: "mouse" });
+        act(() => vi.advanceTimersByTime(200));
+        expect(screen.queryByRole("tooltip")).toBeNull();
+      }
+      expect(row.getAttribute(attribute)).toBe(before);
+      expect(lookup).toHaveBeenCalledWith(
+        `/api/definitions?language=en&word=${word}`,
+        expect.objectContaining({ method: "GET" }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+  const firstLetters = rows[0].querySelector(".result-letters")!;
+  await define(firstLetters, firstLetters.textContent!, rows[0]);
+  expect(result.queryByRole("region", { name: "Opponent reply details" })).toBeNull();
 
   const boardGhost = () => document.querySelector(".board-entry .ghost");
   const previewPlayer = () => document.querySelector(".board-entry .board-grid")
@@ -6706,6 +6758,9 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   expect(previewPlayer()).toBe("opponent");
   expect(result.getByRole("region", { name: "Opponent reply details" })
     .querySelector('.board-grid[data-preview-player="opponent"] .ghost')).toBeTruthy();
+  const stepLetters = firstTurn.querySelector('[role="img"][aria-label]')!;
+  await define(stepLetters, stepLetters.getAttribute("aria-label")!, firstTurn);
+  expect(firstTurn.getAttribute("aria-pressed")).toBe("true");
   expect(firstTurn.textContent).toContain("Opponent");
   expect(within(firstTurn).getByRole("img", { name: "Bingo" })).toBeTruthy();
   expect(firstTurn.closest("tr")!.querySelector(".optimal-reply-step-score small.value-bad")?.textContent)
