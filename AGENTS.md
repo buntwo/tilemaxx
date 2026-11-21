@@ -22,6 +22,10 @@
 - Casual and Word-List Learner use static evaluation of the generated moves. Keep sampling and extra board solves out of those profiles. Strong may use bounded extra computation after cheap screening, on a shortlist of at most five candidates.
 - After changing a profile, run paired self-play with shared bag shuffles and swapped opening seats. Report all three head-to-head matchups with wins, losses, ties, and final spread. Include mean and median points per placement, points per turn, available, spotted, and played bingos, passes with legal moves, exchanges, top-score choice rate, representative decisions, and separate move generation and profile timings. Keep top raw score and sampled reply-adjusted points as separate baselines.
 
+## Development research
+
+- Keep development research local. Save research reports, experiment notes, benchmark results, and raw self-play logs under the ignored `data/` directory when they are useful for future work. Share findings in the conversation. Keep research artifacts out of Git, release notes, and public builds.
+
 ## Git and deployment
 
 - Bump the Tilemaxx patch version by one in `version.json` before staging each commit. Bump major or minor only when the user explicitly asks, and set the patch to `1` for either bump. Keep `package.json` and `package-lock.json` stable for app version bumps so Docker can reuse installed dependencies.
