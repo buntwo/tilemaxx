@@ -1102,6 +1102,9 @@ label + label {
 .game-over {
   padding: 14px;
 }
+.game-title-picker h1:focus {
+  outline: none;
+}
 .game-picker-trigger {
   display: grid;
   align-content: center;
