@@ -3606,17 +3606,36 @@ label + label {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+.modal.game-options-modal {
+  width: 525px;
+}
 .game-options-modal .modal-heading {
-  margin-bottom: 14px;
+  margin-bottom: 16px;
+}
+.game-options-modal .modal-heading h2:focus { outline: none; }
+.game-option-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.game-option-groups h3 {
+  margin: 0 0 6px;
+  padding-inline: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+.game-option-info {
+  border-inline-start: 1px solid var(--line);
+  padding-inline-start: 14px;
 }
 .game-option-details {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: baseline;
-  gap: 6px 12px;
-  margin: 0;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
+  gap: 4px 10px;
+  margin: 0 0 8px;
+  padding-inline: 6px;
   font-size: 13px;
 }
 .game-option-details dt { color: var(--muted); }
@@ -3624,22 +3643,102 @@ label + label {
 .game-option-notes { white-space: pre-wrap; }
 .game-word-list {
   display: flex;
-  align-items: center;
+  align-items: end;
   gap: 4px;
+  padding-inline: 6px;
 }
-.game-word-list select { min-width: 0; }
-.game-word-list .icon-button { flex: none; }
-.game-option-list > button {
+.game-word-list label {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.game-word-list select {
   width: 100%;
+  min-height: 36px;
+}
+.game-word-list .icon-button { flex: none; }
+.game-option-list > button,
+.game-option-edit,
+.game-option-manage > summary {
   display: flex;
   align-items: center;
-  gap: 13px;
-  background: none;
+  gap: 10px;
+  background: transparent;
   border: 0;
-  border-bottom: 1px solid var(--line);
-  min-height: 44px;
-  padding: 10px 2px;
-  text-align: left;
+  border-radius: 7px;
+  min-height: 40px;
+  padding: 6px 8px;
+  text-align: start;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.game-option-list > button { width: 100%; }
+.game-option-edit {
+  margin-top: 4px;
+  color: var(--primary);
+  font-size: 13px;
+}
+.game-option-list svg,
+.game-option-edit svg,
+.game-option-manage > summary svg {
+  flex: none;
+}
+.game-option-list small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.game-option-list > button:hover:not(:disabled),
+.game-option-edit:hover:not(:disabled),
+.game-option-manage > summary:hover {
+  background: var(--soft);
+}
+.game-option-manage {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 6px;
+}
+.game-option-manage > summary {
+  justify-content: space-between;
+  list-style: none;
+  cursor: pointer;
+  color: var(--primary);
+  -webkit-tap-highlight-color: transparent;
+}
+.game-option-manage > summary::-webkit-details-marker { display: none; }
+.game-option-manage[open] > summary svg { transform: rotate(180deg); }
+.game-option-manage[open] > summary {
+  margin-bottom: 5px;
+  background: var(--bg);
+}
+.game-option-reset {
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+  padding-top: 5px;
+}
+.game-option-list > .game-option-danger { color: var(--value-bad); }
+@media (max-width: 540px) {
+  .modal.game-options-modal {
+    margin: auto auto 8px;
+    max-height: calc(100dvh - 16px);
+  }
+  .game-options-modal .modal-inner { padding: 16px; }
+  .game-option-groups { grid-template-columns: minmax(0, 1fr); }
+  .game-option-info {
+    border-inline-start: 0;
+    border-top: 1px solid var(--line);
+    padding: 10px 0 0;
+  }
+  .game-options-modal .icon-button { width: 44px; height: 44px; }
+  .game-options-modal :is(.game-option-list > button, .game-option-edit, .game-option-manage > summary, .game-word-list select) {
+    min-height: 44px;
+  }
 }
 .keyboard-shortcuts {
   display: grid;
@@ -3665,22 +3764,6 @@ label + label {
   background: var(--bg);
   color: var(--text);
   font-size: 11px;
-}
-.game-option-list > button:hover {
-  background: var(--bg);
-}
-.game-option-list span {
-  flex: 1;
-}
-.game-option-list strong {
-  font-size: 13px;
-  display: block;
-}
-.game-option-list small {
-  font-size: 11px;
-  display: block;
-  margin-top: 6px;
-  color: var(--muted);
 }
 .archive-controls {
   display: flex;
@@ -5835,8 +5918,7 @@ label + label {
   gap: 2px;
   padding-inline: 11px;
 }
-.phone-layout .game-heading .game-options-button,
-.phone-layout .game-word-list .icon-button { width: 44px; height: 44px; }
+.phone-layout .game-heading .game-options-button { width: 44px; height: 44px; }
 @media (max-width: 430px) {
   .phone-layout .game-heading :is(.game-picker-chevron, .game-picker-count) {
     display: none;

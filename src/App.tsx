@@ -2,10 +2,8 @@ import { isSimulatedStyle } from "../shared/simulated-styles";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ImagePlus,
-  CircleHelp,
   ArrowLeft,
   ArrowRight,
-  ArrowUpRight,
   CircleArrowUp,
   BookOpen,
   Check,
@@ -24,7 +22,6 @@ import {
   Menu,
   Monitor,
   MoreHorizontal,
-  Pencil,
   Plus,
   Redo2,
   Save,
@@ -36,7 +33,6 @@ import {
   Wifi,
   X,
   Archive,
-  Trash2,
 } from "lucide-react";
 import { version } from "../version.json";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
@@ -86,13 +82,13 @@ import useKeyboardShortcuts from "./useKeyboardShortcuts";
 import {
   GameDetailFields,
   IncompleteMoveHistoryIcon,
-  GameOptionDetails,
   readGameDetails,
 } from "./components/GameDetails";
 import ArchivedGames, { type ArchiveSort } from "./components/ArchivedGames";
 import SyncConflictMenu from "./components/SyncConflictMenu";
 import GameScoreBadge from "./components/GameScoreBadge";
 import GameScores from "./components/GameScores";
+import GameOptions from "./components/GameOptions";
 import EndGameDialog from "./components/EndGameDialog";
 import {
   playTrackedMove,
@@ -102,12 +98,10 @@ import {
   recordOpponentPlayForSearch,
   recordOpponentRackOut,
   reopenSearchRecordedOpponentPlay,
-  resetGameScoring,
   setScoreTracking,
   tracksScores,
   treatBoardEditAsCorrection,
 } from "../shared/game-scoring";
-import { CLEARED_BOARD } from "../shared/score-recovery";
 import { DEFENSE_LIMIT } from "../shared/premium-defense";
 import { useSolver } from "./useSolver";
 import { useStyleExchange } from "./useStyleExchange";
@@ -126,12 +120,8 @@ import {
   type Move,
   type Player,
   archiveGame,
-  emptyBoard,
-  localDate,
   orderGames,
   redo,
-  remember,
-  restoreArchivedGame,
   tileScore,
   undo,
 } from "../shared/model";
@@ -2082,183 +2072,22 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         />
       )}
       {dialog === "manage" && game && (
-        <Modal
-          title="Game options"
-          subtitle={game.name}
-          className="game-options-modal"
+        <GameOptions
+          key={game.id}
+          game={game}
+          board={`${boardName} · ${boardSize}`}
+          dictionaries={data.dictionaries}
+          online={state.online}
+          boardLocked={boardLocked}
+          onUpdate={update}
+          onChooseGame={chooseGame}
+          onArchived={() =>
+            chooseGame(activeGames.find((item) => item.id !== game.id)?.id ?? "")
+          }
+          onOpen={openDialog}
           onClose={() => setDialog(null)}
-          closeDisabled={formBusy}
-        >
-          <GameOptionDetails
-            game={game}
-            board={`${boardName} · ${boardSize}`}
-            dictionaries={data.dictionaries}
-            disabled={formBusy}
-            onChooseDictionary={(dictionaryId) => update({ ...game, dictionaryId })}
-            onAboutWordLists={() => openDialog("dictionaries")}
-          />
-          <div className="game-option-list" aria-busy={formBusy}>
-            {game.archived && (
-              <button
-                disabled={formBusy || boardLocked || !game.archivedBoard}
-                onClick={() => {
-                  update(restoreArchivedGame(game));
-                  setDialog(null);
-                  notify(game.archivedState ? "Archived position restored." : "Archived board restored.");
-                }}
-              >
-                <Undo2 size={19} />
-                <span><strong>Restore game</strong></span>
-                <ArrowUpRight size={16} />
-              </button>
-            )}
-            <button disabled={formBusy || boardLocked} onClick={() => openDialog("screenshot")}>
-              <ImagePlus size={19} />
-              <span><strong>Import screenshot</strong></span>
-              <ArrowUpRight size={16} />
-            </button>
-            <button disabled={formBusy} onClick={() => openDialog("history")}>
-              <History size={19} />
-              <span><strong>Move history</strong></span>
-              <ArrowUpRight size={16} />
-            </button>
-            <button disabled={formBusy} onClick={() => openDialog("board-help")}>
-              <CircleHelp size={19} />
-              <span><strong>Board help</strong></span>
-              <ArrowUpRight size={16} />
-            </button>
-            <button disabled={formBusy} onClick={() => openDialog("rename")}>
-              <Pencil size={19} />
-              <span>
-                <strong>Edit game details</strong>
-                <small>Opponent, platform, date, and notes.</small>
-              </span>
-              <ArrowUpRight size={16} />
-            </button>
-            <button
-              onClick={() =>
-                void action(async () => {
-                  const copy = await store.createGame({
-                    ...game,
-                    name: `${game.name.slice(0, 65)} (copy)`,
-                    archived: false,
-                    archivedBoard: undefined,
-                    archivedState: undefined,
-                  });
-                  chooseGame(copy.id);
-                  setDialog(null);
-                })
-              }
-              disabled={formBusy || !state.online}
-              title={state.online ? undefined : "A server connection is required"}
-            >
-              <Copy size={19} />
-              <span>
-                <strong>Duplicate game</strong>
-                <small>Try another path with the same position.</small>
-              </span>
-              <ArrowUpRight size={16} />
-            </button>
-            {!game.archived && !gameOver && (
-              <button disabled={formBusy} onClick={() => openDialog("end-game")}>
-                <Check size={19} />
-                <span>
-                  <strong>End game</strong>
-                  <small>Record the final result.</small>
-                </span>
-                <ArrowUpRight size={16} />
-              </button>
-            )}
-            <button
-              disabled={formBusy}
-              onClick={() => {
-                update(
-                  game.archived
-                    ? {
-                        ...game,
-                        archived: false,
-                        archivedBoard: undefined,
-                        archivedState: undefined,
-                      }
-                    : archiveGame(game),
-                );
-                if (!game.archived)
-                  chooseGame(
-                    activeGames.find((g) => g.id !== game.id)?.id ?? "",
-                  );
-                setDialog(null);
-                notify(
-                  game.archived ? "Game moved to My games." : "Game archived.",
-                );
-              }}
-            >
-              <Archive size={19} />
-              <span>
-                <strong>
-                  {game.archived ? "Move to My games" : "Archive game"}
-                </strong>
-                <small>Keep the board and history for later.</small>
-              </span>
-              <ArrowUpRight size={16} />
-            </button>
-            {!game.archived && (
-              <button
-                disabled={formBusy || !state.online}
-                title={state.online ? undefined : "A server connection is required"}
-                onClick={() =>
-                  void action(async () => {
-                    const created = await store.archiveAndStartNewGame(
-                      game.id,
-                      localDate(),
-                    );
-                    chooseGame(created.id);
-                    setDialog(null);
-                    notify("Game archived. New game started.");
-                  })
-                }
-              >
-                <Plus size={19} />
-                <span>
-                  <strong>Archive &amp; start new game</strong>
-                  <small>Play the same opponent again with a blank board.</small>
-                </span>
-                <ArrowUpRight size={16} />
-              </button>
-            )}
-            <button
-              disabled={formBusy || boardLocked}
-              onClick={() => {
-                update({
-                  ...game,
-                  ...remember(game, CLEARED_BOARD),
-                  scoring: resetGameScoring(game),
-                  board: emptyBoard(game.template.size),
-                  rack: "",
-                  excludedRackSlots: undefined,
-                  requiredRackSlots: undefined,
-                });
-                setDialog(null);
-                notify("Board cleared. Use Undo to restore it.");
-              }}
-            >
-              <Trash2 size={19} />
-              <span>
-                <strong>Clear board and rack</strong>
-                <small>Start fresh. You can undo this.</small>
-              </span>
-              <ArrowUpRight size={16} />
-            </button>
-            <button disabled={formBusy} onClick={() => openDialog("delete")}>
-              <Trash2 size={19} />
-              <span>
-                <strong>Delete game</strong>
-                <small>Permanently remove this game and its history.</small>
-              </span>
-              <ArrowUpRight size={16} />
-            </button>
-          </div>
-          {error && <p className="error" role="alert">{error}</p>}
-        </Modal>
+          notify={notify}
+        />
       )}
     </div>
   );

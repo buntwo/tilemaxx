@@ -63,23 +63,27 @@ export function GameOptionDetails({
   onAboutWordLists: () => void;
 }) {
   return (
-    <dl className="game-option-details">
-      {game.archived && <><dt>Status</dt><dd>Archived</dd></>}
-      <dt>Started</dt>
-      <dd><GameMetadata game={{ startedOn: game.startedOn }} /></dd>
-      <dt>Board</dt>
-      <dd>{board}</dd>
-      <dt><label htmlFor="game-option-dictionary">Word list</label></dt>
-      <dd className="game-word-list">
-        <select
-          id="game-option-dictionary"
-          aria-label="Game dictionary"
-          disabled={disabled}
-          value={game.dictionaryId}
-          onChange={(event) => onChooseDictionary(event.currentTarget.value)}
-        >
-          {dictionaries.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
-        </select>
+    <>
+      <dl className="game-option-details">
+        {game.archived && <><dt>Status</dt><dd>Archived</dd></>}
+        <dt>Started</dt>
+        <dd><GameMetadata game={{ startedOn: game.startedOn }} /></dd>
+        <dt>Board</dt>
+        <dd>{board}</dd>
+        {game.notes && <><dt>Notes</dt><dd className="game-option-notes">{game.notes}</dd></>}
+      </dl>
+      <div className="game-word-list">
+        <label>
+          Word list
+          <select
+            aria-label="Game dictionary"
+            disabled={disabled}
+            value={game.dictionaryId}
+            onChange={(event) => onChooseDictionary(event.currentTarget.value)}
+          >
+            {dictionaries.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        </label>
         <button
           type="button"
           className="icon-button"
@@ -88,11 +92,10 @@ export function GameOptionDetails({
           disabled={disabled}
           onClick={onAboutWordLists}
         >
-          <Info size={15} aria-hidden="true" />
+          <Info size={16} aria-hidden="true" />
         </button>
-      </dd>
-      {game.notes && <><dt>Notes</dt><dd className="game-option-notes">{game.notes}</dd></>}
-    </dl>
+      </div>
+    </>
   );
 }
 

@@ -1972,6 +1972,12 @@ async function openGameOptions(user: ReturnType<typeof userEvent.setup>) {
   await user.click(cell("Game options"));
   return within(screen.getByRole("dialog", { name: "Game options" }));
 }
+
+async function openGameManagement(user: ReturnType<typeof userEvent.setup>) {
+  const options = await openGameOptions(user);
+  await user.click(options.getByText("Manage game", { selector: "summary" }));
+  return options;
+}
 const trackedScore = () =>
   screen.queryByRole("button", { name: "Replay finish animation" }) ??
   screen.getByRole("group", { name: "Tracked score" });
@@ -3487,11 +3493,10 @@ test("game options archive the current game and open a blank game with today's d
   const user = await start();
   await waitFor(() => expect(current().revision).toBe(1));
   await typeRack(user, "CAT");
-  await user.click(cell("Game options"));
-  const options = () => within(screen.getByRole("dialog"));
-  expect(options().getByRole("button", { name: /^Archive game/ })).toBeTruthy();
+  let options = await openGameManagement(user);
+  expect(options.getByRole("button", { name: "Archive game" })).toBeTruthy();
   await user.click(
-    options().getByRole("button", { name: /^Archive & start new game/ }),
+    options.getByRole("button", { name: "Archive & start new game" }),
   );
   await screen.findByText("Game archived. New game started.");
   expect(localStorage.getItem("tilewise:game")).toBe("g1");
@@ -3518,13 +3523,72 @@ test("game options archive the current game and open a blank game with today's d
     screen.getByRole("region", { name: "Archived games" }),
   );
   await user.click(archive.getByRole("button", { name: /^First game/ }));
-  await user.click(cell("Game options"));
-  expect(
-    options().getByRole("button", { name: /^Move to My games/ }),
-  ).toBeTruthy();
-  expect(
-    options().queryByRole("button", { name: /^Archive & start new game/ }),
-  ).toBeNull();
+  options = await openGameManagement(user);
+  expect(options.getByRole("button", { name: "Move to My games" })).toBeTruthy();
+  expect(options.queryByRole("button", { name: "Archive & start new game" })).toBeNull();
+});
+
+test("starting another game from an archive copies settings onto a fresh board", async () => {
+  const original = game();
+  original.id = "archived";
+  original.name = "Morgan";
+  original.platform = "Wordfeud";
+  original.startedOn = "2026-10-08";
+  original.template = structuredClone(PRESETS.find(({ id }) => id === "wordfeud")!);
+  original.originalPremiums = [...original.template.premiums];
+  original.template.premiums[0] = "DW";
+  original.dictionaryId = "other";
+  remote.dictionaries.push({ ...remote.dictionaries[0], id: "other", name: "Other words" });
+  original.board[original.template.start] = "A";
+  original.rack = "CAT";
+  original.notes = "Notes from the first match";
+  original.trackScores = false;
+  original.scoring = emptyScoring();
+  original.trackedMoves = [{ player: "you", word: "AT", score: 4, at: "2026-10-08" }];
+  original.past = [{
+    board: emptyBoard(original.template.size),
+    rack: "",
+    label: "Previous board",
+    at: "2026-10-08",
+  }];
+  const archived = archiveGame(original);
+  remote.games.push(archived);
+  const user = await start();
+  await user.click(cell("Archived games"));
+  const archive = within(screen.getByRole("region", { name: "Archived games" }));
+  await user.click(archive.getByRole("button", { name: /^Morgan/ }));
+  const options = await openGameOptions(user);
+  expect(options.getByRole("region", { name: "Board tools" })).toBeTruthy();
+  expect(options.getByRole("region", { name: "Game details" })).toBeTruthy();
+  const manage = options.getByText("Manage game", { selector: "summary" });
+  expect(manage.closest("details")?.open).toBe(false);
+  await user.click(manage);
+  expect(manage.closest("details")?.open).toBe(true);
+  await user.click(options.getByRole("button", { name: /^Start new game/ }));
+
+  await screen.findByText("New game started.");
+  const fresh = remote.games[2];
+  expect(localStorage.getItem("tilewise:game")).toBe(fresh.id);
+  expect(cell("My games").getAttribute("aria-current")).toBe("page");
+  expect(document.querySelector(".board-entry .square.occupied")).toBeNull();
+  expect(fresh).toMatchObject({
+    name: original.name,
+    platform: original.platform,
+    startedOn: localDate(),
+    template: original.template,
+    originalPremiums: original.originalPremiums,
+    dictionaryId: original.dictionaryId,
+    trackScores: false,
+    archived: false,
+    board: emptyBoard(original.template.size),
+    rack: "",
+    past: [],
+    future: [],
+  });
+  expect(fresh.notes).toBeUndefined();
+  expect(fresh.scoring).toBeUndefined();
+  expect(fresh.trackedMoves).toBeUndefined();
+  expect(remote.games[1]).toEqual(archived);
 });
 
 test("new games and copies require a connection while a saved game stays editable", async () => {
@@ -3534,9 +3598,8 @@ test("new games and copies require a connection while a saved game stays editabl
   await act(() => store.refresh());
   const newGame = screen.getByRole<HTMLButtonElement>("button", { name: "New game" });
   expect(newGame.disabled).toBe(true);
-  await user.click(cell("Game options"));
-  const menu = within(screen.getByRole("dialog", { name: "Game options" }));
-  expect(menu.getByRole<HTMLButtonElement>("button", { name: /^Duplicate game/ }).disabled).toBe(true);
+  const menu = await openGameManagement(user);
+  expect(menu.getByRole<HTMLButtonElement>("button", { name: "Duplicate game" }).disabled).toBe(true);
   await user.click(menu.getByRole("button", { name: "Close dialog" }));
   await typeRack(user, "CAT");
   expect(current().rack).toBe("CAT");
@@ -3964,7 +4027,7 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   expect(remote.games.find((g) => g.id === "archived")?.archivedBoard).toEqual(
     archivedBoard,
   );
-  await user.click((await openGameOptions(user)).getByRole("button", { name: "Restore game" }));
+  await user.click((await openGameManagement(user)).getByRole("button", { name: "Restore game" }));
   expect(cell("I8: empty")).toBeTruthy();
   expect(cell("H8: Z, start")).toBeTruthy();
   expect(screen.queryByText("Check tile counts")).toBeNull();
@@ -4447,8 +4510,8 @@ test("end game defaults to deductions and archiving with both settings reversibl
   const user = await start();
   await waitFor(() => expect(scoreTotals()).toBe("30–24"));
   async function openEndGame() {
-    await user.click(cell("Game options"));
-    await user.click(screen.getByRole("button", { name: /^End game/ }));
+    const options = await openGameManagement(user);
+    await user.click(options.getByRole("button", { name: "End game" }));
     return within(screen.getByRole("dialog"));
   }
   const dialog = await openEndGame();
@@ -4521,8 +4584,8 @@ test.each([
     fixture.board.splice(112, 3, "C", "A", "T");
     fixture.rack = "Q";
     const user = await start();
-    await user.click(cell("Game options"));
-    await user.click(screen.getByRole("button", { name: /^End game/ }));
+    const options = await openGameManagement(user);
+    await user.click(options.getByRole("button", { name: "End game" }));
 
     const dialog = within(screen.getByRole("dialog"));
     const deductions = dialog.getByRole("checkbox", {
@@ -5410,13 +5473,11 @@ test("unchanged positions reuse move results and missing pages can be reloaded",
 
 test("delete game requires confirmation, cancel retains it, deleting last game shows empty workspace", async () => {
   const user = await start();
-  await user.click(screen.getByRole("button", { name: "Game options" }));
-  await user.click(screen.getByRole("button", { name: /^Delete game/ }));
+  await user.click((await openGameManagement(user)).getByRole("button", { name: /^Delete game/ }));
   expect(remote.games).toHaveLength(1);
   await user.click(screen.getByRole("button", { name: "Keep game" }));
   expect(current()).toBeTruthy();
-  await user.click(screen.getByRole("button", { name: "Game options" }));
-  await user.click(screen.getByRole("button", { name: /^Delete game/ }));
+  await user.click((await openGameManagement(user)).getByRole("button", { name: /^Delete game/ }));
   await user.click(screen.getByRole("button", { name: "Delete permanently" }));
   await waitFor(() => expect(remote.games).toHaveLength(0));
   expect(store.snapshot.data!.games).toHaveLength(0);
