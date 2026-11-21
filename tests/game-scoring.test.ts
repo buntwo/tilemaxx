@@ -40,6 +40,7 @@ import {
   undo,
   type Game,
 } from "../shared/model";
+import { missingRackLabel, prepareOwnPlay } from "../shared/own-play";
 import { PRESETS } from "../shared/presets";
 import { importBoard } from "../shared/screenshot";
 import { solve } from "../shared/solver";
@@ -61,6 +62,26 @@ function fixture(): Game {
     archived: false,
   };
 }
+
+test("direct play spends matching tiles first, honors designated blanks, and identifies excess letters", () => {
+  const game = { ...fixture(), rack: "S?E" };
+  const { start } = game.template;
+  const draft = [...game.board];
+  draft.splice(start, 4, ..."SSsE");
+  const short = prepareOwnPlay(game, draft, "across");
+  assert.deepEqual([...short.missing], [[start + 1, "S"]]);
+  assert.equal(short.move, undefined);
+
+  const ready = prepareOwnPlay({ ...game, rack: "S??E" }, draft, "across");
+  assert.deepEqual(ready.tiles.map(({ letter }) => letter), ["S", "s", "s", "E"]);
+  assert.equal(ready.move?.word, "SSSE");
+  assert.equal(ready.move?.score, 4);
+  assert.equal(ready.move?.leave, "");
+  assert.equal(ready.move?.blanks, 2);
+
+  const empty = prepareOwnPlay({ ...game, rack: "" }, draft, "across");
+  assert.equal(missingRackLabel(empty.missing), "S ×2, blank, E");
+});
 
 test("the turn indicator follows the latest recorded word, including consecutive plays by one player", () => {
   const game = { ...fixture(), rack: "S" };

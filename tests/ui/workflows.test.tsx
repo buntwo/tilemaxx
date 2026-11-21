@@ -13,6 +13,7 @@ import { version } from "../../version.json";
 import App from "../../src/App";
 import OptimalExchange from "../../src/components/OptimalExchange";
 import { GameStore, store } from "../../src/store";
+import { BoardEditHistory } from "../../shared/board-entry";
 import { emptyScoring, playTrackedMove } from "../../shared/game-scoring";
 import { summarizeGame } from "../../shared/game-index";
 import { PRESETS } from "../../shared/presets";
@@ -1996,6 +1997,106 @@ function boardDirection() {
   if (arrow?.classList.contains("lucide-arrow-right")) return "Across";
   if (arrow?.classList.contains("lucide-arrow-down")) return "Down";
 }
+
+test("entering your play infers a blank and records the move without searching", async () => {
+  remote.games[0] = {
+    ...game(), rack: "CA?E", excludedRackSlots: [0], requiredRackSlots: [3], revision: 1,
+  };
+  const user = await start(1200);
+  await waitFor(() => expect(current().rack).toBe("CA?E"));
+
+  await user.click(screen.getByText("Rack tools", { selector: "summary" }));
+  await user.click(cell("Enter your play"));
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT");
+  expect(cell("J8: T blank, draft tile")).toBeTruthy();
+  expect(screen.getByText("· 8 pts", { exact: false })).toBeTruthy();
+  expect(current().board.every((tile) => !tile)).toBe(true);
+  expect(current().rack).toBe("CA?E");
+  expect(current().past).toHaveLength(0);
+
+  await user.keyboard("{Enter}");
+  expect(current().board.slice(112, 115).join("")).toBe("CAt");
+  expect(current().rack).toBe("E");
+  expect(current().scoring?.you.points).toBe(8);
+  expect(current().trackedMoves).toMatchObject([{ player: "you", word: "CAT", score: 8 }]);
+  expect(cell("Find moves")).toBeTruthy();
+  await user.click(cell("Undo"));
+  expect(current().rack).toBe("CA?E");
+  expect(current().excludedRackSlots).toEqual([0]);
+  expect(current().requiredRackSlots).toEqual([3]);
+  expect(current().board.every((tile) => !tile)).toBe(true);
+  await user.click(cell("Redo"));
+  expect(current().scoring?.you.points).toBe(8);
+  expect(current().rack).toBe("E");
+});
+
+test("your play warns on a missing tile and stays drafted through a rack correction", async () => {
+  const base = { ...game(), rack: "CTEO" };
+  const board = [...base.board];
+  board[97] = "C";
+  board[112] = "A";
+  board[127] = "T";
+  remote.games[0] = { ...new BoardEditHistory().apply(base, board, "enter"), revision: 1 };
+  const user = await start(390);
+  await waitFor(() => expect(current().board[112]).toBe("A"));
+  const strip = () => document.querySelector(".direct-entry-status")!.textContent;
+  const ownPlay = () => within(document.querySelector<HTMLElement>(".own-play-actions")!);
+  const play = () => ownPlay().getByRole<HTMLButtonElement>("button", { name: "Play" });
+
+  await user.click(screen.getByText("Rack tools", { selector: "summary" }));
+  await user.click(cell("Enter your play"));
+  await user.click(cell("G8: empty"));
+  expect(boardDirection()).toBe("Across");
+  await user.keyboard("CTS");
+  expect(strip()).toBe("8K · Missing S");
+  expect(cell("J8: S, missing S from rack").dataset.missingRack).toBe("true");
+  expect(play().disabled).toBe(true);
+  await user.keyboard("{Enter}");
+  expect(document.activeElement).toBe(entry());
+  expect(current().board).toEqual(board);
+
+  await user.click(cell("Undo"));
+  expect(strip()).not.toContain("Missing S");
+  await user.click(cell("Redo"));
+  expect(strip()).toContain("Missing S");
+  await user.click(ownPlay().getByRole("button", { name: "Fix rack" }));
+  expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Rack letters" }));
+  await user.keyboard("S");
+  expect(strip()).not.toContain("Missing S");
+  expect(current().rack).toBe("CTEOS");
+  expect(current().board).toEqual(board);
+  expect(play().disabled).toBe(false);
+
+  await user.click(cell("H8: A, start"));
+  await user.keyboard("{Delete}");
+  expect(cell("H8: A, start")).toBeTruthy();
+  await user.click(play());
+  expect(current().board.slice(111, 115).join("")).toBe("CATS");
+  expect(current().rack).toBe("EO");
+  expect(current().trackedMoves).toMatchObject([
+    { player: "opponent", word: "CAT", score: 10 },
+    { player: "you", word: "CATS", score: 6 },
+  ]);
+  expect(document.querySelector(".own-play-actions")).toBeNull();
+});
+
+test("cancelling your play discards the draft and returns to opponent board entry", async () => {
+  const user = await start();
+  await typeRack(user, "CAT");
+  await user.click(screen.getByText("Rack tools", { selector: "summary" }));
+  await user.click(cell("Enter your play"));
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT{Escape}");
+  expect(current().board.every((tile) => !tile)).toBe(true);
+  expect(current().rack).toBe("CAT");
+  expect(document.querySelector(".own-play-actions")).toBeNull();
+
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT");
+  expect(current().board.slice(112, 115).join("")).toBe("CAT");
+  expect(current().rack).toBe("CAT");
+});
 
 test.each(["phone", "desktop"])(
   "the %s game footer shows and copies the current game's ID",

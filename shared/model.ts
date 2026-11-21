@@ -484,7 +484,12 @@ export function remember(
     trackedMoves: move ? [...moves, move] : moves,
   };
 }
-export function applyMove(game: Game, move: Move, player?: Player): Game {
+export function applyMove(
+  game: Game,
+  move: Move,
+  player?: Player,
+  useRackMarks = true,
+): Game {
   const board = [...game.board];
   for (const tile of move.tiles) {
     if (board[tile.index])
@@ -503,8 +508,8 @@ export function applyMove(game: Game, move: Move, player?: Player): Game {
         ? {
             board: game.board,
             rack: game.rack,
-            excludedRackSlots: game.excludedRackSlots ?? [],
-            ...(game.requiredRackSlots?.length && {
+            excludedRackSlots: useRackMarks ? game.excludedRackSlots ?? [] : [],
+            ...(useRackMarks && game.requiredRackSlots?.length && {
               requiredRackSlots: game.requiredRackSlots,
             }),
             dictionaryId: game.dictionaryId,
@@ -515,7 +520,7 @@ export function applyMove(game: Game, move: Move, player?: Player): Game {
         : undefined,
     ),
     board,
-    rack: rackAfterMove(game, move.tiles, move.leave),
+    rack: useRackMarks ? rackAfterMove(game, move.tiles, move.leave) : move.leave,
     excludedRackSlots: undefined,
     requiredRackSlots: undefined,
   };
