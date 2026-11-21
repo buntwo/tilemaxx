@@ -14,6 +14,7 @@ import { scoreTone, signedPoints } from "../score-tone";
 import Board from "./Board";
 import MiniTiles from "./MiniTiles";
 import MoveWord, { BingoBadge, MoveLetters } from "./MoveWord";
+import type { useMoveDefinitions } from "./useMoveDefinitions";
 import "./optimal-reply.css";
 
 type Scores = EndgameLine["points"];
@@ -39,11 +40,13 @@ export default function OptimalReplyDetails({
   line,
   opponentRack,
   firstPlayer = "you",
+  definitions,
 }: {
   game: Game;
   line: EndgameLine;
   opponentRack: string;
   firstPlayer?: Player;
+  definitions?: ReturnType<typeof useMoveDefinitions>;
 }) {
   const totals = scoreTotalsAtPosition(game);
   const scoresWith = (points: Scores) =>
@@ -94,12 +97,12 @@ export default function OptimalReplyDetails({
   const selected = selection?.line === line ? selection.index : undefined;
   const step = selected === undefined ? undefined : steps[selected];
   const table = useRef<HTMLTableElement>(null);
+  const hasDefinitions = !!definitions;
   useEffect(() => {
     function dismissOutside(event: PointerEvent) {
-      const row =
-        event.target instanceof Element
-          ? event.target.closest("tbody tr")
-          : null;
+      const target = event.target instanceof Element ? event.target : null;
+      if (hasDefinitions && target?.closest(".definition-tooltip, .definition-sheet")) return;
+      const row = target?.closest("tbody tr");
       if (!row || !table.current?.contains(row)) setSelection(undefined);
     }
     function escape(event: KeyboardEvent) {
@@ -111,7 +114,7 @@ export default function OptimalReplyDetails({
       document.removeEventListener("pointerdown", dismissOutside, true);
       document.removeEventListener("keydown", escape);
     };
-  }, []);
+  }, [hasDefinitions]);
   const candidate = line.line[0];
   const { size } = game.template;
 
@@ -190,17 +193,27 @@ export default function OptimalReplyDetails({
                       type="button"
                       className="optimal-reply-turn"
                       aria-pressed={index === selected}
+                      aria-describedby={definitions?.descriptionId(`step:${index}`)}
                     >
                       {entry.kind === "turn" ? (
                         <>
                           <strong className="optimal-reply-turn-word">
                             {entry.move ? (
                               <>
-                                <span role="img" aria-label={entry.move.word}>
+                                <span
+                                  role="img"
+                                  aria-label={entry.move.word}
+                                  {...definitions?.wordProps(entry.move.word, `step:${index}`)}
+                                  onContextMenu={definitions?.touch ? (event) => {
+                                    if (definitions.ownsContextMenu(event.target))
+                                      event.preventDefault();
+                                  } : undefined}
+                                >
                                   <MoveLetters
                                     move={entry.move}
                                     size={size}
                                     board={entry.board}
+                                    showTileTitles={!definitions?.available}
                                   />
                                 </span>
                                 {isBingo(

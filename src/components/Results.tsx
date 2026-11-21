@@ -52,8 +52,7 @@ import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import { endgameLength } from "../endgame-line-format";
 import { canHoverWithMouse } from "../move-preview";
 import { definitionLanguageForRules } from "../../shared/definitions";
-import { useDefinitionTooltip } from "./DefinitionTooltip";
-import { useDefinitionHold } from "../useDefinitionHold";
+import { useMoveDefinitions } from "./useMoveDefinitions";
 import MoveAnalysis from "./MoveAnalysis";
 import HighCeilingSetups from "./HighCeilingSetups";
 import EmptyMoveTiles from "./EmptyMoveTiles";
@@ -692,18 +691,15 @@ export default function Results({
     !waitingForEndgame && (!hunterSelected || !!hunterResult?.checked) &&
     !(profile && page.error) && (shortlistActive || !page.unavailable) &&
     !pagePending && total > 0;
-  const mouseDefinitions = showList && canHoverWithMouse("mouse");
-  const definitionLanguage = showList && (phoneLayout || mouseDefinitions)
-    ? definitionLanguageForRules(bingoRules.rules)
-    : undefined;
   const definitionPosition = useMemo(
     () => ({}),
     [resultSet, filter, requiredSquares, sort, reversed, view, profile, analysisKey],
   );
-  const touchDefinitions = phoneLayout && !!definitionLanguage;
-  const definitionHold = useDefinitionHold(touchDefinitions, definitionPosition);
-  const definitions = useDefinitionTooltip(definitionLanguage, definitionPosition, definitionHold.locked);
-  const definitionMoveId = definitions.id && definitions.anchor?.dataset.moveId;
+  const definitions = useMoveDefinitions(
+    showList && !opponentSearch ? definitionLanguageForRules(bingoRules.rules) : undefined,
+    definitionPosition,
+    phoneLayout,
+  );
   useEffect(() => {
     setScrollPositions({});
     if (scroller.current) scroller.current.scrollTop = 0;
@@ -938,6 +934,7 @@ export default function Results({
           opponentRack={opponentPosition.opponentRack}
           result={opponentSearch.result}
           timing={opponentSearch.timing}
+          phoneLayout={phoneLayout}
           onClose={closeOpponentEndgame}
           onPreview={(move) => onPreview(move, true, "opponent")}
         />
@@ -1494,6 +1491,7 @@ export default function Results({
                   candidates.some((candidate) => candidate.id === m.id);
                 const histogramSelected = histogramSelection?.id === m.id;
                 const pinned = locked === m.id || histogramSelected;
+                const definitionId = definitions.descriptionId(m.id);
                 return (
                   <div
                     className="result-slot"
@@ -1501,7 +1499,7 @@ export default function Results({
                     ref={pinned ? pinnedRow : undefined}
                     style={{ top: (start + offset) * moveRowHeight }}
                     onContextMenu={(event) => {
-                      if (definitionHold.ownsContextMenu(event.target)) {
+                      if (definitions.ownsContextMenu(event.target)) {
                         event.preventDefault();
                         return;
                       }
@@ -1534,8 +1532,8 @@ export default function Results({
                     <button
                       className={`result-row${bingo ? " bingo" : ""}${preview?.id === m.id || selected || histogramSelected ? " active" : ""}${pinned ? " pinned" : ""}`}
                       aria-pressed={analyzing ? selected : undefined}
-                      aria-describedby={definitionMoveId === m.id
-                        ? [metricId, definitions.id].filter(Boolean).join(" ")
+                      aria-describedby={definitionId
+                        ? [metricId, definitionId].filter(Boolean).join(" ")
                         : metricId}
                       disabled={
                         analyzing &&
@@ -1581,26 +1579,13 @@ export default function Results({
                         <span
                           className="result-letters"
                           aria-hidden="true"
-                          data-move-id={definitionLanguage ? m.id : undefined}
-                          data-definition-hold={touchDefinitions || undefined}
-                          onPointerDown={touchDefinitions ? (event) => {
-                            definitionHold.start(event, (anchor) =>
-                              definitions.openSheet(anchor, [{ word: m.word }], m.word),
-                            );
-                          } : undefined}
-                          onPointerEnter={(mouseDefinitions && definitionLanguage) ? (event) => {
-                            if (event.pointerType === "mouse" && event.buttons === 0)
-                              definitions.hover(event.currentTarget, m.word);
-                          } : undefined}
-                          onPointerLeave={(mouseDefinitions && definitionLanguage) ? (event) => {
-                            if (event.pointerType === "mouse") definitions.leave();
-                          } : undefined}
+                          {...definitions.wordProps(m.word, m.id)}
                         >
                           <MoveLetters
                             move={m}
                             size={size}
                             board={analysisGame?.board}
-                            showTileTitles={!definitionLanguage}
+                            showTileTitles={!definitions.available}
                           />
                         </span>
                         <small
@@ -1802,7 +1787,7 @@ export default function Results({
             </span>
             <span className="tap-hint">
               Tap to preview · tap again to play
-              {touchDefinitions && " · hold the word to define"}
+              {definitions.touch && " · hold the word to define"}
             </span>
           </>
         )}
