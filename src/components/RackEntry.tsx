@@ -25,6 +25,7 @@ import {
   Ban,
   CircleCheck,
   Repeat2,
+  Pencil,
   Shuffle,
   SlidersHorizontal,
   Trophy,
@@ -53,6 +54,7 @@ export default function RackEntry({
   onSolve,
   phoneLayout,
   onReviewEdit,
+  onEnterOwnPlay,
   positionKey,
   exchangeAdvice,
   bagCount,
@@ -68,6 +70,7 @@ export default function RackEntry({
   onSolve: () => void;
   phoneLayout: boolean;
   onReviewEdit?: () => void;
+  onEnterOwnPlay?: () => void;
   positionKey: string;
   exchangeAdvice?: SwapAdvice;
   bagCount: number;
@@ -593,6 +596,14 @@ export default function RackEntry({
             <SlidersHorizontal size={13} /> Rack tools
           </summary>
           <div className="rack-tools-menu">
+            {onEnterOwnPlay && (
+              <button type="button" onClick={() => {
+                chooseMode("entry");
+                onEnterOwnPlay();
+              }}>
+                <Pencil size={14} /> Enter your play
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {

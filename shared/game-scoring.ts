@@ -1070,12 +1070,13 @@ export function playTrackedMove(
   game: Game,
   move: Move,
   bagSize?: number,
+  useRackMarks = true,
 ): Game {
   if (displayedGameScoring(game)?.end) {
-    if (game.archived) return applyMove(game, move);
+    if (game.archived) return applyMove(game, move, undefined, useRackMarks);
     throw new Error("This game has ended. Use Undo to continue.");
   }
-  if (!tracksScores(game)) return applyMove(game, move);
+  if (!tracksScores(game)) return applyMove(game, move, undefined, useRackMarks);
   const previous = recordOpponentPlay(game);
   if (!game.archived && previous.scoring?.end)
     throw new Error("This game has ended. Use Undo to continue.");
@@ -1088,7 +1089,7 @@ export function playTrackedMove(
       "Tilemaxx couldn't tell how to score the new board tiles. If you entered multiple opponent moves, undo to the first play and use Record opponent move under Game scores before entering the next. For other board edits, fix the entry or choose Keep as correction.",
     );
   }
-  const result = applyMove(previous, move, "you");
+  const result = applyMove(previous, move, "you", useRackMarks);
   const scoring = addScore(previous.scoring ?? emptyScoring(), "you", {
     word: move.word,
     score: move.score,

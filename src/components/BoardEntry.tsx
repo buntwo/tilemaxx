@@ -12,6 +12,8 @@ import {
 } from "react";
 import { Trash2 } from "lucide-react";
 import Board from "./Board";
+import BoardHistoryControls from "./BoardHistoryControls";
+import MoveWord from "./MoveWord";
 import { parseBoardCoordinate } from "./BoardCoordinates";
 import { useDefinitionTooltip } from "./DefinitionTooltip";
 import {
@@ -21,6 +23,7 @@ import {
 import { boardWordsAt, boardWordsThrough } from "../../shared/game-scoring";
 import { definitionLanguageForRules, type DefinitionLanguage } from "../../shared/definitions";
 import { moveLocation } from "../../shared/notation";
+import { missingRackLabel, prepareOwnPlay } from "../../shared/own-play";
 import { rackLetters } from "../../shared/rack-entry";
 import {
   coordinate,
@@ -43,6 +46,22 @@ type MoveFilterSelection = {
 
 export type BoardEntryHandle = {
   toggleCoordinateOverlay: () => "opened" | "closed" | false;
+  changeDraftHistory: (action: "undo" | "redo") => void;
+};
+
+type BoardInputHandle = Pick<BoardEntryHandle, "toggleCoordinateOverlay"> & {
+  focusStartSquare: () => void;
+};
+
+type Draft = { board: BoardState; direction: Direction };
+type DraftHistory = { current: Draft; past: Draft[]; future: Draft[] };
+type OwnPlayInput = {
+  base: BoardState;
+  board: BoardState;
+  tiles: ReadonlySet<number>;
+  missing: ReadonlyMap<number, string>;
+  confirm: () => void;
+  cancel: () => void;
 };
 
 export default function BoardEntry({
@@ -58,6 +77,7 @@ export default function BoardEntry({
   onChange,
   onSelect,
   onSolve,
+  ownPlay,
   moveFilter,
   historyControls,
   statusAction,
@@ -75,52 +95,135 @@ export default function BoardEntry({
   onChange: (game: Game) => void;
   onSelect: () => void;
   onSolve?: () => void;
+  ownPlay?: {
+    onPlay: (move: Move) => void;
+    onCancel: () => void;
+    onFixRack: () => void;
+  };
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
   statusAction?: ReactNode;
   overlay?: ReactNode;
 }) {
   const history = useRef(new BoardEditHistory());
+  const input = useRef<BoardInputHandle>(null);
+  const [draftHistory, setDraftHistory] = useState<DraftHistory>(() => ({
+    current: { board: game.board, direction: "across" },
+    past: [],
+    future: [],
+  }));
   const board = displayBoard ?? game.board;
+  const draft = ownPlay
+    ? prepareOwnPlay(game, draftHistory.current.board, draftHistory.current.direction)
+    : undefined;
+  const move = draft?.move;
+  const enteringOwnPlay = !!ownPlay;
+
+  useLayoutEffect(() => {
+    if (enteringOwnPlay) input.current?.focusStartSquare();
+  }, [enteringOwnPlay]);
+  useImperativeHandle(ref, () => ({
+    toggleCoordinateOverlay: () => input.current?.toggleCoordinateOverlay() ?? false,
+    changeDraftHistory,
+  }));
+
   const wordScores = useCallback(
     (index: number) => boardWordsAt(game, index),
     [game],
   );
+
+  function changeDraftHistory(action: "undo" | "redo") {
+    setDraftHistory(({ current, past, future }) => {
+      const next = (action === "undo" ? past : future).at(-1);
+      if (!next) return { current, past, future };
+      return action === "undo"
+        ? { current: next, past: past.slice(0, -1), future: [...future, current] }
+        : { current: next, past: [...past, current], future: future.slice(0, -1) };
+    });
+  }
+
+  function confirm() {
+    if (move) ownPlay?.onPlay(move);
+  }
+
   return (
-    <BoardInput
-      ref={displayBoard ? undefined : ref}
-      board={board}
-      directionForSquare={(index) =>
-        inferBoardEntryDirection(
-          board,
-          index,
-          game.template,
-          rackLetters(game.rack).length,
-        )
-      }
-      hideHelp={hideHelp}
-      skipPlayedTiles={skipPlayedTiles}
-      phoneLayout={phoneLayout}
-      readOnly={readOnly}
-      archivedBoard={game.archived ? game.archivedBoard : undefined}
-      template={game.template}
-      preview={preview}
-      previewPlayer={previewPlayer}
-      wordScores={displayBoard ? undefined : wordScores}
-      definitionLanguage={displayBoard ? undefined : definitionLanguageForRules(game.template.rules)}
-      onSelect={onSelect}
-      onSolve={onSolve}
-      moveFilter={moveFilter}
-      historyControls={historyControls}
-      statusAction={statusAction}
-      overlay={overlay}
-      onBreak={() => history.current.reset()}
-      onChange={(board, kind) => {
-        if (displayBoard) return;
-        const next = history.current.apply(game, board, kind);
-        if (next !== game) onChange(next);
-      }}
-    />
+    <>
+      <BoardInput
+        ref={displayBoard ? undefined : input}
+        board={draft ? draftHistory.current.board : board}
+        directionForSquare={(index) =>
+          inferBoardEntryDirection(
+            board,
+            index,
+            game.template,
+            rackLetters(game.rack).length,
+          )
+        }
+        hideHelp={hideHelp}
+        skipPlayedTiles={skipPlayedTiles}
+        phoneLayout={phoneLayout}
+        readOnly={readOnly}
+        archivedBoard={game.archived ? game.archivedBoard : undefined}
+        template={game.template}
+        preview={ownPlay ? null : preview}
+        previewPlayer={previewPlayer}
+        wordScores={displayBoard ? undefined : wordScores}
+        definitionLanguage={displayBoard ? undefined : definitionLanguageForRules(game.template.rules)}
+        onSelect={onSelect}
+        onSolve={onSolve}
+        moveFilter={moveFilter}
+        historyControls={ownPlay ? (
+          <BoardHistoryControls
+            canUndo={draftHistory.past.length > 0}
+            canRedo={draftHistory.future.length > 0}
+            onUndo={() => changeDraftHistory("undo")}
+            onRedo={() => changeDraftHistory("redo")}
+          />
+        ) : historyControls}
+        statusAction={ownPlay ? undefined : statusAction}
+        overlay={overlay}
+        onBreak={() => history.current.reset()}
+        ownPlay={draft && ownPlay ? {
+          base: game.board,
+          board: draft.board,
+          tiles: new Set(draft.tiles.map(({ index }) => index)),
+          missing: draft.missing,
+          confirm,
+          cancel: ownPlay.onCancel,
+        } : undefined}
+        onChange={(board, kind, direction) => {
+          if (displayBoard) return;
+          if (ownPlay) {
+            setDraftHistory(({ current, past }) => ({
+              current: { board, direction },
+              past: [...past, current].slice(-100),
+              future: [],
+            }));
+          } else {
+            const next = history.current.apply(game, board, kind);
+            if (next !== game) onChange(next);
+          }
+        }}
+      />
+      {draft && ownPlay && (
+        <div className="own-play-actions" role="group" aria-label="Enter your play">
+          <span aria-live="polite">
+            {move
+              ? <><strong><MoveWord move={move} rules={game.template} /></strong> · {move.score} pts</>
+              : draft.tiles.length && !draft.missing.size
+                ? "Place one connected word"
+                : "Your play"}
+          </span>
+          <div className="own-play-buttons">
+            {!!draft.missing.size && (
+              <button type="button" className="text-button" onClick={ownPlay.onFixRack}>Fix rack</button>
+            )}
+            <button type="button" className="text-button" onClick={ownPlay.onCancel}>Cancel</button>
+            <button className="button primary" type="button" disabled={!move} onClick={confirm}>Play</button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -147,18 +250,19 @@ export function BoardInput({
   showTileEditButtons = false,
   wordScores,
   definitionLanguage,
+  ownPlay,
   moveFilter,
   historyControls,
   statusAction,
   overlay,
 }: {
-  ref?: Ref<BoardEntryHandle>;
+  ref?: Ref<BoardInputHandle>;
   board: BoardState;
   archivedBoard?: BoardState;
   template: BoardTemplate;
   preview?: Move | null;
   previewPlayer?: Player;
-  onChange: (board: BoardState, kind: EditKind) => void;
+  onChange: (board: BoardState, kind: EditKind, direction: Direction) => void;
   onSelect?: () => void;
   onSolve?: () => void;
   onBreak?: () => void;
@@ -174,6 +278,7 @@ export function BoardInput({
   showTileEditButtons?: boolean;
   wordScores?: (index: number) => ReturnType<typeof boardWordsAt>;
   definitionLanguage?: DefinitionLanguage;
+  ownPlay?: OwnPlayInput;
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
   statusAction?: ReactNode;
@@ -272,20 +377,31 @@ export function BoardInput({
         ? "Board edge"
         : "Board edge — choose another square"
       : historyControls
-        ? `Space: blank${skipPlayedTiles ? "" : " · Period: skip"} · ${repeatHint}`
+        ? ownPlay
+          ? `${skipPlayedTiles ? "" : "Period: skip · "}${repeatHint}`
+          : `Space: blank${skipPlayedTiles ? "" : " · Period: skip"} · ${repeatHint}`
         : "Type to enter";
+  const missing = ownPlay && !defining && !locating && missingRackLabel(ownPlay.missing);
   const status = defining
     ? `${phoneLayout ? "Tap" : "Click"} a tile in a word`
     : locating
       ? coordinateStatus()
       : readOnly
         ? "Board locked"
-        : cursor
-          ? `${cursor} · ${instruction}`
-          : "Tap a square and type";
+        : missing
+          ? <>{cursor && `${cursor} · `}<span className="board-rack-warning">Missing {missing}</span></>
+          : cursor
+            ? `${cursor} · ${instruction}`
+            : ownPlay
+              ? `${phoneLayout ? "Tap" : "Click"} a square to enter your play`
+              : "Tap a square and type";
   const help = <BoardEntryHelp id={helpId} hidden={hideHelp} />;
 
   useImperativeHandle(ref, () => ({
+    focusStartSquare() {
+      entry.current?.querySelector<HTMLButtonElement>(`[data-cell="${template.start}"]`)
+        ?.focus({ preventScroll: true });
+    },
     toggleCoordinateOverlay() {
       if (readOnly || toggleMark) return false;
       if (locating) {
@@ -430,7 +546,7 @@ export function BoardInput({
   }
   function save(next: string[], kind: EditKind) {
     if (!readOnly && next.some((letter, i) => letter !== board[i]))
-      onChange(next, kind);
+      onChange(next, kind, direction);
   }
   function erase(backspace = false) {
     coordinatePrefix.current = null;
@@ -452,8 +568,10 @@ export function BoardInput({
         ) ?? i;
     }
     const next = [...board];
-    next[i] = "";
-    save(next, "erase");
+    if (!ownPlay?.base[i]) {
+      next[i] = "";
+      save(next, "erase");
+    }
     setSelected(i);
     setAtEnd(false);
   }
@@ -471,13 +589,18 @@ export function BoardInput({
         continue;
       }
       if (!/^[a-z.]$/i.test(char) || end) continue;
-      if (char !== ".")
-        nextBoard[i] = blank ? char.toLowerCase() : char.toUpperCase();
+      const existing = ownPlay?.base[i];
+      if (char !== ".") {
+        if (existing && existing.toUpperCase() !== char.toUpperCase()) continue;
+        if (!existing)
+          nextBoard[i] = blank ? char.toLowerCase() : char.toUpperCase();
+      }
       blank = false;
       const adjacent = neighbor(i, dr, dc);
       let next = adjacent;
       if (skipPlayedTiles && char !== ".") {
-        while (next !== null && nextBoard[next]) next = neighbor(next, dr, dc);
+        const played = ownPlay?.base ?? nextBoard;
+        while (next !== null && played[next]) next = neighbor(next, dr, dc);
       }
       if (next === null) end = true;
       else {
@@ -499,9 +622,10 @@ export function BoardInput({
   }
   function togglePlacedBlank(index: number) {
     const letter = board[index];
-    if (!letter) return;
+    if (!letter || ownPlay?.base[index]) return;
+    const shown = ownPlay?.board[index] ?? letter;
     const next = [...board];
-    next[index] = letter === letter.toLowerCase() ? letter.toUpperCase() : letter.toLowerCase();
+    next[index] = shown === shown.toLowerCase() ? shown.toUpperCase() : shown.toLowerCase();
     save(next, "blank");
   }
 
@@ -529,8 +653,10 @@ export function BoardInput({
     >
       <Board
         template={template}
-        board={board}
+        board={ownPlay?.board ?? board}
         archivedBoard={archivedBoard}
+        draftTiles={ownPlay?.tiles}
+        missingRackTiles={ownPlay?.missing}
         preview={preview}
         previewPlayer={previewPlayer}
         disabled={readOnly}
@@ -572,7 +698,7 @@ export function BoardInput({
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="off"
-        enterKeyHint={onSolve ? "search" : undefined}
+        enterKeyHint={ownPlay ? "done" : onSolve ? "search" : undefined}
         spellCheck={false}
         onFocus={() => {
           setFocused(true);
@@ -663,12 +789,19 @@ export function BoardInput({
               if (e.repeat) break;
               // iOS auto-capitalization can set shiftKey on the Search key.
               if (e.shiftKey && shiftHeld.current) toggleDirection();
-              else if (onSolve && !hadCoordinatePrefix) {
-                e.currentTarget.blur();
-                onSolve();
+              else if (!hadCoordinatePrefix) {
+                if (ownPlay) ownPlay.confirm();
+                else if (onSolve) {
+                  e.currentTarget.blur();
+                  onSolve();
+                }
               }
               break;
             case "Escape":
+              if (ownPlay) {
+                ownPlay.cancel();
+                break;
+              }
               setSelected(null);
               setPendingBlank(false);
               setAtEnd(false);
@@ -680,7 +813,7 @@ export function BoardInput({
         className={`direct-entry-tools${historyControls ? " with-board-history" : ""}`}
       >
         {statusAction}
-        <div className="direct-entry-status" role="status">
+        <div className="direct-entry-status" role="status" data-missing-rack={!!missing || undefined}>
           {status}
         </div>
         <div className="direct-entry-actions">

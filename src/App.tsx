@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { version } from "../version.json";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
+import BoardHistoryControls from "./components/BoardHistoryControls";
 import BoardEntry, {
   BoardEntryHelp,
   type BoardEntryHandle,
@@ -370,6 +371,14 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       : undefined;
   const gameFinish = useGameFinish(workspace === "games" ? game : undefined, !!activeFlight);
   const boardLocked = !!gameFinish.current;
+  const [ownPlay, setOwnPlay] = useState<{ gameId: string; board: string }>();
+  const canEnterOwnPlay = !!game && workspace === "games" &&
+    !game.archived && !gameOver && !boardLocked && !activeFlight;
+  const enteringOwnPlay = canEnterOwnPlay && ownPlay?.gameId === game.id &&
+    ownPlay.board === game.board.join(".");
+  useEffect(() => {
+    if (!enteringOwnPlay) setOwnPlay(undefined);
+  }, [enteringOwnPlay]);
   useKeyboardShortcuts({
     enabled: !!data && !dialog && !boardLocked,
     focusRack() {
@@ -390,7 +399,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     },
     changeGameHistory(action) {
       if (workspace !== "games" || !game) return false;
-      if (action === "undo") undoGame();
+      if (enteringOwnPlay) boardEntry.current?.changeDraftHistory(action);
+      else if (action === "undo") undoGame();
       else redoGame();
       return true;
     },
@@ -643,6 +653,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   }
   function solve(reload = false) {
     if (!game || !hasPlayableRack) return;
+    setOwnPlay(undefined);
     const position = recordOpponentPlayForSearch(game);
     if (position !== game) updateAfterTurn(position);
     if (position.scoring?.end && !position.archived) return;
@@ -655,6 +666,18 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     if (squareFilter.selecting) squareFilter.setSelecting(false);
     setPreview(null);
   }
+  function startOwnPlay() {
+    if (!canEnterOwnPlay) return;
+    editPosition();
+    setError("");
+    setOwnPlay({ gameId: game.id, board: game.board.join(".") });
+    boardPanel.current?.scrollIntoView?.({ block: "nearest" });
+  }
+  function cancelOwnPlay() {
+    setOwnPlay(undefined);
+    setError("");
+    rackPanel.current?.querySelector<HTMLElement>(".rack-tools summary")?.focus();
+  }
   function finishSquareSelection() {
     squareFilter.setSelecting(false);
     squareFilterButton.current?.focus({ preventScroll: true });
@@ -665,6 +688,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       return;
     }
     if (!game) return;
+    setOwnPlay(undefined);
     squareFilter.setSelecting(true);
     setPreview(null);
     if (narrowLayout) {
@@ -681,17 +705,21 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     analysis = false,
     player: Player = "you",
   ) {
+    if (enteringOwnPlay) return;
     if (move && narrowLayout && player === "you") moveReview.open();
     setPreview(move ? { move, analysis, player } : null);
   }
-  function play(move: Move) {
+  function play(move: Move, useRackMarks = true) {
     if (!game || activeFlight || boardLocked) return;
     try {
-      const next = playTrackedMove(game, move, replyAnalysis.bagSize);
+      const next = playTrackedMove(game, move, replyAnalysis.bagSize, useRackMarks);
+      const rackPosition = useRackMarks
+        ? game
+        : { ...game, excludedRackSlots: undefined, requiredRackSlots: undefined };
       const destination = positionSignature(next);
       const motion = preferences.animatePlayedTiles
         ? prepareTileFlight(
-            game, move, rackPanel.current, boardPanel.current, narrowLayout,
+            rackPosition, move, rackPanel.current, boardPanel.current, narrowLayout,
           )
         : undefined;
       rackRefill.current = replyAnalysis.bagSize > 0
@@ -713,6 +741,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         },
       );
       setPreview(null);
+      setOwnPlay(undefined);
       updateAfterTurn(next);
       setError("");
     } catch (e) {
@@ -892,28 +921,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     game && game.template.name + (hasCustomPremiums(game) ? " (custom)" : "");
   const boardSize = game && `${game.template.size} × ${game.template.size}`;
   const boardHistoryControls = game && (
-    <>
-      <button
-        className="icon-button board-undo"
-        disabled={boardLocked || !game.past.length}
-        aria-label="Undo"
-        aria-keyshortcuts="Alt+U"
-        title="Undo (Alt/Option+U)"
-        onClick={undoGame}
-      >
-        <Undo2 size={17} />
-      </button>
-      <button
-        className="icon-button board-redo"
-        disabled={boardLocked || !game.future.length}
-        aria-label="Redo"
-        aria-keyshortcuts="Alt+Y"
-        title="Redo (Alt/Option+Y)"
-        onClick={redoGame}
-      >
-        <Redo2 size={17} />
-      </button>
-    </>
+    <BoardHistoryControls
+      canUndo={!boardLocked && !!game.past.length}
+      canRedo={!boardLocked && !!game.future.length}
+      onUndo={undoGame}
+      onRedo={redoGame}
+    />
   );
   const boardModeHistory = game && (
     <div className="board-mode-history">{boardHistoryControls}</div>
@@ -1298,7 +1311,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 )}
                 <BoardEntry
                   ref={boardEntry}
-                  key={game.id}
+                  key={`${game.id}:${enteringOwnPlay ? "own-play" : "board"}`}
                   game={game}
                   skipPlayedTiles={preferences.skipPlayedTiles}
                   phoneLayout={narrowLayout}
@@ -1329,6 +1342,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   }
                   onSelect={editPosition}
                   onSolve={hasPlayableRack && !activeFlight ? solve : undefined}
+                  ownPlay={enteringOwnPlay ? {
+                    onPlay: (move) => play(move, false),
+                    onCancel: cancelOwnPlay,
+                    onFixRack: () => rackEntry.current?.focusEntry(),
+                  } : undefined}
                   historyControls={
                     !moveReview.showing &&
                     !squareFilter.selecting &&
@@ -1414,6 +1432,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   onSolve={solve}
                   phoneLayout={narrowLayout}
                   onReviewEdit={moveReview.showing ? editPosition : undefined}
+                  onEnterOwnPlay={canEnterOwnPlay && !enteringOwnPlay ? startOwnPlay : undefined}
                   positionKey={signature}
                   exchangeAdvice={exchangeAdvice}
                   bagCount={replyAnalysis.bagSize}

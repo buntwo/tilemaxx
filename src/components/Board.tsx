@@ -27,6 +27,8 @@ export default function Board({
   template,
   board,
   archivedBoard,
+  draftTiles,
+  missingRackTiles,
   preview,
   previewPlayer = "you",
   selected,
@@ -53,6 +55,8 @@ export default function Board({
   template: BoardTemplate;
   board: BoardState;
   archivedBoard?: BoardState;
+  draftTiles?: ReadonlySet<number>;
+  missingRackTiles?: ReadonlyMap<number, string>;
   preview?: Pick<Move, "tiles"> | null;
   previewPlayer?: Player;
   selected?: number | null;
@@ -157,6 +161,8 @@ export default function Board({
             {Array.from({ length: n }, (_, c) => {
               const i = r * n + c,
                 tile = board[i] || placed.get(i) || "",
+                draft = draftTiles?.has(i),
+                missing = missingRackTiles?.get(i),
                 ghost = !board[i] && placed.has(i),
                 archiveEdit = Boolean(
                   archivedBoard && board[i] && board[i] !== archivedBoard[i],
@@ -169,11 +175,13 @@ export default function Board({
                   type="button"
                   key={i}
                   data-cell={i}
+                  data-draft-tile={draft || undefined}
+                  data-missing-rack={!!missing || undefined}
                   data-definition-open={definedSquare === i || undefined}
                   disabled={disabled || (defining && !board[i])}
                   tabIndex={compact && !overlay ? -1 : undefined}
                   className={`square ${bonus.toLowerCase()} ${tile ? "occupied" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}${wordTiles.has(i) ? " word-hover" : ""}${marked ? " move-filter-square" : ""}`}
-                  aria-label={`${coordinate(i, n)}${tile ? `: ${tile.toUpperCase()}${tile === tile.toLowerCase() ? " blank" : ""}` : bonus ? `: ${bonus}` : ": empty"}${i === template.start ? ", start" : ""}${archiveEdit ? ", edited after archiving" : ""}${overlay ? `, ${overlay.label}` : ""}${marked && !selectingSquares ? ", required for move filter" : ""}`}
+                  aria-label={`${coordinate(i, n)}${tile ? `: ${tile.toUpperCase()}${tile === tile.toLowerCase() ? " blank" : ""}` : bonus ? `: ${bonus}` : ": empty"}${i === template.start ? ", start" : ""}${archiveEdit ? ", edited after archiving" : ""}${overlay ? `, ${overlay.label}` : ""}${marked && !selectingSquares ? ", required for move filter" : ""}${missing ? `, missing ${missing} from rack` : draft ? ", draft tile" : ""}`}
                   aria-pressed={
                     cellOverlay
                       ? overlay
@@ -289,9 +297,11 @@ export default function Board({
                   {tile ? (
                     <>
                       <span className="tile-letter">{tile.toUpperCase()}</span>
-                      <span className="tile-points">
-                        {tileScore(tile, template.rules)}
-                      </span>
+                      {!missing && (
+                        <span className="tile-points">
+                          {tileScore(tile, template.rules)}
+                        </span>
+                      )}
                     </>
                   ) : i === template.start ? (
                     <>
