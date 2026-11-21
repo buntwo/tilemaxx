@@ -73,6 +73,8 @@ export default function GamePicker({
   const [query, setQuery] = useState("");
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const focusHeadingOnClose = useRef(false);
   const search = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const focusOnOpen = useRef<"search" | "option">(undefined);
@@ -145,7 +147,13 @@ export default function GamePicker({
   useEffect(cancelDrag, [gameIds]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      if (focusHeadingOnClose.current) {
+        focusHeadingOnClose.current = false;
+        heading.current?.focus({ preventScroll: true });
+      }
+      return;
+    }
     const requested = focusOnOpen.current;
     focusOnOpen.current = undefined;
     if (requested === "option") {
@@ -171,9 +179,9 @@ export default function GamePicker({
   }));
 
   function choose(id: string) {
+    focusHeadingOnClose.current = true;
     closePicker();
     onChoose(id);
-    trigger.current?.focus();
   }
   async function reorder(from: number, to: number) {
     if (saving || from === to || to < 0 || to >= games.length) return;
@@ -339,7 +347,7 @@ export default function GamePicker({
           closePicker();
       }}
     >
-      <h1 aria-label={game?.name}>
+      <h1 ref={heading} tabIndex={-1} aria-label={game?.name}>
         {games.length ? (
           <button
             type="button"

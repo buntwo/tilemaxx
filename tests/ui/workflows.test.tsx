@@ -5654,7 +5654,12 @@ test("workspace shortcuts focus the rack and game filter, and the guide leaves r
   const search = screen.getByRole("searchbox", { name: "Filter by opponent" });
   expect(document.activeElement).toBe(search);
   await user.keyboard("Smith{Enter}");
-  expect(screen.getByRole("heading", { name: "Jo Smith" })).toBeTruthy();
+  expect(document.activeElement).toBe(
+    screen.getByRole("heading", { name: "Jo Smith" }),
+  );
+  expect(screen.queryByRole("searchbox", { name: "Filter by opponent" })).toBeNull();
+  await user.tab();
+  expect(document.activeElement).toBe(cell("Switch game"));
 
   await user.keyboard("?");
   expect(guide()).toBeTruthy();
