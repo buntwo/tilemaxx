@@ -18,6 +18,7 @@ import MoveTimingButton from "./MoveTimingButton";
 import { BingoBadge, MoveLetters } from "./MoveWord";
 import OptimalReplyDetails from "./OptimalReplyDetails";
 import { useMoveDefinitions } from "./useMoveDefinitions";
+import { useMoveDefinitionContext } from "./MoveDefinitions";
 
 export default function OpponentEndgameResults({
   game,
@@ -39,13 +40,15 @@ export default function OpponentEndgameResults({
   const [selected, setSelected] = useState<EndgameLine>();
   const detailId = useId();
   const definitionPosition = useMemo(() => ({ result, selected }), [result, selected]);
-  const definitions = useMoveDefinitions(
-    result.lines.some((line) => line.line[0])
+  const sharedDefinitions = useMoveDefinitionContext();
+  const localDefinitions = useMoveDefinitions(
+    !sharedDefinitions && result.lines.some((line) => line.line[0])
       ? definitionLanguageForRules(game.template.rules)
       : undefined,
     definitionPosition,
     phoneLayout,
   );
+  const definitions = sharedDefinitions ?? localDefinitions;
   const panel = useRef<HTMLElement>(null);
   useEffect(() => {
     const firstMove =
@@ -231,7 +234,7 @@ export default function OpponentEndgameResults({
           />
         </section>
       )}
-      {definitions.popup}
+      {localDefinitions.popup}
     </section>
   );
 }

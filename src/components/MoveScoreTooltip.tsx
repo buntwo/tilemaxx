@@ -208,6 +208,7 @@ export function useMoveScoreTooltip(
   useEffect(() => {
     if (!active) return;
     function outside(event: PointerEvent) {
+      if (event.target instanceof Element && event.target.closest(".definition-tooltip, .definition-sheet")) return;
       if (
         event.target instanceof Node &&
         !active?.anchor.contains(event.target) &&

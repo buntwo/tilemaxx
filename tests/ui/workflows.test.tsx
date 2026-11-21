@@ -13,7 +13,7 @@ import { version } from "../../version.json";
 import App from "../../src/App";
 import OptimalExchange from "../../src/components/OptimalExchange";
 import { GameStore, store } from "../../src/store";
-import { emptyScoring } from "../../shared/game-scoring";
+import { emptyScoring, playTrackedMove } from "../../shared/game-scoring";
 import { summarizeGame } from "../../shared/game-index";
 import { PRESETS } from "../../shared/presets";
 import { importBoard } from "../../shared/screenshot";
@@ -457,7 +457,7 @@ test("Bingo Mercenary starts on demand, then follows new move searches", async (
   expect(screen.getByText(utilityText())).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Run another 10 seconds" }));
   await user.click(await screen.findByText("High-ceiling setups (1)"));
-  expect(screen.getByText("BANJAXES 338")).toBeTruthy();
+  expect(screen.getByText("BANJAXES").closest(".bingo-move-word")?.textContent).toBe("BANJAXES 338");
   expect(screen.getByText(/0.19% after reply/)).toBeTruthy();
   expect(screen.getByText(/block the placement 100%/)).toBeTruthy();
   await user.click(screen.getByRole("button", { name: new RegExp(`^Preview ${ceilingMove!} at`) }));
@@ -4845,7 +4845,7 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   await user.click(cell("H8: DW, start"));
   await user.keyboard("CAQ{Backspace}T");
   expect(current().scoring?.opponent.moves).toBe(0);
-  expect(scores().getByText("CAT · 10 pts")).toBeTruthy();
+  expect(scores().getByText("Opponent move ·").textContent).toBe("Opponent move · CAT · 10 pts");
   await typeRack(user, "S");
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   expect(scoreTotals()).toBe("0–10");
@@ -4902,7 +4902,7 @@ test("score tracking records typed opponent moves and solver plays across undo, 
   expect(current().board.every((tile) => !tile)).toBe(true);
   expect(scoreTotals()).toBe("0–0");
   expect(trackedScore().hasAttribute("data-turn")).toBe(false);
-  expect(scores().queryByText("CAT · 10 pts")).toBeNull();
+  expect(scores().queryByText("Opponent move ·")).toBeNull();
   await user.click(cell("Redo"));
   expect(current().board.slice(112, 116)).toEqual(["C", "A", "T", ""]);
   expect(scoreTotals()).toBe("0–10");
@@ -5007,6 +5007,79 @@ test("holding a board tile corrects recorded scores and saves with undo and redo
   await act(() => store.refresh());
   expect(remote.games[0].board[112]).toBe("c");
   expect(remote.games[0].trackedMoves?.map(({ score }) => score)).toEqual([4, 3]);
+});
+
+test.each([false, true])("definitions work on recorded words and inside game review (phone %s)", async (phone) => {
+  const opening = { ...game(), rack: "CAT", revision: 1 };
+  const [move] = solve(new Lexicon(["CAT"]), opening.board, opening.rack, opening.template);
+  remote.games[0] = playTrackedMove(opening, move, 90);
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: !phone && query === "(any-hover: hover)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const request = fetch;
+  const lookup = vi.fn(async (url: string, options?: RequestInit) => {
+    if (!url.startsWith("/api/definitions?")) return request(url, options);
+    return new Response(JSON.stringify({
+      available: true,
+      entries: [[{ spelling: "cat", glosses: ["A domestic feline."] }]],
+    }));
+  });
+  vi.stubGlobal("fetch", lookup);
+  const user = await start(phone ? 390 : 1200);
+
+  async function define(container: Element) {
+    const word = container.querySelector("[data-move-id]")!;
+    const parentDialog = word.closest("dialog");
+    vi.useFakeTimers();
+    try {
+      if (phone) {
+        touch(word, "pointerdown");
+        expect(fireEvent.contextMenu(word)).toBe(false);
+        await act(() => vi.advanceTimersByTimeAsync(450));
+        const sheet = screen.getByRole("dialog", { name: "CAT" });
+        expect(within(sheet).getByText("A domestic feline.")).toBeTruthy();
+        touch(sheet, "pointerup");
+        expect(fireEvent.click(word, { detail: 1 })).toBe(false);
+        act(() => vi.advanceTimersByTime(32));
+        const close = within(sheet).getByRole("button", { name: "Close dialog" });
+        touch(close, "pointerdown");
+        fireEvent.click(close, { detail: 1 });
+        expect(screen.queryByRole("dialog", { name: "CAT" })).toBeNull();
+      } else {
+        touch(word, "pointerover", { pointerType: "mouse", buttons: 0 });
+        await act(() => vi.advanceTimersByTimeAsync(500));
+        const tip = screen.getByRole("tooltip");
+        expect(within(tip).getByText("A domestic feline.")).toBeTruthy();
+        expect(tip.closest("dialog")).toBe(parentDialog);
+        touch(word, "pointerout", { pointerType: "mouse" });
+        act(() => vi.advanceTimersByTime(200));
+        expect(screen.queryByRole("tooltip")).toBeNull();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  const lastPlay = await screen.findByRole("button", { name: /Last play: You CAT/ });
+  await define(lastPlay);
+  if (phone) expect(lastPlay.getAttribute("aria-expanded")).toBe("false");
+
+  const scores = within(screen.getByRole("region", { name: "Game scores" }));
+  await user.click(scores.getByText("Tracked move history"));
+  const history = scores.getByRole("button", { name: "Review move 1: CAT" });
+  await define(history);
+  expect(screen.queryByRole("dialog", { name: /Review move 1/ })).toBeNull();
+  await user.click(history);
+  const review = screen.getByRole("dialog", { name: /Review move 1/ });
+  await define(within(review).getByRole("heading", { level: 2 }));
+  await user.click(within(review).getByRole("button", { name: "Back to game review" }));
+  const timeline = screen.getByRole("table", { name: "Your moves by turn" });
+  await define(within(timeline).getByRole("button", { name: "1 · CAT" }));
+  expect(screen.getByRole("dialog", { name: "Review game" })).toBeTruthy();
+  expect(lookup.mock.calls.filter(([url]) => url.includes("/api/definitions?")).map(([url]) => url))
+    .toEqual(Array(4).fill("/api/definitions?language=en&word=CAT"));
 });
 
 test("correcting the last opponent play updates the board, Last play, and history without finding moves again", async () => {

@@ -8,6 +8,7 @@ import {
   type PolicyProbabilities,
 } from "../../shared/opponent-policy";
 import { SHORTLIST_SAMPLE_CHECKPOINTS } from "../../shared/shortlist-confidence";
+import { DefinitionWord } from "./MoveDefinitions";
 import type { PolicyEstimate } from "./usePolicyTimeline";
 import { usePractice } from "./usePractice";
 
@@ -230,7 +231,7 @@ export default function PolicyReview({
         <p>
           Top 1 by points is ruled out. The same tiles could play{" "}
           <strong>
-            {finding.word} for {finding.score} points
+            <DefinitionWord word={finding.word} /> for {finding.score} points
           </strong>{" "}
           instead of {displayed.playedScore}.
         </p>

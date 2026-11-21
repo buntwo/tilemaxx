@@ -1,4 +1,4 @@
-import type { PointerEvent } from "react";
+import type { MouseEvent, PointerEvent } from "react";
 import type { DefinitionLanguage } from "../../shared/definitions";
 import { canHoverWithMouse } from "../move-preview";
 import { useDefinitionHold } from "../useDefinitionHold";
@@ -34,6 +34,12 @@ export function useMoveDefinitions(
         "data-definition-hold": touch || undefined,
         onPointerDown: touch ? (event: PointerEvent<HTMLElement>) => {
           hold.start(event, (anchor) => definitions.openSheet(anchor, [{ word }], word));
+        } : undefined,
+        onContextMenu: touch ? (event: MouseEvent<HTMLElement>) => {
+          if (hold.ownsContextMenu(event.target)) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
         } : undefined,
         onPointerEnter: mouse ? (event: PointerEvent<HTMLElement>) => {
           if (event.pointerType === "mouse" && event.buttons === 0)

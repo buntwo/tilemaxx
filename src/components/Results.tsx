@@ -53,6 +53,7 @@ import { endgameLength } from "../endgame-line-format";
 import { canHoverWithMouse } from "../move-preview";
 import { definitionLanguageForRules } from "../../shared/definitions";
 import { useMoveDefinitions } from "./useMoveDefinitions";
+import { DefinitionWord, useMoveDefinitionContext } from "./MoveDefinitions";
 import MoveAnalysis from "./MoveAnalysis";
 import HighCeilingSetups from "./HighCeilingSetups";
 import EmptyMoveTiles from "./EmptyMoveTiles";
@@ -695,11 +696,15 @@ export default function Results({
     () => ({}),
     [resultSet, filter, requiredSquares, sort, reversed, view, profile, analysisKey],
   );
-  const definitions = useMoveDefinitions(
-    showList && !opponentSearch ? definitionLanguageForRules(bingoRules.rules) : undefined,
+  const sharedDefinitions = useMoveDefinitionContext();
+  const localDefinitions = useMoveDefinitions(
+    !sharedDefinitions && showList && !opponentSearch
+      ? definitionLanguageForRules(bingoRules.rules)
+      : undefined,
     definitionPosition,
     phoneLayout,
   );
+  const definitions = sharedDefinitions ?? localDefinitions;
   useEffect(() => {
     setScrollPositions({});
     if (scroller.current) scroller.current.scrollTop = 0;
@@ -747,7 +752,7 @@ export default function Results({
       if (
         !(target instanceof Element) ||
         pinnedRow.current?.contains(target) ||
-        target.closest("[data-move-preview-action], .definition-sheet") ||
+        target.closest("[data-move-preview-action], .definition-sheet, .definition-tooltip") ||
         (histogramSelection && (target === scroller.current || target.closest("dialog")))
       )
         return;
@@ -1663,7 +1668,7 @@ export default function Results({
                                     threatBingo ? "bingo-move-word" : "value-bad"
                                   }
                                 >
-                                  {threat.word} out
+                                  <DefinitionWord word={threat.word} /> out
                                 </small>
                               )}
                               {length && (
@@ -1787,7 +1792,7 @@ export default function Results({
             </span>
             <span className="tap-hint">
               Tap to preview · tap again to play
-              {definitions.touch && " · hold the word to define"}
+              {showList && definitions.touch && " · hold the word to define"}
             </span>
           </>
         )}
@@ -1829,6 +1834,7 @@ export default function Results({
               game={analysisGame}
               line={replyLine}
               opponentRack={replyAnalysis.opponentRack}
+              definitions={definitions}
             />
           ) : replyDetail ? (
             <ReplyPreview
@@ -1843,7 +1849,7 @@ export default function Results({
         </section>
       )}
       {scoreTooltip.popup}
-      {definitions.popup}
+      {localDefinitions.popup}
       {analysisGame && defenseDetail && (
         <PremiumDefense
           game={analysisGame}

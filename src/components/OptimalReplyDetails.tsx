@@ -204,10 +204,6 @@ export default function OptimalReplyDetails({
                                   role="img"
                                   aria-label={entry.move.word}
                                   {...definitions?.wordProps(entry.move.word, `step:${index}`)}
-                                  onContextMenu={definitions?.touch ? (event) => {
-                                    if (definitions.ownsContextMenu(event.target))
-                                      event.preventDefault();
-                                  } : undefined}
                                 >
                                   <MoveLetters
                                     move={entry.move}
