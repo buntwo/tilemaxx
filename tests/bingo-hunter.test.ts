@@ -207,6 +207,47 @@ test("an exhausted bag weights ordinary plays and gives full credit to bingos", 
   assert.deepEqual([...new Set(phases)], ["1.exact"]);
 });
 
+test("both bingo styles enumerate deals with up to two bag tiles and sample with three", async () => {
+  const rack = "ATREADI";
+  const lexicon = new Lexicon(["AT", "READ", "READING"]);
+
+  for (const bagSize of [0, 1, 2, 3]) {
+    const tiles = rack + "BCFJLOP" + "GNS".slice(0, bagSize);
+    const template = {
+      ...PRESETS[0],
+      tileCounts: Object.fromEntries(
+        TILE_SYMBOLS.map((letter) => [
+          letter,
+          [...tiles].filter((tile) => tile === letter).length,
+        ]),
+      ),
+    };
+    const board = emptyBoard(template.size);
+    const [move] = prepareSolver(lexicon, board, template).solve(rack);
+    const position = { template, rack, board, bagSize, scorelessTurns: 0 };
+
+    for (const style of ["bingo-hunter", "tactician"] as const) {
+      const phases: string[] = [];
+      const session = createBingoHunterSession(
+        lexicon,
+        position,
+        [move],
+        undefined,
+        1,
+        style,
+      );
+      const { ranked } = await session.run(
+        new AbortController().signal,
+        ({ phase }) => phases.push(phase),
+      );
+      const exact = bagSize <= 2;
+      const label = `${style} with ${bagSize} tiles in the bag`;
+      assert.equal(phases[0], exact ? "exact" : "sample", label);
+      assert.equal(ranked[0]?.utility.exact, exact, label);
+    }
+  }
+});
+
 function setup(index: number, score: number, leave = "AGIINN"): Move {
   return {
     id: String(index),
