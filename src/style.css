@@ -5897,7 +5897,7 @@ label + label {
 }
 .board-undo {
   position: relative;
-  margin-inline-start: 4px;
+  margin-inline-start: 8px;
 }
 :is(.board-undo, .board-redo):not(:disabled) { color: var(--primary); }
 .board-undo::before {
