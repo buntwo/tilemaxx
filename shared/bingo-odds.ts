@@ -250,7 +250,7 @@ export class RackBingoIndex {
   }
 }
 
-function canSpellRack(
+export function canSpellRack(
   lexicon: Lexicon,
   rack: string,
   lengths: number,

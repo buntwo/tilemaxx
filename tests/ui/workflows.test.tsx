@@ -34,6 +34,8 @@ import { analyzeMoves, type AnalysisRequest } from "../../shared/move-analysis";
 import { REPLY_LIMIT, REPLY_SAMPLES, replyEndgameLine, type ReplyDistribution, type ReplyRequest, type ReplyWorkerMessage } from "../../shared/reply-analysis";
 import { MoveResultIndex } from "../../shared/move-results";
 import { createPlayerProfiles } from "../../shared/player-profiles";
+import { isSoloSimulatedStyle } from "../../shared/simulated-styles";
+import { createSoloStyleSearch } from "../../shared/solo-styles";
 import { prepareEndgameEstimate } from "../../shared/endgame-estimate";
 import { moveRowHeight } from "../../src/useMoveResults";
 import type { SolverMessage, SolverRequest } from "../../src/solver-messages";
@@ -3657,6 +3659,50 @@ test("solo games track one score, use the whole bag, and restart solo from the a
     board: emptyBoard(15), startedOn: localDate(),
   });
   expect(scoreTotals()).toBe("0");
+});
+
+test("solo games show their playing styles and load each sampled utility breakdown", async () => {
+  remote.games[0] = { ...game(), solo: true, revision: 1 };
+  class SoloStyleWorker extends SolverWorker {
+    private position?: Extract<SolverRequest, { kind: "solve" }>;
+
+    postMessage(request: SolverRequest) {
+      if (request.kind === "solve") this.position = request;
+      if (request.kind !== "bingo-hunter") return super.postMessage(request);
+
+      const position = this.position;
+      const result = this.results.get(request.searchId);
+      const style = request.style;
+      if (!position?.solo || !result || !isSoloSimulatedStyle(style)) return;
+      const words = ["AT", "CAT", "CATS", "ACT", "DOG", "RAT", "ART", "TAR"];
+      const search = createSoloStyleSearch(new Lexicon(words), position, result.moves, style);
+      for (const _ of search.steps) { /* complete the search */ }
+      const { ranked, limited } = search.result();
+      result.setProfile({ profile: style, profileBagSize: request.bagSize, profileSeed: request.id }, ranked);
+      queueMicrotask(() => this.onmessage?.({
+        data: { id: request.id, kind: "bingo-hunter", summary: { checked: ranked.length, limited } },
+      }));
+    }
+  }
+  vi.stubGlobal("Worker", SoloStyleWorker);
+  const user = await start(1200);
+  await waitFor(() => expect(current().solo).toBe(true));
+  await typeRack(user, "CATS");
+  await user.keyboard("{Enter}");
+  const picker = await screen.findByRole("combobox", { name: "Playing style" });
+  expect(within(picker).getAllByRole("option").map((option) => option.textContent)).toEqual([
+    "No style", "Casual", "Word-List Learner", "Strong Club Player", "Greedy Bingo", "Triple Play",
+  ]);
+  await user.selectOptions(picker, "greedy-bingo");
+  await user.click(screen.getByRole("button", { name: "Run Greedy Bingo" }));
+  await user.click((await screen.findAllByRole("button", { name: /^Utility breakdown for/ }))[0]);
+  expect(within(screen.getByRole("tooltip")).getByText("Next-turn bingo chance")).toBeTruthy();
+  await user.keyboard("{Escape}");
+  await user.selectOptions(picker, "triple-play");
+  await user.click(screen.getByRole("button", { name: "Run Triple Play" }));
+  await user.click((await screen.findAllByRole("button", { name: /^Utility breakdown for/ }))[0]);
+  expect(within(screen.getByRole("tooltip")).getByText("Expected points two turns ahead")).toBeTruthy();
+  expect(localStorage.getItem("tilemaxx:playing-style:g")).toBe("triple-play");
 });
 
 test("starting another game from an archive copies settings onto a fresh board", async () => {

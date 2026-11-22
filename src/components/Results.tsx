@@ -1,4 +1,4 @@
-import { SIMULATED_STYLES, SIMULATED_STYLE_LABELS, isSimulatedStyle } from "../../shared/simulated-styles";
+import { OPPONENT_SIMULATED_STYLES, SOLO_SIMULATED_STYLES, SIMULATED_STYLE_LABELS, isSimulatedStyle } from "../../shared/simulated-styles";
 import { useBingoHunter } from "../useBingoHunter";
 import type { HunterProgress } from "../parallel-bingo-hunter";
 import type { RunBingoHunter } from "../useSolver";
@@ -119,6 +119,9 @@ const hunterStageLabels: Record<HunterProgress["phase"], string> = {
   "master-screen": "Comparing plays and replies",
   "master-refine": "Refining Master estimates",
   "master-endgame": "Solving known-rack endings",
+  "solo-bingo": "Checking next-turn bingos",
+  "solo-points": "Checking the next turn",
+  "solo-follow-up": "Checking the second future turn",
 };
 
 function formatOdds(chance: number, exact: boolean) {
@@ -631,7 +634,7 @@ export default function Results({
       filter,
       profile,
       profileBagSize: profile ? bagSize : undefined,
-      profileScorelessTurns: profile === "strong" && bagSize === 0 ? scorelessTurns : undefined,
+      profileScorelessTurns: profile === "strong" && !analysisGame?.solo && bagSize === 0 ? scorelessTurns : undefined,
       profileSeed: hunterSelected ? hunterResult?.id :
         profile && analysisGame ? profileWordHash(analysisGame.id) : undefined,
       requiredSquares,
@@ -660,7 +663,7 @@ export default function Results({
   }, (move) => {
     const utility = page.utilities?.[move.id];
     return profile && utility
-      ? { profile, utility, checksDefense: profile !== "casual" && !hunterSelected && bagSize > 0 }
+      ? { profile, utility, checksDefense: !analysisGame?.solo && profile !== "casual" && !hunterSelected && bagSize > 0 }
       : undefined;
   });
   const total = shortlistActive ? filteredShortlist.length : page.total;
@@ -877,30 +880,28 @@ export default function Results({
     <div className="move-list-controls">
       {viewPicker}
       {solveEndgame}
-      {!analysisGame?.solo && (
-        <select
-          className="move-playing-style"
-          aria-label="Playing style"
-          title="Rank moves by a playing style"
-          value={profile ?? ""}
-          onChange={(event) => {
-            const value = event.target.value as MoveStyle | "";
-            onPlayingStyleChange?.(value || undefined);
-            navigation.reset();
-            setOrdering(undefined);
-            setLocked(null);
-            onPreview(null);
-          }}
-        >
-          <option value="">No style</option>
-          {PLAYER_PROFILES.map((profile) => (
-            <option key={profile} value={profile}>{PLAYER_PROFILE_LABELS[profile]}</option>
-          ))}
-          {runBingoHunter && SIMULATED_STYLES.map(style => (
-            <option key={style} value={style}>{SIMULATED_STYLE_LABELS[style]}</option>
-          ))}
-        </select>
-      )}
+      <select
+        className="move-playing-style"
+        aria-label="Playing style"
+        title="Rank moves by a playing style"
+        value={profile ?? ""}
+        onChange={(event) => {
+          const value = event.target.value as MoveStyle | "";
+          onPlayingStyleChange?.(value || undefined);
+          navigation.reset();
+          setOrdering(undefined);
+          setLocked(null);
+          onPreview(null);
+        }}
+      >
+        <option value="">No style</option>
+        {PLAYER_PROFILES.map((profile) => (
+          <option key={profile} value={profile}>{PLAYER_PROFILE_LABELS[profile]}</option>
+        ))}
+        {runBingoHunter && (analysisGame.solo ? SOLO_SIMULATED_STYLES : OPPONENT_SIMULATED_STYLES).map(style => (
+          <option key={style} value={style}>{SIMULATED_STYLE_LABELS[style]}</option>
+        ))}
+      </select>
     </div>
   );
   const searchField = (
@@ -1243,9 +1244,13 @@ export default function Results({
                   ? "Search paused before enough moves could be compared."
                   : hunterResult?.limited
                     ? "The search reached its complexity limit."
-                    : bingoStyle === "master"
-                      ? "Compare your score, their reply, and what you can play next."
-                      : "Rank moves by weighted play points now and expected bingo points after the reply. Bingos count in full.")}</p>
+                    : bingoStyle === "greedy-bingo"
+                      ? "Take a bingo when available, then rank by the chance of a bingo after refilling."
+                      : bingoStyle === "triple-play"
+                        ? "Rank by points now plus expected points over your next two turns."
+                        : bingoStyle === "master"
+                          ? "Compare your score, their reply, and what you can play next."
+                          : "Rank moves by weighted play points now and expected bingo points after the reply. Bingos count in full.")}</p>
               {hunterAction ?? (
                 <button type="button" className="button primary" disabled={!hunterKey} onClick={() => hunter.start()}>
                   Run {hunterLabel}

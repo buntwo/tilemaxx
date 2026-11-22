@@ -109,7 +109,7 @@ export function exactHunterDeals(
 
 // Give crowded-out placements a way into the search based on premium lanes.
 // Geometry supplies leads for simulation, so it can ignore cross-word spelling.
-function hunterLanes({ board, template }: HunterPosition) {
+function hunterLanes({ board, template }: Pick<HunterPosition, "board" | "template">) {
   const { size, premiums } = template;
   const minimum = minimumBingoTiles(template);
   const occupied = new Int32Array(2 * size);
@@ -175,7 +175,7 @@ function hunterLanes({ board, template }: HunterPosition) {
 
 export function hunterScreen(
   moves: readonly Move[],
-  position: HunterPosition,
+  position: Pick<HunterPosition, "board" | "template">,
   odds?: RackOdds,
 ) {
   const { template } = position;

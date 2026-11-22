@@ -6,6 +6,7 @@ import { leaveValue } from "./move-analysis";
 import { shortlistMoves } from "./move-shortlist";
 import type { PlayerProfile, ProfileUtility, RankedProfileMove } from "./player-profiles";
 import type { MasterUtility } from "./master-evaluation";
+import type { RankedSoloMove, SoloStyleUtility } from "./solo-styles";
 import type { HunterUtility, RankedHunterMove } from "./bingo-hunter";
 
 export type MoveStyle = PlayerProfile | SimulatedStyle;
@@ -79,8 +80,8 @@ function utilityKey({
   return JSON.stringify([profile, profileBagSize, profileSeed, profileScorelessTurns]);
 }
 
-type RankedMove = RankedProfileMove | RankedHunterMove | { move: Move; utility: MasterUtility };
-export type MoveUtility = (ProfileUtility | HunterUtility | MasterUtility) & { rank: number };
+type RankedMove = RankedProfileMove | RankedHunterMove | RankedSoloMove | { move: Move; utility: MasterUtility };
+export type MoveUtility = (ProfileUtility | HunterUtility | MasterUtility | SoloStyleUtility) & { rank: number };
 
 export interface MovePage {
   offset: number;

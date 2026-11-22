@@ -26,6 +26,46 @@ type UtilityDetails = {
 };
 
 function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
+  if ("kind" in utility && utility.kind !== "master") {
+    const bingo = utility.kind === "solo-bingo";
+    return (
+      <div className="score-breakdown-content">
+        <div>{isSimulatedStyle(profile) && SIMULATED_STYLE_LABELS[profile]} · Rank {utility.rank}</div>
+        <ul>
+          <li className="score-breakdown-line">
+            <span>Play points now</span><span>{utility.score}</span>
+          </li>
+          {bingo ? (
+            <>
+              <li className="score-breakdown-line">
+                <span>Bingo now</span><span>{utility.bingoNow ? "Yes" : "No"}</span>
+              </li>
+              <li className="score-breakdown-line">
+                <span>Next-turn bingo chance</span><span>{formatUtility(utility.bingoChance * 100)}%</span>
+              </li>
+            </>
+          ) : (
+            <>
+              <li className="score-breakdown-line">
+                <span>Expected points next turn</span><span>{formatUtility(utility.nextPoints)}</span>
+              </li>
+              <li className="score-breakdown-line">
+                <span>Expected points two turns ahead</span><span>{formatUtility(utility.followUpPoints)}</span>
+              </li>
+            </>
+          )}
+        </ul>
+        {!bingo && (
+          <div className="score-breakdown-line score-breakdown-total">
+            <strong>Expected points across three plays</strong><strong>{formatUtility(utility.total)}</strong>
+          </div>
+        )}
+        <div className="move-score-adjustment">
+          {utility.exact ? "All possible draws" : `${utility.samples} sampled draws`}
+        </div>
+      </div>
+    );
+  }
   if ("kind" in utility) {
     const factors = utility.endgame !== undefined
       ? [{ label: "Exact endgame continuation", value: utility.endgame - utility.score }]

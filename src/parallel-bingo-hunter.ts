@@ -1,4 +1,4 @@
-import type { SimulatedStyle } from "../shared/simulated-styles";
+import type { SimulatedStyle, SoloSimulatedStyle } from "../shared/simulated-styles";
 import { laneOpeningBonus, LANE_MIN_BAG } from "../shared/tactician-lanes";
 import { sampleBingoDeals, type BingoDeal } from "../shared/bingo-replies";
 import {
@@ -32,7 +32,7 @@ import { createCandidatePool } from "./candidate-analysis-pool";
 import { createBingoCeilingSearch } from "./parallel-bingo-ceilings";
 
 export type HunterStageProgress = {
-  phase: "exact" | "screen" | "screen-replies" | "sample" | "follow-up" | "checkpoint" | "refine" | "ceiling-discovery" | "ceiling-replies" | "master-screen" | "master-refine" | "master-endgame";
+  phase: "exact" | "screen" | "screen-replies" | "sample" | "follow-up" | "checkpoint" | "refine" | "ceiling-discovery" | "ceiling-replies" | "master-screen" | "master-refine" | "master-endgame" | "solo-bingo" | "solo-points" | "solo-follow-up";
   done: number;
   total: number;
 };
@@ -47,7 +47,7 @@ export type HunterSummary = {
   ceilings?: BingoCeilingResult[];
 };
 
-type BingoSimulationStyle = Exclude<SimulatedStyle, "master">;
+type BingoSimulationStyle = Exclude<SimulatedStyle, "master" | SoloSimulatedStyle>;
 
 export const BINGO_HUNTER_SLICE_MS = 10_000;
 const SCREEN_DEALS = 48;

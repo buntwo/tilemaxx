@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { isSimulatedStyle } from "../shared/simulated-styles";
+import { isSimulatedStyle, isSoloSimulatedStyle } from "../shared/simulated-styles";
 import type { MoveStyle } from "../shared/move-results";
 import { PLAYER_PROFILES } from "../shared/player-profiles";
 
-export function useGamePlayingStyle(gameId?: string) {
+export function useGamePlayingStyle(gameId?: string, solo = false) {
   const [selections, setSelections] = useState(
     () => new Map<string, MoveStyle | undefined>(),
   );
@@ -13,15 +13,15 @@ export function useGamePlayingStyle(gameId?: string) {
     try {
       const value = localStorage.getItem(key) ?? undefined;
       return isSimulatedStyle(value)
-        ? value
+        ? (isSoloSimulatedStyle(value) === solo ? value : undefined)
         : PLAYER_PROFILES.find((profile) => profile === value);
     } catch {
       return undefined;
     }
-  }, [key]);
+  }, [key, solo]);
 
   function select(style?: MoveStyle) {
-    if (!gameId || !key) return;
+    if (!gameId || !key || (isSimulatedStyle(style) && isSoloSimulatedStyle(style) !== solo)) return;
     setSelections((current) => new Map(current).set(gameId, style));
     try {
       if (style) localStorage.setItem(key, style);

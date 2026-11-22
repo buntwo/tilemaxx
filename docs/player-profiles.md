@@ -2,6 +2,25 @@
 
 Choose a style in **Playing style** in Possible moves to see placements ranked as a **Casual**, **Word-List Learner**, or **Strong Club Player** might see them. Analyze uses the same styles for modeled opponent replies. The game's selected dictionary determines which moves are legal. The saved game rules select English, French, or Italian wordfreq data. French and Italian spellings fold accents and ligatures to match board tiles.
 
+## Solo playing styles
+
+In solo games, **Casual**, **Word-List Learner**, and **Strong Club Player**
+rank the plays the model spots using points, word familiarity, and rack
+leave. The solo versions evaluate your own board and rack.
+
+- **Greedy Bingo** takes a bingo when available and ranks placements by the
+  chance of a legal bingo after you refill. The check uses the resulting board,
+  including letters you can play through.
+- **Triple Play** ranks by your score now plus expected points on your next
+  two turns. It screens promising scores and leaves, then checks the second
+  future turn for up to six finalists. It plays the highest-scoring simulated
+  first move, breaking ties by rack leave, before drawing again.
+
+Choose **Run Greedy Bingo** or **Run Triple Play** to start. Both share sampled
+refills across candidates and count every possible draw order with up to two
+tiles in the bag. Use **Utility breakdown** for an individual recommendation.
+If the search pauses, **Run another 10 seconds** continues it.
+
 ## Bingo Mercenary
 
 Choose **Bingo Mercenary** in Possible moves and select **Run Bingo Mercenary** for the current position. While Bingo Mercenary stays selected, a new **Find moves** search in the same game starts it automatically. The progress counter shows the stage number followed by the number of moves checked. Utility adds 75% of the current score for an ordinary play or the full score for a bingo, plus the average score of the best legal bingo on the following turn. The current score already includes any bingo bonus. Each future turn without a bingo contributes zero. Each run has a 10-second budget. **Run another 10 seconds** resumes the same search, keeping completed deals and any provisional rankings.

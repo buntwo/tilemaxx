@@ -337,9 +337,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     workerLimit,
     solver.replyCandidates,
   );
-  const [playingStyle, selectPlayingStyle] = useGamePlayingStyle(game?.solo ? undefined : game?.id);
+  const [playingStyle, selectPlayingStyle] = useGamePlayingStyle(game?.id, game?.solo);
   const moveListNavigation = useMoveListNavigation(solver.results?.searchId, playingStyle);
-  const exchangeProfile = !isSimulatedStyle(playingStyle) ? playingStyle : undefined;
+  const exchangeProfile = !game?.solo && !isSimulatedStyle(playingStyle) ? playingStyle : undefined;
   const exchangeSeed = game ? profileWordHash(game.id) : 0;
   const exchangeSearch = solver.results?.searchId;
   const exchangeChoice = exchangeProfile && exchangeSearch !== undefined

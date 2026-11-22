@@ -1,5 +1,5 @@
 import { unseenTiles } from "../shared/tile-pool";
-import { SIMULATED_STYLE_LABELS, isSimulatedStyle, type SimulatedStyle } from "../shared/simulated-styles";
+import { SIMULATED_STYLE_LABELS, isSimulatedStyle, isSoloSimulatedStyle, type SimulatedStyle } from "../shared/simulated-styles";
 import { createMasterSession } from "./parallel-master";
 import { BINGO_HUNTER_SLICE_MS, createBingoHunterSession } from "./parallel-bingo-hunter";
 import { dictionaryText } from "./word-list-cache";
@@ -33,9 +33,11 @@ import type { SolverMessage, SolverRequest } from "./solver-messages";
 import { createPlayerProfiles, profileWordHash } from "../shared/player-profiles";
 import { loadWordFrequencies } from "./word-frequencies";
 import { rackComposition } from "../shared/rack-entry";
+import { createSoloStyleSearch } from "../shared/solo-styles";
+import type { HunterProgress } from "./parallel-bingo-hunter";
 
 let activeHunter: { id: number; searchId: number; abort: AbortController; finished: Promise<unknown> } | undefined;
-const hunterSessions = new Map<SimulatedStyle, { searchId: number; key: string; lastId?: number; session: ReturnType<typeof createBingoHunterSession> | ReturnType<typeof createMasterSession> }>();
+const hunterSessions = new Map<SimulatedStyle, { searchId: number; key: string; lastId?: number; session: ReturnType<typeof createBingoHunterSession> | ReturnType<typeof createMasterSession> | ReturnType<typeof soloSession> }>();
 type SolveRequest = Extract<SolverRequest, { kind: "solve" }>;
 const results = new Map<number, MoveResultIndex & { position: SolveRequest; lexicon: Lexicon; odds?: ReturnType<RackBingoIndex["calculate"]> }>();
 let models: { lexicon: Lexicon; templateKey: string; choose: ReturnType<typeof createPlayerProfiles> } | undefined;
@@ -69,6 +71,7 @@ async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind:
       const { considered } = models.choose(result.moves, profile, {
         ...position,
         bagSize: profileBagSize,
+        solo: position.solo,
         seed,
         playerSeed: profileSeed,
         scorelessTurns: query.profileScorelessTurns,
@@ -155,12 +158,44 @@ async function boardBingoOdds(
   return { byMove, checked, total, bagSize };
 }
 
+function soloSession(search: ReturnType<typeof createSoloStyleSearch>) {
+  let done = false;
+  return {
+    async run(signal: AbortSignal, progress: (value: HunterProgress) => void, budget: number) {
+      const deadline = performance.now() + budget;
+      let lastProgress = -Infinity;
+      let slice = performance.now();
+      while (!done && !signal.aborted && performance.now() < deadline) {
+        const step = search.steps.next();
+        done = !!step.done;
+        if (!done && step.value) {
+          const now = performance.now();
+          if (now - lastProgress >= 100 || step.value.done === 0 || step.value.done === step.value.total) {
+            lastProgress = now;
+            progress(step.value);
+          }
+        }
+        if (performance.now() - slice >= 12) {
+          await yieldToQueries();
+          slice = performance.now();
+        }
+      }
+      const { ranked, limited } = search.result();
+      return { ranked, summary: { checked: ranked.length, canContinue: !done, limited } };
+    },
+  };
+}
+
 async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
   const { id, searchId, bagSize, workerLimit, style = "bingo-hunter" } = request;
   const hunterSession = hunterSessions.get(style);
   const result = results.get(searchId);
   if (!result) {
     post({ id, kind: "bingo-hunter", error: "Find moves again to reload this position." });
+    return;
+  }
+  if (isSoloSimulatedStyle(style) !== !!result.position.solo) {
+    post({ id, kind: "bingo-hunter", error: "This playing style is unavailable for this game." });
     return;
   }
   const key = JSON.stringify([bagSize, request.scorelessTurns, request.opponentHasFinalTurn]);
@@ -177,11 +212,13 @@ async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
     if (request.resumeFrom === undefined) {
       hunterSessions.set(style, {
         searchId, key,
-        session: style === "master"
-          ? createMasterSession(result.lexicon, { ...result.position, ...request },
-            result.moves, computeWorkerLimit(workerLimit))
-          : createBingoHunterSession(result.lexicon, { ...result.position, ...request },
-            result.moves, result.odds, computeWorkerLimit(workerLimit), style),
+        session: isSoloSimulatedStyle(style)
+          ? soloSession(createSoloStyleSearch(result.lexicon, result.position, result.moves, style))
+          : style === "master"
+            ? createMasterSession(result.lexicon, { ...result.position, ...request },
+              result.moves, computeWorkerLimit(workerLimit))
+            : createBingoHunterSession(result.lexicon, { ...result.position, ...request },
+              result.moves, result.odds, computeWorkerLimit(workerLimit), style),
       });
     }
     const current = hunterSessions.get(style)!;

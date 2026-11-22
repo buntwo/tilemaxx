@@ -123,6 +123,7 @@ export type ProfilePosition = Position & {
   bagSize: number;
   seed: number;
   playerSeed: number;
+  solo?: true;
   scorelessTurns?: number;
 };
 export type ProfileUtility = {
@@ -333,9 +334,9 @@ export function createPlayerProfiles(
     if (!moves.length)
       return { bingoFound: false, considered: options.all ? [] : undefined };
     const preset = presets[profile];
-    const { bagSize, board, seed, playerSeed, rack, scorelessTurns } = position;
+    const { bagSize, board, seed, playerSeed, rack, solo, scorelessTurns } = position;
     const emptyBag = bagSize === 0 && template.rules !== "crossplay";
-    const pool = emptyBag && profile === "strong"
+    const pool = !solo && emptyBag && profile === "strong"
       ? unseenTiles(position, template)
       : undefined;
     const canTrack = pool && !pool.excess.length && pool.total <= template.rackSize;
@@ -344,7 +345,7 @@ export function createPlayerProfiles(
       scorelessTurns !== undefined &&
       pool.total > 0 &&
       rack.replaceAll(".", "").length + pool.total <= PROFILE_ENDGAME_TILES;
-    const shortlistSize = bagSize > 0 || planEndgame ? preset.finalists : 1;
+    const shortlistSize = !solo && (bagSize > 0 || planEndgame) ? preset.finalists : 1;
     const shortlist: {
       move: Move;
       value: number;
@@ -510,7 +511,7 @@ export function createPlayerProfiles(
     scan(attention(position, profile));
     if (!shortlist.length) scan();
     const beforeDefense = shortlist[0]?.move;
-    if (bagSize > 0 && shortlist.length > 1) {
+    if (!solo && bagSize > 0 && shortlist.length > 1) {
       const risk = (defense ??= createProfileDefense(lexicon, template))(
         position,
         bagSize,

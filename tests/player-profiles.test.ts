@@ -400,6 +400,12 @@ test("only the stronger profiles account for new lanes, with Strong imposing the
   const strong = choose(moves, "strong", position, { scoreOrdered: true });
   assert.equal(strong.beforeDefense?.id, opening.id);
   assert.equal(strong.move?.id, safer.id);
+  for (const profile of PLAYER_PROFILES) {
+    const solo = choose(moves, profile, { ...position, solo: true }, { all: true, scoreOrdered: true });
+    assert.equal(solo.move?.id, solo.beforeDefense?.id);
+    assert.ok(solo.considered?.every(({ utility }) =>
+      utility.defense === undefined && utility.premiumLane === undefined && utility.endgame === undefined));
+  }
   assert.equal(
     choose(
       moves,
