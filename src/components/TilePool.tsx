@@ -81,7 +81,9 @@ export default function TilePool({
       </summary>
       <div className="tile-pool-content" id={id}>
         <div className="tile-pool-controls">
-          <p>Includes tiles in the bag and on other players’ racks.</p>
+          <p>{game.solo
+            ? "Unseen tiles are the tiles remaining in the bag."
+            : "Includes tiles in the bag and on other players’ racks."}</p>
           <select
             aria-label="Filter unseen tiles"
             value={filter}

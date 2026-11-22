@@ -1,3 +1,4 @@
+import { unseenTiles } from "../shared/tile-pool";
 import { SIMULATED_STYLE_LABELS, isSimulatedStyle, type SimulatedStyle } from "../shared/simulated-styles";
 import { createMasterSession } from "./parallel-master";
 import { BINGO_HUNTER_SLICE_MS, createBingoHunterSession } from "./parallel-bingo-hunter";
@@ -285,16 +286,17 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     const movesElapsed = performance.now() - start;
     const indexingStart = performance.now();
     const result = Object.assign(new MoveResultIndex(moves, template), { position: request, lexicon });
-    const exchangePlays = warnings.length
+    const exchangePlays = request.solo || warnings.length
       ? undefined
       : exchangeAdvicePlays(request, template, moves);
-    const replyCandidatesPending = moves.length > REPLY_LIMIT;
+    const replyCandidatesPending = !request.solo && moves.length > REPLY_LIMIT;
     results.set(id, result);
     if (results.size > MOVE_CACHE_LIMIT + 1)
       results.delete(results.keys().next().value!);
     post({
       id,
       kind: "moves",
+      ...(request.solo && { solo: request.solo }),
       results: result.summary(id, topScore),
       warnings,
       replyCandidatesPending,
@@ -315,41 +317,44 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     if (!moves.length) return;
     await yieldToQueries();
     if (abort?.signal.aborted) return;
-    const defenseStart = performance.now();
-    let baseline: ReadonlyMap<number, PremiumReply> | undefined;
-    try {
-      const defense = checkPremiumDefense(
-        lexicon,
-        request,
-        template,
-        moves,
-        (defense) => post({ id, kind: "defense", defense }),
-        (checked) => post({ id, kind: "defense-progress", checked }),
-        (replies) => { baseline = replies; },
-      );
-      post({
-        id,
-        kind: "defense",
-        defense,
-        replyCandidates: replyCandidatesPending
-          ? extraReplyCandidates(request, moves, defense, baseline)
-          : undefined,
-        elapsed: performance.now() - defenseStart,
-      });
-    } catch {
-      post({
-        id,
-        kind: "defense",
-        replyCandidates: replyCandidatesPending ? [] : undefined,
-        elapsed: performance.now() - defenseStart,
-      });
+    if (!request.solo) {
+      const defenseStart = performance.now();
+      let baseline: ReadonlyMap<number, PremiumReply> | undefined;
+      try {
+        const defense = checkPremiumDefense(
+          lexicon,
+          request,
+          template,
+          moves,
+          (defense) => post({ id, kind: "defense", defense }),
+          (checked) => post({ id, kind: "defense-progress", checked }),
+          (replies) => { baseline = replies; },
+        );
+        post({
+          id,
+          kind: "defense",
+          defense,
+          replyCandidates: replyCandidatesPending
+            ? extraReplyCandidates(request, moves, defense, baseline)
+            : undefined,
+          elapsed: performance.now() - defenseStart,
+        });
+      } catch {
+        post({
+          id,
+          kind: "defense",
+          replyCandidates: replyCandidatesPending ? [] : undefined,
+          elapsed: performance.now() - defenseStart,
+        });
+      }
+      await yieldToQueries();
+      if (abort?.signal.aborted) return;
     }
-    await yieldToQueries();
-    if (abort?.signal.aborted) return;
     const oddsStart = performance.now();
     let odds: ReturnType<RackBingoIndex["calculate"]>;
     try {
-      odds = bingo.calculate(lexicon, request, template, moves);
+      const bagSize = request.solo ? unseenTiles(request, template).total : undefined;
+      odds = bingo.calculate(lexicon, request, template, moves, bagSize);
     } catch {
       odds = {
         byLeave: {},

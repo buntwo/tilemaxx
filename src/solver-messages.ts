@@ -26,7 +26,7 @@ export type HunterOptions = EndgameSettings & { bagSize: number; workerLimit: nu
 export type SolverRequest =
   | ({ kind: "bingo-hunter"; id: number; searchId: number } & HunterOptions)
   | { kind: "cancel-bingo-hunter"; id: number }
-  | (PositionRequest & { kind: "solve" })
+  | (PositionRequest & { kind: "solve"; solo?: true })
   | (PositionRequest & {
       kind: "board-odds";
       candidates: Move[];
@@ -54,6 +54,7 @@ type SolverUpdate =
       results: MoveResults;
       warnings: string[];
       stages: Pick<SolverStages, "dictionary" | "moves" | "indexing">;
+      solo?: true;
       exchange?: ExchangeAdviceRequest & { dictionaryId: string };
       replyCandidatesPending?: boolean;
     }

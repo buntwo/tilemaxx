@@ -2,6 +2,13 @@
 
 ## Game workspace
 
+Choose **1 player · Solo** in **New game** to practice on your own. Type your
+rack, then use **Find moves** for suggestions or **Enter your play** to record
+a word directly. Refill your rack after each turn. All unseen tiles are in the
+bag. Game scores, turn review, and archived games show your own plays and
+score. The game finishes when you play the last tile, or you can choose
+**End game** under **Game options → Manage game**.
+
 On narrow windows, the board and rack sit above Possible moves. Wider windows put the board and moves side by side. The sidebar opens over the game as a drawer until there is room to dock it. The side-by-side layout fills the available width and reclaims the sidebar’s space when it switches to a drawer or collapses.
 
 | Name | Where to find it |

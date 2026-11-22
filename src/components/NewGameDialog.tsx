@@ -56,6 +56,7 @@ export default function NewGameDialog({
   const [dictionaryChoices, setDictionaryChoices] = useState<
     Partial<Record<string, string>>
   >({});
+  const [solo, setSolo] = useState(false);
   const [trackScores, setTrackScores] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -104,7 +105,7 @@ export default function NewGameDialog({
         onSubmit={async (event) => {
           event.preventDefault();
           if (submitting.current || !online) return;
-          const details = readGameDetails(event.currentTarget);
+          const details = readGameDetails(event.currentTarget, solo);
           if (!template) {
             setError("That board template was deleted. Choose another board.");
             return;
@@ -117,6 +118,7 @@ export default function NewGameDialog({
             await onCreate({
               profileId,
               ...details,
+              ...(solo && { solo: true }),
               template,
               dictionaryId,
               board: emptyBoard(template.size),
@@ -135,7 +137,18 @@ export default function NewGameDialog({
         }}
       >
         <div className="new-game-fields">
+          <label>
+            Players
+            <select
+              value={solo ? "1" : "2"}
+              onChange={(event) => setSolo(event.currentTarget.value === "1")}
+            >
+              <option value="2">2 players</option>
+              <option value="1">1 player · Solo</option>
+            </select>
+          </label>
           <GameDetailFields
+            solo={solo}
             opponentSuggestions={opponentSuggestions}
             initialFocus={!phoneLayout}
             collapseDetails

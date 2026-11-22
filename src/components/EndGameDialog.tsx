@@ -20,6 +20,7 @@ export default function EndGameDialog({
   onEnd: (game: Game, archive: boolean) => void;
   onClose: () => void;
 }) {
+  const { solo } = game;
   const current = tracksScores(game)
     ? (scoreTotalsAtPosition(game) ?? gameScoreTotals(game.scoring))
     : undefined;
@@ -33,10 +34,9 @@ export default function EndGameDialog({
   const deductionNoteId = useId();
   const scores =
     you !== "" &&
-    opponent !== "" &&
     Number.isSafeInteger(Number(you)) &&
-    Number.isSafeInteger(Number(opponent))
-      ? { you: Number(you), opponent: Number(opponent) }
+    (solo || (opponent !== "" && Number.isSafeInteger(Number(opponent))))
+      ? { you: Number(you), opponent: solo ? 0 : Number(opponent) }
       : undefined;
   const rackPoints = bagEmpty ? unplayedRackPoints(game) : undefined;
   const deductionNote =
@@ -60,7 +60,7 @@ export default function EndGameDialog({
   const canSubmit = finalScores
     ? Number.isSafeInteger(finalScores.you) &&
       Number.isSafeInteger(finalScores.opponent)
-    : you === "" && opponent === "";
+    : you === "" && (solo || opponent === "");
 
   return (
     <Modal title="End game" subtitle={game.name} onClose={onClose}>
@@ -72,7 +72,7 @@ export default function EndGameDialog({
               endGameManually(game, {
                 manual: true,
                 scores: finalScores,
-                outcome: scores && outcome ? outcome : undefined,
+                outcome: !solo && scores && outcome ? outcome : undefined,
               }),
               archive,
             );
@@ -87,32 +87,36 @@ export default function EndGameDialog({
             onChange={(event) => setYou(event.target.value)}
           />
         </label>
-        <label>
-          {deductions
-            ? "Opponent’s score before deductions"
-            : "Opponent’s final score"}
-          <input
-            type="number"
-            step="1"
-            value={opponent}
-            onChange={(event) => setOpponent(event.target.value)}
-          />
-        </label>
-        <label>
-          Result
-          <select
-            value={scores ? outcome : ""}
-            disabled={!scores}
-            onChange={(event) =>
-              setOutcome(event.target.value as GameOutcome | "")
-            }
-          >
-            <option value="">From final scores</option>
-            <option value="win">You win</option>
-            <option value="loss">Opponent wins</option>
-            <option value="tie">Tie</option>
-          </select>
-        </label>
+        {!solo && (
+          <>
+            <label>
+              {deductions
+                ? "Opponent’s score before deductions"
+                : "Opponent’s final score"}
+              <input
+                type="number"
+                step="1"
+                value={opponent}
+                onChange={(event) => setOpponent(event.target.value)}
+              />
+            </label>
+            <label>
+              Result
+              <select
+                value={scores ? outcome : ""}
+                disabled={!scores}
+                onChange={(event) =>
+                  setOutcome(event.target.value as GameOutcome | "")
+                }
+              >
+                <option value="">From final scores</option>
+                <option value="win">You win</option>
+                <option value="loss">Opponent wins</option>
+                <option value="tie">Tie</option>
+              </select>
+            </label>
+          </>
+        )}
         <label className="score-checkbox">
           <input
             type="checkbox"
@@ -138,12 +142,15 @@ export default function EndGameDialog({
         </label>
         {deductions && finalScores && (
           <p className="small" role="status">
-            Final score {finalScores.you}–{finalScores.opponent}
+            Final score{" "}
+            {solo ? finalScores.you : `${finalScores.you}–${finalScores.opponent}`}
           </p>
         )}
         {!current && (
           <p className="small muted">
-            Leave both scores blank to finish without a score.
+            {solo
+              ? "Leave your score blank to finish without a score."
+              : "Leave both scores blank to finish without a score."}
           </p>
         )}
         <footer className="modal-footer">

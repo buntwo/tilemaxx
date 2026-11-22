@@ -92,10 +92,12 @@ export function playOwnMoveWithRackCorrection(
   correction: OwnPlayRackCorrection,
   confirmedBagSize?: number,
 ) {
-  const bagSize = Math.max(
-    correction.unseen - game.template.rackSize,
-    Math.min(correction.unseen, confirmedBagSize ?? 0),
-  );
+  const bagSize = game.solo
+    ? correction.unseen
+    : Math.max(
+        correction.unseen - game.template.rackSize,
+        Math.min(correction.unseen, confirmedBagSize ?? 0),
+      );
   const { rack, excludedRackSlots, requiredRackSlots } = game;
   const corrected = {
     ...game,

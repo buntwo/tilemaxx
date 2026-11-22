@@ -24,6 +24,7 @@ export type GameSummary = Pick<
   | "id"
   | "profileId"
   | "name"
+  | "solo"
   | "platform"
   | "startedOn"
   | "archived"
@@ -51,7 +52,7 @@ export function recentOpponentNames(
   const cutoff = localDate(now);
   const opponents = new Map<string, { name: string; date: string }>();
   for (const game of games) {
-    if (game.profileId !== profileId) continue;
+    if (game.profileId !== profileId || game.solo) continue;
     const date = game.endedOn ?? game.startedOn;
     if (!date || date < cutoff || date > today) continue;
     const name = game.name.trim();
@@ -111,6 +112,7 @@ export function summarizeGame(game: Game): GameSummary {
     id,
     profileId,
     name,
+    ...(game.solo && { solo: game.solo }),
     ...(platform !== undefined && { platform }),
     ...(startedOn !== undefined && { startedOn }),
     ...(endedOn !== undefined && { endedOn }),

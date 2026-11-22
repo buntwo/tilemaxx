@@ -171,7 +171,7 @@ export default function GameOptions({
                 <Plus size={17} aria-hidden="true" />
                 <span>
                   Start new game
-                  <small>Same opponent and settings, starting today</small>
+                  <small>{game.solo ? "Same settings, starting today" : "Same opponent and settings, starting today"}</small>
                 </span>
               </button>
             )}

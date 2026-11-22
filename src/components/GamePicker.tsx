@@ -39,7 +39,7 @@ function GamePickerLabel({
           </strong>
           {game.score && (
             <span className="game-picker-score" aria-hidden="true">
-              {game.score.you}–{game.score.opponent}
+              {game.score.solo ? game.score.you : `${game.score.you}–${game.score.opponent}`}
             </span>
           )}
         </span>
@@ -71,6 +71,7 @@ export default function GamePicker({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const filterLabel = games.some((game) => game.solo) ? "Filter by name" : "Filter by opponent";
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -407,9 +408,9 @@ export default function GamePicker({
             className="game-picker-search"
             ref={search}
             type="search"
-            aria-label="Filter by opponent"
+            aria-label={filterLabel}
             aria-controls={id}
-            placeholder="Filter by opponent"
+            placeholder={filterLabel}
             value={query}
             onChange={(event) => updateQuery(event.currentTarget.value)}
           />

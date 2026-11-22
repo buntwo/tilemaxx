@@ -332,12 +332,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     game,
     signature,
     searchResults?.head ?? null,
-    workspace === "games" && !!game && !gameOver && !busy && !solver.error,
+    workspace === "games" && !!game && !game.solo && !gameOver && !busy && !solver.error,
     { searchId, rank: solver.rankEndgame },
     workerLimit,
     solver.replyCandidates,
   );
-  const [playingStyle, selectPlayingStyle] = useGamePlayingStyle(game?.id);
+  const [playingStyle, selectPlayingStyle] = useGamePlayingStyle(game?.solo ? undefined : game?.id);
   const moveListNavigation = useMoveListNavigation(solver.results?.searchId, playingStyle);
   const exchangeProfile = !isSimulatedStyle(playingStyle) ? playingStyle : undefined;
   const exchangeSeed = game ? profileWordHash(game.id) : 0;
@@ -346,7 +346,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     ? solver.styleChoice(exchangeSearch, exchangeProfile, replyAnalysis.bagSize, exchangeSeed)
     : undefined;
   const styleExchange = useStyleExchange(
-    workspace === "games" && !gameOver && !busy && !solver.error && !warnings.length && !replyAnalysis.invalid ? game : undefined,
+    workspace === "games" && !game?.solo && !gameOver && !busy && !solver.error && !warnings.length && !replyAnalysis.invalid ? game : undefined,
     signature,
     exchangeSearch,
     exchangeProfile,
@@ -800,6 +800,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     else setSidebarCollapsed(!visible);
   }
   const headingMetadata = [
+    selectedGame?.solo && "Solo",
     selectedGame?.platform,
     data.dictionaries.find(({ id }) => id === game?.dictionaryId)?.name,
   ].filter(Boolean).join(" · ");
@@ -1521,6 +1522,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   analysisGame={game}
                   analysisKey={signature}
                   replyAnalysis={replyAnalysis}
+                  replyEnabled={!game.solo}
                   rackOdds={solver.rackOdds}
                   defense={solver.defense}
                   defenseProgress={
@@ -1546,8 +1548,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   <div>
                     <h3>A companion to your game.</h3>
                     <p>
-                      Play a suggestion, enter your opponent’s move, then refill
-                      your rack. We’ll remember where you left off.
+                      {game.solo
+                        ? "Play a suggestion or enter your own play, then refill your rack."
+                        : "Play a suggestion, enter your opponent’s move, then refill your rack. We’ll remember where you left off."}
                     </p>
                   </div>
                 </div>
@@ -1797,7 +1800,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                update({ ...editGame, ...readGameDetails(e.currentTarget) });
+                update({ ...editGame, ...readGameDetails(e.currentTarget, editGame.solo) });
                 setDialog(null);
               }}
             >

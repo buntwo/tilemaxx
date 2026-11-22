@@ -298,12 +298,15 @@ export default function Results({
   const { bagSize, bagConfirmed, invalid, opponentRack, scorelessTurns } =
     replyAnalysis;
   const opponentRackSize = replyAnalysis.unseen - bagSize;
+  const boardOddsTitle = analysisGame?.solo
+    ? "Chance of a legal bingo after your play"
+    : "Chance of a legal bingo before the opponent replies";
   const premiumReplyChance = useMemo(
     () => createPremiumReplyChance(replyAnalysis.unseenPool, opponentRackSize),
     [replyAnalysis.unseenPool, opponentRackSize],
   );
   const opponentPosition = useMemo(() => {
-    if (!analysisGame || busy || bagSize !== 0 || invalid) return;
+    if (!analysisGame || analysisGame.solo || busy || bagSize !== 0 || invalid) return;
     // A recorded refill can establish a prior scoreless play when settings are unset.
     const refill = bagConfirmed ? undefined : endgameAfterRefill(analysisGame);
     return {
@@ -868,28 +871,30 @@ export default function Results({
     <div className="move-list-controls">
       {viewPicker}
       {solveEndgame}
-      <select
-        className="move-playing-style"
-        aria-label="Playing style"
-        title="Rank moves by a playing style"
-        value={profile ?? ""}
-        onChange={(event) => {
-          const value = event.target.value as MoveStyle | "";
-          onPlayingStyleChange?.(value || undefined);
-          navigation.reset();
-          setOrdering(undefined);
-          setLocked(null);
-          onPreview(null);
-        }}
-      >
-        <option value="">No style</option>
-        {PLAYER_PROFILES.map((profile) => (
-          <option key={profile} value={profile}>{PLAYER_PROFILE_LABELS[profile]}</option>
-        ))}
-        {runBingoHunter && SIMULATED_STYLES.map(style => (
-          <option key={style} value={style}>{SIMULATED_STYLE_LABELS[style]}</option>
-        ))}
-      </select>
+      {!analysisGame?.solo && (
+        <select
+          className="move-playing-style"
+          aria-label="Playing style"
+          title="Rank moves by a playing style"
+          value={profile ?? ""}
+          onChange={(event) => {
+            const value = event.target.value as MoveStyle | "";
+            onPlayingStyleChange?.(value || undefined);
+            navigation.reset();
+            setOrdering(undefined);
+            setLocked(null);
+            onPreview(null);
+          }}
+        >
+          <option value="">No style</option>
+          {PLAYER_PROFILES.map((profile) => (
+            <option key={profile} value={profile}>{PLAYER_PROFILE_LABELS[profile]}</option>
+          ))}
+          {runBingoHunter && SIMULATED_STYLES.map(style => (
+            <option key={style} value={style}>{SIMULATED_STYLE_LABELS[style]}</option>
+          ))}
+        </select>
+      )}
     </div>
   );
   const searchField = (
@@ -1045,7 +1050,7 @@ export default function Results({
           </div>
         )}
         {exchangeAction}
-        {analysisGame && !!totalMoves && !busy && !error && (
+        {analysisGame && !analysisGame.solo && !!totalMoves && !busy && !error && (
           <button
             type="button"
             className="button secondary analysis-toggle"
@@ -1717,8 +1722,8 @@ export default function Results({
                             className="result-board-odds"
                             title={
                               boardChance.samples
-                                ? `Chance of a legal bingo before the opponent replies · ${boardChance.samples} sampled refills`
-                                : "Chance of a legal bingo before the opponent replies"
+                                ? `${boardOddsTitle} · ${boardChance.samples} sampled refills`
+                                : boardOddsTitle
                             }
                           >
                             <span className="result-odds-label">After</span>{" "}

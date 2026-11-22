@@ -74,10 +74,12 @@ export function useReplyAnalysis(
     () => game && unseenTiles(game, game.template),
     [game?.board, game?.rack, game?.template],
   );
-  const minimumBag =
-    pool && game ? Math.max(0, pool.total - game.template.rackSize) : 0;
-  const options = settings[positionKey ?? ""];
-  const confirmed = !!options;
+  const solo = !!game?.solo;
+  const minimumBag = pool && game
+    ? Math.max(0, pool.total - (solo ? 0 : game.template.rackSize))
+    : 0;
+  const options = solo ? undefined : settings[positionKey ?? ""];
+  const confirmed = solo || !!options;
   const bagSize = options?.bagSize ?? minimumBag;
   const scorelessTurns = options?.scorelessTurns ?? 0;
   const opponentHasFinalTurn = options?.opponentHasFinalTurn ?? true;
@@ -164,7 +166,7 @@ export function useReplyAnalysis(
   );
   const reference = moveList && moves?.[0];
   const opponentRack =
-    bagSize === 0 && pool && !invalid
+    !solo && bagSize === 0 && pool && !invalid
       ? pool.tiles.map(({ symbol, count }) => symbol.repeat(count)).join("")
       : "";
   const position = useMemo<ReplyPosition | undefined>(

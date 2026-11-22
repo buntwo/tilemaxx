@@ -31,6 +31,7 @@ export default function ArchivedGames({
   onBack: () => void;
 }) {
   const [query, setQuery] = useState("");
+  const filterLabel = games.some((game) => game.solo) ? "Filter by name" : "Filter by opponent";
   const results = games
     .filter((game) => opponentNameMatches(game.name, query))
     .sort((a, b) => {
@@ -71,9 +72,9 @@ export default function ArchivedGames({
                 ref={filterRef}
                 className="archive-filter"
                 type="search"
-                aria-label="Filter by opponent"
+                aria-label={filterLabel}
                 aria-keyshortcuts="Alt+F"
-                placeholder="Filter by opponent"
+                placeholder={filterLabel}
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}
               />
@@ -86,7 +87,7 @@ export default function ArchivedGames({
                   }
                 >
                   <option value="date">Date (newest first)</option>
-                  <option value="opponent">Opponent (A–Z)</option>
+                  <option value="opponent">{filterLabel === "Filter by name" ? "Name" : "Opponent"} (A–Z)</option>
                 </select>
               </label>
             </div>
@@ -119,7 +120,7 @@ export default function ArchivedGames({
                     </button>
                     <button
                       className="icon-button"
-                      aria-label={`Edit game with ${game.name}`}
+                      aria-label={game.solo ? `Edit ${game.name}` : `Edit game with ${game.name}`}
                       title="Edit game details"
                       onClick={() => onEdit(game.id)}
                     >

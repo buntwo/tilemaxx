@@ -121,6 +121,7 @@ export interface Game extends Position {
   id: string;
   profileId: string;
   name: string;
+  solo?: true;
   platform?: string;
   startedOn?: string;
   notes?: string;
@@ -187,6 +188,7 @@ export function newGameFromSettings(
   return {
     profileId: game.profileId,
     name: game.name,
+    ...(game.solo && { solo: game.solo }),
     platform: game.platform,
     startedOn,
     trackScores: game.trackScores,

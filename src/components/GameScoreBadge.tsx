@@ -5,12 +5,14 @@ import { scoreTone, signedPoints } from "../score-tone";
 const status = {
   archived: "Archived game",
   playing: "Game in progress",
+  finished: "Game complete",
   tie: "Tie game",
   win: "You won",
   loss: "You lost",
 };
 
 export function describeGameScore(score: GameScoreSummary) {
+  if (score.solo) return `Your score ${score.you}. ${status[score.outcome]}.`;
   return `Your score ${score.you}, opponent score ${score.opponent}. ${status[score.outcome]}.`;
 }
 
@@ -46,15 +48,17 @@ export default function GameScoreBadge({
         ? "value-bad"
         : undefined;
   const description =
-    score.outcome === "playing"
-      ? margin > 0
-        ? `You lead by ${margin}`
-        : margin < 0
-          ? `You trail by ${-margin}`
-          : "Tied"
-      : showMargin && margin
-        ? `${status[score.outcome]}. ${Math.abs(margin)}-point ${margin > 0 ? "lead" : "deficit"}.`
-        : status[score.outcome];
+    score.solo
+      ? describeGameScore(score)
+      : score.outcome === "playing"
+        ? margin > 0
+          ? `You lead by ${margin}`
+          : margin < 0
+            ? `You trail by ${-margin}`
+            : "Tied"
+        : showMargin && margin
+          ? `${status[score.outcome]}. ${Math.abs(margin)}-point ${margin > 0 ? "lead" : "deficit"}.`
+          : status[score.outcome];
   const marginTone =
     score.outcome === "playing" ? scoreTone(margin) : undefined;
   const currentTurn = score.outcome === "playing" ? turn : undefined;
@@ -76,6 +80,7 @@ export default function GameScoreBadge({
       title={onReplay ? "Replay finish animation" : badgeDescription}
       data-outcome={score.outcome}
       data-turn={currentTurn}
+      data-solo={score.solo}
       onClick={onReplay}
     >
       <span className="game-score-totals">
@@ -89,14 +94,16 @@ export default function GameScoreBadge({
         <span className="game-score-player" aria-label="Your score">
           {score.you}
         </span>
-        <span className="game-score-separator" aria-hidden="true">
-          –
-        </span>
-        <span className="game-score-player" aria-label="Opponent score">
-          {score.opponent}
-        </span>
+        {!score.solo && (
+          <>
+            <span className="game-score-separator" aria-hidden="true">–</span>
+            <span className="game-score-player" aria-label="Opponent score">
+              {score.opponent}
+            </span>
+          </>
+        )}
       </span>
-      {showMargin && (
+      {showMargin && !score.solo && (
         <span
           className={`game-score-delta${marginTone ? ` ${marginTone}` : ""}`}
           aria-hidden="true"

@@ -1382,6 +1382,8 @@ label + label {
   margin: 12px 0 0;
 }
 .score-players > div:first-child { padding-inline: 24px 0; }
+.score-players[data-solo] { grid-template-columns: 1fr; }
+.score-players[data-solo] > div:first-child { padding-inline: 0; }
 .score-players > div + div {
   text-align: right;
   border-left: 1px solid var(--line);
@@ -4991,6 +4993,7 @@ label + label {
   justify-self: end;
   white-space: nowrap;
 }
+.rack-own-play { grid-column: 2; white-space: nowrap; }
 .rack-optimal-exchange {
   grid-column: 2;
   padding: 0;
@@ -5854,6 +5857,7 @@ label + label {
   font-size: 26px;
   line-height: 1;
 }
+.game-scoreboard[data-solo] { min-width: 52px; }
 .game-scoreboard[data-outcome="untracked"] { font-size: 16px; }
 .board-help-dialog .direct-entry-help { font-size: 13px; }
 .board-help-dialog .board-legend {

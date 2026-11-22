@@ -199,6 +199,7 @@ export const gameSchema = gameProgress
     id: z.string().max(100),
     profileId: z.string().max(100),
     name: nameSchema,
+    solo: z.literal(true).optional(),
     platform: nameSchema.optional(),
     startedOn: z.iso.date().optional(),
     notes: z.string().trim().max(MAX_GAME_NOTES).optional(),

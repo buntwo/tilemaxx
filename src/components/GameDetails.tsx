@@ -222,6 +222,7 @@ function OpponentField({
 
 export function GameDetailFields({
   game,
+  solo = game?.solo ?? false,
   opponentSuggestions,
   onPlatformChange,
   children,
@@ -229,6 +230,7 @@ export function GameDetailFields({
   initialFocus,
 }: {
   game?: Game;
+  solo?: boolean;
   opponentSuggestions?: readonly string[];
   onPlatformChange?: (platform: string) => void;
   children?: ReactNode;
@@ -269,7 +271,17 @@ export function GameDetailFields({
   );
   return (
     <>
-      {opponentSuggestions ? (
+      {solo ? (
+        <label>
+          Game name
+          <input
+            name="gameName"
+            maxLength={80}
+            defaultValue={game?.name}
+            placeholder="Solo practice"
+          />
+        </label>
+      ) : opponentSuggestions ? (
         <OpponentField suggestions={opponentSuggestions} initialFocus={initialFocus} />
       ) : (
         <label>
@@ -332,10 +344,13 @@ export function GameDetailFields({
 
 export function readGameDetails(
   form: HTMLFormElement,
+  solo = false,
 ): Pick<Game, "name" | "platform" | "startedOn" | "notes"> {
   const fields = new FormData(form);
   return {
-    name: String(fields.get("opponent") ?? "").trim() || "Unknown opponent",
+    name:
+      String(fields.get(solo ? "gameName" : "opponent") ?? "").trim() ||
+      (solo ? "Solo practice" : "Unknown opponent"),
     platform: String(fields.get("platform") ?? "").trim() || undefined,
     startedOn: String(fields.get("startedOn") ?? "") || undefined,
     notes: String(fields.get("notes") ?? "").trim() || undefined,

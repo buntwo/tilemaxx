@@ -11,6 +11,7 @@ import { BingoBadge } from "./MoveWord";
 import "./score-chart.css";
 
 const players = ["you", "opponent"] as const;
+const soloPlayers = ["you"] as const;
 const labels = { you: "You", opponent: "Opponent" };
 const number = new Intl.NumberFormat();
 const compactNumber = new Intl.NumberFormat(undefined, {
@@ -31,14 +32,14 @@ type ScorePair = {
   plays: Partial<Record<Player, ChartMove>>;
 };
 
-function pairMoves(moves: readonly ChartMove[]) {
+function pairMoves(moves: readonly ChartMove[], solo: boolean) {
   const pairs: ScorePair[] = [
     { first: 0, last: 0, totals: { you: 0, opponent: 0 }, plays: {} },
   ];
   for (let index = 0; index < moves.length; index++) {
     const first = moves[index];
     const next = moves[index + 1];
-    const last = next && next.player !== first.player ? next : first;
+    const last = !solo && next && next.player !== first.player ? next : first;
     if (last !== first) index++;
     const totals = { ...pairs[pairs.length - 1].totals };
     totals[first.player] += first.score;
@@ -73,10 +74,10 @@ function scoreTicks(maximum: number) {
   return Array.from({ length: count + 1 }, (_, index) => index * step);
 }
 
-function describePair(pair: ScorePair) {
+function describePair(pair: ScorePair, solo: boolean) {
   return [
     pairLabel(pair),
-    ...players.map((player) => {
+    ...(solo ? soloPlayers : players).map((player) => {
       const score = `${labels[player]} ${number.format(pair.totals[player])} points`;
       const play = pair.plays[player];
       return play
@@ -91,11 +92,13 @@ function ScoreMarkers({
   x,
   y,
   active = false,
+  solo,
 }: {
   pair: ScorePair;
   x: number;
   y: (points: number) => number;
   active?: boolean;
+  solo: boolean;
 }) {
   const opponentOutline =
     !pair.plays.opponent || pair.totals.you === pair.totals.opponent;
@@ -109,20 +112,29 @@ function ScoreMarkers({
         r={active ? 6 : 3.8}
         data-outline={(pair.last > 0 && !pair.plays.you) || undefined}
       />
-      <rect
-        className="score-chart-opponent"
-        x={x - square / 2}
-        y={y(pair.totals.opponent) - square / 2}
-        width={square}
-        height={square}
-        rx={1}
-        data-outline={opponentOutline || undefined}
-      />
+      {!solo && (
+        <rect
+          className="score-chart-opponent"
+          x={x - square / 2}
+          y={y(pair.totals.opponent) - square / 2}
+          width={square}
+          height={square}
+          rx={1}
+          data-outline={opponentOutline || undefined}
+        />
+      )}
     </g>
   );
 }
 
-export default function ScoreChart({ moves }: { moves: readonly ChartMove[] }) {
+export default function ScoreChart({
+  moves,
+  solo = false,
+}: {
+  moves: readonly ChartMove[];
+  solo?: boolean;
+}) {
+  const chartPlayers = solo ? soloPlayers : players;
   const heading = useId();
   const svg = useRef<SVGSVGElement>(null);
   const tooltip = useRef<HTMLDivElement>(null);
@@ -130,7 +142,7 @@ export default function ScoreChart({ moves }: { moves: readonly ChartMove[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const [focused, setFocused] = useState<number | null>(null);
   const [pinned, setPinned] = useState<number | null>(null);
-  const pairs = useMemo(() => pairMoves(moves), [moves]);
+  const pairs = useMemo(() => pairMoves(moves, solo), [moves, solo]);
   const last = pairs.length - 1;
   const final = pairs[last].totals;
   const scores = scoreTicks(Math.max(final.you, final.opponent));
@@ -156,8 +168,10 @@ export default function ScoreChart({ moves }: { moves: readonly ChartMove[] }) {
   const index = Math.min(selected ?? last, last);
   const pair = pairs[index];
   const selectedX = x(index);
-  const upper = Math.min(y(pair.totals.you), y(pair.totals.opponent));
-  const lower = Math.max(y(pair.totals.you), y(pair.totals.opponent));
+  const yourY = y(pair.totals.you);
+  const opponentY = solo ? yourY : y(pair.totals.opponent);
+  const upper = Math.min(yourY, opponentY);
+  const lower = Math.max(yourY, opponentY);
 
   useLayoutEffect(() => {
     const element = svg.current;
@@ -199,7 +213,7 @@ export default function ScoreChart({ moves }: { moves: readonly ChartMove[] }) {
       <figcaption className="score-chart-heading">
         <h3 id={heading}>Score by move</h3>
         <div className="score-chart-legend" aria-hidden="true">
-          {players.map((player) => (
+          {chartPlayers.map((player) => (
             <span className="score-chart-player" key={player}>
               <i className={`score-chart-swatch score-chart-${player}`} />
               {labels[player]}
@@ -216,7 +230,7 @@ export default function ScoreChart({ moves }: { moves: readonly ChartMove[] }) {
           className="score-chart-graph"
           viewBox={`0 0 ${width} ${chartHeight}`}
           role="img"
-          aria-label="Running scores after each pair of tracked moves"
+          aria-label={solo ? "Running score after each tracked move" : "Running scores after each pair of tracked moves"}
           onPointerMove={(event) => {
             if (event.pointerType !== "touch")
               setHovered(pairAt(event.clientX, event.currentTarget));
@@ -252,9 +266,9 @@ export default function ScoreChart({ moves }: { moves: readonly ChartMove[] }) {
             </text>
           ))}
           <text x={(left + right) / 2} y={chartHeight - 2} textAnchor="middle">
-            Move pair
+            {solo ? "Move" : "Move pair"}
           </text>
-          {players.map((player) => (
+          {chartPlayers.map((player) => (
             <polyline
               className={`score-chart-line score-chart-${player}`}
               key={player}
@@ -270,6 +284,7 @@ export default function ScoreChart({ moves }: { moves: readonly ChartMove[] }) {
                 <ScoreMarkers
                   key={point.last}
                   pair={point}
+                  solo={solo}
                   x={x(index)}
                   y={y}
                 />
@@ -284,15 +299,15 @@ export default function ScoreChart({ moves }: { moves: readonly ChartMove[] }) {
                 y1={plotTop}
                 y2={plotBottom}
               />
-              <ScoreMarkers pair={pair} x={selectedX} y={y} active />
+              <ScoreMarkers pair={pair} x={selectedX} y={y} solo={solo} active />
             </g>
           )}
         </svg>
         <input
           type="range"
           className="score-chart-range"
-          aria-label="Inspect scores by move pair"
-          aria-valuetext={describePair(pair)}
+          aria-label={solo ? "Inspect scores by move" : "Inspect scores by move pair"}
+          aria-valuetext={describePair(pair, solo)}
           min={0}
           max={last}
           value={index}
@@ -307,7 +322,7 @@ export default function ScoreChart({ moves }: { moves: readonly ChartMove[] }) {
           <div className="score-chart-tooltip" ref={tooltip} aria-hidden="true">
             <strong>{pairLabel(pair)}</strong>
             <dl>
-              {players.map((player) => {
+              {chartPlayers.map((player) => {
                 const play = pair.plays[player];
                 return (
                   <div key={player}>

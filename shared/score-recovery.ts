@@ -167,6 +167,11 @@ export function recoverUntrackedMoves(
     const [entry] = edits;
     if (!entry) return;
     const base = entry.scoring?.pendingBase ?? entry.board;
+    if (game.solo) {
+      incomplete ||= board.some((tile, i) => !!tile && !base[i]);
+      edits = [];
+      return;
+    }
     const play = scorePlacement(base, board, template);
     if (play) {
       append(

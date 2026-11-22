@@ -32,6 +32,7 @@ import {
   archiveGame,
   emptyBoard,
   localDate,
+  newGameFromSettings,
   redo,
   remember,
   restoreArchivedGame,
@@ -353,6 +354,50 @@ function rackOutFixture(rack: string): Game {
   };
   return game;
 }
+
+test("solo play finishes only after every tile is played and keeps a single score", () => {
+  const game: Game = { ...rackOutFixture("S"), solo: true, scoring: emptyScoring() };
+  game.scoring!.you.points = 20;
+  const move = solve(new Lexicon(["CATS"]), game.board, game.rack, game.template)
+    .find((move) => move.tiles[0].index === game.template.start + 3)!;
+  const withTileInBag = playTrackedMove(game, move);
+  assert.equal(withTileInBag.scoring?.end, undefined);
+  assert.equal(backfillGameResult(withTileInBag), withTileInBag);
+  assert.equal(nextPlayerToMove(withTileInBag), undefined);
+
+  game.template = { ...game.template, tileCounts: { ...game.template.tileCounts, Q: 0 } };
+  const finished = playTrackedMove(game, move, 0);
+  assert.deepEqual(finished.scoring?.end, { out: "you", rackPoints: 0, endedOn: localDate() });
+  assert.deepEqual(summarizeGameScore(finished), {
+    you: 26, opponent: 0, solo: true, outcome: "finished",
+  });
+  assert.equal(undo(finished).rack, "S");
+  assert.deepEqual(redo(undo(finished)).scoring, finished.scoring);
+
+  const archived = gameSchema.parse(archiveGame(finished));
+  assert.equal(summarizeGame(archived).solo, true);
+  const fresh = newGameFromSettings(archived, "2026-11-21");
+  assert.equal(fresh.solo, true);
+  assert.equal(fresh.startedOn, "2026-11-21");
+  assert.equal(fresh.scoring, undefined);
+  assert.deepEqual(fresh.board, emptyBoard(game.template.size));
+});
+
+test("solo board edits cannot turn into opponent moves during search or score recovery", () => {
+  const game: Game = { ...fixture(), solo: true, rack: "CATS" };
+  const draft = [...game.board];
+  draft.splice(game.template.start, 3, ..."CAT");
+  const edited = new BoardEditHistory().apply(game, draft, "enter");
+  assert.equal(recordOpponentPlayForSearch(edited), edited);
+  const { placement } = prepareOwnPlay(game, draft, "across");
+  const untracked = playTrackedMove({ ...game, trackScores: false }, placement!, undefined, false);
+  const restored = setScoreTracking(untracked, true);
+  assert.deepEqual(trackedMoveHistory(restored).map(({ player, word, score }) => ({
+    player, word, score,
+  })), [{ player: "you", word: "CAT", score: 10 }]);
+  assert.equal(restored.scoring?.you.points, 10);
+  assert.equal(restored.scoring?.opponent.moves, 0);
+});
 
 test("entering an opponent rack-out records their play and finish in one undo step", () => {
   const game = rackOutFixture("Q");

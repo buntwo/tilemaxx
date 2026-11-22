@@ -147,7 +147,7 @@ export default function RackEntry({
   const exchangeKey = JSON.stringify([optimalKey, exchangeSlots]);
   const activeSimulation =
     simulation?.key === exchangeKey ? simulation : undefined;
-  const canOpenOptimal = !opponentRack && bagCount > 0;
+  const canOpenOptimal = !game.solo && !opponentRack && bagCount > 0;
   const bingoMinimum = minimumBingoTiles(game.template);
   const enoughBingoTiles = splitRack(game).available.length >= bingoMinimum;
   const showingOptimal = canOpenOptimal && enoughBingoTiles && optimalOpen?.key === optimalKey;
@@ -596,7 +596,7 @@ export default function RackEntry({
             <SlidersHorizontal size={13} /> Rack tools
           </summary>
           <div className="rack-tools-menu">
-            {onEnterOwnPlay && (
+            {onEnterOwnPlay && !game.solo && (
               <button type="button" onClick={() => {
                 chooseMode("entry");
                 onEnterOwnPlay();
@@ -819,6 +819,14 @@ export default function RackEntry({
               />
             )}
           </div>
+          {game.solo && onEnterOwnPlay && (
+            <button type="button" className="text-button rack-own-play" onClick={() => {
+              chooseMode("entry");
+              onEnterOwnPlay();
+            }}>
+              <Pencil size={14} /> Enter your play
+            </button>
+          )}
           {canOpenOptimal && (
             <button
               ref={optimalButton}

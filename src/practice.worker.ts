@@ -82,7 +82,7 @@ export type PracticeRequest =
       turns: PolicyReviewJob[];
       workerLimit?: number;
     }
-  | { kind: "turn" | "game"; template: BoardTemplate; turns: ReviewJob[] };
+  | { kind: "turn" | "game"; template: BoardTemplate; turns: ReviewJob[]; solo?: true };
 
 export type OpponentPolicyMessage =
   | { result: OpponentPolicyResult }
@@ -263,6 +263,7 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
         );
         let replyRisk;
         if (
+          !data.solo &&
           played &&
           alternative &&
           defensiveChecks < 5 &&

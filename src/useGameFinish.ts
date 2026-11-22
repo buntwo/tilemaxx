@@ -14,7 +14,7 @@ import {
 } from "../shared/model";
 
 export type GameFinish = {
-  outcome: GameOutcome;
+  outcome: GameOutcome | "finished";
   scores: Record<Player, number>;
   opponent: string;
   out?: Player;
@@ -23,7 +23,7 @@ export type GameFinish = {
   move?: TrackedMove;
 };
 
-type FinishedScore = GameScoreSummary & { outcome: GameOutcome };
+type FinishedScore = GameScoreSummary & Pick<GameFinish, "outcome">;
 type FinishEnd = NonNullable<GameScoring["end"]>;
 
 type PendingFinish = {

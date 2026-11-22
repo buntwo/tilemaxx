@@ -92,6 +92,7 @@ function WinFireworks() {
 }
 
 const results = {
+  finished: { Icon: Trophy, label: "Game complete", margin: "" },
   win: { Icon: Trophy, label: "You win!", margin: "Won by" },
   loss: { Icon: Flag, label: "You lose", margin: "Lost by" },
   tie: { Icon: Minus, label: "Tie game", margin: "" },
@@ -108,6 +109,7 @@ export default function BoardFinishOverlay({
 }) {
   const { outcome, out, opponent, scores, square, size, move } = finish;
   const { Icon, label, margin } = results[outcome];
+  const solo = outcome === "finished";
   const overlay = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -192,7 +194,7 @@ export default function BoardFinishOverlay({
         onClick={() => close(onDismiss)}
       />
       <div className="board-finish-effects" aria-hidden="true">
-        {outcome !== "tie" && <div className="board-finish-wave" />}
+        {!solo && outcome !== "tie" && <div className="board-finish-wave" />}
         {outcome === "win" && <WinFireworks />}
       </div>
       <div className="board-finish-card">
@@ -206,13 +208,15 @@ export default function BoardFinishOverlay({
               <span>You</span>
               <strong className="board-finish-your-total">{scores.you}</strong>
             </div>
-            <span className="game-score-separator" aria-hidden="true">
-              –
-            </span>
-            <div>
-              <span title={opponent}>{opponent}</span>
-              <strong>{scores.opponent}</strong>
-            </div>
+            {!solo && (
+              <>
+                <span className="game-score-separator" aria-hidden="true">–</span>
+                <div>
+                  <span title={opponent}>{opponent}</span>
+                  <strong>{scores.opponent}</strong>
+                </div>
+              </>
+            )}
           </div>
           {margin && (
             <div className="board-finish-margin">
@@ -222,7 +226,7 @@ export default function BoardFinishOverlay({
         </div>
         {out && (
           <div className="board-finish-note">
-            {out === "you" ? "You" : opponent} went out
+            {solo ? "You played every tile" : `${out === "you" ? "You" : opponent} went out`}
             {move && (
               <>
                 {" "}

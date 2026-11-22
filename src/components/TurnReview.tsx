@@ -29,6 +29,8 @@ function turnBingo(
   );
 }
 
+const noPolicyTurns: ReturnType<typeof reviewTurns> = [];
+
 export default function TurnReview({
   game,
   index,
@@ -63,9 +65,10 @@ export default function TurnReview({
   const eligible = turns.flatMap(({ position, move, index }) =>
     position?.rack && move.player === "you" ? [{ position, move, index }] : [],
   );
+  const policyTurns = game.solo ? noPolicyTurns : turns;
   const timelines = {
-    you: usePolicyTimeline(game.template, turns, "you"),
-    opponent: usePolicyTimeline(game.template, turns, "opponent"),
+    you: usePolicyTimeline(game.template, policyTurns, "you"),
+    opponent: usePolicyTimeline(game.template, policyTurns, "opponent"),
   };
   const timeline = timelines[turn?.move.player ?? policyPlayer];
   const policyTurn = timeline.turns.find(({ index }) => index === selected);
@@ -142,7 +145,7 @@ export default function TurnReview({
               {turn.move.score} recorded pts
               {turnBingo(turn, template) ? " · Bingo" : ""}
             </p>
-            {policyTurn && (
+            {!game.solo && policyTurn && (
               <PolicyReview
                 key={policyTurn.key}
                 player={timeline.player}
@@ -237,7 +240,21 @@ export default function TurnReview({
           </>
         ) : (
           <>
-            {!!turns.length && (
+            {game.solo ? (
+              <ol className="practice-results" aria-label="Tracked plays">
+                {turns.map((turn) => (
+                  <li key={turn.index}>
+                    <button
+                      className="score-review-link"
+                      data-policy-turn={turn.index}
+                      onClick={() => choose(turn.index)}
+                    >
+                      {turn.index + 1} · <MoveWord word={turn.move.word} bingo={turnBingo(turn, game.template)} /> · {turn.move.score} pts
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            ) : !!turns.length && (
               <PolicyTimeline
                 timeline={timeline}
                 onSelect={choose}
@@ -255,6 +272,7 @@ export default function TurnReview({
                 onClick={() =>
                   run({
                     kind: "game",
+                    solo: game.solo,
                     template: game.template,
                     turns: eligible,
                   })
@@ -267,8 +285,8 @@ export default function TurnReview({
               <>
                 <p>
                   Checked {summary.checked} of {summary.total} eligible turns.
-                  Point gaps compare immediate scores. Reply estimates use a
-                  small sample of possible opponent racks.
+                  {" "}Point gaps compare immediate scores.
+                  {!game.solo && " Reply estimates use a small sample of possible opponent racks."}
                 </p>
                 {summary.opportunities.length ? (
                   <ul className="practice-results">

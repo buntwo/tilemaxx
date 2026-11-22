@@ -117,24 +117,31 @@ export default function BingoOddsControls({
                   <p>
                     <strong>Bingo draw %</strong> is the chance your refilled
                     rack spells a {game.template.rackSize}-letter dictionary
-                    word. The bag estimate updates with the board and rack. It
-                    sets aside up to {game.template.rackSize} unseen tiles for
-                    one opponent and leaves the rest in the bag (estimated{" "}
-                    {minimumBag} right now).
+                    word. {game.solo ? `The bag contains all ${bagSize} unseen tiles.` : (
+                      <>
+                        The bag estimate updates with the board and rack. It
+                        sets aside up to {game.template.rackSize} unseen tiles for
+                        one opponent and leaves the rest in the bag (estimated{" "}
+                        {minimumBag} right now).
+                      </>
+                    )}
                   </p>
                   <p>
                     <strong>Bingo after your play</strong> automatically checks
-                    up to {BOARD_ODDS_LIMIT} of the highest-scoring moves after
-                    reply analysis finishes.{" "}
+                    up to {BOARD_ODDS_LIMIT} of the highest-scoring moves{game.solo
+                      ? ". "
+                      : " after reply analysis finishes. "}
                     {manualMoves && "A manual check uses the current list. "}
-                    It counts refills that allow a bingo on the board before the
-                    opponent replies. An ≈ marks an estimate based on up to 200
+                    It counts refills that allow a bingo on the board immediately
+                    after your move. An ≈ marks an estimate based on up to 200
                     sampled refills.
                   </p>
-                  <p>
-                    <strong>Bingo after opponent reply</strong> in Analyze
-                    checks again after simulating the opponent’s move.
-                  </p>
+                  {!game.solo && (
+                    <p>
+                      <strong>Bingo after opponent reply</strong> in Analyze
+                      checks again after simulating the opponent’s move.
+                    </p>
+                  )}
                   {boardOdds && !progress && (
                     <p>
                       Checked {boardOdds.checked} / {boardOdds.total} moves with{" "}

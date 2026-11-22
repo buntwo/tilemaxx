@@ -143,6 +143,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+.board-finish[data-outcome="finished"] .board-finish-score {
+  grid-template-columns: 1fr;
+}
+
 .board-finish-score > div {
   display: grid;
   justify-items: center;

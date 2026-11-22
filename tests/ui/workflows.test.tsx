@@ -150,6 +150,7 @@ class SolverWorker {
       this.onmessage?.({
         data: {
           kind: "moves",
+          solo: request.solo,
           id: request.id,
           results: result.summary(request.id, topScore),
           warnings: this.boardWarnings(lexicon, request),
@@ -157,7 +158,7 @@ class SolverWorker {
           exchange: this.exchangeRequest(request),
         },
       });
-      this.onmessage?.({
+      if (!request.solo) this.onmessage?.({
         data: { kind: "defense", id: request.id, elapsed: 2 },
       });
       this.onmessage?.({
@@ -3526,6 +3527,63 @@ test("game options archive the current game and open a blank game with today's d
   options = await openGameManagement(user);
   expect(options.getByRole("button", { name: "Move to My games" })).toBeTruthy();
   expect(options.queryByRole("button", { name: "Archive & start new game" })).toBeNull();
+});
+
+test("solo games track one score, use the whole bag, and restart solo from the archive", async () => {
+  const user = await start(1200);
+  await user.click(cell("New game"));
+  const setup = within(screen.getByRole("dialog", { name: "New game" }));
+  await user.selectOptions(setup.getByRole("combobox", { name: "Players" }), "1");
+  expect(setup.queryByRole("textbox", { name: "Opponent" })).toBeNull();
+  await user.type(setup.getByRole("textbox", { name: "Game name" }), "Practice run");
+  await user.click(setup.getByRole("button", { name: "Create game" }));
+  await screen.findByRole("heading", { name: "Practice run" });
+  const id = remote.games[1].id;
+  const solo = () => store.getSnapshot().games[id];
+  expect(solo().solo).toBe(true);
+  expect(scoreTotals()).toBe("0");
+  await typeRack(user, "CAT");
+  expect(screen.getByRole("button", { name: "Unseen tiles, 97 tiles in the bag" })).toBeTruthy();
+  await user.click(cell("Enter your play"));
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT{Enter}");
+  expect(solo().rack).toBe("");
+  expect(solo().trackedMoves).toMatchObject([{ player: "you", word: "CAT", score: 10 }]);
+  expect(scoreTotals()).toBe("10");
+  expect(scoreDelta()).toBeNull();
+  await user.click(cell("Undo"));
+  expect(solo().rack).toBe("CAT");
+  expect(scoreTotals()).toBe("0");
+  await user.click(cell("Redo"));
+  expect(scoreTotals()).toBe("10");
+
+  await user.click(cell("Review game"));
+  const review = within(screen.getByRole("dialog", { name: "Review game" }));
+  expect(review.queryByRole("button", { name: "Opponent plays" })).toBeNull();
+  await user.click(review.getByRole("button", { name: /1 · CAT · 10 pts/ }));
+  expect(review.getByRole("button", { name: "Find alternatives" })).toBeTruthy();
+  await user.click(review.getByRole("button", { name: "Close dialog" }));
+
+  const options = await openGameManagement(user);
+  await user.click(options.getByRole("button", { name: "End game" }));
+  const finish = within(screen.getByRole("dialog", { name: "End game" }));
+  expect(finish.getAllByRole("spinbutton")).toHaveLength(1);
+  expect(finish.getByRole("spinbutton", { name: "Your final score" })).toHaveProperty("value", "10");
+  expect(finish.queryByRole("combobox", { name: "Result" })).toBeNull();
+  await user.click(finish.getByRole("button", { name: "End game" }));
+
+  await user.click(cell("Archived games"));
+  const archive = within(screen.getByRole("region", { name: "Archived games" }));
+  await user.click(archive.getByRole("button", { name: /^Practice run/ }));
+  expect(scoreTotals()).toBe("10");
+  const archivedOptions = await openGameManagement(user);
+  await user.click(archivedOptions.getByRole("button", { name: /^Start new game/ }));
+  await screen.findByText("New game started.");
+  expect(remote.games[2]).toMatchObject({
+    name: "Practice run", solo: true, archived: false, rack: "",
+    board: emptyBoard(15), startedOn: localDate(),
+  });
+  expect(scoreTotals()).toBe("0");
 });
 
 test("starting another game from an archive copies settings onto a fresh board", async () => {

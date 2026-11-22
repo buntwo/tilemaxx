@@ -271,7 +271,7 @@ export function useSolver(positionKey: string, game: Game | undefined) {
           if (exchange) checkExchange(exchange, message.id);
           const pending = results.total > 0;
           setRackOddsPending(pending);
-          setDefenseProgress(pending ? 0 : undefined);
+          setDefenseProgress(pending && !message.solo ? 0 : undefined);
           if (!pending) solving.current = undefined;
           break;
         }
@@ -355,6 +355,7 @@ export function useSolver(positionKey: string, game: Game | undefined) {
       active.postMessage({
         id,
         kind: "solve",
+        ...(game.solo && { solo: game.solo }),
         dictionaryId,
         board,
         rack,

@@ -62,6 +62,7 @@ export function nextPlayerToMove(game: Game): Player | undefined {
   const { scoring } = game;
   if (
     !scoring ||
+    game.solo ||
     scoring.incomplete ||
     scoring.end ||
     game.archived ||
@@ -93,7 +94,8 @@ export function displayedGameScoring(game: Game): GameScoring | undefined {
 export type GameScoreSummary = {
   you: number;
   opponent: number;
-  outcome: "playing" | "archived" | GameOutcome;
+  solo?: true;
+  outcome: "playing" | "archived" | "finished" | GameOutcome;
 };
 
 export function summarizeGameScore(
@@ -109,7 +111,7 @@ export function summarizeGameScore(
     return null;
   const { you, opponent } = gameScoreTotals(scoring);
   const outcome =
-    manual?.outcome ??
+    (game.solo && end ? "finished" : manual?.outcome) ??
     (!end
       ? game.archived
         ? "archived"
@@ -119,7 +121,7 @@ export function summarizeGameScore(
         : you > opponent
           ? "win"
           : "loss");
-  return { you, opponent, outcome };
+  return { you, opponent, outcome, ...(game.solo && { solo: game.solo }) };
 }
 
 export function setScoreTracking(game: Game, enabled: boolean): Game {
@@ -683,7 +685,7 @@ export function boardWordsAt(game: Game, index: number) {
 
 export function pendingOpponentPlay(game: Game) {
   const base = game.scoring?.pendingBase;
-  return tracksScores(game) && base
+  return !game.solo && tracksScores(game) && base
     ? scorePlacement(base, game.board, game.template)
     : null;
 }
@@ -705,7 +707,7 @@ export function scoreTotalsAtPosition(game: Game) {
 export function unplayedRackPoints(game: Game) {
   if (game.template.rules === "crossplay") return;
   const { total, excess, tiles } = unseenTiles(game, game.template);
-  if (excess.length || total > game.template.rackSize) return;
+  if (excess.length || total > (game.solo ? 0 : game.template.rackSize)) return;
   return {
     you: [...rackLetters(game.rack)].reduce(
       (points, tile) => points + tileScore(tile, game.template.rules),
@@ -720,7 +722,7 @@ function canRecordRackOut(game: Game) {
     tracksScores(game) &&
     !game.archived &&
     !game.scoring?.end &&
-    game.template.rules !== "crossplay"
+    (game.solo || game.template.rules !== "crossplay")
   );
 }
 
@@ -729,6 +731,8 @@ function rackOutResult(game: Game, out: Player): GameScoring["end"] {
   if (out === "you" ? rack : !rack) return;
   const { total, excess, tiles } = unseenTiles(game, game.template);
   if (excess.length) return;
+  if (game.solo)
+    return out === "you" && !total ? { out, rackPoints: 0 } : undefined;
   if (out === "you") {
     if (!total || total > game.template.rackSize) return;
     return {
@@ -800,7 +804,7 @@ function opponentEntryStart(game: Game, base: Board): number | undefined {
 
 export function pendingOpponentTurns(game: Game): PendingOpponentTurns {
   const base = game.scoring?.pendingBase;
-  if (!base || !tracksScores(game)) return [];
+  if (game.solo || !base || !tracksScores(game)) return [];
   const { board, template, past } = game;
   const play = pendingOpponentPlay(game);
   if (play) return [{ base, board, play }];
@@ -1086,7 +1090,9 @@ export function playTrackedMove(
     game.board.some((tile, index) => tile && !pendingBase[index])
   ) {
     throw new Error(
-      "Tilemaxx couldn't tell how to score the new board tiles. If you entered multiple opponent moves, undo to the first play and use Record opponent move under Game scores before entering the next. For other board edits, fix the entry or choose Keep as correction.",
+      game.solo
+        ? "Confirm the board edits under Game scores, or undo them and use Enter your play to score the move."
+        : "Tilemaxx couldn't tell how to score the new board tiles. If you entered multiple opponent moves, undo to the first play and use Record opponent move under Game scores before entering the next. For other board edits, fix the entry or choose Keep as correction.",
     );
   }
   const result = applyMove(previous, move, "you", useRackMarks);
@@ -1096,7 +1102,7 @@ export function playTrackedMove(
     bingo: isBingo(game.template, move.tiles.length),
   });
   if (canRecordRackOut(previous) && !rackLetters(result.rack) && !bagSize) {
-    // With an empty bag, every unseen tile is on the opponent’s rack.
+    // In a solo game the unseen pool must also be empty.
     const end = rackOutResult(result, "you");
     if (end) scoring.end = { ...end, endedOn: localDate() };
   }
@@ -1113,11 +1119,11 @@ function recoverFinishedPosition(game: Game): Game {
     scoring.end ||
     scoring.incomplete ||
     !tracksScores(game) ||
-    game.template.rules === "crossplay"
+    (!game.solo && game.template.rules === "crossplay")
   )
     return game;
   if (scoring.pendingBase) {
-    if (game.future.length) return game;
+    if (game.solo || game.future.length) return game;
     const active = game.archived ? { ...game, archived: false } : game;
     const end = rackOutResult(active, "opponent");
     if (!end) return game;
@@ -1331,6 +1337,9 @@ export function correctTrackedMove(
     change.score < 0
   )
     throw new Error("Enter a word and a whole, nonnegative score.");
+
+  if (game.solo && change.player !== "you")
+    throw new Error("Solo move history only records your plays.");
 
   const previous = insert ? undefined : moves[index];
   const next = [...moves];

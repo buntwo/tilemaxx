@@ -72,6 +72,8 @@ export default function GameScores({
   onEditLastOpponentMove?: () => void;
   onChange: (game: Game) => void;
 }) {
+  const { solo } = game;
+  const players = solo ? (["you"] as const) : (["you", "opponent"] as const);
   const tracking = tracksScores(game);
   const pending = pendingOpponentTurns(game);
   const multiplePending = pending.length > 1;
@@ -108,7 +110,7 @@ export default function GameScores({
       index: index ?? history.length,
       word: move?.word ?? "",
       score: move ? String(move.score) : "",
-      player: move?.player ?? "opponent",
+      player: move?.player ?? (solo ? "you" : "opponent"),
       bingo: move ? move.bingo : false,
       historyKey,
     });
@@ -140,8 +142,8 @@ export default function GameScores({
       </div>
       {tracking || manual?.scores ? (
         <>
-          <dl className="score-players">
-            {(["you", "opponent"] as const).map((player) => {
+          <dl className="score-players" data-solo={solo}>
+            {players.map((player) => {
               const { points, moves, best, bingos } = scoring[player];
               return (
                 <div key={player} data-player={player}>
@@ -174,6 +176,8 @@ export default function GameScores({
             <p className="score-detail">
               Game ended. Showing points from saved moves.
             </p>
+          ) : solo ? (
+            end && <p className="score-detail">Game complete.</p>
           ) : (
             <p className={`score-margin ${tone ?? ""}`}>
               {signedPoints(margin)} pts
@@ -208,6 +212,11 @@ export default function GameScores({
                     <ScoreBreakdown breakdown={play} />
                   </Fragment>
                 ))
+              ) : solo ? (
+                <p>
+                  Keep these edits as a board correction, or undo them and use
+                  Enter your play to record a scored move.
+                </p>
               ) : (
                 <p>
                   Board edits pending. For multiple opponent plays, undo to the
@@ -256,7 +265,7 @@ export default function GameScores({
           )}
         </div>
       )}
-      {!!chartMoves.length && <ScoreChart moves={chartMoves} />}
+      {!!chartMoves.length && <ScoreChart moves={chartMoves} solo={solo} />}
       <details className="score-history">
         <summary>
           <span>
@@ -273,7 +282,7 @@ export default function GameScores({
                 </th>
                 <th scope="col">You</th>
                 <th scope="col">Pts</th>
-                <th scope="col">Opponent</th>
+                {!solo && <th scope="col">Opponent</th>}
               </tr>
             </thead>
             <tbody>
@@ -319,29 +328,31 @@ export default function GameScores({
                       <BingoBadge className="score-history-bingo" />
                     )}
                   </td>
-                  <td>
-                    {move.player === "opponent" && (
-                      <div className="score-move-play">
-                        <small className="score-move-total">
-                          ({move.total})
-                        </small>{" "}
-                        <button
-                          type="button"
-                          className="score-review-link"
-                          aria-label={`Review move ${move.number}: ${move.word}`}
-                          onClick={() => setReview(move.number - 1)}
-                        >
-                          <span
-                            className={
-                              move.bingo ? "bingo-move-word" : undefined
-                            }
+                  {!solo && (
+                    <td>
+                      {move.player === "opponent" && (
+                        <div className="score-move-play">
+                          <small className="score-move-total">
+                            ({move.total})
+                          </small>{" "}
+                          <button
+                            type="button"
+                            className="score-review-link"
+                            aria-label={`Review move ${move.number}: ${move.word}`}
+                            onClick={() => setReview(move.number - 1)}
                           >
-                            <DefinitionWord word={move.word}>{move.notation}</DefinitionWord>
-                          </span>
-                        </button>
-                      </div>
-                    )}
-                  </td>
+                            <span
+                              className={
+                                move.bingo ? "bingo-move-word" : undefined
+                              }
+                            >
+                              <DefinitionWord word={move.word}>{move.notation}</DefinitionWord>
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -420,21 +431,23 @@ export default function GameScores({
                 </select>
               </label>
             )}
-            <label>
-              Player
-              <select
-                value={editor.player}
-                onChange={(event) =>
-                  setEditor({
-                    ...editor,
-                    player: event.target.value === "you" ? "you" : "opponent",
-                  })
-                }
-              >
-                <option value="you">You</option>
-                <option value="opponent">Opponent</option>
-              </select>
-            </label>
+            {!solo && (
+              <label>
+                Player
+                <select
+                  value={editor.player}
+                  onChange={(event) =>
+                    setEditor({
+                      ...editor,
+                      player: event.target.value === "you" ? "you" : "opponent",
+                    })
+                  }
+                >
+                  <option value="you">You</option>
+                  <option value="opponent">Opponent</option>
+                </select>
+              </label>
+            )}
             <label>
               Word
               <input

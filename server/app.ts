@@ -212,6 +212,7 @@ export function createApp(store: ReturnType<typeof createStore>) {
     if (
       game.id !== current.id ||
       game.profileId !== current.profileId ||
+      game.solo !== current.solo ||
       !store.dictionaries().some((d) => d.id === game.dictionaryId)
     ) {
       res.status(400).json({ error: "Invalid game identity or dictionary." });
