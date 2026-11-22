@@ -54,7 +54,7 @@ test("solo Greedy Bingo prefers the higher chance of a bingo next turn", () => {
   assert.equal(higherExpectedScore.utility.bingoChance, 0.5);
 });
 
-test("Triple Play weights both future scores and can choose a smaller play", () => {
+test("Score Lookahead weights both future scores and can choose a smaller play", () => {
   const ranked = rank("triple-play", ["AB", "ABC", "ABCD", "ABCDE"], 2, "BC", "DE");
   assert.equal(ranked[0].move.word, "AB");
   assert.deepEqual(ranked[0].utility, {
@@ -70,7 +70,7 @@ test("Triple Play weights both future scores and can choose a smaller play", () 
   assert.equal(greedy[0].move.word, "ABC");
 });
 
-test("Triple Threat adds placement points and weighted bingo odds, with available bingos first", () => {
+test("Bingo & Triple Words adds placement points and weighted bingo odds, with available bingos first", () => {
   const [best] = rank("triple-threat", ["AB", "AQ", "ABD", "ABE", "AQD"], 2, "BQ", "DE");
   assert.equal(best.move.word, "AQ");
   assert.equal(best.utility.kind, "solo-triple-threat");
@@ -87,7 +87,7 @@ test("Triple Threat adds placement points and weighted bingo odds, with availabl
 
 const cornerTriple = { ...PRESETS[0], premiums: PRESETS[0].premiums.map<Premium>((_, i) => i === 0 ? "TW" : "") };
 
-test("Triple Threat can give up points now to keep access to an unused triple-word square", () => {
+test("Bingo & Triple Words can give up points now to keep access to an unused triple-word square", () => {
   const lexicon = new Lexicon(["AX", "BX", "XT", "UT"]);
   const board = emptyBoard(cornerTriple.size);
   board[1] = "A";
@@ -106,7 +106,7 @@ test("Triple Threat can give up points now to keep access to an unused triple-wo
   assert.ok(Math.abs(blocked.lanePoints + 6.4) < 1e-9);
 });
 
-test("Triple Threat penalizes blocking an unused triple-word lane and fades as the bag empties", () => {
+test("Bingo & Triple Words penalizes blocking an unused triple-word lane and fades as the bag empties", () => {
   const lexicon = new Lexicon(["AX", "AXE"]);
   const open = emptyBoard(cornerTriple.size);
   open[1] = "A";

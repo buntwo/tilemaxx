@@ -14,8 +14,8 @@ export const SIMULATED_STYLE_LABELS: Record<SimulatedStyle, string> = {
   tactician: "Bingo Tactician",
   master: "Master",
   "greedy-bingo": "Greedy Bingo",
-  "triple-play": "Triple Play",
-  "triple-threat": "Triple Threat",
+  "triple-play": "Score Lookahead",
+  "triple-threat": "Bingo & Triple Words",
 };
 
 export function isSimulatedStyle(style?: string): style is SimulatedStyle {

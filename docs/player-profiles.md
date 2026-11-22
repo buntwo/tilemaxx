@@ -11,21 +11,21 @@ leave. The solo versions evaluate your own board and rack.
 - **Greedy Bingo** takes a bingo when available and ranks placements by the
   chance of a legal bingo after you refill. The check uses the resulting board,
   including letters you can play through.
-- **Triple Play** ranks by your score now plus expected points on your next
+- **Score Lookahead** ranks by your score now plus expected points on your next
   two turns. It screens promising scores and leaves, then checks the second
   future turn for up to six finalists. It plays the highest-scoring simulated
   first move, breaking ties by rack leave, before drawing again.
-- **Triple Threat** takes a bingo when available. It ranks placements by
+- **Bingo & Triple Words** takes a bingo when available. It ranks placements by
   your current score plus 80 times the chance of a legal bingo next turn,
   with up to 10 points added or subtracted for changes to unused triple-word
   lanes. The lane check favors room for longer plays and accounts for
   restrictive crosses. Using the triple-word square incurs no lane penalty.
   The lane adjustment fades from 28 to 7 tiles left in the bag.
 
-Choose **Run Greedy Bingo**, **Run Triple Play**, or **Run Triple Threat** to
-start. All three share sampled refills across candidates and count every
-possible draw order with up to two tiles in the bag. Use **Utility breakdown**
-for an individual recommendation.
+Choose **Run Greedy Bingo**, **Run Score Lookahead**, or
+**Run Bingo & Triple Words** to start. All three share sampled refills across
+candidates and count every possible draw order with up to two tiles in the bag.
+Use **Utility breakdown** for an individual recommendation.
 If the search pauses, **Run another 10 seconds** continues it.
 
 ## Bingo Mercenary

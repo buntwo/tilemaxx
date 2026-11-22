@@ -3694,7 +3694,7 @@ test("solo games show their playing styles and load each sampled utility breakdo
   await user.keyboard("{Enter}");
   const picker = await screen.findByRole("combobox", { name: "Playing style" });
   expect(within(picker).getAllByRole("option").map((option) => option.textContent)).toEqual([
-    "No style", "Casual", "Word-List Learner", "Strong Club Player", "Greedy Bingo", "Triple Play", "Triple Threat",
+    "No style", "Casual", "Word-List Learner", "Strong Club Player", "Greedy Bingo", "Score Lookahead", "Bingo & Triple Words",
   ]);
   await user.selectOptions(picker, "greedy-bingo");
   await user.click(screen.getByRole("button", { name: "Run Greedy Bingo" }));
@@ -3703,18 +3703,21 @@ test("solo games show their playing styles and load each sampled utility breakdo
   expect(within(screen.getByRole("tooltip")).queryByText("Expected bingo points next turn")).toBeNull();
   await user.keyboard("{Escape}");
   await user.selectOptions(picker, "triple-play");
-  await user.click(screen.getByRole("button", { name: "Run Triple Play" }));
+  await user.click(screen.getByRole("button", { name: "Run Score Lookahead" }));
   await user.click((await screen.findAllByRole("button", { name: /^Utility breakdown for/ }))[0]);
-  expect(within(screen.getByRole("tooltip")).getByText("Expected points two turns ahead")).toBeTruthy();
+  const lookahead = within(screen.getByRole("tooltip"));
+  expect(lookahead.getByText("Score Lookahead · Rank 1")).toBeTruthy();
+  expect(lookahead.getByText("Expected points two turns ahead")).toBeTruthy();
   expect(localStorage.getItem("tilemaxx:playing-style:g")).toBe("triple-play");
   await user.keyboard("{Escape}");
   await user.selectOptions(picker, "triple-threat");
-  await user.click(screen.getByRole("button", { name: "Run Triple Threat" }));
+  await user.click(screen.getByRole("button", { name: "Run Bingo & Triple Words" }));
   await user.click((await screen.findAllByRole("button", { name: /^Utility breakdown for/ }))[0]);
-  const threat = within(screen.getByRole("tooltip"));
-  expect(threat.getByText("Play points now")).toBeTruthy();
-  expect(threat.getByText("Next-turn bingo chance")).toBeTruthy();
-  expect(threat.getByText("Triple-word lane adjustment")).toBeTruthy();
+  const tripleWords = within(screen.getByRole("tooltip"));
+  expect(tripleWords.getByText("Bingo & Triple Words · Rank 1")).toBeTruthy();
+  expect(tripleWords.getByText("Play points now")).toBeTruthy();
+  expect(tripleWords.getByText("Next-turn bingo chance")).toBeTruthy();
+  expect(tripleWords.getByText("Triple-word lane adjustment")).toBeTruthy();
   expect(localStorage.getItem("tilemaxx:playing-style:g")).toBe("triple-threat");
 });
 
