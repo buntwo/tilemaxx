@@ -36,22 +36,21 @@ test("solo Greedy Bingo checks legal bingos through existing letters", () => {
     assert.equal(utility.kind, "solo-bingo");
     assert.equal(utility.bingoNow, false);
     assert.equal(utility.bingoChance, 1);
-    assert.equal(utility.total, 9);
+    assert.equal(utility.total, 1);
     assert.equal(utility.exact, true);
   }
 });
 
-test("solo Greedy Bingo prefers higher expected bingo points even at lower odds", () => {
+test("solo Greedy Bingo prefers the higher chance of a bingo next turn", () => {
   const ranked = rank("greedy-bingo", ["AB", "AQ", "ABD", "ABE", "AQD"], 2, "BQ", "DE");
   const best = ranked[0];
-  const moreLikely = ranked.find(({ move }) => move.word === "AQ")!;
-  assert.equal(best.move.word, "AB");
+  const higherExpectedScore = ranked.find(({ move }) => move.word === "AB");
+  assert.equal(best.move.word, "AQ");
   assert.equal(best.utility.kind, "solo-bingo");
-  assert.equal(best.utility.bingoChance, 0.5);
-  assert.equal(best.utility.total, 6.5);
-  assert.equal(moreLikely.utility.kind, "solo-bingo");
-  assert.equal(moreLikely.utility.bingoChance, 1);
-  assert.equal(moreLikely.utility.total, 5.5);
+  assert.equal(best.utility.bingoChance, 1);
+  assert.equal(best.utility.total, 1);
+  assert.equal(higherExpectedScore?.utility.kind, "solo-bingo");
+  assert.equal(higherExpectedScore.utility.bingoChance, 0.5);
 });
 
 test("Triple Play weights both future scores and can choose a smaller play", () => {
