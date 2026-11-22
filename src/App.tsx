@@ -1440,6 +1440,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   exchangeAdvice={exchangeAdvice}
                   bagCount={replyAnalysis.bagSize}
                   bagConfirmed={replyAnalysis.bagConfirmed}
+                  tileCountsInvalid={replyAnalysis.invalid}
                   exchangeScorelessTurns={replyAnalysis.scorelessTurns}
                   opponentRack={replyAnalysis.opponentRack}
                   preview={

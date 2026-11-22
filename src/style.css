@@ -4790,6 +4790,11 @@ label + label {
 .rack-bag[data-digits="4"] { font-size: 11px; }
 .rack-bag[data-digits="5"] { font-size: 9px; }
 .rack-bag[data-empty] { color: light-dark(#54675d, #b0c0b6); }
+.rack-bag[data-overdrawn] {
+  --bag-fill: light-dark(#f3d8d5, #623d3b);
+  --bag-edge: light-dark(#bd6d64, #dc8982);
+  color: light-dark(#8b2824, #ffccc5);
+}
 .rack-bag::before,
 .rack-bag::after {
   content: "";

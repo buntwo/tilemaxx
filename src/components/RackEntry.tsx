@@ -59,6 +59,7 @@ export default function RackEntry({
   exchangeAdvice,
   bagCount,
   bagConfirmed,
+  tileCountsInvalid,
   exchangeScorelessTurns,
   opponentRack,
   preview,
@@ -75,6 +76,7 @@ export default function RackEntry({
   exchangeAdvice?: SwapAdvice;
   bagCount: number;
   bagConfirmed: boolean;
+  tileCountsInvalid: boolean;
   exchangeScorelessTurns: number;
   opponentRack: string;
   preview?: Move | null;
@@ -108,6 +110,7 @@ export default function RackEntry({
   const exchangeMode = mode === "exchange";
   const reviewing = !!onReviewEdit;
   const bagLabel = `${bagCount}${bagConfirmed ? "" : " estimated"} ${bagCount === 1 ? "tile" : "tiles"} in the bag`;
+  const bagStatus = tileCountsInvalid ? `${bagLabel}, check tile counts` : bagLabel;
   const tools = useRef<HTMLDetailsElement>(null);
   const openExchange = useRef<{ reveal: boolean }>(null);
   const exchangeButton = useRef<HTMLButtonElement>(null);
@@ -668,11 +671,12 @@ export default function RackEntry({
             <button
               type="button"
               className="rack-bag"
-              aria-label={`Unseen tiles, ${bagLabel}`}
+              aria-label={`Unseen tiles, ${bagStatus}`}
               aria-controls={tilePoolId}
               aria-expanded={tilePoolOpen}
-              title={bagLabel}
+              title={bagStatus}
               data-empty={bagCount === 0 || undefined}
+              data-overdrawn={tileCountsInvalid || undefined}
               data-digits={String(bagCount).length}
               onClick={() => setTilePoolOpen((open) => !open)}
             >

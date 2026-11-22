@@ -6508,13 +6508,17 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
   expect(panel.getByText("Check tile counts")).toBeTruthy();
 });
 
-test("overdrawn tiles show negative counts while other counts stay visible", async () => {
+test("the bag warns about excess tiles and clears when the rack is fixed", async () => {
   const board = remote.games[0].board;
   board.fill("U", 0, 4);
   remote.games[0].revision++;
   const user = await start();
   await waitFor(() => expect(current().revision).toBe(1));
+  const bag = screen.getByRole("button", { name: /^Unseen tiles,/ });
+  expect(bag.hasAttribute("data-overdrawn")).toBe(false);
   await typeRack(user, "UUA");
+  expect(bag.getAttribute("data-overdrawn")).toBe("true");
+  expect(bag.getAttribute("aria-label")).toContain("check tile counts");
   expect(
     screen
       .getByLabelText("Vowels 37, count exceeded")
@@ -6522,11 +6526,8 @@ test("overdrawn tiles show negative counts while other counts stay visible", asy
   ).toBe(true);
   expect(screen.getByText("Consonants 56")).toBeTruthy();
   expect(screen.getByText("Blanks 2")).toBeTruthy();
-  await user.click(
-    screen.getByText(/unseen tiles?$/, {
-      selector: ".tile-pool summary strong",
-    }),
-  );
+  await user.click(bag);
+  expect(bag.getAttribute("aria-expanded")).toBe("true");
   const pool = within(screen.getByRole("list", { name: "Unseen tile counts" }));
   expect(pool.getByRole("listitem", { name: "U: 2 extra" }).textContent).toBe(
     "U-2",
@@ -6537,6 +6538,16 @@ test("overdrawn tiles show negative counts while other counts stay visible", asy
   expect(
     screen.queryByText(/More tiles entered than this set contains/),
   ).toBeNull();
+
+  await user.click(rackTile(1));
+  await user.keyboard("S");
+  expect(bag.hasAttribute("data-overdrawn")).toBe(true);
+  expect(pool.getByRole("listitem", { name: "U: 1 extra" })).toBeTruthy();
+  await user.click(rackTile(2));
+  await user.keyboard("T");
+  expect(bag.hasAttribute("data-overdrawn")).toBe(false);
+  expect(bag.getAttribute("aria-label")).not.toContain("check tile counts");
+  expect(pool.getByRole("listitem", { name: "U: 0 unseen" })).toBeTruthy();
 });
 
 test("the points value opens an anchored score breakdown without playing the move", async () => {
