@@ -1,11 +1,41 @@
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { promisify } from "node:util";
+import { gunzip } from "node:zlib";
 import type {
   DefinitionLanguage,
   DefinitionLookup,
   WordDefinition,
 } from "../shared/definitions";
+import { decodeWordFrequencies, wordFrequencyUrl } from "../shared/word-familiarity";
+
+const decompress = promisify(gunzip);
+
+export function createDefinitionFrequencyLookup(root: string) {
+  const cache = new Map<
+    DefinitionLanguage,
+    Promise<ReadonlyMap<string, number> | undefined>
+  >();
+
+  return async (language: DefinitionLanguage, words: string[]) => {
+    let pending = cache.get(language);
+    if (!pending) {
+      pending = readFile(join(root, "public", wordFrequencyUrl(language)))
+        .then(decompress)
+        .then((data) => decodeWordFrequencies(data, language))
+        .catch((error) => {
+          cache.delete(language);
+          console.error("Could not load definition word frequencies.", error);
+          return undefined;
+        });
+      cache.set(language, pending);
+    }
+    const frequencies = await pending;
+    return frequencies && words.map((word) => frequencies.get(word.toUpperCase()) ?? null);
+  };
+}
 
 export function definitionIndexPath(dataDir: string) {
   return join(dataDir, "definitions", "definitions.sqlite");

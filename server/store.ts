@@ -11,7 +11,11 @@ import {
 import { join, basename } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { DefinitionLanguage } from "../shared/definitions";
-import { definitionIndexPath, lookupEnglishGlosses } from "./definitions";
+import {
+  createDefinitionFrequencyLookup,
+  definitionIndexPath,
+  lookupEnglishGlosses,
+} from "./definitions";
 import {
   type AppState,
   type Dictionary,
@@ -53,6 +57,7 @@ function cleanRemovedDictionary(path: string) {
 }
 
 export function createStore(directory: string, root: string) {
+  const lookupFrequencies = createDefinitionFrequencyLookup(root);
   const dictionaryDirectory = join(directory, "dictionaries");
   mkdirSync(dictionaryDirectory, { recursive: true });
   const db = new DatabaseSync(join(directory, "tilewise.sqlite"));
@@ -347,8 +352,10 @@ export function createStore(directory: string, root: string) {
   }
   return {
     db,
-    definitions(language: DefinitionLanguage, words: string[]) {
-      return lookupEnglishGlosses(definitionIndexPath(directory), language, words);
+    async definitions(language: DefinitionLanguage, words: string[]) {
+      const glosses = lookupEnglishGlosses(definitionIndexPath(directory), language, words);
+      const wordFrequencyZipf = await lookupFrequencies(language, words);
+      return { ...glosses, wordFrequencyZipf };
     },
     saveScreenshotExample({
       croppedPng,

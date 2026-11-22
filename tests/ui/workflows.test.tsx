@@ -3040,6 +3040,7 @@ test.each(["phone Define", "desktop Define", "desktop right-click"] as const)("l
           { spelling: "côté", headword: "côté", glosses: ["side"] }],
         [{ spelling: "lune", headword: "lune", glosses: ["moon"] }],
       ],
+      wordFrequencyZipf: [3, null],
     }));
   });
   vi.stubGlobal("fetch", fetchDefinitions);
@@ -3088,6 +3089,12 @@ test.each(["phone Define", "desktop Define", "desktop right-click"] as const)("l
   expect(tip.getByText("côté")).toBeTruthy();
   expect(tip.getByText("Down")).toBeTruthy();
   expect(tip.getByText("LUNE")).toBeTruthy();
+  const across = within(tip.getByText("COTE").closest("section")!);
+  expect(across.getByText("Uncommon")).toBeTruthy();
+  expect(across.getByText("~1,000 per billion words")).toBeTruthy();
+  const down = within(tip.getByText("LUNE").closest("section")!);
+  expect(down.getByText("Rare")).toBeTruthy();
+  expect(down.getByText("No wordfreq estimate")).toBeTruthy();
   expect(current().board[115]).toBe("e");
   expect(selectedCell()).toBeUndefined();
   expect(tile.getAttribute("data-definition-open")).toBe("true");
@@ -5470,6 +5477,7 @@ test.each([false, true])("definitions work on recorded words and inside game rev
     return new Response(JSON.stringify({
       available: true,
       entries: [[{ spelling: "cat", glosses: ["A domestic feline."] }]],
+      wordFrequencyZipf: [4.78],
     }));
   });
   vi.stubGlobal("fetch", lookup);
@@ -5486,6 +5494,7 @@ test.each([false, true])("definitions work on recorded words and inside game rev
         await act(() => vi.advanceTimersByTimeAsync(450));
         const sheet = screen.getByRole("dialog", { name: "CAT" });
         expect(within(sheet).getByText("A domestic feline.")).toBeTruthy();
+        expect(within(sheet).getByText("Common")).toBeTruthy();
         touch(sheet, "pointerup");
         expect(fireEvent.click(word, { detail: 1 })).toBe(false);
         act(() => vi.advanceTimersByTime(32));
@@ -5498,6 +5507,7 @@ test.each([false, true])("definitions work on recorded words and inside game rev
         await act(() => vi.advanceTimersByTimeAsync(500));
         const tip = screen.getByRole("tooltip");
         expect(within(tip).getByText("A domestic feline.")).toBeTruthy();
+        expect(within(tip).getByText("Common")).toBeTruthy();
         expect(tip.closest("dialog")).toBe(parentDialog);
         touch(word, "pointerout", { pointerType: "mouse" });
         act(() => vi.advanceTimersByTime(200));

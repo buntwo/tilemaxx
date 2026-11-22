@@ -2513,6 +2513,37 @@ label + label {
 .definition-preview > div + div { margin-top: 6px; }
 .definition-preview dt { font-size: 15px; }
 .definition-preview i { margin-left: 7px; font-size: 12px; font-weight: 400; }
+.definition-frequency {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.definition-frequency-indicator {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  gap: 3px;
+  color: var(--muted);
+}
+.definition-frequency-indicator[data-level="1"] { --frequency-color: var(--value-bad); }
+.definition-frequency-indicator[data-level="2"] { --frequency-color: light-dark(#8a5a00, #f1d28c); }
+.definition-frequency-indicator[data-level="3"] { --frequency-color: var(--value-good); }
+.definition-frequency-dot {
+  width: 6px;
+  height: 6px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+.definition-frequency-dot[data-filled="true"] {
+  color: var(--frequency-color);
+  background: currentColor;
+}
+.definition-frequency-estimate { color: var(--existing-letter); }
 .definition-glosses {
   display: grid;
   grid-template-columns: fit-content(45%) 1fr;

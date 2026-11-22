@@ -47,10 +47,10 @@ export function createApp(store: ReturnType<typeof createStore>) {
   });
   app.use(express.json({ limit: "16mb" }));
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
-  app.get("/api/definitions", (req, res) => {
+  app.get("/api/definitions", async (req, res) => {
     const { language, word } = definitionQuery.parse(req.query);
     try {
-      res.json(store.definitions(language, word));
+      res.json(await store.definitions(language, word));
     } catch (error) {
       console.error(error);
       res.status(503).json({ error: "Definitions are unavailable." });

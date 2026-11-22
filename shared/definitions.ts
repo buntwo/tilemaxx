@@ -15,6 +15,8 @@ export interface WordDefinition {
 export interface DefinitionLookup {
   available: boolean;
   entries: WordDefinition[][];
+  // Aligned with the requested spellings. Null means wordfreq has no entry.
+  wordFrequencyZipf?: (number | null)[];
 }
 
 export function definitionLanguageForRules(

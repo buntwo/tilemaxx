@@ -305,27 +305,57 @@ function DefinitionContent({
 }) {
   if (!result)
     return <p className="definition-muted">Looking up definitions…</p>;
-  if (!result.lookup?.available)
+  const lookup = result.lookup;
+  if (!lookup?.available && !lookup?.wordFrequencyZipf)
     return <p className="definition-muted">Definitions unavailable.</p>;
-  const { entries } = result.lookup;
   return (
     <>
-      {words.map(({ word, direction }, index) => (
-        <section className="definition-word" key={direction ?? word}>
-          {direction && (
-            <p className="definition-heading">
-              <span>{direction === "across" ? "Across" : "Down"}</span>
-              <strong>{word}</strong>
-            </p>
-          )}
-          <Glosses
-            language={language}
-            compact={!direction}
-            entries={preferredSpellings(entries[index])}
-          />
-        </section>
-      ))}
+      {words.map(({ word, direction }, index) => {
+        const entries = lookup.entries[index] ?? [];
+        const zipf = lookup.wordFrequencyZipf?.[index];
+        return (
+          <section className="definition-word" key={direction ?? word}>
+            {(direction || !entries.length) && (
+              <p className="definition-heading">
+                {direction && <span>{direction === "across" ? "Across" : "Down"}</span>}
+                <strong>{word}</strong>
+              </p>
+            )}
+            {lookup.available ? (
+              <Glosses
+                language={language}
+                compact={!direction}
+                entries={preferredSpellings(entries)}
+              />
+            ) : (
+              <p className="definition-muted">Definitions unavailable.</p>
+            )}
+            {zipf !== undefined && <DefinitionFrequency zipf={zipf} />}
+          </section>
+        );
+      })}
     </>
+  );
+}
+
+const frequencyNumber = new Intl.NumberFormat("en", { maximumSignificantDigits: 3 });
+
+function DefinitionFrequency({ zipf }: { zipf: number | null }) {
+  const rate = zipf === null ? null : 10 ** zipf;
+  const level = rate === null ? 0 : rate > 1_000 ? 3 : rate >= 300 ? 2 : 1;
+  const label = level === 3 ? "Common" : level === 2 ? "Uncommon" : "Rare";
+  return (
+    <div className="definition-frequency">
+      <span className="definition-frequency-indicator" data-level={level} aria-hidden="true">
+        {level ? [1, 2, 3].map((dot) => (
+          <span key={dot} className="definition-frequency-dot" data-filled={dot <= level} />
+        )) : "—"}
+      </span>
+      <strong>{label}</strong>
+      <span className="definition-frequency-estimate">
+        {rate === null ? "No wordfreq estimate" : `~${frequencyNumber.format(rate)} per billion words`}
+      </span>
+    </div>
   );
 }
 

@@ -33,9 +33,13 @@ test("the definitions API reads optional local imports by game language", async 
     const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/definitions`;
     const get = (query: string) => fetch(base + "?" + query);
 
-    const missing = await get("language=en&word=CAT");
+    const missing = await get("language=en&word=cat");
     assert.equal(missing.headers.get("cache-control"), "no-store");
-    assert.deepEqual(await missing.json(), { available: false, entries: [] });
+    assert.deepEqual(await missing.json(), {
+      available: false,
+      entries: [],
+      wordFrequencyZipf: [4.78],
+    });
     assert.equal((await get("language=it&word=CAT")).status, 400);
     assert.equal(
       (await get("language=en&word=CAT&word=AT&word=TO")).status,
@@ -53,6 +57,7 @@ test("the definitions API reads optional local imports by game language", async 
     assert.deepEqual(await (await get("language=fr&word=COTE")).json(), {
       available: false,
       entries: [],
+      wordFrequencyZipf: [5.5],
     });
     await writeFile(
       join(definitions, "fr-en.jsonl"),
@@ -63,12 +68,14 @@ test("the definitions API reads optional local imports by game language", async 
       ),
     );
     await importDefinitions(data);
-    const english = await (await get("language=en&word=CAT&word=AT")).json();
+    const english = await (await get("language=en&word=CAT&word=ZYZZYVA")).json();
     assert.equal(english.available, true);
     assert.deepEqual(english.entries[0][0].glosses, ["A domestic feline."]);
     assert.deepEqual(english.entries[1], []);
+    assert.deepEqual(english.wordFrequencyZipf, [4.78, null]);
     const french = await (await get("language=fr&word=COTE&word=LUNE")).json();
     assert.equal(french.available, true);
+    assert.deepEqual(french.wordFrequencyZipf, [5.5, 4.61]);
     assert.deepEqual(
       french.entries.map((entries: { spelling: string }[]) =>
         entries.map(({ spelling }) => spelling),
