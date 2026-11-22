@@ -15,7 +15,7 @@ export interface WordDefinition {
 export interface DefinitionLookup {
   available: boolean;
   entries: WordDefinition[][];
-  // Aligned with the requested spellings. Null means wordfreq has no entry.
+  // English only, aligned with the requested spellings. Null means no wordfreq entry.
   wordFrequencyZipf?: (number | null)[];
 }
 

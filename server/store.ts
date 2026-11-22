@@ -354,7 +354,8 @@ export function createStore(directory: string, root: string) {
     db,
     async definitions(language: DefinitionLanguage, words: string[]) {
       const glosses = lookupEnglishGlosses(definitionIndexPath(directory), language, words);
-      const wordFrequencyZipf = await lookupFrequencies(language, words);
+      if (language !== "en") return glosses;
+      const wordFrequencyZipf = await lookupFrequencies(words);
       return { ...glosses, wordFrequencyZipf };
     },
     saveScreenshotExample({

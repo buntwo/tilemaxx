@@ -14,24 +14,17 @@ import { decodeWordFrequencies, wordFrequencyUrl } from "../shared/word-familiar
 const decompress = promisify(gunzip);
 
 export function createDefinitionFrequencyLookup(root: string) {
-  const cache = new Map<
-    DefinitionLanguage,
-    Promise<ReadonlyMap<string, number> | undefined>
-  >();
+  let pending: Promise<ReadonlyMap<string, number> | undefined> | undefined;
 
-  return async (language: DefinitionLanguage, words: string[]) => {
-    let pending = cache.get(language);
-    if (!pending) {
-      pending = readFile(join(root, "public", wordFrequencyUrl(language)))
-        .then(decompress)
-        .then((data) => decodeWordFrequencies(data, language))
-        .catch((error) => {
-          cache.delete(language);
-          console.error("Could not load definition word frequencies.", error);
-          return undefined;
-        });
-      cache.set(language, pending);
-    }
+  return async (words: string[]) => {
+    pending ??= readFile(join(root, "public", wordFrequencyUrl("en")))
+      .then(decompress)
+      .then((data) => decodeWordFrequencies(data, "en"))
+      .catch((error) => {
+        pending = undefined;
+        console.error("Could not load definition word frequencies.", error);
+        return undefined;
+      });
     const frequencies = await pending;
     return frequencies && words.map((word) => frequencies.get(word.toUpperCase()) ?? null);
   };

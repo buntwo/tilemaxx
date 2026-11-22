@@ -306,13 +306,14 @@ function DefinitionContent({
   if (!result)
     return <p className="definition-muted">Looking up definitions…</p>;
   const lookup = result.lookup;
-  if (!lookup?.available && !lookup?.wordFrequencyZipf)
+  const frequencies = language === "en" ? lookup?.wordFrequencyZipf : undefined;
+  if (!lookup || (!lookup.available && !frequencies))
     return <p className="definition-muted">Definitions unavailable.</p>;
   return (
     <>
       {words.map(({ word, direction }, index) => {
         const entries = lookup.entries[index] ?? [];
-        const zipf = lookup.wordFrequencyZipf?.[index];
+        const zipf = frequencies?.[index];
         return (
           <section className="definition-word" key={direction ?? word}>
             {(direction || !entries.length) && (
@@ -341,8 +342,8 @@ function DefinitionContent({
 const frequencyNumber = new Intl.NumberFormat("en", { maximumSignificantDigits: 3 });
 
 function DefinitionFrequency({ zipf }: { zipf: number | null }) {
-  const rate = zipf === null ? null : 10 ** zipf;
-  const level = rate === null ? 0 : rate > 1_000 ? 3 : rate >= 300 ? 2 : 1;
+  const perMillion = zipf === null ? null : 10 ** (zipf - 3);
+  const level = perMillion === null ? 0 : perMillion > 1 ? 3 : perMillion >= 0.3 ? 2 : 1;
   const label = level === 3 ? "Common" : level === 2 ? "Uncommon" : "Rare";
   return (
     <div className="definition-frequency">
@@ -353,7 +354,7 @@ function DefinitionFrequency({ zipf }: { zipf: number | null }) {
       </span>
       <strong>{label}</strong>
       <span className="definition-frequency-estimate">
-        {rate === null ? "No wordfreq estimate" : `~${frequencyNumber.format(rate)} per billion words`}
+        {perMillion === null ? "No wordfreq estimate" : `~${frequencyNumber.format(perMillion)} per million words`}
       </span>
     </div>
   );

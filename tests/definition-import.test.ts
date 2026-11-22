@@ -57,7 +57,6 @@ test("the definitions API reads optional local imports by game language", async 
     assert.deepEqual(await (await get("language=fr&word=COTE")).json(), {
       available: false,
       entries: [],
-      wordFrequencyZipf: [5.5],
     });
     await writeFile(
       join(definitions, "fr-en.jsonl"),
@@ -75,7 +74,7 @@ test("the definitions API reads optional local imports by game language", async 
     assert.deepEqual(english.wordFrequencyZipf, [4.78, null]);
     const french = await (await get("language=fr&word=COTE&word=LUNE")).json();
     assert.equal(french.available, true);
-    assert.deepEqual(french.wordFrequencyZipf, [5.5, 4.61]);
+    assert.equal(Object.hasOwn(french, "wordFrequencyZipf"), false);
     assert.deepEqual(
       french.entries.map((entries: { spelling: string }[]) =>
         entries.map(({ spelling }) => spelling),
