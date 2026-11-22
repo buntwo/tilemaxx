@@ -1791,22 +1791,22 @@ export default function Results({
                 );
               })}
             </div>
+            {hiddenMoves > 0 && (
+              <div className="result-more">
+                <button
+                  className="button secondary"
+                  type="button"
+                  data-move-preview-action
+                  onClick={() => {
+                    setExpandedSearchId(searchId);
+                    scroller.current?.focus({ preventScroll: true });
+                  }}
+                >
+                  Show all moves ({hiddenMoves.toLocaleString()} more)
+                </button>
+              </div>
+            )}
           </div>
-          {hiddenMoves > 0 && (
-            <div className="result-more">
-              <button
-                className="button secondary"
-                type="button"
-                data-move-preview-action
-                onClick={() => {
-                  setExpandedSearchId(searchId);
-                  scroller.current?.focus({ preventScroll: true });
-                }}
-              >
-                Show all moves ({hiddenMoves.toLocaleString()} more)
-              </button>
-            </div>
-          )}
         </>
       )}
       <footer className="results-foot">

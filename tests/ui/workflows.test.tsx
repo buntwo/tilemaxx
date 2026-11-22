@@ -174,7 +174,7 @@ class SolverWorker {
   }
 }
 
-test("show all moves expands the first 100 without changing the search or scroll position", async () => {
+test("show all moves follows move 100 and expands without changing the search or scroll position", async () => {
   const letters = [..."CATSREN"];
   const lexicon = new Lexicon(letters.flatMap((a) =>
     letters.flatMap((b) => a === b ? [] :
@@ -205,8 +205,10 @@ test("show all moves expands the first 100 without changing the search or scroll
   const find = () => screen.getAllByRole("button", { name: "Find moves" })[0];
   await user.click(find());
   const more = () => screen.findByRole("button", { name: "Show all moves (25 more)" });
-  await more();
+  const expand = await more();
   const list = () => screen.getByLabelText("Suggested moves");
+  expect(expand.parentElement?.parentElement).toBe(list());
+  expect(expand.parentElement?.previousElementSibling).toBe(list().firstElementChild);
   const listHeight = () => (list().firstElementChild as HTMLElement).style.height;
   const lastRow = () => Math.max(...Array.from(list().querySelectorAll<HTMLElement>(".result-slot"),
     row => Number.parseFloat(row.style.top) / moveRowHeight + 1));
