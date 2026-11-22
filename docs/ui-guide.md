@@ -76,7 +76,7 @@ In **Game scores → Tracked move history**, lowercase letters are blanks and pa
 
 | Name | Where to find it |
 | --- | --- |
-| **Archived games** | Saved games moved out of the active game list, with filters and tracked scores. The default sort shows the newest end dates first and uses the start date when no end date was recorded. |
+| **Archived games** | Saved games moved out of the active game list, with filters, tracked scores, and each game’s selected word list. The default sort shows the newest end dates first and uses the start date when no end date was recorded. |
 | **Board studio** | The board template library. The **board editor** sets board size, premium squares, and tile counts. |
 | **Screenshot import** | The dialog that reads a board from a picture. Open it from **Game options** or use the icon beside the entry hint under an empty board in the side-by-side layout. The **crop controls** set the grid bounds. **Premium review** checks special squares, including **Use opening play scores** when available. |
 | **Word lists** | The dictionary manager in the sidebar. The Game header shows the selected dictionary, and the selector is in **Game options**. |

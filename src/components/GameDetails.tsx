@@ -20,14 +20,17 @@ export function IncompleteMoveHistoryIcon() {
 export function GameMetadata({
   game,
   endedOn,
+  wordList,
 }: {
   game: Pick<Game, "platform" | "startedOn">;
   endedOn?: string;
+  wordList?: string;
 }) {
   const date = endedOn ?? game.startedOn;
   return (
     <>
       {game.platform && <>{game.platform} · </>}
+      {wordList && <>{wordList} · </>}
       {date ? (
         <time dateTime={date}>
           {endedOn && "Ended "}

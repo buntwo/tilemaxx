@@ -3918,11 +3918,15 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
 });
 
 test("archived games sort by end date with a start-date fallback and can filter by opponent", async () => {
+  remote.dictionaries.push({
+    ...remote.dictionaries[0], id: "club", name: "Club word list", builtin: false,
+  });
   remote.games.push(
     {
       ...game(),
       id: "recent",
       name: "Sam Cooke",
+      dictionaryId: "club",
       archived: true,
       startedOn: "2026-04-01",
       scoring: {
@@ -3943,6 +3947,7 @@ test("archived games sort by end date with a start-date fallback and can filter 
       id: "other",
       name: "Morgan",
       platform: "Sam",
+      dictionaryId: "unavailable",
       archived: true,
       startedOn: "2026-06-01",
     },
@@ -3962,6 +3967,10 @@ test("archived games sort by end date with a start-date fallback and can filter 
   expect(count.textContent).toBe("3");
   expect(names()).toEqual(["Sam Cooke", "Morgan", "Alex Sampson"]);
   expect(archive.getByText("Ended Jun 5, 2026")).toBeTruthy();
+  expect(archive.getByRole("button", { name: /^Sam Cooke.*Club word list.*Ended/ })).toBeTruthy();
+  expect(archive.getByRole("button", { name: /^Alex Sampson.*Test words/ })).toBeTruthy();
+  expect(archive.getByRole("button", { name: /^Morgan.*Sam · Word list unavailable/ })).toBeTruthy();
+  expect(store.getSnapshot().games.recent).toBeUndefined();
   await user.type(search, " sAm ");
   expect(names()).toEqual(["Sam Cooke", "Alex Sampson"]);
   expect(count.textContent).toBe("2 / 3");
@@ -4121,9 +4130,9 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
       .getAllByRole("listitem")
       .map((row) => within(row).getAllByRole("button")[0].textContent);
   expect(names()).toEqual([
-    "ZoeMay 12, 2026",
-    "Saved matchApr 20, 2025",
-    "AlexDate not set",
+    "ZoeTest words · May 12, 2026",
+    "Saved matchTest words · Apr 20, 2025",
+    "AlexTest words · Date not set",
   ]);
   await user.selectOptions(archived().getByLabelText("Sort by"), "opponent");
   expect(
@@ -4149,7 +4158,7 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   });
   await user.click(edit.getByRole("button", { name: "Save details" }));
   await user.selectOptions(archived().getByLabelText("Sort by"), "date");
-  expect(names()[0]).toBe("SamClub night · Jun 1, 2026");
+  expect(names()[0]).toBe("SamClub night · Test words · Jun 1, 2026");
   await store.flush();
   expect(remote.games.find((g) => g.id === "archived")).toMatchObject({
     name: "Sam",
@@ -4219,7 +4228,7 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   });
   await user.click(cell("Back to archived games"));
   expect(location.hash).toBe("#archived-games");
-  expect(names()[0]).toBe("SamClub night · Jun 1, 2026");
+  expect(names()[0]).toBe("SamClub night · Test words · Jun 1, 2026");
   expect(screen.queryByRole("heading", { name: "Sam" })).toBeNull();
   await user.click(cell("My games"));
   expect(screen.getByRole("heading", { name: "First game" })).toBeTruthy();

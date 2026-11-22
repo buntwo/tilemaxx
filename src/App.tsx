@@ -1264,6 +1264,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             filterRef={archiveFilter}
             headerControl={sidebarButton}
             games={archivedGames}
+            dictionaries={data.dictionaries}
             sort={archiveSort}
             onSort={setArchiveSort}
             onOpen={chooseGame}

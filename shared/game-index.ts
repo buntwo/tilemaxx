@@ -30,6 +30,7 @@ export type GameSummary = Pick<
   | "archived"
   | "revision"
 > & {
+  dictionaryId?: Game["dictionaryId"];
   endedOn?: string;
   thumbnail: GameThumbnail;
   fullMoveHistory: boolean;
@@ -99,6 +100,7 @@ export function summarizeGame(game: Game): GameSummary {
     id,
     profileId,
     name,
+    dictionaryId,
     platform,
     startedOn,
     archived,
@@ -112,6 +114,7 @@ export function summarizeGame(game: Game): GameSummary {
     id,
     profileId,
     name,
+    dictionaryId,
     ...(game.solo && { solo: game.solo }),
     ...(platform !== undefined && { platform }),
     ...(startedOn !== undefined && { startedOn }),

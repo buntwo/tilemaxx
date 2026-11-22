@@ -1,6 +1,7 @@
 import { useState, type ReactNode, type Ref } from "react";
 import { ArrowLeft, ArrowRight, Pencil } from "lucide-react";
 import { opponentNameMatches, type GameSummary } from "../../shared/game-index";
+import type { Dictionary } from "../../shared/model";
 import { IncompleteMoveHistoryIcon, GameMetadata } from "./GameDetails";
 import GameScoreBadge, { describeGameScore } from "./GameScoreBadge";
 import LayoutThumbnail from "./LayoutThumbnail";
@@ -13,6 +14,7 @@ const opponentOrder = new Intl.Collator(undefined, {
 
 export default function ArchivedGames({
   games,
+  dictionaries,
   headerControl,
   filterRef,
   sort,
@@ -22,6 +24,7 @@ export default function ArchivedGames({
   onBack,
 }: {
   games: GameSummary[];
+  dictionaries: readonly Dictionary[];
   headerControl?: ReactNode;
   filterRef?: Ref<HTMLInputElement>;
   sort: ArchiveSort;
@@ -31,6 +34,7 @@ export default function ArchivedGames({
   onBack: () => void;
 }) {
   const [query, setQuery] = useState("");
+  const dictionaryNames = new Map(dictionaries.map(({ id, name }) => [id, name]));
   const filterLabel = games.some((game) => game.solo) ? "Filter by name" : "Filter by opponent";
   const results = games
     .filter((game) => opponentNameMatches(game.name, query))
@@ -112,7 +116,13 @@ export default function ArchivedGames({
                           {!game.fullMoveHistory && <IncompleteMoveHistoryIcon />}
                         </strong>
                         <small>
-                          <GameMetadata game={game} endedOn={game.endedOn} />
+                          <GameMetadata
+                            game={game}
+                            endedOn={game.endedOn}
+                            wordList={game.dictionaryId
+                              ? dictionaryNames.get(game.dictionaryId) ?? "Word list unavailable"
+                              : undefined}
+                          />
                         </small>
                       </span>
                       {game.score && <GameScoreBadge score={game.score} />}

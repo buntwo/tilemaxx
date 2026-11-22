@@ -693,6 +693,12 @@ test("the game index backfills old SQLite saves and leaves full history on the d
       )
       .run(game.id);
     assert.equal((await getIndex()).games[0].fullMoveHistory, false);
+    store.db.prepare(
+      "UPDATE game_summaries SET data=json_remove(data, '$.dictionaryId') WHERE id=?",
+    ).run(game.id);
+    const restored = (await getIndex()).games[0];
+    assert.equal(restored.dictionaryId, game.dictionaryId);
+    assert.equal(restored.revision, game.revision);
     assert.equal(
       (await (await fetch(base + "/games/old")).json()).past.length,
       1,

@@ -468,17 +468,18 @@ test("polling refreshes an older cached summary at the same game revision", asyn
   const { client, game, cleanup } = setup();
   try {
     const score = { you: 300, opponent: 280, outcome: "win" };
-    const { score: _score, ...cached } = summarizeGame({ ...game, archived: true });
+    const { score: _score, dictionaryId, ...cached } = summarizeGame({ ...game, archived: true });
     const index = { ...client.snapshot.data!, games: [cached] };
     cacheGameIndex(JSON.stringify(index));
     localStorage.removeItem("tilewise:cache");
     const reloaded = new GameStore();
     globalThis.fetch = async (url) => {
       assert.equal(url, "/api/state/index");
-      return response({ ...index, games: [{ ...cached, score }] });
+      return response({ ...index, games: [{ ...cached, score, dictionaryId }] });
     };
     await reloaded.refresh();
     assert.deepEqual(reloaded.snapshot.data?.games[0].score, score);
+    assert.equal(reloaded.snapshot.data?.games[0].dictionaryId, game.dictionaryId);
     assert.deepEqual(reloaded.snapshot.games, {});
   } finally {
     cleanup();
