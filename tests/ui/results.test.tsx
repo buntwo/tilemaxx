@@ -323,6 +323,7 @@ test("scrolling and filtering use worker pages and ignore out-of-order results",
   expect(panel.style.getPropertyValue("--result-rank-digits")).toBe("3");
   expect(pending).toHaveLength(0);
   const scroller = screen.getByLabelText("Suggested moves");
+  fireEvent.click(screen.getByRole("button", { name: "Show all moves (100 more)" }));
   scroller.scrollTop = 200 * moveRowHeight;
   fireEvent.scroll(scroller);
   await waitFor(() => expect(pending).toHaveLength(1));

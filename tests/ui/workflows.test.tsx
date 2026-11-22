@@ -35,6 +35,7 @@ import { REPLY_LIMIT, REPLY_SAMPLES, replyEndgameLine, type ReplyDistribution, t
 import { MoveResultIndex } from "../../shared/move-results";
 import { createPlayerProfiles } from "../../shared/player-profiles";
 import { prepareEndgameEstimate } from "../../shared/endgame-estimate";
+import { moveRowHeight } from "../../src/useMoveResults";
 import type { SolverMessage, SolverRequest } from "../../src/solver-messages";
 import type { PracticeRequest } from "../../src/practice.worker";
 import type { WordListCheckRequest } from "../../src/word-list-checker.worker";
@@ -172,6 +173,76 @@ class SolverWorker {
     });
   }
 }
+
+test("show all moves expands the first 100 without changing the search or scroll position", async () => {
+  const letters = [..."CATSREN"];
+  const lexicon = new Lexicon(letters.flatMap((a) =>
+    letters.flatMap((b) => a === b ? [] :
+      letters.filter((c) => c !== a && c !== b).map((c) => a + b + c)),
+  ));
+  const requests: number[] = [];
+  let tailWord = "";
+  class ManyMovesWorker extends SolverWorker {
+    postMessage(request: SolverRequest) {
+      if (request.kind !== "solve") return super.postMessage(request);
+      requests.push(request.id);
+      const { moves, topScore } = solvePositionWithBaseline(lexicon, request, request.template);
+      const result = new MoveResultIndex(moves.slice(0, 125), request.template);
+      tailWord = result.moves.at(-1)!.word;
+      this.results.set(request.id, result);
+      queueMicrotask(() => this.onmessage?.({ data: {
+        kind: "moves",
+        id: request.id,
+        results: result.summary(request.id, topScore),
+        warnings: [],
+        stages: { moves: 1, indexing: 0.5 },
+      } satisfies SolverMessage }));
+    }
+  }
+  vi.stubGlobal("Worker", ManyMovesWorker);
+  const user = await start(1200);
+  await typeRack(user, "CATSRE");
+  const find = () => screen.getAllByRole("button", { name: "Find moves" })[0];
+  await user.click(find());
+  const more = () => screen.findByRole("button", { name: "Show all moves (25 more)" });
+  await more();
+  const list = () => screen.getByLabelText("Suggested moves");
+  const listHeight = () => (list().firstElementChild as HTMLElement).style.height;
+  const lastRow = () => Math.max(...Array.from(list().querySelectorAll<HTMLElement>(".result-slot"),
+    row => Number.parseFloat(row.style.top) / moveRowHeight + 1));
+  const scrollTo = (row: number) => {
+    list().scrollTop = row * moveRowHeight;
+    fireEvent.scroll(list());
+  };
+  expect(listHeight()).toBe(`${100 * moveRowHeight}px`);
+
+  await user.click(screen.getByRole("button", { name: "Search possible moves" }));
+  const filter = screen.getByRole("textbox", { name: "Filter moves" });
+  await user.type(filter, tailWord);
+  await waitFor(() => expect(lastRow()).toBeLessThanOrEqual(6));
+  expect(screen.queryByRole("button", { name: /Show all moves/ })).toBeNull();
+  await user.clear(filter);
+  await more();
+
+  scrollTo(92);
+  await waitFor(() => expect(lastRow()).toBe(100));
+
+  await user.click(await more());
+  expect(listHeight()).toBe(`${125 * moveRowHeight}px`);
+  expect(list().scrollTop).toBe(92 * moveRowHeight);
+  expect(document.activeElement).toBe(list());
+  scrollTo(117);
+  await waitFor(() => expect(lastRow()).toBe(125));
+  expect(screen.queryByRole("button", { name: /Show all moves/ })).toBeNull();
+  expect(requests).toHaveLength(1);
+
+  await user.click(rackTile(6));
+  await user.keyboard("N");
+  await user.click(find());
+  await more();
+  expect(listHeight()).toBe(`${100 * moveRowHeight}px`);
+  expect(requests).toHaveLength(2);
+});
 
 test("compare mode selects moves without playing and switches model without rerunning", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({

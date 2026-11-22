@@ -102,6 +102,8 @@ import ReplyHeatmapDialog, {
   ReplySettings,
 } from "./ReplyAnalysis";
 
+const INITIAL_MOVE_LIMIT = 100;
+
 type MoveListOrder = { sort: MoveSort; reversed: boolean };
 
 const hunterStageLabels: Record<HunterProgress["phase"], string> = {
@@ -371,6 +373,7 @@ export default function Results({
   const replyMetricId = useId();
   const [candidates, setCandidates] = useState<Move[]>([]);
   const searchId = resultSet?.searchId;
+  const [expandedSearchId, setExpandedSearchId] = useState<number>();
   const selectedProfile = resultSet ? playingStyle : undefined;
   const { view, returnView } = navigation;
   const shortlistActive = view === "shortlist";
@@ -647,6 +650,7 @@ export default function Results({
     },
     fetchPage,
     !busy && !error && !waitingForEndgame && (!hunterSelected || !!hunterResult),
+    searchId !== expandedSearchId ? INITIAL_MOVE_LIMIT : undefined,
   );
   const scoreTooltip = useMoveScoreTooltip(analysisGame, (move) => {
     const delta = replyDeltas[move.id];
@@ -660,8 +664,10 @@ export default function Results({
       : undefined;
   });
   const total = shortlistActive ? filteredShortlist.length : page.total;
+  const displayedTotal = shortlistActive ? total : page.displayedTotal;
+  const hiddenMoves = total - displayedTotal;
   const exactCount = page.exactEndgameCount ?? 0;
-  const endgameDivider = exactCount > 0 && exactCount < total ? exactCount : -1;
+  const endgameDivider = exactCount > 0 && exactCount < displayedTotal ? exactCount : -1;
   const start = shortlistActive ? 0 : page.start;
   const visible = shortlistActive ? filteredShortlist : page.visible;
   const pagePending = shortlistActive
@@ -727,7 +733,7 @@ export default function Results({
     const list = scroller.current;
     if (index === undefined || !list) return;
     setFollowHistogram(undefined);
-    if (index < 0) return;
+    if (index < 0 || index >= displayedTotal) return;
     const rowTop = index * moveRowHeight;
     if (
       rowTop >= list.scrollTop &&
@@ -739,7 +745,7 @@ export default function Results({
         ? "instant"
         : "smooth",
     });
-  }, [page.locatedIndex]);
+  }, [page.locatedIndex, displayedTotal]);
   useEffect(() => {
     setInspectedReply(undefined);
     if (requiredSquares)
@@ -1419,9 +1425,10 @@ export default function Results({
               setScrollPositions((current) => ({ ...current, [view]: { sort, reversed, top } }));
             }}
             aria-label="Suggested moves"
+            tabIndex={-1}
           >
             <div
-              style={{ height: total * moveRowHeight, position: "relative" }}
+              style={{ height: displayedTotal * moveRowHeight, position: "relative" }}
             >
               {visible.map((m, offset) => {
                 const bingo = isBingo(bingoRules, m.tiles.length);
@@ -1785,6 +1792,21 @@ export default function Results({
               })}
             </div>
           </div>
+          {hiddenMoves > 0 && (
+            <div className="result-more">
+              <button
+                className="button secondary"
+                type="button"
+                data-move-preview-action
+                onClick={() => {
+                  setExpandedSearchId(searchId);
+                  scroller.current?.focus({ preventScroll: true });
+                }}
+              >
+                Show all moves ({hiddenMoves.toLocaleString()} more)
+              </button>
+            </div>
+          )}
         </>
       )}
       <footer className="results-foot">

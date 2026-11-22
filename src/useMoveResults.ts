@@ -19,6 +19,7 @@ export function useMoveResults(
   query: MoveQuery,
   fetchPage: FetchMovePage,
   enabled: boolean,
+  displayLimit?: number,
 ) {
   const {
     filter,
@@ -80,19 +81,20 @@ export function useMoveResults(
   }, [results, filter, profile, requiredSquares, endgameId, sort, reversed, replyDeltas]);
   const head = page?.head ?? initialHead ?? [];
   const total = page?.total ?? (initialHead ? results?.total : 0) ?? 0;
-  const start = Math.min(offset, Math.max(0, total - visibleMoveRows));
+  const displayedTotal = Math.min(total, displayLimit ?? total);
+  const start = Math.min(offset, Math.max(0, displayedTotal - visibleMoveRows));
+  const end = Math.min(displayedTotal, start + visibleMoveRows);
   const slice =
     page ?? (initialHead && { offset: 0, rows: initialHead });
   const visible =
     slice?.rows.slice(
       Math.max(0, start - slice.offset),
-      Math.max(0, start + visibleMoveRows - slice.offset),
+      Math.max(0, end - slice.offset),
     ) ?? [];
   const hasWindow =
     !!slice &&
     start >= slice.offset &&
-    Math.min(total, start + visibleMoveRows) <=
-      slice.offset + slice.rows.length;
+    end <= slice.offset + slice.rows.length;
   const orderChanged = !!response && response.orderData !== orderData;
   const locateChanged = !!locateMoveId && response?.locateMoveId !== locateMoveId;
   const unavailable = !!response && !page && !orderChanged && !locateChanged;
@@ -150,6 +152,7 @@ export function useMoveResults(
 
   return {
     total,
+    displayedTotal,
     bingoCount: page?.bingoCount ?? (initialHead ? results?.bingoCount : 0) ?? 0,
     head,
     start: Math.max(start, slice?.offset ?? 0),
