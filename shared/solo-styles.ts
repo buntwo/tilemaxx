@@ -187,18 +187,22 @@ export function createSoloStyleSearch(
       const drawSize = Math.min(bagSize, rackSize - move.leave.length);
       const bingoNow = isBingo(template, move.tiles.length);
       let hits = 0;
+      let points = 0;
       try {
         if (move.leave.length + drawSize >= minimum) {
           const solver = factory(factory.place(board, move));
-          const checked = new Map<string, boolean>();
+          const checked = new Map<string, number | null>();
           for (const deal of deals) {
             const rack = sortTiles(move.leave + deal.bag.slice(0, drawSize));
-            let hit = checked.get(rack);
-            if (hit === undefined) {
-              hit = solver.bestBingo(rack, limits) !== null;
-              checked.set(rack, hit);
+            let score = checked.get(rack);
+            if (score === undefined) {
+              score = solver.bestBingo(rack, limits)?.score ?? null;
+              checked.set(rack, score);
             }
-            if (hit) hits += deal.weight;
+            if (score !== null) {
+              hits += deal.weight;
+              points += score * deal.weight;
+            }
             yield;
           }
         }
@@ -206,7 +210,7 @@ export function createSoloStyleSearch(
         ranked.push({
           move, utility: {
             kind: "solo-bingo", score: move.score, bingoNow, bingoChance,
-            total: Number(bingoNow) + bingoChance, samples: deals.length, exact,
+            total: points / weight, samples: deals.length, exact,
           },
         });
       } catch (error) {
@@ -319,6 +323,7 @@ export function createSoloStyleSearch(
         ranked: [...ranked].sort((a, b) => {
           if (a.utility.kind === "solo-bingo" && b.utility.kind === "solo-bingo") {
             return Number(b.utility.bingoNow) - Number(a.utility.bingoNow) ||
+              b.utility.total - a.utility.total ||
               b.utility.bingoChance - a.utility.bingoChance ||
               (byLeave[b.move.leave] ?? 0) - (byLeave[a.move.leave] ?? 0) ||
               byScore(a.move, b.move);

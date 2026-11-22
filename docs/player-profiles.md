@@ -8,9 +8,10 @@ In solo games, **Casual**, **Word-List Learner**, and **Strong Club Player**
 rank the plays the model spots using points, word familiarity, and rack
 leave. The solo versions evaluate your own board and rack.
 
-- **Greedy Bingo** takes a bingo when available and ranks placements by the
-  chance of a legal bingo after you refill. The check uses the resulting board,
-  including letters you can play through.
+- **Greedy Bingo** takes a bingo when available and ranks placements by
+  expected bingo points after you refill. Each refill contributes the best
+  legal bingo score on the resulting board, weighted by its probability.
+  A refill with no bingo contributes zero. Bingo chance breaks ties.
 - **Triple Play** ranks by your score now plus expected points on your next
   two turns. It screens promising scores and leaves, then checks the second
   future turn for up to six finalists. It plays the highest-scoring simulated

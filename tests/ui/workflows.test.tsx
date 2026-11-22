@@ -3697,6 +3697,7 @@ test("solo games show their playing styles and load each sampled utility breakdo
   await user.click(screen.getByRole("button", { name: "Run Greedy Bingo" }));
   await user.click((await screen.findAllByRole("button", { name: /^Utility breakdown for/ }))[0]);
   expect(within(screen.getByRole("tooltip")).getByText("Next-turn bingo chance")).toBeTruthy();
+  expect(within(screen.getByRole("tooltip")).getByText("Expected bingo points next turn")).toBeTruthy();
   await user.keyboard("{Escape}");
   await user.selectOptions(picker, "triple-play");
   await user.click(screen.getByRole("button", { name: "Run Triple Play" }));

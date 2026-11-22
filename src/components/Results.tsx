@@ -1245,7 +1245,7 @@ export default function Results({
                   : hunterResult?.limited
                     ? "The search reached its complexity limit."
                     : bingoStyle === "greedy-bingo"
-                      ? "Take a bingo when available, then rank by the chance of a bingo after refilling."
+                      ? "Take a bingo when available, then rank by expected bingo points after refilling."
                       : bingoStyle === "triple-play"
                         ? "Rank by points now plus expected points over your next two turns."
                         : bingoStyle === "master"

@@ -55,11 +55,10 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
             </>
           )}
         </ul>
-        {!bingo && (
-          <div className="score-breakdown-line score-breakdown-total">
-            <strong>Expected points across three plays</strong><strong>{formatUtility(utility.total)}</strong>
-          </div>
-        )}
+        <div className="score-breakdown-line score-breakdown-total">
+          <strong>{bingo ? "Expected bingo points next turn" : "Expected points across three plays"}</strong>
+          <strong>{formatUtility(utility.total)}</strong>
+        </div>
         <div className="move-score-adjustment">
           {utility.exact ? "All possible draws" : `${utility.samples} sampled draws`}
         </div>
