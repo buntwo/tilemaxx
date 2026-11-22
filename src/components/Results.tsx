@@ -1248,9 +1248,11 @@ export default function Results({
                       ? "Take a bingo when available, then rank by the chance of a bingo after refilling."
                       : bingoStyle === "triple-play"
                         ? "Rank by points now plus expected points over your next two turns."
-                        : bingoStyle === "master"
-                          ? "Compare your score, their reply, and what you can play next."
-                          : "Rank moves by weighted play points now and expected bingo points after the reply. Bingos count in full.")}</p>
+                        : bingoStyle === "triple-threat"
+                          ? "Take a bingo when available, then weigh points now, the next-turn bingo chance, and open triple-word lanes."
+                          : bingoStyle === "master"
+                            ? "Compare your score, their reply, and what you can play next."
+                            : "Rank moves by weighted play points now and expected bingo points after the reply. Bingos count in full.")}</p>
               {hunterAction ?? (
                 <button type="button" className="button primary" disabled={!hunterKey} onClick={() => hunter.start()}>
                   Run {hunterLabel}

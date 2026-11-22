@@ -3691,7 +3691,7 @@ test("solo games show their playing styles and load each sampled utility breakdo
   await user.keyboard("{Enter}");
   const picker = await screen.findByRole("combobox", { name: "Playing style" });
   expect(within(picker).getAllByRole("option").map((option) => option.textContent)).toEqual([
-    "No style", "Casual", "Word-List Learner", "Strong Club Player", "Greedy Bingo", "Triple Play",
+    "No style", "Casual", "Word-List Learner", "Strong Club Player", "Greedy Bingo", "Triple Play", "Triple Threat",
   ]);
   await user.selectOptions(picker, "greedy-bingo");
   await user.click(screen.getByRole("button", { name: "Run Greedy Bingo" }));
@@ -3704,6 +3704,15 @@ test("solo games show their playing styles and load each sampled utility breakdo
   await user.click((await screen.findAllByRole("button", { name: /^Utility breakdown for/ }))[0]);
   expect(within(screen.getByRole("tooltip")).getByText("Expected points two turns ahead")).toBeTruthy();
   expect(localStorage.getItem("tilemaxx:playing-style:g")).toBe("triple-play");
+  await user.keyboard("{Escape}");
+  await user.selectOptions(picker, "triple-threat");
+  await user.click(screen.getByRole("button", { name: "Run Triple Threat" }));
+  await user.click((await screen.findAllByRole("button", { name: /^Utility breakdown for/ }))[0]);
+  const threat = within(screen.getByRole("tooltip"));
+  expect(threat.getByText("Play points now")).toBeTruthy();
+  expect(threat.getByText("Next-turn bingo chance")).toBeTruthy();
+  expect(threat.getByText("Triple-word lane adjustment")).toBeTruthy();
+  expect(localStorage.getItem("tilemaxx:playing-style:g")).toBe("triple-threat");
 });
 
 test("starting another game from an archive copies settings onto a fresh board", async () => {

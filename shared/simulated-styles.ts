@@ -3,7 +3,7 @@ export const OPPONENT_SIMULATED_STYLES = [
   "tactician",
   "master",
 ] as const;
-export const SOLO_SIMULATED_STYLES = ["greedy-bingo", "triple-play"] as const;
+export const SOLO_SIMULATED_STYLES = ["greedy-bingo", "triple-play", "triple-threat"] as const;
 export const SIMULATED_STYLES = [...OPPONENT_SIMULATED_STYLES, ...SOLO_SIMULATED_STYLES] as const;
 
 export type SoloSimulatedStyle = (typeof SOLO_SIMULATED_STYLES)[number];
@@ -15,6 +15,7 @@ export const SIMULATED_STYLE_LABELS: Record<SimulatedStyle, string> = {
   master: "Master",
   "greedy-bingo": "Greedy Bingo",
   "triple-play": "Triple Play",
+  "triple-threat": "Triple Threat",
 };
 
 export function isSimulatedStyle(style?: string): style is SimulatedStyle {

@@ -27,7 +27,7 @@ type UtilityDetails = {
 
 function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
   if ("kind" in utility && utility.kind !== "master") {
-    const bingo = utility.kind === "solo-bingo";
+    const bingo = utility.kind !== "solo-points";
     return (
       <div className="score-breakdown-content">
         <div>{isSimulatedStyle(profile) && SIMULATED_STYLE_LABELS[profile]} · Rank {utility.rank}</div>
@@ -41,8 +41,18 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
                 <span>Bingo now</span><span>{utility.bingoNow ? "Yes" : "No"}</span>
               </li>
               <li className="score-breakdown-line">
-                <span>Next-turn bingo chance</span><span>{formatUtility(utility.bingoChance * 100)}%</span>
+                <span>Next-turn bingo chance</span>
+                <span>
+                  {formatUtility(utility.bingoChance * 100)}%
+                  {utility.kind === "solo-triple-threat" && ` · ${formatUtility(utility.bingoPoints)} pts`}
+                </span>
               </li>
+              {utility.kind === "solo-triple-threat" && (
+                <li className="score-breakdown-line">
+                  <span>Triple-word lane adjustment</span>
+                  <span className={scoreTone(utility.lanePoints)}>{formatUtility(utility.lanePoints)}</span>
+                </li>
+              )}
             </>
           ) : (
             <>
@@ -55,9 +65,10 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
             </>
           )}
         </ul>
-        {!bingo && (
+        {utility.kind !== "solo-bingo" && (
           <div className="score-breakdown-line score-breakdown-total">
-            <strong>Expected points across three plays</strong><strong>{formatUtility(utility.total)}</strong>
+            <strong>{utility.kind === "solo-points" ? "Expected points across three plays" : "Utility"}</strong>
+            <strong>{formatUtility(utility.total)}</strong>
           </div>
         )}
         <div className="move-score-adjustment">

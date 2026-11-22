@@ -17,18 +17,22 @@ import { leaveValue } from "./rack-leave";
 import type { SoloSimulatedStyle } from "./simulated-styles";
 import { createSolverFactory, SearchLimitError } from "./solver";
 import { unseenTiles } from "./tile-pool";
+import { createTripleWordLaneAdjustment } from "./triple-word-lanes";
 
 const DRAW_SAMPLES = 24;
 const SCREEN_SAMPLES = 48;
 const POINTS_FINALISTS = 6;
+const TRIPLE_THREAT_BINGO_VALUE = 80;
 const CHECK_MS = 120;
 const sortTiles = (letters: string) => [...letters].sort().join("");
 const byScore = (a: Move, b: Move) =>
   b.score - a.score || leaveValue(b.leave) - leaveValue(a.leave) || a.id.localeCompare(b.id);
 
 type SampledUtility = { total: number; score: number; samples: number; exact: boolean };
+type BingoForecast = { bingoNow: boolean; bingoChance: number };
 export type SoloStyleUtility = SampledUtility & (
-  | { kind: "solo-bingo"; bingoNow: boolean; bingoChance: number }
+  | ({ kind: "solo-bingo" } & BingoForecast)
+  | ({ kind: "solo-triple-threat"; bingoPoints: number; lanePoints: number } & BingoForecast)
   | { kind: "solo-points"; nextPoints: number; followUpPoints: number }
 );
 export type RankedSoloMove = { move: Move; utility: SoloStyleUtility };
@@ -132,12 +136,12 @@ export function createSoloStyleSearch(
   const seed = profileWordHash(`${sortTiles(rackLetters(position.rack))}|${pool}|${board.join(".")}`);
   const factory = createSolverFactory(lexicon, template, true);
   const rackSize = template.rackSize;
-  const greedy = style === "greedy-bingo";
-  const availableBingo = greedy && moves.some((move) => isBingo(template, move.tiles.length));
+  const forecastsBingo = style !== "triple-play";
+  const availableBingo = forecastsBingo && moves.some((move) => isBingo(template, move.tiles.length));
   const exact = bagSize <= 2;
   const deals: Deal[] = exact
     ? exactHunterDeals([...pool], bagSize).map(({ bag, weight = 1 }) => ({ bag, weight }))
-    : sampleOrders(pool, rackSize * (greedy ? 2 : 1), DRAW_SAMPLES, seed ^ 0x9bc327e7)
+    : sampleOrders(pool, rackSize * (forecastsBingo ? 2 : 1), DRAW_SAMPLES, seed ^ 0x9bc327e7)
       .map((bag) => ({ bag, weight: 1 }));
   const weight = deals.reduce((sum, deal) => sum + deal.weight, 0);
   const limits = { maxMs: CHECK_MS };
@@ -178,18 +182,23 @@ export function createSoloStyleSearch(
     limited = true;
   }
 
-  function* rankGreedy(): Generator<SoloStyleProgress | undefined> {
+  function* rankBingoForecast(): Generator<SoloStyleProgress | undefined> {
     yield { phase: "solo-bingo", stage: 1, done: 0, total: 0 };
     yield* screenGreedy();
     const candidates = greedyCandidates(moves, position, bagSize, byLeave);
     const minimum = minimumBingoTiles(template);
+    const laneAdjustment = style === "triple-threat"
+      ? createTripleWordLaneAdjustment(lexicon, template, board, bagSize)
+      : undefined;
     for (const [index, move] of candidates.entries()) {
       const drawSize = Math.min(bagSize, rackSize - move.leave.length);
       const bingoNow = isBingo(template, move.tiles.length);
       let hits = 0;
       try {
-        if (move.leave.length + drawSize >= minimum) {
-          const solver = factory(factory.place(board, move));
+        const canBingoNext = move.leave.length + drawSize >= minimum;
+        const after = canBingoNext || laneAdjustment ? factory.place(board, move) : board;
+        if (canBingoNext) {
+          const solver = factory(after);
           const checked = new Map<string, boolean>();
           for (const deal of deals) {
             const rack = sortTiles(move.leave + deal.bag.slice(0, drawSize));
@@ -203,11 +212,18 @@ export function createSoloStyleSearch(
           }
         }
         const bingoChance = hits / weight;
+        const forecast = { score: move.score, bingoNow, bingoChance, samples: deals.length, exact };
+        const lane = laneAdjustment?.(after) ?? 0;
         ranked.push({
-          move, utility: {
-            kind: "solo-bingo", score: move.score, bingoNow, bingoChance,
-            total: Number(bingoNow) + bingoChance, samples: deals.length, exact,
-          },
+          move,
+          utility: style === "triple-threat"
+            ? {
+              kind: "solo-triple-threat", ...forecast,
+              bingoPoints: bingoChance * TRIPLE_THREAT_BINGO_VALUE,
+              lanePoints: lane * TRIPLE_THREAT_BINGO_VALUE,
+              total: (bingoChance + move.score / TRIPLE_THREAT_BINGO_VALUE + lane) * TRIPLE_THREAT_BINGO_VALUE,
+            }
+            : { kind: "solo-bingo", ...forecast, total: Number(bingoNow) + bingoChance },
         });
       } catch (error) {
         handleLimit(error);
@@ -306,19 +322,20 @@ export function createSoloStyleSearch(
     }
   }
 
-  const steps = !moves.length ? [][Symbol.iterator]() : greedy ? rankGreedy() : rankTriple();
+  const steps = !moves.length ? [][Symbol.iterator]() : forecastsBingo ? rankBingoForecast() : rankTriple();
   return {
     steps,
     result() {
       // Show a provisional ranking only after at least one immediate bingo
       // has been evaluated, if there is a bingo available in this position.
-      if (availableBingo && !ranked.some(({ utility }) => utility.kind === "solo-bingo" && utility.bingoNow))
+      if (availableBingo && !ranked.some(({ utility }) => utility.kind !== "solo-points" && utility.bingoNow))
         return { limited, ranked: [] };
       return {
         limited,
         ranked: [...ranked].sort((a, b) => {
-          if (a.utility.kind === "solo-bingo" && b.utility.kind === "solo-bingo") {
+          if (a.utility.kind !== "solo-points" && b.utility.kind !== "solo-points") {
             return Number(b.utility.bingoNow) - Number(a.utility.bingoNow) ||
+              (style === "triple-threat" ? b.utility.total - a.utility.total : 0) ||
               b.utility.bingoChance - a.utility.bingoChance ||
               (byLeave[b.move.leave] ?? 0) - (byLeave[a.move.leave] ?? 0) ||
               byScore(a.move, b.move);
