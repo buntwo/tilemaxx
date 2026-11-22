@@ -401,7 +401,6 @@ export function samplePlayerExchange(
       moves,
       "strong",
       { board, rack, bagSize, seed, playerSeed },
-      { scoreOrdered: true },
     ).move;
   }
   function afterReply(board: Board, reply: Move) {

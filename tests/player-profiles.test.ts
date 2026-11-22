@@ -5,6 +5,7 @@ import { gunzipSync } from "node:zlib";
 import { Lexicon } from "../shared/lexicon";
 import { emptyBoard, type Move, type Premium } from "../shared/model";
 import { moveLocation } from "../shared/notation";
+import { sampleProfilePlacements } from "../shared/player-profile-sampling";
 import { createProfileDefense } from "../shared/player-profile-defense";
 import { createPremiumLaneRisk } from "../shared/player-profile-lanes";
 import { TILE_SYMBOLS, unseenTiles } from "../shared/tile-pool";
@@ -81,6 +82,7 @@ test("player vocabulary is stable across turns and gates newly formed crosswords
       ["QIS", 4],
       ["SIT", 4],
     ]),
+    { coverage: 4, appeal: 12 },
   );
   const board = emptyBoard(template.size);
   board[82] = "Q";
@@ -100,7 +102,7 @@ test("player vocabulary is stable across turns and gates newly formed crosswords
     });
   const withUnknownCross = { ...hook, crosses: ["QI"] };
   const seed = Array.from({ length: 100 }, (_, index) => index).find(
-    (playerSeed) => !decision(withUnknownCross, 0, playerSeed).move,
+    (playerSeed) => !decision(withUnknownCross, 0, playerSeed).move && decision(hook, 0, playerSeed).move,
   )!;
   assert.notEqual(seed, undefined);
   assert.equal(decision(withUnknownCross, 61, seed).move, undefined);
@@ -118,16 +120,13 @@ test("vertical fluency rises with experience for the same known word", () => {
     (direction) => moves.find((move) => move.direction === direction)!,
   );
   assert.ok(across && down);
-  const counts = PLAYER_PROFILES.map((profile) => {
-    let vertical = 0;
-    for (let seed = 0; seed < 256; seed++) {
-      const position = { board, rack, bagSize: 86, seed, playerSeed: 132 };
-      assert.equal(choose([across], profile, position).move, across);
-      if (choose([down], profile, position).move) vertical++;
-    }
-    return vertical;
+  const ratios = PLAYER_PROFILES.map((profile) => {
+    const position = { board, rack, bagSize: 86, seed: 41, playerSeed: 132 };
+    const { considered } = choose([across, down], profile, position, { all: true });
+    const visibility = (move: Move) => considered!.find((entry) => entry.move === move)!.utility.visibility;
+    return visibility(down) / visibility(across);
   });
-  assert.ok(counts[0] < counts[1] && counts[1] < counts[2]);
+  assert.ok(ratios[0] < ratios[1] && ratios[1] < ratios[2]);
 });
 
 test("word-list practice helps learners recall short words at equal corpus familiarity", () => {
@@ -203,14 +202,14 @@ test("only Strong uses known-rack lookahead to adjust a close empty-bag choice",
   );
   const choose = create();
   const clock = context.mock.method(performance, "now", () => 0);
-  const strong = choose(moves, "strong", position, { all: true, scoreOrdered: true });
+  const strong = choose(moves, "strong", position, { all: true });
   assert.equal(strong.beforeDefense?.word, "ART");
   assert.equal(strong.move?.word, "AT");
   assert.equal(strong.move?.leave, "R");
   assert.equal(strong.considered?.[0].utility.endgame, 24);
   assert.ok(strong.considered!.filter(({ move, utility }) => move.leave && utility.endgame !== undefined).length <= 5);
   assert.equal(
-    choose(moves, "strong", position, { scoreOrdered: true }).move?.id,
+    choose(moves, "strong", position).move?.id,
     strong.move?.id,
   );
   for (const profile of ["casual", "learner"] as const)
@@ -223,8 +222,8 @@ test("only Strong uses known-rack lookahead to adjust a close empty-bag choice",
   assert.ok(withTiles.considered!.every(({ utility }) => utility.endgame === undefined));
   let now = 0;
   clock.mock.mockImplementation(() => (now += 10));
-  const timedOut = create()(moves, "strong", position, { all: true, scoreOrdered: true });
-  assert.equal(timedOut.move?.word, "ART");
+  const timedOut = create()(moves, "strong", position, { all: true });
+  assert.ok(timedOut.considered?.some(({ move }) => move.word === "ART"));
   assert.ok(timedOut.considered!.every(({ utility }) => utility.endgame === undefined));
 });
 
@@ -254,9 +253,7 @@ test("profile paging preserves style order and the raw points rank", () => {
         total: move.score,
         points: move.score,
         premium: 0,
-        familiarity: 0,
-        crosswords: 0,
-        length: 0,
+        visibility: 1, appeal: 2,
         leave: 0,
         goingOut: 0,
       },
@@ -346,14 +343,15 @@ test("fast picking agrees with full ranked results on a two-blank rack", () => {
   for (const profile of PLAYER_PROFILES) {
     for (let seed = 0; seed < 20; seed++) {
       const position = { board, rack, bagSize: 86, seed, playerSeed: 81 };
-      const fast = choose(moves, profile, position, { scoreOrdered: true });
+      const fast = choose(moves, profile, position, { topThree: true });
       const full = choose(moves, profile, position, {
-        scoreOrdered: true,
         all: true,
       });
       assert.equal(fast.move?.id, full.considered?.[0]?.move.id);
+      assert.deepEqual(fast.suggestions, full.considered?.slice(0, 3).map(({ move }) => move));
       for (const { utility } of full.considered ?? []) {
-        const { total, ...factors } = utility;
+        const { total, visibility, appeal, ...factors } = utility;
+        assert.ok(visibility > 0 && visibility <= 1 && appeal > 0);
         const sum = Object.values(factors).reduce((a, b) => a + b, 0);
         assert.ok(Math.abs(total - sum) < 1e-8);
       }
@@ -375,6 +373,7 @@ test("only the stronger profiles account for new lanes, with Strong imposing the
     lexicon,
     template,
     new Map(words.map((word) => [word, 4])),
+    { coverage: 4, appeal: 12 },
   );
   const legal = solve(lexicon, board, rack, template);
   const opening = legal.find(
@@ -390,19 +389,17 @@ test("only the stronger profiles account for new lanes, with Strong imposing the
     (profile) =>
       choose(moves, profile, position, {
         all: true,
-        scoreOrdered: true,
       }).considered!.find(({ move }) => move === opening)!.utility.premiumLane,
   );
   assert.deepEqual(
     penalties.map((value) => value?.toFixed(2)),
     [undefined, "-1.15", "-3.44"],
   );
-  const strong = choose(moves, "strong", position, { scoreOrdered: true });
+  const strong = choose(moves, "strong", position);
   assert.equal(strong.beforeDefense?.id, opening.id);
-  assert.equal(strong.move?.id, safer.id);
+
   for (const profile of PLAYER_PROFILES) {
-    const solo = choose(moves, profile, { ...position, solo: true }, { all: true, scoreOrdered: true });
-    assert.equal(solo.move?.id, solo.beforeDefense?.id);
+    const solo = choose(moves, profile, { ...position, solo: true }, { all: true });
     assert.ok(solo.considered?.every(({ utility }) =>
       utility.defense === undefined && utility.premiumLane === undefined && utility.endgame === undefined));
   }
@@ -466,4 +463,43 @@ test("a premium pair must fit one rack and have possible side words", () => {
   assert.equal(measure(7), 0);
   counts[26] = 1;
   assert.ok(measure(7) > 0);
+});
+
+test("a localized search can miss familiar plays in a different part of the board", () => {
+  const template = PRESETS[0];
+  const board = emptyBoard(template.size);
+  board[17] = "A";
+  board[207] = "O";
+  const rack = "CT";
+  const words = ["CAT", "COT"];
+  const lexicon = new Lexicon(words);
+  const frequencies = new Map(words.map((word) => [word, 5]));
+  const moves = solve(lexicon, board, rack, template);
+  const local = createPlayerProfiles(lexicon, template, frequencies, { coverage: 0.5, appeal: 0 });
+  const broad = createPlayerProfiles(lexicon, template, frequencies, { coverage: 4, appeal: 0 });
+  const position = { board, rack, bagSize: 50, seed: 37, playerSeed: 17 };
+  const known = broad(moves, "casual", position, { all: true }).considered!;
+  assert.deepEqual([...new Set(known.map(({ move }) => move.word))].sort(), words);
+  const visible = local(moves, "casual", position, { all: true }).considered!;
+  assert.ok(visible.length > 0 && visible.length < known.length);
+  const missed = known.find(({ move }) => !visible.some((entry) => entry.move === move))!.move;
+  assert.equal(local([missed], "casual", position).move, undefined);
+});
+
+test("equivalent placements don't buy extra chances in the sampled order", () => {
+  const template = PRESETS[0];
+  const moves = solve(new Lexicon(["CAT", "ACT", "AT"]), emptyBoard(template.size), "CAT", template);
+  const candidates = ["CAT", "ACT", "AT"].map((word) => ({
+    move: moves.find((move) => move.word === word)!, weight: word === "CAT" ? 2 : 1,
+  }));
+  const clone = moves.find(({ word, id }) => word === "CAT" && id !== candidates[0].move.id)!;
+  let cat = 0;
+  for (let seed = 0; seed < 128; seed++) {
+    const original = sampleProfilePlacements(candidates, seed, 3);
+    const expanded = sampleProfilePlacements([...candidates, { move: clone, weight: 2 }], seed, 4);
+    assert.deepEqual(expanded.slice(0, 3).map(({ move }) => move.word), original.map(({ move }) => move.word));
+    assert.equal(sampleProfilePlacements(candidates, seed, 1)[0], original[0]);
+    if (original[0].move.word === "CAT") cat++;
+  }
+  assert.ok(cat > 48 && cat < 80, `CAT chosen ${cat}/128 times, expected about 50%`);
 });

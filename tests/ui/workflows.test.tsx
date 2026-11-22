@@ -313,8 +313,7 @@ test("All moves and Shortlist share the selected playing style as their return v
         const result = this.results.get(request.searchId);
         if (result) result.setProfile(request.query, result.moves.slice(1, 2).map((move) => ({
           move, utility: {
-            total: 7, points: 8.5, premium: 0, familiarity: -0.55,
-            crosswords: 0, length: 0, leave: 0.2, goingOut: 0, premiumLane: -1.15,
+            total: 7.55, points: 8.5, premium: 0, visibility: 1, appeal: 2, leave: 0.2, goingOut: 0, premiumLane: -1.15,
           },
         })));
       }
@@ -334,13 +333,14 @@ test("All moves and Shortlist share the selected playing style as their return v
   await waitFor(() => expect(all()).toHaveLength(1));
   expect(requested).toContain("learner");
   expect(screen.getByLabelText("Sort by playing style or points")).toBeTruthy();
-  expect(within(all()[0] as HTMLElement).getByText("U 7")).toBeTruthy();
-  await user.click(screen.getByRole("button", { name: /^Utility breakdown for/ }));
+  expect(within(all()[0] as HTMLElement).getByText("#1")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: /^Style breakdown for/ }));
   const tooltip = within(screen.getByRole("tooltip"));
-  expect(tooltip.getByText("Utility breakdown")).toBeTruthy();
+  expect(tooltip.getByText("Style breakdown")).toBeTruthy();
   expect(tooltip.getByText("Word-List Learner · Rank 1")).toBeTruthy();
   expect(tooltip.getByText("Weighted points")).toBeTruthy();
-  expect(tooltip.getByText("Word familiarity")).toBeTruthy();
+  expect(tooltip.getByText("Visibility weight")).toBeTruthy();
+  expect(tooltip.getByText("Appeal multiplier")).toBeTruthy();
   expect(tooltip.getByText("Rack leave")).toBeTruthy();
   expect(tooltip.getByText("Premium lane risk")).toBeTruthy();
   expect(tooltip.getByText("-1.15").classList.contains("value-bad")).toBe(true);
@@ -376,7 +376,7 @@ test("All moves and Shortlist share the selected playing style as their return v
   expect(allMoves.getAttribute("aria-pressed")).toBe("true");
   expect(allMoves.title).toBe("Return to Word-List Learner");
   await user.click(allMoves);
-  expect(await screen.findByText("U 7")).toBeTruthy();
+  expect(await screen.findByText("#1")).toBeTruthy();
   expect(picker).toHaveProperty("value", "learner");
 });
 
@@ -7044,7 +7044,7 @@ test("style exchanges replace general advice and ignore stale worker replies", a
         const result = this.results.get(request.searchId);
         const move = result?.moves.find(({ word }) => word === "AT");
         if (move) result!.setProfile(request.query, [{ move, utility: {
-          total: 5, points: 5, premium: 0, familiarity: 0, crosswords: 0, length: 0, leave: 0, goingOut: 0,
+          total: 5, points: 5, premium: 0, visibility: 1, appeal: 2, leave: 0, goingOut: 0,
         } }]);
       }
       if (["solve", "page", "shortlist", "endgame", "discard", "cancel"].includes(request.kind))

@@ -1462,6 +1462,7 @@ export default function Results({
                   ? undefined
                   : Number(adjusted.toFixed(1));
                 const utility = page.utilities?.[m.id];
+                const sampledStyleRank = utility && "visibility" in utility ? utility.rank : undefined;
                 const utilityTotal = utility && formatUtility(utility.total);
                 const estimate = page.endgame?.[m.id];
                 const exactLine = showEndgameSwing
@@ -1564,7 +1565,7 @@ export default function Results({
                         !selected &&
                         candidates.length >= ANALYSIS_LIMIT
                       }
-                      aria-label={`${m.word}, ${m.score} points, ${movePosition} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrificeLabel}${utility ? `, Utility ${utilityTotal}, rank ${utility.rank} by playing style` : adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : extraLabel ? `, ${extraLabel}` : ""}${scoreRankLabel ? `, ${scoreRankLabel}` : ""}${histogramSelected ? ", selected for reply details" : ""}`}
+                      aria-label={`${m.word}, ${m.score} points, ${movePosition} ${m.direction}, ${m.tiles.length} tiles${bingo ? `, bingo, ${bingoBonus}-point bonus included` : ""}${rackPercent ? `, bingo draw ${rackPercent}` : ""}${boardPercent ? `, bingo after your play ${boardPercent}` : ""}${sacrificeLabel}${sampledStyleRank ? `, playing style rank ${sampledStyleRank}` : utility ? `, Utility ${utilityTotal}, rank ${utility.rank} by playing style` : adjustedLabel === undefined ? "" : `, ${adjustedLabel} reply-adjusted points`}${short ? `, ${short.reason}${short.detail ? `, ${short.detail}` : ""}` : extraLabel ? `, ${extraLabel}` : ""}${scoreRankLabel ? `, ${scoreRankLabel}` : ""}${histogramSelected ? ", selected for reply details" : ""}`}
                       onPointerDown={(e) => {
                         pointer.current = e.pointerType;
                       }}
@@ -1653,7 +1654,7 @@ export default function Results({
                           {topScore === null ? "—" : signedPoints(-sacrifice)}
                         </small>
                         {utility ? (
-                          <small className="result-score-extra">U {utilityTotal}</small>
+                          <small className="result-score-extra">{sampledStyleRank ? `#${sampledStyleRank}` : `U ${utilityTotal}`}</small>
                         ) : adjustedLabel !== undefined && (
                           <small className="result-score-extra">Adj. {adjustedLabel}</small>
                         )}
@@ -1752,7 +1753,7 @@ export default function Results({
                     {analysisGame &&
                       scoreTooltip.trigger(
                         m,
-                        `${utility ? "Utility" : "Score"} breakdown for ${m.word} at ${moveLocation(m)} ${m.direction}`,
+                        `${sampledStyleRank ? "Style" : utility ? "Utility" : "Score"} breakdown for ${m.word} at ${moveLocation(m)} ${m.direction}`,
                       )}
                     {!showEndgameSwing && replyPending && (
                       <span

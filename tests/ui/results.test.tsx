@@ -265,8 +265,7 @@ test.each(PLAYER_PROFILES)("%s badges count all legal moves before and after ran
     index.setProfile(query, [{
       move: moves[1],
       utility: {
-        total: 10, points: 10, premium: 0, familiarity: 0,
-        crosswords: 0, length: 0, leave: 0, goingOut: 0,
+        total: 10, points: 10, premium: 0, visibility: 1, appeal: 2, leave: 0, goingOut: 0,
       },
     }]);
     return index.page(query);

@@ -75,7 +75,7 @@ async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind:
         seed,
         playerSeed: profileSeed,
         scorelessTurns: query.profileScorelessTurns,
-      }, { all: true, scoreOrdered: true });
+      }, { all: true });
       result.setProfile(query, considered ?? []);
     } catch (error) {
       const page = { ...result.page(query), rows: [], head: [], total: 0, bingoCount: 0,

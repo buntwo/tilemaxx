@@ -14,6 +14,7 @@ import {
 } from "../../shared/player-profiles";
 
 const utilityNumber = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
+const weightNumber = new Intl.NumberFormat("en", { maximumSignificantDigits: 3 });
 
 export function formatUtility(value: number) {
   return utilityNumber.format(value);
@@ -170,9 +171,6 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
   const factors = [
     { label: "Weighted points", value: utility.points, show: true },
     { label: "Premium squares", value: utility.premium },
-    { label: "Word familiarity", value: utility.familiarity },
-    { label: "Crosswords", value: utility.crosswords },
-    { label: "Play length", value: utility.length },
     { label: "Rack leave", value: utility.leave },
     { label: "Endgame lookahead", value: utility.endgame, show: utility.endgame !== undefined },
     { label: "Going out", value: utility.goingOut },
@@ -204,14 +202,22 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
         )}
       </ul>
       <div className="score-breakdown-line score-breakdown-total">
-        <strong>Utility</strong>
+        <strong>Appeal points</strong>
         <strong>{formatUtility(utility.total)}</strong>
+      </div>
+      <div className="score-breakdown-line">
+        <span>Visibility weight</span>
+        <span>{weightNumber.format(utility.visibility)}</span>
+      </div>
+      <div className="score-breakdown-line">
+        <span>Appeal multiplier</span>
+        <span>×{weightNumber.format(utility.appeal)}</span>
       </div>
       {(checksDefense || utility.endgame !== undefined) && (
         <div className="move-score-adjustment">
           {utility.endgame !== undefined
             ? "Leading candidates were compared using the known endgame racks."
-            : "Leading candidates are ranked first and checked for premium threats."}
+            : "Leading candidates are checked for premium threats before sampling."}
         </div>
       )}
     </div>
@@ -387,7 +393,7 @@ export function useMoveScoreTooltip(
         >
           {utility ? (
             <>
-              <strong>Utility breakdown</strong>
+              <strong>{"visibility" in utility.utility ? "Style breakdown" : "Utility breakdown"}</strong>
               <UtilityBreakdown {...utility} />
             </>
           ) : (
