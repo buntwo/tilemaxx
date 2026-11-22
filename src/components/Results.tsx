@@ -511,6 +511,8 @@ export default function Results({
   >({});
   const position = scrollPositions[view];
   const scroll = position?.sort === sort && position.reversed === reversed ? position.top : 0;
+  const sortDirection = defaultSortDescending(sort) !== reversed ? "descending" : "ascending";
+  const wordSorted = sort === "word" || sort === "length";
   const pointsSorted = sort === "score" || sort === "reply-adjusted" || sort === "playing-style";
   function setSort(sort: MoveSort, reversed = false, target = view) {
     setOrdering((current) => ({
@@ -1354,18 +1356,21 @@ export default function Results({
           )}
           <div className="result-columns">
             <div className="result-word-heading">
-              {column("WORD", "word", "word")}
+              <ResultSortMenu
+                label={sort === "length" ? "LENGTH" : "WORD"}
+                accessibleLabel="Sort by word or length"
+                sortDirection={wordSorted ? sortDirection : undefined}
+              >
+                {column("Alphabetical", "word", "word")}
+                {column("Word length", "length", "word length")}
+              </ResultSortMenu>
             </div>
             <div className="result-points-heading">
               {canSortAdjusted || profile ? (
                 <ResultSortMenu
                   label={sort === "playing-style" ? "STYLE" : sort === "reply-adjusted" ? "ADJ. PTS" : "PTS"}
                   accessibleLabel={profile ? "Sort by playing style or points" : "Sort by points or reply-adjusted points"}
-                  sortDirection={
-                    pointsSorted
-                      ? reversed ? "ascending" : "descending"
-                      : undefined
-                  }
+                  sortDirection={pointsSorted ? sortDirection : undefined}
                 >
                   {column("Points", "score", "points")}
                   {canSortAdjusted && column("Reply-adjusted points", "reply-adjusted", "reply-adjusted points")}

@@ -230,6 +230,14 @@ function setup(
 const rows = () => screen.getAllByRole("button", { name: /points,/ });
 const displayedRank = (row: HTMLElement) => row.querySelector(".result-rank")?.textContent;
 
+async function selectWordSort(
+  user: ReturnType<typeof userEvent.setup>,
+  sort: "word" | "word length",
+) {
+  await user.click(screen.getByLabelText("Sort by word or length"));
+  await user.click(screen.getByRole("button", { name: `Sort by ${sort}` }));
+}
+
 test("the header omits the bingo count when no moves are bingos", () => {
   setup();
   expect(screen.queryByRole("img", { name: /bingos?/i })).toBeNull();
@@ -708,7 +716,7 @@ test("reply rows resolve individually and compare against the highest score afte
   expect(details().open).toBe(false);
   expect(document.activeElement).toBe(pointsMenu());
 
-  await user.click(screen.getByRole("button", { name: "Sort by word" }));
+  await selectWordSort(user, "word");
   const row = rows().find((element) =>
     element.getAttribute("aria-label")?.startsWith("CAT,"),
   )!;
@@ -1301,9 +1309,9 @@ test("rack odds sort every move and board odds rank checked moves separately", a
 test("column headings sort moves and filters preserve the original results", async () => {
   const { user } = setup();
   expect(screen.queryByRole("combobox", { name: "Sort moves" })).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Sort by word" }));
+  await selectWordSort(user, "word");
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^AT,/);
-  await user.click(screen.getByRole("button", { name: "Sort by word" }));
+  await selectWordSort(user, "word");
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
   await user.click(screen.getByRole("button", { name: "Sort by points" }));
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
@@ -1321,6 +1329,29 @@ test("column headings sort moves and filters preserve the original results", asy
   await user.clear(screen.getByRole("textbox", { name: "Filter moves" }));
   expect(rows()).toHaveLength(3);
 });
+
+test.each([false, true])("word length counts board letters and breaks ties by score (phone=%s)", async (phone) => {
+  const { user } = setup(phone, {
+    moves: [
+      moves[0],
+      { ...moves[1], word: "HEATS", col: 6, tiles: [{ index: 111, letter: "H" }] },
+      { ...moves[2], word: "SEATS", col: 6, tiles: [{ index: 111, letter: "S" }] },
+    ],
+  });
+  const order = () => rows().map((row) => row.getAttribute("aria-label")?.split(",")[0]);
+  const heading = () => screen.getByLabelText("Sort by word or length");
+
+  expect(order()).toEqual(["CATS", "HEATS", "SEATS"]);
+  await selectWordSort(user, "word length");
+  expect(order()).toEqual(["HEATS", "SEATS", "CATS"]);
+  expect(heading().textContent).toBe("LENGTH");
+  expect(heading().getAttribute("aria-description")).toBe("Sorted descending");
+
+  await selectWordSort(user, "word length");
+  expect(order()).toEqual(["CATS", "HEATS", "SEATS"]);
+  expect(heading().getAttribute("aria-description")).toBe("Sorted ascending");
+});
+
 test.each(["wide", "narrow"])(
   "%s layouts preview on mouse hover and play on one click",
   async (layout) => {
@@ -1614,9 +1645,8 @@ test("bingo check follows the displayed sort, reverse order and filter, up to 20
   });
   const check = () =>
     screen.getByRole("button", { name: "Check bingo after your play" });
-  const sort = () => screen.getByRole("button", { name: "Sort by word" });
   await user.click(screen.getByText("Options", { selector: "summary" }));
-  await user.click(sort());
+  await selectWordSort(user, "word");
   await waitFor(() =>
     expect(rows()[0].getAttribute("aria-label")).toMatch(/^AT,/),
   );
@@ -1625,13 +1655,13 @@ test("bingo check follows the displayed sort, reverse order and filter, up to 20
     [moves[2], ...high.slice(0, 19)],
     89,
   );
-  await user.click(sort());
+  await selectWordSort(user, "word");
   await waitFor(() =>
     expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/),
   );
   await user.click(check());
   expect(onBoardOdds).toHaveBeenLastCalledWith(high.slice(0, 20), 89);
-  await user.click(sort());
+  await selectWordSort(user, "word");
   await user.type(
     screen.getByRole("textbox", { name: "Filter moves" }),
     "CATS",

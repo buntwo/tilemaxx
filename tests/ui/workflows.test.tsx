@@ -7081,12 +7081,9 @@ test("a new search after playing starts with highest points", async () => {
   const user = await start();
   await typeRack(user, "CATS");
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
-  await user.click(await screen.findByRole("button", { name: "Sort by word" }));
-  expect(
-    (await screen.findByRole("button", { name: "Sort by word" })).getAttribute(
-      "aria-pressed",
-    ),
-  ).toBe("true");
+  await user.click(await screen.findByLabelText("Sort by word or length"));
+  await user.click(screen.getByRole("button", { name: "Sort by word length" }));
+  expect(screen.getByLabelText("Sort by word or length").textContent).toBe("LENGTH");
   await user.click(
     (await screen.findAllByRole("button", { name: /^AT, / }))[0],
   );

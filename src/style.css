@@ -5817,6 +5817,7 @@ label + label {
   background: var(--surface);
   box-shadow: var(--shadow);
 }
+.result-word-heading .result-sort-options { right: auto; left: 0; }
 .result-sort-options .result-column-sort {
   display: flex;
   width: 100%;
