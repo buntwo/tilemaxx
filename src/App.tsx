@@ -428,8 +428,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     preferences.autoUpdate,
     updateBusy,
   );
+  // Keep the board in the review layout until the flying tiles land.
   const moveReview = useMoveReview(
-    narrowLayout && workspace === "games" && !gameOver,
+    narrowLayout && workspace === "games" && (!gameOver || !!activeFlight),
     !busy && !solver.error && solver.results?.total
       ? solver.results.searchId
       : undefined,

@@ -5058,9 +5058,10 @@ function finishFixture(out: "you" | "opponent") {
   return { ...initial, revision: initial.revision + 1 };
 }
 
-test("finish overlay waits for the last tile, dismisses outside the card, and archives in place", async () => {
+test.each([1200, 390])("finish overlay waits for the last tile, dismisses outside the card, and archives in place at %s px", async (width) => {
+  const phone = width === 390;
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === "(any-hover: hover)",
+    matches: !phone && query === "(any-hover: hover)",
     addEventListener() {},
     removeEventListener() {},
   }));
@@ -5076,6 +5077,7 @@ test("finish overlay waits for the last tile, dismisses outside the card, and ar
   const rect = HTMLElement.prototype.getBoundingClientRect;
   const geometry = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
     .mockImplementation(function (this: HTMLElement) {
+      if (this.matches(".board-grid")) return new DOMRect(10, 20, 300, 320);
       if (this.matches(".board-finish")) return new DOMRect(10, 20, 500, 530);
       if (this.matches('[data-cell="0"]')) return new DOMRect(40, 70, 24, 24);
       if (this.matches('[data-cell="224"]')) return new DOMRect(480, 510, 24, 24);
@@ -5084,18 +5086,23 @@ test("finish overlay waits for the last tile, dismisses outside the card, and ar
         : rect.call(this);
     });
   try {
-    const user = await start();
+    const user = await start(width);
     await screen.findByRole("button", { name: "Rack tile 1: S" });
     const board = within(screen.getByRole("region", { name: "Game board" }));
     await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
     const [move] = await screen.findAllByRole("button", { name: /^CATS, / });
+    const reviewing = () => !!document.querySelector(".move-review");
+    expect(reviewing()).toBe(phone);
     await user.click(move);
-    expect(document.querySelector(".tile-flight-layer")).toBeTruthy();
+    if (phone) await user.click(board.getByRole("button", { name: "Play" }));
+    await waitFor(() => expect(document.querySelector(".tile-flight-layer")).toBeTruthy());
+    expect(reviewing()).toBe(phone);
     expect(board.queryByRole("heading", { name: "You win!" })).toBeNull();
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
       await act(async () => finish());
       expect(document.querySelector(".tile-flight-layer")).toBeNull();
+      expect(reviewing()).toBe(false);
       const outcome = board.getByRole("heading", { name: "You win!" });
       expect(document.activeElement).not.toBe(screen.getByRole("textbox", { name: "Rack letters" }));
       expect(outcome.closest(".board-grid")).toBeTruthy();
