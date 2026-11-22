@@ -512,7 +512,7 @@ export default function Results({
   const position = scrollPositions[view];
   const scroll = position?.sort === sort && position.reversed === reversed ? position.top : 0;
   const sortDirection = defaultSortDescending(sort) !== reversed ? "descending" : "ascending";
-  const wordSorted = sort === "word" || sort === "length";
+  const wordSorted = sort === "word" || sort === "length" || sort === "tiles";
   const pointsSorted = sort === "score" || sort === "reply-adjusted" || sort === "playing-style";
   function setSort(sort: MoveSort, reversed = false, target = view) {
     setOrdering((current) => ({
@@ -1357,12 +1357,13 @@ export default function Results({
           <div className="result-columns">
             <div className="result-word-heading">
               <ResultSortMenu
-                label={sort === "length" ? "LENGTH" : "WORD"}
-                accessibleLabel="Sort by word or length"
+                label={sort === "length" ? "LENGTH" : sort === "tiles" ? "TILES" : "WORD"}
+                accessibleLabel="Word sort options"
                 sortDirection={wordSorted ? sortDirection : undefined}
               >
                 {column("Alphabetical", "word", "word")}
                 {column("Word length", "length", "word length")}
+                {column("Tiles used", "tiles", "tiles used")}
               </ResultSortMenu>
             </div>
             <div className="result-points-heading">

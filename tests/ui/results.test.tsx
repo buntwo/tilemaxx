@@ -232,9 +232,9 @@ const displayedRank = (row: HTMLElement) => row.querySelector(".result-rank")?.t
 
 async function selectWordSort(
   user: ReturnType<typeof userEvent.setup>,
-  sort: "word" | "word length",
+  sort: "word" | "word length" | "tiles used",
 ) {
-  await user.click(screen.getByLabelText("Sort by word or length"));
+  await user.click(screen.getByLabelText("Word sort options"));
   await user.click(screen.getByRole("button", { name: `Sort by ${sort}` }));
 }
 
@@ -1330,25 +1330,42 @@ test("column headings sort moves and filters preserve the original results", asy
   expect(rows()).toHaveLength(3);
 });
 
-test.each([false, true])("word length counts board letters and breaks ties by score (phone=%s)", async (phone) => {
+test.each([false, true])("word length and tiles used sort separately and break ties by score (phone=%s)", async (phone) => {
   const { user } = setup(phone, {
     moves: [
+      { ...moves[1], word: "HEATS", score: 25, col: 6, tiles: [{ index: 111, letter: "H" }] },
       moves[0],
-      { ...moves[1], word: "HEATS", col: 6, tiles: [{ index: 111, letter: "H" }] },
+      {
+        ...moves[0],
+        id: "d",
+        word: "CAST",
+        score: 15,
+        blanks: 0,
+        tiles: [..."CAST"].map((letter, offset) => ({ index: 112 + offset, letter })),
+      },
       { ...moves[2], word: "SEATS", col: 6, tiles: [{ index: 111, letter: "S" }] },
     ],
   });
   const order = () => rows().map((row) => row.getAttribute("aria-label")?.split(",")[0]);
-  const heading = () => screen.getByLabelText("Sort by word or length");
+  const heading = () => screen.getByLabelText("Word sort options");
 
-  expect(order()).toEqual(["CATS", "HEATS", "SEATS"]);
+  expect(order()).toEqual(["HEATS", "CATS", "CAST", "SEATS"]);
   await selectWordSort(user, "word length");
-  expect(order()).toEqual(["HEATS", "SEATS", "CATS"]);
+  expect(order()).toEqual(["HEATS", "SEATS", "CATS", "CAST"]);
   expect(heading().textContent).toBe("LENGTH");
   expect(heading().getAttribute("aria-description")).toBe("Sorted descending");
 
   await selectWordSort(user, "word length");
-  expect(order()).toEqual(["CATS", "HEATS", "SEATS"]);
+  expect(order()).toEqual(["CATS", "CAST", "HEATS", "SEATS"]);
+  expect(heading().getAttribute("aria-description")).toBe("Sorted ascending");
+
+  await selectWordSort(user, "tiles used");
+  expect(order()).toEqual(["CATS", "CAST", "HEATS", "SEATS"]);
+  expect(heading().textContent).toBe("TILES");
+  expect(heading().getAttribute("aria-description")).toBe("Sorted descending");
+
+  await selectWordSort(user, "tiles used");
+  expect(order()).toEqual(["HEATS", "SEATS", "CATS", "CAST"]);
   expect(heading().getAttribute("aria-description")).toBe("Sorted ascending");
 });
 
