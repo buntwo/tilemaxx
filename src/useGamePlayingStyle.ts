@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { isSimulatedStyle, isSoloSimulatedStyle } from "../shared/simulated-styles";
 import type { MoveStyle } from "../shared/move-results";
-import { PLAYER_PROFILES } from "../shared/player-profiles";
+import { PLAYER_PROFILES, type PlayerProfile } from "../shared/player-profiles";
 
 export function useGamePlayingStyle(gameId?: string, solo = false) {
   const [selections, setSelections] = useState(
@@ -34,4 +34,24 @@ export function useGamePlayingStyle(gameId?: string, solo = false) {
   const style =
     gameId && selections.has(gameId) ? selections.get(gameId) : stored;
   return [style, select] as const;
+}
+
+export function usePlayingStyleSample(positionKey: string, profile?: PlayerProfile) {
+  const [samples, setSamples] = useState<{
+    positionKey: string;
+    draws: Partial<Record<PlayerProfile, number>>;
+  }>();
+  const sample = samples?.positionKey === positionKey && profile
+    ? samples.draws[profile] ?? 0
+    : 0;
+
+  function resample() {
+    if (!profile) return;
+    setSamples((current) => {
+      const draws = current?.positionKey === positionKey ? current.draws : {};
+      return { positionKey, draws: { ...draws, [profile]: (draws[profile] ?? 0) + 1 } };
+    });
+  }
+
+  return { sample, resample };
 }

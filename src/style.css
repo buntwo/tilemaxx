@@ -2125,8 +2125,17 @@ label + label {
   color: var(--muted);
   font-size: 11px;
 }
+.move-style-resample {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
 @container (max-width: 380px) {
-  .compact-game .move-list-controls .solve-endgame-action span { display: none; }
+  .compact-game .move-list-controls .solve-endgame-action span,
+  .move-list-controls:has(.move-style-resample) .solve-endgame-action span { display: none; }
 }
 .opponent-endgame { --move-row-height: 50px; }
 .opponent-endgame .opponent-endgame-note {

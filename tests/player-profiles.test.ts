@@ -245,20 +245,19 @@ test("profile paging preserves style order and the raw points rank", () => {
     sort: "playing-style",
     offset: 0,
   } as const;
-  index.setProfile(
-    query,
-    [low, high].map((move) => ({
-      move,
-      utility: {
-        total: move.score,
-        points: move.score,
-        premium: 0,
-        visibility: 1, appeal: 2,
-        leave: 0,
-        goingOut: 0,
-      },
-    })),
-  );
+  const ranked = [low, high].map((move) => ({
+    move,
+    utility: {
+      total: move.score,
+      points: move.score,
+      premium: 0,
+      visibility: 1,
+      appeal: 2,
+      leave: 0,
+      goingOut: 0,
+    },
+  }));
+  index.setProfile(query, ranked);
   const page = index.page(query);
   assert.deepEqual(page.rows, [low, high]);
   assert.equal(page.scoreRanks[low.id], moves.length);
@@ -284,6 +283,14 @@ test("profile paging preserves style order and the raw points rank", () => {
     index.page({ ...query, profile: undefined }).total,
     moves.length,
   );
+  const resample = { ...query, profileSample: 1 };
+  assert.equal(index.hasProfile(resample), false);
+  assert.equal(index.page(resample).styleChoice, undefined);
+  index.setProfile(resample, ranked.slice(1));
+  assert.equal(index.hasProfile(resample), true);
+  assert.equal(index.page(resample).styleChoice?.move, high);
+  assert.equal(index.hasProfile(query), false);
+
 });
 
 test("Analyze produces the three modeled replies with the real shared picker", () => {

@@ -34,8 +34,8 @@ type Snapshot = {
   boardOdds?: BoardOddsResult;
   exchangeAdvice?: Omit<ExchangeAdvice, "slots"> & { tiles: string };
 };
-const styleChoiceKey = (searchId: number, profile: PlayerProfile, bag: number, seed: number) =>
-  `${searchId}:${profile}:${bag}:${seed}`;
+const styleChoiceKey = (searchId: number, profile: PlayerProfile, bag: number, seed: number, sample: number) =>
+  `${searchId}:${profile}:${bag}:${seed}:${sample}`;
 
 const emptySnapshot: Snapshot = { results: null, warnings: [] };
 type QueryReply = Extract<
@@ -493,10 +493,10 @@ export function useSolver(positionKey: string, game: Game | undefined) {
     ): Promise<MovePage | undefined> => {
       const result = await query({ kind: "page", searchId, query: options });
       const page = result?.kind === "page" ? result.page : undefined;
-      const { profile, profileBagSize = 0, profileSeed = 0 } = options;
+      const { profile, profileBagSize = 0, profileSeed = 0, profileSample = 0 } = options;
       const choice = !page?.error && page?.styleChoice;
       if (profile && !isSimulatedStyle(profile) && choice) {
-        const key = styleChoiceKey(searchId, profile, profileBagSize, profileSeed);
+        const key = styleChoiceKey(searchId, profile, profileBagSize, profileSeed, profileSample);
         setStyleChoices((current) => {
           if (current.has(key)) return current;
           const next = new Map(current);
@@ -623,8 +623,8 @@ export function useSolver(positionKey: string, game: Game | undefined) {
       else replaceResults();
     },
     page,
-    styleChoice(searchId: number, profile: PlayerProfile, bag: number, seed: number) {
-      return styleChoices.get(styleChoiceKey(searchId, profile, bag, seed));
+    styleChoice(searchId: number, profile: PlayerProfile, bag: number, seed: number, sample: number) {
+      return styleChoices.get(styleChoiceKey(searchId, profile, bag, seed, sample));
     },
     shortlist,
     rankEndgame,

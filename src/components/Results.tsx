@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronUp,
   Search,
+  Shuffle,
   Sparkles,
   Swords,
   X,
@@ -210,6 +211,8 @@ export default function Results({
   exchangeAction,
   playingStyle,
   onPlayingStyleChange,
+  styleSample,
+  onResampleStyle,
   navigation,
   compact = false,
   collapsibleSearch = compact,
@@ -252,6 +255,8 @@ export default function Results({
   exchangeAction?: ReactElement | false;
   playingStyle?: MoveStyle;
   onPlayingStyleChange?: (style: MoveStyle | undefined) => void;
+  styleSample?: number;
+  onResampleStyle?: () => void;
   navigation: MoveListNavigation;
   compact?: boolean;
   collapsibleSearch?: boolean;
@@ -639,6 +644,7 @@ export default function Results({
       profileScorelessTurns: profile === "strong" && !analysisGame?.solo && bagSize === 0 ? scorelessTurns : undefined,
       profileSeed: hunterSelected ? hunterResult?.id :
         profile && analysisGame ? profileWordHash(analysisGame.id) : undefined,
+      profileSample: profile && !hunterSelected ? styleSample : undefined,
       requiredSquares,
       sort: shortlistActive || sort === "shortlist" ? "score" : sort,
       reversed: !shortlistActive && reversed,
@@ -708,7 +714,7 @@ export default function Results({
     !pagePending && total > 0;
   const definitionPosition = useMemo(
     () => ({}),
-    [resultSet, filter, requiredSquares, sort, reversed, view, profile, analysisKey],
+    [resultSet, filter, requiredSquares, sort, reversed, view, profile, styleSample, analysisKey],
   );
   const sharedDefinitions = useMoveDefinitionContext();
   const localDefinitions = useMoveDefinitions(
@@ -904,6 +910,30 @@ export default function Results({
           <option key={style} value={style}>{SIMULATED_STYLE_LABELS[style]}</option>
         ))}
       </select>
+      {profile && !hunterSelected && totalMoves > 0 && onResampleStyle && (
+        <button
+          type="button"
+          className="icon-button move-style-resample"
+          aria-label="Resample style"
+          title="Resample style"
+          disabled={pagePending}
+          onClick={() => {
+            setSort("playing-style");
+            setScrollPositions((current) => ({
+              ...current,
+              style: { sort: "playing-style", reversed: false, top: 0 },
+            }));
+            setLocked(null);
+            setInspectedReply(undefined);
+            setFollowHistogram(undefined);
+            scoreTooltip.close();
+            onPreview(null);
+            onResampleStyle();
+          }}
+        >
+          <Shuffle size={15} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
   const searchField = (

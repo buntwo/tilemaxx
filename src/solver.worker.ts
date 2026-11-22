@@ -56,7 +56,7 @@ const ENDGAME_ESTIMATE_MOVE_MS = 80;
 
 async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind: "page" }>) {
   const result = results.get(searchId);
-  const { profile, profileBagSize = 0, profileSeed = 0 } = query;
+  const { profile, profileBagSize = 0, profileSeed = 0, profileSample = 0 } = query;
   if (result && profile && !isSimulatedStyle(profile) && !result.hasProfile(query)) {
     try {
       const frequencies = await loadWordFrequencies(result.position.template.rules);
@@ -67,7 +67,8 @@ async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind:
       if (models?.lexicon !== lexicon || models.templateKey !== templateKey) {
         models = { lexicon, templateKey, choose: createPlayerProfiles(lexicon, position.template, frequencies) };
       }
-      const seed = profileWordHash(`${position.board.join(".")}:${rackComposition(position.rack)}`);
+      const positionKey = `${position.board.join(".")}:${rackComposition(position.rack)}`;
+      const seed = profileWordHash(profileSample ? `${positionKey}:${profileSample}` : positionKey);
       const { considered } = models.choose(result.moves, profile, {
         ...position,
         bagSize: profileBagSize,

@@ -50,6 +50,7 @@ export interface MoveQuery {
   profile?: MoveStyle;
   profileBagSize?: number;
   profileSeed?: number;
+  profileSample?: number;
   profileScorelessTurns?: number;
   requiredSquares?: RequiredSquares;
   sort: MoveSort;
@@ -69,15 +70,16 @@ export interface EndgameRanking {
   head: Move[];
 }
 
-type ProfileQuery = Pick<MoveQuery, "profile" | "profileBagSize" | "profileSeed" | "profileScorelessTurns">;
+type ProfileQuery = Pick<MoveQuery, "profile" | "profileBagSize" | "profileSeed" | "profileSample" | "profileScorelessTurns">;
 
 function utilityKey({
   profile,
   profileBagSize = 0,
   profileSeed = 0,
+  profileSample = 0,
   profileScorelessTurns,
 }: ProfileQuery) {
-  return JSON.stringify([profile, profileBagSize, profileSeed, profileScorelessTurns]);
+  return JSON.stringify([profile, profileBagSize, profileSeed, profileSample, profileScorelessTurns]);
 }
 
 type RankedMove = RankedProfileMove | RankedHunterMove | RankedSoloMove | { move: Move; utility: MasterUtility };
@@ -309,6 +311,7 @@ export class MoveResultIndex {
     profile,
     profileBagSize,
     profileSeed,
+    profileSample,
     profileScorelessTurns,
     requiredSquares,
     offset,
@@ -320,10 +323,12 @@ export class MoveResultIndex {
     const estimates =
       this.endgame?.id === endgameId ? this.endgame?.estimates : undefined;
     const profileOrder = isSimulatedStyle(profile) ? this.hunterOrders.get(profile) : this.profileOrder;
-    const ranked = profile && profileOrder?.key === utilityKey({ profile, profileBagSize, profileSeed, profileScorelessTurns })
-      ? profileOrder : undefined;
+    const profileKey = profile
+      ? utilityKey({ profile, profileBagSize, profileSeed, profileSample, profileScorelessTurns })
+      : undefined;
+    const ranked = profileOrder?.key === profileKey ? profileOrder : undefined;
     const source = profile ? ranked?.moves ?? [] : this.moves;
-    const key = JSON.stringify([word, profile, profileBagSize, profileSeed, profileScorelessTurns, requiredSquares, order, endgameId]);
+    const key = JSON.stringify([word, profileKey, requiredSquares, order, endgameId]);
     if (this.ordered?.key !== key) {
       const matches =
         word || requiredSquares?.indices.length

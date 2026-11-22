@@ -105,7 +105,7 @@ import {
 import { DEFENSE_LIMIT } from "../shared/premium-defense";
 import { useSolver } from "./useSolver";
 import { useStyleExchange } from "./useStyleExchange";
-import { useGamePlayingStyle } from "./useGamePlayingStyle";
+import { useGamePlayingStyle, usePlayingStyleSample } from "./useGamePlayingStyle";
 import { useMoveListNavigation } from "./useMoveListNavigation";
 import { profileWordHash } from "../shared/player-profiles";
 import OfflineStatus from "./components/OfflineStatus";
@@ -339,11 +339,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   );
   const [playingStyle, selectPlayingStyle] = useGamePlayingStyle(game?.id, game?.solo);
   const moveListNavigation = useMoveListNavigation(solver.results?.searchId, playingStyle);
-  const exchangeProfile = !game?.solo && !isSimulatedStyle(playingStyle) ? playingStyle : undefined;
+  const sampledProfile = isSimulatedStyle(playingStyle) ? undefined : playingStyle;
+  const { sample: styleSample, resample: resampleStyle } = usePlayingStyleSample(signature, sampledProfile);
+  const exchangeProfile = game?.solo ? undefined : sampledProfile;
   const exchangeSeed = game ? profileWordHash(game.id) : 0;
   const exchangeSearch = solver.results?.searchId;
   const exchangeChoice = exchangeProfile && exchangeSearch !== undefined
-    ? solver.styleChoice(exchangeSearch, exchangeProfile, replyAnalysis.bagSize, exchangeSeed)
+    ? solver.styleChoice(exchangeSearch, exchangeProfile, replyAnalysis.bagSize, exchangeSeed, styleSample)
     : undefined;
   const styleExchange = useStyleExchange(
     workspace === "games" && !game?.solo && !gameOver && !busy && !solver.error && !warnings.length && !replyAnalysis.invalid ? game : undefined,
@@ -1467,6 +1469,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   findMovesRequest={findMovesRequest}
                   playingStyle={playingStyle}
                   onPlayingStyleChange={selectPlayingStyle}
+                  styleSample={styleSample}
+                  onResampleStyle={resampleStyle}
                   navigation={moveListNavigation}
                   exchangeAction={
                     exchangeAdvice &&

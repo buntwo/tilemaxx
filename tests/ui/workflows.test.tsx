@@ -380,6 +380,79 @@ test("All moves and Shortlist share the selected playing style as their return v
   expect(picker).toHaveProperty("value", "learner");
 });
 
+test("Resample style changes the draw and keeps the current solve and vocabulary", async () => {
+  let solves = 0;
+  const requests: Extract<SolverRequest, { kind: "page" }>[] = [];
+  class SamplingWorker extends SolverWorker {
+    postMessage(request: SolverRequest) {
+      if (request.kind === "solve") solves++;
+      if (request.kind === "page" && request.query.profile === "learner") {
+        requests.push(request);
+        const result = this.results.get(request.searchId);
+        const sample = request.query.profileSample;
+        const move = result?.moves.find((move) => move.word === (sample === 1 ? "ACT" : "CAT"));
+        result?.setProfile(request.query, sample && move ? [{
+          move, utility: {
+            total: move.score, points: move.score, premium: 0, visibility: 1,
+            appeal: 1, leave: 0, goingOut: 0,
+          },
+        }] : []);
+      }
+      super.postMessage(request);
+    }
+  }
+  vi.stubGlobal("Worker", SamplingWorker);
+  const user = await start();
+  await typeRack(user, "CATS");
+  await user.keyboard("{Enter}");
+  const picker = await screen.findByRole("combobox", { name: "Playing style" });
+  const button = () => screen.queryByRole("button", { name: "Resample style" });
+  expect(button()).toBeNull();
+  await user.selectOptions(picker, "learner");
+  await screen.findByRole("heading", { name: "No moves spotted" });
+  const original = requests.at(-1)!;
+  expect(original.query.profileSample).toBe(0);
+  expect(button()?.previousElementSibling).toBe(picker);
+
+  await user.click(button()!);
+  expect(await screen.findByRole("button", { name: /^ACT, .*playing style rank 1/ })).toBeTruthy();
+  const firstDraw = requests.at(-1)!;
+  expect(firstDraw.searchId).toBe(original.searchId);
+  expect(firstDraw.query.profileSeed).toBe(original.query.profileSeed);
+  expect(firstDraw.query.profileSample).toBe(1);
+  expect(solves).toBe(1);
+
+  const allMoves = screen.getByRole("button", { name: "All moves" });
+  await user.click(allMoves);
+  expect(button()).toBeNull();
+  await user.click(allMoves);
+  expect(await screen.findByRole("button", { name: /^ACT, .*playing style rank 1/ })).toBeTruthy();
+  expect(requests.at(-1)?.query.profileSample).toBe(1);
+
+  await user.click(screen.getByRole("button", { name: /^Style breakdown for ACT/ }));
+  expect(await screen.findByRole("tooltip")).toBeTruthy();
+  await user.click(button()!);
+  expect(await screen.findByRole("button", { name: /^CAT, .*playing style rank 1/ })).toBeTruthy();
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  expect(requests.at(-1)?.query.profileSample).toBe(2);
+  expect(solves).toBe(1);
+  expect(current().rack).toBe("CATS");
+  expect(current().board.some(Boolean)).toBe(false);
+
+  await user.selectOptions(picker, "bingo-hunter");
+  expect(button()).toBeNull();
+  await user.selectOptions(picker, "learner");
+  expect(await screen.findByRole("button", { name: /^CAT, .*playing style rank 1/ })).toBeTruthy();
+  expect(requests.at(-1)?.query.profileSample).toBe(2);
+
+  await user.click(rackTile(4));
+  await user.keyboard("R{Enter}");
+  await screen.findByRole("heading", { name: "No moves spotted" });
+  expect(solves).toBe(2);
+  expect(requests.at(-1)?.query.profileSample).toBe(0);
+  expect(current().rack).toBe("CATR");
+});
+
 test("each game remembers its playing style after switching games, closing results and reopening the app", async () => {
   remote.games[0].rack = "CATS";
   remote.games[0].revision++;
