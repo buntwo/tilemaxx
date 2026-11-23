@@ -42,7 +42,7 @@ test("move tiles match distinct rack slots, including blanks and held duplicates
     { index: 115, letter: "A" },
   ];
   assert.deepEqual(rackSlotsForMove(position, tiles), [2, 3, 5, 6]);
-  assert.equal(rackAfterMove(position, tiles, ""), "A...T");
+  assert.equal(rackAfterMove(position, tiles, ""), "AT");
   assert.equal(
     rackSlotsForMove(position, [...tiles, { index: 116, letter: "A" }]),
     null,
@@ -62,7 +62,7 @@ test("a move uses the specific required copy of a duplicate and a required blank
     { index: 2, letter: "B" },
   ];
   assert.deepEqual(rackSlotsForMove(position, tiles), [1, 2, 4]);
-  assert.equal(rackAfterMove(position, tiles, "AT"), "A..T");
+  assert.equal(rackAfterMove(position, tiles, "A"), "AT");
   assert.equal(rackSlotsForMove(position, [tiles[0], tiles[2]]), null);
   assert.deepEqual(sortRack(position), {
     rack: "?AABT",

@@ -5833,7 +5833,7 @@ test.each([
   expect(delta?.getAttribute("title")).toBe(`Best score with rack marks cleared is ${top} points`);
 });
 
-test("exclude rack tiles with Down or taps, keep the unseen count, and retain held tiles when playing", async () => {
+test("exclude rack tiles with Down or taps and move held tiles to the start after playing", async () => {
   const user = await start();
   await typeRack(user, "CATS");
   await user.click(rackTile(4));
@@ -5853,9 +5853,10 @@ test("exclude rack tiles with Down or taps, keep the unseen count, and retain he
   await user.click(screen.getByText("Options"));
   expect(screen.getByText(/89 right now/)).toBeTruthy();
   await user.click(move);
-  await waitFor(() => expect(current().rack).toBe("...S"));
+  await waitFor(() => expect(current().rack).toBe("S"));
   expect(current().excludedRackSlots).toBeUndefined();
-  expect(rackTile(1).getAttribute("aria-pressed")).toBe("true");
+  expect(rackTile(1).getAttribute("aria-label")).toBe("Rack tile 1: S");
+  expect(rackTile(2).getAttribute("aria-pressed")).toBe("true");
   await user.click(screen.getByRole("button", { name: "Undo" }));
   expect(current().rack).toBe("CATS");
   expect(current().excludedRackSlots).toEqual([3]);
@@ -5889,11 +5890,11 @@ test("Down cycles rack marks, Require tiles filters moves, and Undo restores bot
   expect(screen.queryByRole("button", { name: /^CAT, / })).toBeNull();
 
   await user.click(move);
-  await waitFor(() => expect(current().rack).toBe("....Q"));
+  await waitFor(() => expect(current().rack).toBe("Q"));
   expect(current().excludedRackSlots).toBeUndefined();
   expect(current().requiredRackSlots).toBeUndefined();
   await waitFor(() => {
-    expect(remote.games[0].rack).toBe("....Q");
+    expect(remote.games[0].rack).toBe("Q");
     expect(remote.games[0].requiredRackSlots).toBeUndefined();
   });
   await user.click(screen.getByRole("button", { name: "Undo" }));
@@ -5902,6 +5903,7 @@ test("Down cycles rack marks, Require tiles filters moves, and Undo restores bot
   expect(current().requiredRackSlots).toEqual([3]);
   expect(rackTile(4).querySelector(".rack-required-stripe")?.textContent).toBe("REQ");
   await user.click(screen.getByRole("button", { name: "Redo" }));
+  expect(current().rack).toBe("Q");
   expect(current().requiredRackSlots).toBeUndefined();
   expect(current().excludedRackSlots).toBeUndefined();
 });

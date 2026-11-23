@@ -86,7 +86,7 @@ export function rackAfterMove(
   if (!slots) throw new Error("The rack changed. Find moves again.");
   const remaining = [...position.rack];
   for (const slot of slots) remaining[slot] = ".";
-  return trimRack(remaining.join(""));
+  return rackLetters(remaining.join(""));
 }
 
 export function rackSlotsForMove(
