@@ -795,7 +795,7 @@ export default function RackEntry({
       style={
         {
           "--rack-size": capacity,
-          "--opponent-rack-size": opponentRack.length,
+          "--opponent-rack-rows": Math.ceil(opponentRack.length / 2),
         } as CSSProperties
       }
     >

@@ -6174,6 +6174,7 @@ label + label {
 }
 .phone-rack-divider {
   --phone-divider-thumb: 26px;
+  --phone-divider-line: linear-gradient(var(--muted), var(--muted)) center / 2px 32px no-repeat;
   grid-area: 1 / 1 / 2 / -1;
   justify-self: end;
   direction: rtl;
@@ -6197,25 +6198,28 @@ label + label {
   appearance: none;
   width: var(--phone-divider-thumb);
   height: 44px;
-  border: solid transparent;
-  border-width: 6px 10px;
-  border-radius: 14px;
-  background: var(--muted) padding-box;
+  border: 0;
+  border-radius: 0;
+  background: var(--phone-divider-line);
   pointer-events: auto;
 }
 .phone-rack-divider::-moz-range-thumb {
   box-sizing: border-box;
   width: var(--phone-divider-thumb);
   height: 44px;
-  border: solid transparent;
-  border-width: 6px 10px;
-  border-radius: 14px;
-  background: var(--muted) padding-box;
+  border: 0;
+  border-radius: 0;
+  background: var(--phone-divider-line);
   pointer-events: auto;
 }
 .phone-rack-divider:disabled { opacity: .5; cursor: default; }
 .phone-board-column > .rack-panel {
   grid-area: 1 / 3;
+  /* Let the board set the row height and fit the rack within it. */
+  align-self: stretch;
+  container-type: size;
+  display: grid;
+  align-content: center;
   position: relative;
   z-index: 1;
   margin: 0;
@@ -6225,41 +6229,51 @@ label + label {
   box-shadow: none;
 }
 .phone-board-column .rack-entry {
-  --phone-tile-gap: 3px;
-  --phone-rack-label-height: 13px;
-  --phone-rack-lane-gap: 4px;
-  --phone-rack-stack-padding: 12px;
-  --phone-rack-space: calc(100cqi - var(--phone-rack-width) - var(--phone-rack-gap) - 22px);
-  --phone-rack-tile-max: calc(var(--phone-rack-width) - 8px);
+  --phone-tile-gap: min(3px, 1cqh);
+  --phone-rack-label-height: clamp(10px, 4cqh, 13px);
+  --phone-rack-lane-gap: min(4px, 1.5cqh);
+  --phone-rack-tray-padding: min(5px, 1.5cqh);
+  --phone-rack-tray-side-padding: 3px;
+  --phone-rack-tray-side-space: calc(2 * (var(--phone-rack-tray-side-padding) + 1px));
+  --phone-rack-control-height: clamp(24px, 14cqh, 36px);
+  --phone-rack-stack-padding: calc(2 * (var(--phone-rack-tray-padding) + 1px));
+  --phone-rack-space: calc(100cqh - 2 * var(--phone-rack-control-height) - 2px);
+  --phone-rack-tile-max: calc(var(--phone-rack-width) - var(--phone-rack-tray-side-space));
   --phone-rack-tile-size: clamp(0px, calc(
     (var(--phone-rack-space) - var(--phone-rack-stack-padding)
       - (var(--rack-size) - 1) * var(--phone-tile-gap)) / var(--rack-size)
   ), var(--phone-rack-tile-max));
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
 }
 .phone-board-column .rack-entry:has(.opponent-rack-tiles) {
-  --phone-rack-gaps: calc((var(--rack-size) + var(--opponent-rack-size) - 2) * var(--phone-tile-gap));
+  --phone-rack-gaps: calc((var(--rack-size) + var(--opponent-rack-rows) - 2) * var(--phone-tile-gap));
+  --phone-opponent-tile-scale: .65;
   --phone-rack-tile-size: clamp(0px, calc(
     (var(--phone-rack-space) - 2 * var(--phone-rack-label-height) - var(--phone-rack-lane-gap)
       - var(--phone-rack-stack-padding) - var(--phone-rack-gaps))
-    / (var(--rack-size) + var(--opponent-rack-size) / 2)
+    / (var(--rack-size) + var(--opponent-rack-rows) * var(--phone-opponent-tile-scale))
   ), var(--phone-rack-tile-max));
-  --phone-opponent-tile-size: calc(var(--phone-rack-tile-size) / 2);
+  --phone-opponent-tile-size: min(
+    calc(var(--phone-rack-tile-size) * var(--phone-opponent-tile-scale)),
+    calc((var(--phone-rack-width) - var(--phone-tile-gap)) / 2)
+  );
 }
 .phone-board-column .rack-bag {
   align-self: center;
   flex: none;
   margin-top: 2px;
+  height: var(--phone-rack-control-height);
 }
 .phone-board-column .rack-panel .rack-tiles {
   flex-direction: column;
   align-items: center;
   gap: var(--phone-tile-gap);
-  width: 100%;
-  margin: 0;
-  padding: 5px 3px;
+  width: calc(var(--phone-rack-tile-size) + var(--phone-rack-tray-side-space));
+  margin: 0 auto;
+  padding: var(--phone-rack-tray-padding) var(--phone-rack-tray-side-padding);
 }
 .phone-board-column .rack-panel .rack-tile {
   flex: none;
@@ -6273,18 +6287,23 @@ label + label {
   justify-content: center;
   height: var(--phone-rack-label-height);
   font-size: 9px;
+  line-height: 1;
 }
 .phone-board-column .opponent-rack-tiles {
-  flex-flow: column nowrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(2, var(--phone-opponent-tile-size));
   gap: var(--phone-tile-gap);
-  margin: 0 auto;
 }
 .phone-board-column .opponent-rack-tiles span {
-  width: var(--phone-opponent-tile-size);
-  height: auto;
+  width: 100%;
   aspect-ratio: 1;
   font-size: calc(var(--phone-opponent-tile-size) * .7);
+  border-bottom-width: 1px;
+}
+.phone-board-column .opponent-rack-tiles span:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: var(--phone-opponent-tile-size);
 }
 .phone-board-column .rack-face { font-size: min(23px, 59cqi); }
 .phone-board-column .rack-face small { right: 2px; bottom: 1px; }
@@ -6292,8 +6311,9 @@ label + label {
 .phone-board-column .rack-lane-tools .text-button {
   justify-content: center;
   min-width: 44px;
-  min-height: 36px;
-  padding-inline: 2px;
+  height: var(--phone-rack-control-height);
+  min-height: 0;
+  padding: 0 2px;
 }
 .rack-visually-hidden {
   position: absolute;

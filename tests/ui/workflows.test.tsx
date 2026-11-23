@@ -6736,6 +6736,8 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
   };
   const visibleRack = await panel.findByRole("img", { name: "Opponent rack: J, J, blank" });
   expect([...visibleRack.children].map((tile) => tile.textContent)).toEqual(["J", "J", ""]);
+  const rackEntry = yourRack.closest<HTMLElement>(".rack-entry");
+  expect(rackEntry?.style.getPropertyValue("--opponent-rack-rows")).toBe("2");
   expect(panel.getByRole("button", { name: "Unseen tiles, 0 estimated tiles in the bag" }).textContent).toBe("0");
   expectLabeledRacks();
   const tools = panel.getByText("Rack tools").closest(".rack-lane-tools");
