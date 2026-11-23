@@ -6272,7 +6272,7 @@ label + label {
   align-items: center;
   gap: var(--phone-tile-gap);
   width: calc(var(--phone-rack-tile-size) + var(--phone-rack-tray-side-space));
-  margin: 0 auto;
+  margin: 0;
   padding: var(--phone-rack-tray-padding) var(--phone-rack-tray-side-padding);
 }
 .phone-board-column .rack-panel .rack-tile {
