@@ -1,0 +1,248 @@
+import { test, type TestContext } from "node:test";
+import assert from "node:assert/strict";
+import { once } from "node:events";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createApp } from "../server/app";
+import { createStore } from "../server/store";
+import type { Game } from "../shared/model";
+
+const credentials = {
+  token: "a".repeat(64),
+  browserPassword: "b".repeat(64),
+};
+
+async function fixture(t: TestContext, secured = true) {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-api-"));
+  const store = createStore(dir, process.cwd());
+  const app = createApp(store, {
+    credentials: secured ? credentials : undefined,
+  });
+  app.get("/", (_req, res) =>
+    res.send("<!doctype html><title>Tilemaxx</title>"),
+  );
+  const server = app.listen(0, "127.0.0.1");
+  t.after(async () => {
+    try {
+      if (server.listening)
+        await new Promise<void>((done) => server.close(() => done()));
+    } finally {
+      store.db.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  await once(server, "listening");
+  const address = server.address();
+  assert(address && typeof address !== "string");
+  const url = `http://127.0.0.1:${address.port}`;
+  const bearer = `Bearer ${credentials.token}`;
+  const basic = `Basic ${Buffer.from(`tilemaxx:${credentials.browserPassword}`).toString("base64")}`;
+  const auth = { bearer, basic };
+  const endpoint = (
+    path: string,
+    body?: unknown,
+    options?: { method?: string; authorization?: string; origin?: string },
+  ) =>
+    fetch(url + "/api/v1" + path, {
+      method: options?.method ?? (body === undefined ? "GET" : "POST"),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: options?.authorization ?? bearer,
+        ...(options?.origin && { Origin: options.origin }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  return { url, endpoint, auth, store };
+}
+
+test("programmatic access is disabled until configured", async (t) => {
+  const { url, endpoint } = await fixture(t, false);
+  assert.equal((await endpoint("/state/index")).status, 404);
+  assert.equal((await fetch(url + "/api/state/index")).status, 200);
+});
+
+test("bearer and browser credentials protect both API surfaces", async (t) => {
+  const { url, endpoint, auth, store } = await fixture(t);
+  assert.throws(
+    () =>
+      createApp(store, {
+        credentials: { ...credentials, browserPassword: "" },
+      }),
+    /distinct/,
+  );
+  for (const path of [
+    "/",
+    "/api/state",
+    "/api/debug/games",
+    "/api/dictionaries/wordnik",
+  ]) {
+    const response = await fetch(url + path);
+    assert.equal(response.status, 401, path);
+    assert.match(response.headers.get("www-authenticate") ?? "", /^Basic /);
+    assert.equal(
+      (await fetch(url + path, { headers: { Authorization: auth.basic } }))
+        .status,
+      200,
+    );
+  }
+  assert.equal((await fetch(url + "/api/health")).status, 200);
+  assert.equal(
+    (
+      await fetch(url + "/api/state", {
+        headers: { Authorization: auth.bearer },
+      })
+    ).status,
+    401,
+  );
+  for (const authorization of ["", "Bearer wrong", auth.basic]) {
+    const response = await endpoint("/state/index", undefined, {
+      authorization,
+    });
+    assert.equal(response.status, 401);
+    assert.match(response.headers.get("www-authenticate") ?? "", /^Bearer /);
+  }
+  const valid = await endpoint("/state/index");
+  assert.equal(valid.status, 200);
+  assert.equal(valid.headers.get("cache-control"), "no-store");
+  const schema = await endpoint("/schema");
+  assert.equal(schema.status, 200);
+  assert((await schema.json())["POST /games/:id/actions"]);
+  assert.equal(
+    (
+      await endpoint(
+        "/profiles",
+        { name: "Cross origin" },
+        { origin: "https://elsewhere.example" },
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await fetch(url + "/api/v1/profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{",
+      })
+    ).status,
+    401,
+  );
+});
+
+test("the API and browser share games, revisions and tracked play", async (t) => {
+  const { url, endpoint, auth } = await fixture(t);
+  const profile = await (
+    await endpoint("/profiles", { name: "API test" })
+  ).json();
+  const list = await (
+    await endpoint("/dictionaries", {
+      name: "Small dictionary",
+      text: "AT\nCAT\nACT\n",
+    })
+  ).json();
+  const input = {
+    profileId: profile.id,
+    templateId: "scrabble",
+    dictionaryId: list.id,
+    name: "Test game",
+    solo: true,
+    creationToken: "c".repeat(32),
+  };
+  const creation = await endpoint("/games/new", input);
+  assert.equal(creation.status, 201);
+  let game: Game = await creation.json();
+  assert.equal(
+    (await (await endpoint("/games/new", input)).json()).id,
+    game.id,
+  );
+
+  const command = (command: unknown, revision = game.revision) =>
+    endpoint(`/games/${game.id}/actions`, { revision, command });
+  const analysis = (operation: unknown) =>
+    endpoint("/analysis", {
+      position: { gameId: game.id, revision: game.revision },
+      operation,
+    });
+  const rackEdit = await command({ action: "rack", rack: "CAT" });
+  assert.equal(rackEdit.status, 200);
+  game = await rackEdit.json();
+  const revision = game.revision;
+
+  const search = await analysis({ kind: "moves", word: "CAT" });
+  const page = await search.json();
+  assert.equal(search.status, 200, JSON.stringify(page));
+  assert.equal(search.headers.get("x-tilemaxx-revision"), String(revision));
+  const move = page.rows.find((row: { word: string }) => row.word === "CAT");
+  assert(move);
+  assert.equal(move.breakdown.score, move.score);
+  const style = await analysis({
+    kind: "moves",
+    style: "greedy-bingo",
+    budgetMs: 1_000,
+  });
+  const ranked = await style.json();
+  assert.equal(style.status, 200, JSON.stringify(ranked));
+  assert(ranked.rows.length > 0);
+  assert(ranked.rows[0].utility);
+
+  const played = await command({
+    action: "play",
+    tiles: move.tiles,
+    direction: move.direction,
+  });
+  assert.equal(played.status, 200);
+  game = await played.json();
+  assert.equal(game.scoring?.you.points, move.score);
+  const stale = await command({ action: "clear-board" }, revision);
+  assert.equal(stale.status, 409);
+  assert.equal((await stale.json()).game.revision, game.revision);
+  const browserGame = await fetch(url + `/api/games/${game.id}`, {
+    headers: { Authorization: auth.basic },
+  });
+  assert.deepEqual(await browserGame.json(), game);
+
+  const review = await analysis({ kind: "review-turn", index: 0 });
+  assert.equal(review.status, 200);
+  assert.equal((await review.json()).move.word, "CAT");
+
+  game = await (await command({ action: "undo" })).json();
+  assert.equal(game.rack, "CAT");
+  assert(game.board.every((cell) => !cell));
+  game = await (await command({ action: "redo" })).json();
+  assert.equal(game.scoring?.you.points, move.score);
+  game = await (
+    await command({
+      action: "end",
+      scores: { you: 30, opponent: 0 },
+      archive: true,
+    })
+  ).json();
+  assert.equal(game.archived, true);
+  assert.deepEqual(game.archivedBoard, game.board);
+  const stats = await endpoint(`/archive/statistics?profileId=${profile.id}`);
+  assert.equal(stats.status, 200);
+  const words = await endpoint("/word-check", {
+    dictionary: { id: list.id },
+    words: ["cat", "dog"],
+  });
+  assert.deepEqual(await words.json(), [
+    { word: "CAT", found: true },
+    { word: "DOG", found: false },
+  ]);
+});
+
+test("OCR runs in a server worker and leaves the game unchanged", async (t) => {
+  const { endpoint } = await fixture(t);
+  const response = await endpoint("/screenshots/read", {
+    format: "png",
+    image: readFileSync("tests/fixtures/board.png").toString("base64"),
+    size: 15,
+    crop: { left: 0, top: 0, width: 750, height: 750 },
+  });
+  const result = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(result));
+  assert.equal(result.board.length, 225);
+  assert.equal(result.sourceWidth, 750);
+  assert(result.board.some(Boolean));
+});

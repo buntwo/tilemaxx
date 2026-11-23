@@ -12,6 +12,9 @@ import {
 } from "./validation";
 import { PRESETS } from "../shared/presets";
 import { createDebugRouter } from "./debug";
+import { apiAuthentication, type ApiCredentials } from "./api-auth";
+import { createProgrammaticRouter } from "./programmatic";
+import { ApiError } from "./api-error";
 
 const definitionQuery = z.object({
   language: z.enum(["en", "fr"]),
@@ -21,33 +24,29 @@ const definitionQuery = z.object({
     .pipe(z.array(z.string().regex(/^[a-z]{2,25}$/i)).min(1).max(2)),
 });
 
-export function createApp(store: ReturnType<typeof createStore>) {
-  const app = express();
-  app.disable("x-powered-by");
-  app.use(compression());
-  app.use("/api", (req, res, next) => {
-    res.setHeader("Cache-Control", "no-store");
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    next();
-  });
-  app.use("/api/debug", createDebugRouter(store));
-  app.use("/api", (req, res, next) => {
-    if (!["GET", "HEAD"].includes(req.method)) {
-      const origin = req.get("origin");
-      if (origin && new URL(origin).host !== req.get("host")) {
-        res.status(403).json({ error: "Cross-origin writes are not allowed." });
-        return;
-      }
-      if (!req.is("application/json")) {
-        res.status(415).json({ error: "Use application/json." });
-        return;
-      }
+const apiNotFound: express.RequestHandler = (_req, res) => {
+  res.status(404).json({ error: "Endpoint not found." });
+};
+
+const checkOrigin: express.RequestHandler = (req, res, next) => {
+  if (!["GET", "HEAD"].includes(req.method)) {
+    const origin = req.get("origin");
+    if (origin && URL.parse(origin)?.host !== req.get("host")) {
+      res.status(403).json({ error: "Cross-origin writes are not allowed." });
+      return;
     }
-    next();
-  });
-  app.use(express.json({ limit: "16mb" }));
-  app.get("/api/health", (_req, res) => res.json({ ok: true }));
-  app.get("/api/definitions", async (req, res) => {
+    if (!req.is("application/json")) {
+      res.status(415).json({ error: "Use application/json." });
+      return;
+    }
+  }
+  next();
+};
+
+function createDataRouter(store: ReturnType<typeof createStore>) {
+  const router = express.Router();
+  router.use(express.json({ limit: "16mb" }));
+  router.get("/definitions", async (req, res) => {
     const { language, word } = definitionQuery.parse(req.query);
     try {
       res.json(await store.definitions(language, word));
@@ -56,11 +55,11 @@ export function createApp(store: ReturnType<typeof createStore>) {
       res.status(503).json({ error: "Definitions are unavailable." });
     }
   });
-  app.get("/api/state", (_req, res) => res.json(store.state()));
-  app.get("/api/state/index", (_req, res) =>
+  router.get("/state", (_req, res) => res.json(store.state()));
+  router.get("/state/index", (_req, res) =>
     res.json({ ...store.index(), version }),
   );
-  app.post("/api/screenshot-examples", (req, res) => {
+  router.post("/screenshot-examples", (req, res) => {
     const example = screenshotExampleSchema.parse(req.body);
     const header = Buffer.from(example.croppedPng.slice(0, 32), "base64");
     if (
@@ -77,10 +76,10 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
     res.status(201).json(store.saveScreenshotExample(example));
   });
-  app.post("/api/profiles", (req, res) =>
+  router.post("/profiles", (req, res) =>
     res.status(201).json(store.createProfile(nameSchema.parse(req.body.name))),
   );
-  app.put("/api/profiles/:id", (req, res) => {
+  router.put("/profiles/:id", (req, res) => {
     const renamed = store.renameProfile(
       req.params.id,
       nameSchema.parse(req.body.name),
@@ -91,7 +90,7 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
     res.json(renamed);
   });
-  app.delete("/api/profiles/:id", (req, res) => {
+  router.delete("/profiles/:id", (req, res) => {
     const name = z.string().min(1).max(80).parse(req.body.name);
     const result = store.deleteProfile(req.params.id, name);
     if (result.status === "missing") {
@@ -105,7 +104,7 @@ export function createApp(store: ReturnType<typeof createStore>) {
       res.json({ gameIds: result.gameIds });
     }
   });
-  app.put("/api/profiles/:id/game-order", (req, res) => {
+  router.put("/profiles/:id/game-order", (req, res) => {
     const gameIds = z.array(z.string().min(1).max(100)).parse(req.body.gameIds);
     const status = store.reorderGames(req.params.id, gameIds);
     if (status === "missing") {
@@ -118,7 +117,7 @@ export function createApp(store: ReturnType<typeof createStore>) {
       res.json({ gameOrder: gameIds });
     }
   });
-  app.post("/api/games", (req, res) => {
+  router.post("/games", (req, res) => {
     // Accept the old ID only for clients syncing games drafted before this change.
     const token = z.string().regex(/^[a-f0-9]{32}$/).optional();
     const { creationId, creationToken } = z.object({
@@ -167,7 +166,7 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
     res.status(201).json(saved);
   });
-  app.get("/api/games/:id", (req, res) => {
+  router.get("/games/:id", (req, res) => {
     const game = store.getGame(req.params.id);
     if (!game) {
       res.status(404).json({ error: "Game not found." });
@@ -175,7 +174,7 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
     res.json(game);
   });
-  app.post("/api/games/:id/archive-and-start", (req, res) => {
+  router.post("/games/:id/archive-and-start", (req, res) => {
     const { revision, startedOn } = z
       .object({
         revision: z.number().int().nonnegative(),
@@ -202,7 +201,7 @@ export function createApp(store: ReturnType<typeof createStore>) {
         .json({ archived: result.archived, created: result.created });
     }
   });
-  app.put("/api/games/:id", (req, res) => {
+  router.put("/games/:id", (req, res) => {
     const game = gameSchema.parse(req.body),
       current = store.getGame(req.params.id);
     if (!current) {
@@ -228,14 +227,14 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
     res.json(saved);
   });
-  app.delete("/api/games/:id", (req, res) => {
+  router.delete("/games/:id", (req, res) => {
     store.deleteGame(req.params.id);
     res.json({ deleted: true });
   });
-  app.post("/api/templates", (req, res) =>
+  router.post("/templates", (req, res) =>
     res.status(201).json(store.saveTemplate(templateSchema.parse(req.body))),
   );
-  app.put("/api/templates/:id", (req, res) => {
+  router.put("/templates/:id", (req, res) => {
     if (PRESETS.some((preset) => preset.id === req.params.id)) {
       res.status(403).json({
         error:
@@ -255,14 +254,14 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
     res.json(saved);
   });
-  app.delete("/api/templates/:id", (req, res) => {
+  router.delete("/templates/:id", (req, res) => {
     if (!store.deleteTemplate(req.params.id)) {
       res.status(403).json({ error: "Built-in boards cannot be deleted." });
       return;
     }
     res.json({ deleted: true });
   });
-  app.get("/api/dictionaries/:id", (req, res) => {
+  router.get("/dictionaries/:id", (req, res) => {
     const text = store.dictionaryText(req.params.id);
     if (text === undefined) {
       res.status(404).json({ error: "Dictionary not found." });
@@ -270,13 +269,13 @@ export function createApp(store: ReturnType<typeof createStore>) {
     }
     res.type("text/plain").send(text);
   });
-  app.post("/api/dictionaries", (req, res) => {
+  router.post("/dictionaries", (req, res) => {
     const { name, text } = z
       .object({ name: nameSchema, text: z.string().max(12_000_000).min(1) })
       .parse(req.body);
     res.status(201).json(store.importDictionary(name, text));
   });
-  app.delete("/api/dictionaries/:id", (req, res) => {
+  router.delete("/dictionaries/:id", (req, res) => {
     const result = store.deleteDictionary(req.params.id);
     switch (result.status) {
       case "missing":
@@ -300,9 +299,28 @@ export function createApp(store: ReturnType<typeof createStore>) {
         break;
     }
   });
-  app.use("/api", (_req, res) =>
-    res.status(404).json({ error: "Endpoint not found." }),
-  );
+  return router;
+}
+
+export function createApp(
+  store: ReturnType<typeof createStore>,
+  { credentials, root = process.cwd() }: { credentials?: ApiCredentials; root?: string } = {},
+) {
+  const app = express();
+  const auth = apiAuthentication(credentials);
+  const data = createDataRouter(store);
+  app.disable("x-powered-by");
+  app.use(compression());
+  app.use("/api", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    next();
+  });
+  app.get("/api/health", (_req, res) => res.json({ ok: true }));
+  app.use("/api/v1", auth.bearer, checkOrigin, createProgrammaticRouter(store, root), data, apiNotFound);
+  app.use(auth.web);
+  app.use("/api/debug", createDebugRouter(store));
+  app.use("/api", checkOrigin, data, apiNotFound);
   app.use(
     (
       err: unknown,
@@ -310,6 +328,11 @@ export function createApp(store: ReturnType<typeof createStore>) {
       res: express.Response,
       _next: express.NextFunction,
     ) => {
+      if (err instanceof ApiError) {
+        if (err.status === 429) res.setHeader("Retry-After", "3");
+        res.status(err.status).json({ error: err.message });
+        return;
+      }
       if (err instanceof z.ZodError) {
         res
           .status(400)

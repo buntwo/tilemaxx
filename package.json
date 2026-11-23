@@ -1,6 +1,6 @@
 {
   "name": "tilemaxx",
-  "version": "0.2.124",
+  "version": "0.2.125",
   "private": true,
   "type": "module",
   "engines": {
@@ -10,7 +10,7 @@
     "debug:games": "node --import tsx scripts/debug.ts games",
     "debug:game": "node --import tsx scripts/debug.ts game",
     "dev": "node --import tsx server/index.ts --dev",
-    "build": "tsc --noEmit && vite build && node scripts/build-offline.mjs && esbuild server/index.ts scripts/import-definitions.ts --bundle --platform=node --format=esm --packages=external --outdir=dist-server --entry-names=[name]",
+    "build": "tsc --noEmit && vite build && node scripts/build-offline.mjs && esbuild server/index.ts server/api-analysis.worker.ts scripts/import-definitions.ts --bundle --platform=node --format=esm --packages=external --outdir=dist-server --entry-names=[name]",
     "start": "node dist-server/index.js",
     "import:definitions": "node --import tsx scripts/import-definitions.ts",
     "test": "npm run test:unit && npm run test:ui",
@@ -32,6 +32,7 @@
     "lucide-react": "^0.468.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "sharp": "^0.35.5",
     "tesseract.js": "^6.0.1",
     "zod": "^4.6.7"
   },
@@ -47,7 +48,6 @@
     "esbuild": "^0.25.0",
     "jsdom": "^26.1.0",
     "prettier": "3.8.1",
-    "sharp": "^0.35.5",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
     "vite": "^6.4.0",

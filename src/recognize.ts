@@ -1,17 +1,13 @@
 import type { Worker } from "tesseract.js";
 import { emptyBoard } from "../shared/model";
 import {
-  readScreenshotPremiums,
-  wordfeudBlank,
-} from "../shared/screenshot-premiums";
-import {
   OCR_TILE_SIZE,
+  prepareScreenshotRecognition,
   readGlyphs,
   renderGlyph,
   type GlyphPass,
 } from "../shared/screenshot-ocr";
 import {
-  extractGlyphs,
   type Crop,
   type Recognition,
 } from "../shared/screenshot";
@@ -33,19 +29,7 @@ export async function recognizeBoard(
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
   ctx.drawImage(image, 0, 0);
   const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const glyphs = extractGlyphs(pixels, crop, size);
-  const premiums = readScreenshotPremiums(
-    pixels,
-    crop,
-    size,
-    new Set(glyphs.map(({ index }) => index)),
-  );
-  if (premiums?.style === "wordfeud") {
-    for (const glyph of glyphs) {
-      glyph.wordfeud = true;
-      glyph.assignedBlank = wordfeudBlank(pixels, crop, size, glyph.index);
-    }
-  }
+  const { glyphs, premiums } = prepareScreenshotRecognition(pixels, crop, size);
   if (!glyphs.length)
     return { board: emptyBoard(size), uncertain: [], candidates: 0, premiums };
   progress("Loading letter recognition…");

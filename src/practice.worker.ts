@@ -21,22 +21,20 @@ import {
   type ExchangeAdviceRequest,
 } from "../shared/exchange-advice";
 import {
-  reviewOpportunity,
-  reviewReplyRisk,
+  reviewGame,
+  type ReviewJob,
   reviewTurn,
-  type ReviewSummary,
 } from "../shared/turn-review";
 import {
   analyzeOpponentPolicy,
   type OpponentPolicyInput,
   type OpponentPolicyResult,
 } from "../shared/opponent-policy";
-import type { BoardTemplate, TrackedMove, TurnPosition } from "../shared/model";
+import type { BoardTemplate } from "../shared/model";
 import { runCandidateJobs } from "./candidate-analysis-pool";
 import { computeWorkerLimit } from "./compute-workers";
 import { parallelOptimalExchange } from "./parallel-exchange";
 
-type ReviewJob = { position: TurnPosition; move: TrackedMove; index: number };
 type PolicyReviewJob = {
   key: string;
   dictionaryId: string;
@@ -223,91 +221,18 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
       } satisfies OpponentPolicyBatchMessage);
       return;
     }
-    const opportunities: ReviewSummary["opportunities"] = [];
-    let checked = 0;
-    const deadline = performance.now() + 10000;
-    let defensiveChecks = 0;
-    for (const [i, turn] of data.turns.entries()) {
+    if (data.kind === "turn") {
+      const turn = data.turns[0];
+      if (!turn) throw new Error("No review position is available.");
       const template = turn.position.premiums
         ? { ...data.template, premiums: turn.position.premiums }
         : data.template;
-      if (data.kind === "game" && performance.now() >= deadline) break;
-      try {
-        const lexicon = await dictionary(turn.position.dictionaryId);
-        const moves = reviewTurn(
-          lexicon,
-          turn.position,
-          template,
-          data.kind === "game"
-            ? Math.min(450, Math.max(1, deadline - performance.now()))
-            : undefined,
-        );
-        if (data.kind === "turn") {
-          self.postMessage({ result: moves.slice(0, 30) });
-          return;
-        }
-        checked++;
-        const opportunity = reviewOpportunity(
-          moves,
-          turn.move,
-          template,
-          turn.position.tiles.length,
-        );
-        const id = turn.position.tiles
-          .map(({ index, letter }) => `${index}:${letter}`)
-          .sort()
-          .join(",");
-        const played = moves.find((move) => move.id === id);
-        const alternative = moves.find(
-          (move) => move.id !== id && move.score >= turn.move.score - 5,
-        );
-        let replyRisk;
-        if (
-          !data.solo &&
-          played &&
-          alternative &&
-          defensiveChecks < 5 &&
-          deadline - performance.now() > 1000
-        ) {
-          defensiveChecks++;
-          try {
-            replyRisk = reviewReplyRisk(
-              lexicon,
-              turn.position,
-              template,
-              played,
-              alternative,
-            );
-          } catch {
-            /* An unavailable forecast does not invalidate the score comparison. */
-          }
-        }
-        if (opportunity.gap >= 8 || opportunity.bingo || replyRisk)
-          opportunities.push({
-            ...opportunity,
-            index: turn.index,
-            word: turn.move.word,
-            score: turn.move.score,
-            replyRisk,
-          });
-      } catch (error) {
-        if (data.kind === "turn") throw error;
-      }
-      progress(i + 1, data.turns.length);
+      const lexicon = await dictionary(turn.position.dictionaryId);
+      self.postMessage({ result: reviewTurn(lexicon, turn.position, template).slice(0, 30) });
+    } else {
+      const result = await reviewGame(data.turns, data.template, dictionary, data.solo, progress);
+      self.postMessage({ result });
     }
-    opportunities.sort(
-      (a, b) =>
-        Number(!!b.bingo) - Number(!!a.bingo) ||
-        b.gap - a.gap ||
-        Number(!!b.replyRisk) - Number(!!a.replyRisk),
-    );
-    self.postMessage({
-      result: {
-        checked,
-        total: data.turns.length,
-        opportunities: opportunities.slice(0, 3),
-      },
-    });
   } catch (error) {
     self.postMessage({ error: (error as Error).message });
   }

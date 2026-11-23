@@ -1,3 +1,5 @@
+import { extractGlyphs, type Crop, type Pixels } from "./screenshot";
+import { readScreenshotPremiums, wordfeudBlank } from "./screenshot-premiums";
 import { emptyBoard } from "./model";
 import type { Glyph, Recognition } from "./screenshot";
 
@@ -307,4 +309,16 @@ export async function readGlyphs(
       uncertain.push(glyph.index);
   }
   return { board, uncertain, candidates: glyphs.length };
+}
+
+export function prepareScreenshotRecognition(pixels: Pixels, crop: Crop, size: number) {
+  const glyphs = extractGlyphs(pixels, crop, size);
+  const premiums = readScreenshotPremiums(pixels, crop, size, new Set(glyphs.map(({ index }) => index)));
+  if (premiums?.style === "wordfeud") {
+    for (const glyph of glyphs) {
+      glyph.wordfeud = true;
+      glyph.assignedBlank = wordfeudBlank(pixels, crop, size, glyph.index);
+    }
+  }
+  return { glyphs, premiums };
 }

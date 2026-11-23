@@ -3,9 +3,9 @@ import { validateCrop } from "../shared/screenshot";
 import { MAX_TILE_COUNT, TILE_SYMBOLS } from "../shared/tile-pool";
 import { MAX_GAME_NOTES, RULE_NAMES } from "../shared/model";
 export const nameSchema = z.string().trim().min(1).max(80);
-const cell = z.string().regex(/^[a-zA-Z]?$/);
+export const cell = z.string().regex(/^[a-zA-Z]?$/);
 const premium = z.enum(["", "DL", "TL", "QL", "DW", "TW", "QW"]);
-const premiums = z.array(premium).max(625);
+export const premiums = z.array(premium).max(625);
 export const screenshotExampleSchema = z
   .object({
     size: z.number().int().min(5).max(25),
@@ -63,11 +63,11 @@ export const screenshotExampleSchema = z
       example.recognized.uncertain.every((index) => index < cells)
     );
   }, "The example must match the cropped board.");
-const rack = z
+export const rack = z
   .string()
   .regex(/^[A-Z?.]*$/)
   .max(10);
-const rackSlots = z.array(z.number().int().min(0).max(9)).max(10).optional();
+export const rackSlots = z.array(z.number().int().min(0).max(9)).max(10).optional();
 export const templateSchema = z
   .object({
     id: z.string().max(100),

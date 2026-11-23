@@ -57,7 +57,9 @@ export function createCandidatePool(
     let next = 0;
     let stopped = false;
     const count = Math.min(jobs.length, capacity);
-    const useWorkers = count > 1 || dedicated;
+    const useWorkers =
+      (count > 1 || dedicated) &&
+      (createWorker !== defaultWorker || typeof Worker !== "undefined");
     if (useWorkers) {
       while (slots.length < count) {
         try {

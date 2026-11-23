@@ -241,6 +241,10 @@ export function createStore(directory: string, root: string) {
           gameOrder: JSON.parse(row.game_ids) as string[],
         }),
       }));
+  function dictionaryFile(id: string): string | undefined {
+    const row = db.prepare("SELECT file FROM dictionaries WHERE id=?").get(id);
+    return row?.file as string | undefined;
+  }
   const workspace = () => ({
     profiles: profiles(),
     templates: [
@@ -523,11 +527,10 @@ export function createStore(directory: string, root: string) {
       db.prepare("DELETE FROM templates WHERE id=?").run(id);
       return true;
     },
+    dictionaryFile,
     dictionaryText(id: string) {
-      const row = db
-        .prepare("SELECT file FROM dictionaries WHERE id=?")
-        .get(id);
-      return row ? readFileSync(row.file as string, "utf8") : undefined;
+      const file = dictionaryFile(id);
+      return file === undefined ? undefined : readFileSync(file, "utf8");
     },
     importDictionary(name: string, text: string) {
       const words = parseWords(text);

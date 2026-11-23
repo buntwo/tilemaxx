@@ -98,6 +98,12 @@ The command finds the installed exports and builds `data/definitions/definitions
 
 On desktop, hover over a word in **Possible moves** for half a second, or right-click a placed tile to see the words that cross it. Tilemaxx reads the installed index automatically and shows English definitions for English and French games.
 
+## Programmatic access
+
+Use the authenticated [Tilemaxx HTTP API](docs/api.md) to manage games, run
+analysis, and import screenshots from scripts. The setup guide covers API
+tokens, browser sign-in, and Compose configuration.
+
 ## Deploy with Docker Compose
 
 On a host with Git and Docker Compose, run these commands from the folder where you keep your Compose projects.

@@ -181,7 +181,7 @@ export function extractGlyphs(
   return glyphs;
 }
 
-function basePremiums(game: Game) {
+export function basePremiums(game: Game) {
   return (
     game.originalPremiums ??
     PRESETS.find(

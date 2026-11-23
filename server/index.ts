@@ -6,8 +6,13 @@ import { createApp } from "./app";
 
 const root = process.cwd(),
   data = resolve(process.env.DATA_DIR || "data");
+const { TILEMAXX_API_TOKEN: token, TILEMAXX_WEB_PASSWORD: browserPassword } =
+  process.env;
+const credentials = token !== undefined || browserPassword !== undefined
+  ? { token: token ?? "", browserPassword: browserPassword ?? "" }
+  : undefined;
 const store = createStore(data, root),
-  app = createApp(store);
+  app = createApp(store, { credentials, root });
 const dev = process.argv.includes("--dev");
 if (dev) {
   const { createServer } = await import("vite");
@@ -19,9 +24,10 @@ if (dev) {
 } else {
   app.use(
     express.static(resolve(root, "dist"), {
-      maxAge: "1h",
+      maxAge: credentials ? 0 : "1h",
       setHeaders(res, path) {
-        if (path.endsWith("index.html") || path.endsWith("sw.js"))
+        if (credentials) res.setHeader("Cache-Control", "private, no-store");
+        else if (path.endsWith("index.html") || path.endsWith("sw.js"))
           res.setHeader("Cache-Control", "no-cache");
       },
     }),

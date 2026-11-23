@@ -92,3 +92,87 @@ export type ReviewSummary = {
     replyRisk?: ReturnType<typeof reviewReplyRisk>;
   })[];
 };
+
+export type ReviewJob = { position: TurnPosition; move: TrackedMove; index: number };
+
+export async function reviewGame(
+  turns: readonly ReviewJob[],
+  layout: Game["template"],
+  dictionary: (id: string) => Lexicon | Promise<Lexicon>,
+  solo = false,
+  progress: (completed: number, total: number) => void = () => {},
+): Promise<ReviewSummary> {
+  const opportunities: ReviewSummary["opportunities"] = [];
+  let checked = 0;
+  const deadline = performance.now() + 10000;
+  let defensiveChecks = 0;
+  for (const [i, turn] of turns.entries()) {
+    const template = turn.position.premiums
+      ? { ...layout, premiums: turn.position.premiums }
+      : layout;
+    if (performance.now() >= deadline) break;
+    try {
+      const lexicon = await dictionary(turn.position.dictionaryId);
+      const moves = reviewTurn(
+        lexicon,
+        turn.position,
+        template,
+        Math.min(450, Math.max(1, deadline - performance.now())),
+      );
+      checked++;
+      const opportunity = reviewOpportunity(
+        moves,
+        turn.move,
+        template,
+        turn.position.tiles.length,
+      );
+      const id = turn.position.tiles
+        .map(({ index, letter }) => `${index}:${letter}`)
+        .sort()
+        .join(",");
+      const played = moves.find((move) => move.id === id);
+      const alternative = moves.find(
+        (move) => move.id !== id && move.score >= turn.move.score - 5,
+      );
+      let replyRisk;
+      if (
+        !solo &&
+        played &&
+        alternative &&
+        defensiveChecks < 5 &&
+        deadline - performance.now() > 1000
+      ) {
+        defensiveChecks++;
+        try {
+          replyRisk = reviewReplyRisk(
+            lexicon,
+            turn.position,
+            template,
+            played,
+            alternative,
+          );
+        } catch {
+          /* An unavailable forecast does not invalidate the score comparison. */
+        }
+      }
+      if (opportunity.gap >= 8 || opportunity.bingo || replyRisk)
+        opportunities.push({
+          ...opportunity,
+          index: turn.index,
+          word: turn.move.word,
+          score: turn.move.score,
+          replyRisk,
+        });
+    } catch {
+      // One incomplete turn should not invalidate the other opportunities.
+    }
+    progress(i + 1, turns.length);
+  }
+  opportunities.sort(
+    (a, b) =>
+      Number(!!b.bingo) - Number(!!a.bingo) ||
+      b.gap - a.gap ||
+      Number(!!b.replyRisk) - Number(!!a.replyRisk),
+  );
+  return { checked, total: turns.length, opportunities: opportunities.slice(0, 3) };
+}
