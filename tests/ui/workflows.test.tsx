@@ -4379,7 +4379,12 @@ test("the game header, picker, and archive mark incomplete move histories", asyn
   const icon = { name: "Incomplete move history" };
   expect(within(cell("Switch game")).queryByRole("img", icon)).toBeNull();
   await user.click(cell("H8: DW, start"));
-  await user.keyboard("CAT");
+  await user.keyboard("C");
+  expect(within(cell("Switch game")).queryByRole("img", icon)).toBeNull();
+  await user.keyboard("AT");
+  await act(() => store.flush());
+  await act(() => store.refresh());
+  expect(within(cell("Switch game")).queryByRole("img", icon)).toBeNull();
   await user.click(cell("Record opponent move"));
   await act(() => store.flush());
   expect(within(cell("Switch game")).queryByRole("img", icon)).toBeNull();

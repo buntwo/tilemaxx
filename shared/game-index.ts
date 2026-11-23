@@ -87,8 +87,12 @@ export function recentOpponentNames(
 }
 
 function hasFullMoveHistory(position: Game): boolean {
-  const { board, scoring } = position;
+  const { scoring } = position;
   if (scoring?.imported) return false;
+  // Pending opponent tiles do not belong to the recorded position yet.
+  const board = !position.archived && !position.solo && tracksScores(position)
+    ? scoring?.pendingBase ?? position.board
+    : position.board;
   const history = trackedMoveHistory(position);
   const count = scoring
     ? scoring.you.moves + scoring.opponent.moves

@@ -769,8 +769,16 @@ test("the full history badge requires tracked plays from an empty board to the s
   );
   const pending = [...first.board];
   for (const { index, letter } of nextMove.tiles) pending[index] = letter;
+  const editing = new BoardEditHistory();
+  const entering = editing.apply(first, pending, "enter");
+  assert.equal(summarizeGame(entering).fullMoveHistory, true);
+  assert.equal(summarizeGame(recordOpponentPlay(entering)).fullMoveHistory, true);
   assert.equal(
-    summarizeGame(new BoardEditHistory().apply(first, pending, "enter"))
+    summarizeGame(treatBoardEditAsCorrection(entering)).fullMoveHistory,
+    false,
+  );
+  assert.equal(
+    summarizeGame(new BoardEditHistory().apply(partial, pending, "enter"))
       .fullMoveHistory,
     false,
   );

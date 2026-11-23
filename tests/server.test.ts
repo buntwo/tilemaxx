@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { version } from "../version.json";
 import { createStore } from "../server/store";
 import { createApp } from "../server/app";
+import { BoardEditHistory } from "../shared/board-entry";
 import { archiveGame, emptyBoard, type AppState, type Game } from "../shared/model";
 import { emptyScoring, gameScoreTotals, playTrackedMove } from "../shared/game-scoring";
 import { Lexicon } from "../shared/lexicon";
@@ -664,6 +665,32 @@ test("upgrading the game index refreshes the move history badge for saved empty 
     assert.equal(summary.fullMoveHistory, true);
     assert.equal(summary.revision, game.revision);
     assert.deepEqual(store.getGame(game.id), game);
+  } finally {
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("upgrading the game index refreshes the badge for a saved opponent entry", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-pending-history-"));
+  let store = createStore(dir, process.cwd());
+  try {
+    const [game] = store.state().games;
+    const board = [...game.board];
+    board[game.template.start] = "C";
+    const saved = store.saveGame(new BoardEditHistory().apply(game, board, "enter"))!;
+    const persisted = store.getGame(saved.id);
+    store.db.prepare(
+      `UPDATE game_summaries SET data=json_set(data, '$.fullMoveHistory', json('false')) WHERE id=?`,
+    ).run(saved.id);
+    store.db.exec("PRAGMA user_version=5");
+    store.db.close();
+
+    store = createStore(dir, process.cwd());
+    const [summary] = store.index().games;
+    assert.equal(summary.fullMoveHistory, true);
+    assert.equal(summary.revision, saved.revision);
+    assert.deepEqual(store.getGame(saved.id), persisted);
   } finally {
     store.db.close();
     rmSync(dir, { recursive: true, force: true });
