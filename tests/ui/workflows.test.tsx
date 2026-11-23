@@ -263,7 +263,7 @@ test("compare mode selects moves without playing and switches model without reru
       runs++;
       const words = ["AT", "CAT", "CATS", "ACT", "DOG", "RAT", "ART", "TAR"];
       const lexicon = new Lexicon(words);
-      const choose = createPlayerProfiles(lexicon, request.template, new Map(words.map((word) => [word, 4])));
+      const choose = createPlayerProfiles(lexicon, request.template, new Map(words.map((word) => [word, 4])), undefined, new Set(words));
       const result = analyzeMoves(lexicon, { ...request, trials: 8 }, choose);
       queueMicrotask(() => this.onmessage?.({ data: { result } }));
     }

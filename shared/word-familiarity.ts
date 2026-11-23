@@ -5,6 +5,7 @@ import { gameWordLanguage } from "./model";
 export type WordFrequencyLanguage = "en" | "fr" | "it";
 
 export const wordFrequencyLanguage = gameWordLanguage;
+export const englishCasualVocabularyUrl = "/dictionaries/ewpn-2019-over-75.txt.gz";
 
 export function wordFrequencyUrl(language: WordFrequencyLanguage) {
   return `/dictionaries/wordfreq-${language}-3.1.1.msgpack.gz`;

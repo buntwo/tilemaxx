@@ -41,7 +41,6 @@ const presets = {
     focus: 0.32,
     hookAttention: 0.1,
     vocabulary: 0.18,
-    shortWords: 0.35,
     study: 0,
     vertical: 0.85,
     bingo: 0.2,
@@ -93,11 +92,6 @@ const presets = {
   },
 };
 
-const studyWords = new Set(
-  "AA AE AI AR DA EF EL EM EN ER ES ET FE GI HM JO KA KI LI MI MM MU NA NE NU OD OE OM OS PE QI SI TA TE TI UT WO XI XU YA ZA".split(
-    " ",
-  ),
-);
 const scale = 2 ** 32;
 type WordProfile = {
   hash: number;
@@ -149,10 +143,10 @@ export function createPlayerProfiles(
   template: BoardTemplate,
   frequencies: ReadonlyMap<string, number>,
   sampling: ProfileSampling = defaultSampling,
+  casualWords?: ReadonlySet<string>,
 ) {
   const difficulty = createWordDifficulty(lexicon, frequencies);
-  const casualStudyWords =
-    wordFrequencyLanguage(template.rules) === "en" ? studyWords : undefined;
+  const english = wordFrequencyLanguage(template.rules) === "en";
   const counts = getTileCounts(template);
   const bagTiles = Object.values(counts).reduce((sum, count) => sum + count, 0);
   const bingoLength = minimumBingoTiles(template);
@@ -184,39 +178,43 @@ export function createPlayerProfiles(
     {
       hash: number;
       data: Partial<Record<PlayerProfile, WordProfile>>;
-      difficulty: number;
+      difficulty?: number;
       study?: number;
     }
   >();
   function wordData(word: string, profile: PlayerProfile) {
     const spelling = word.toUpperCase();
+    const usePrevalence = english && profile === "casual";
+    if (usePrevalence && !casualWords?.has(spelling)) return undefined;
     let wordInfo = wordCache.get(spelling);
     if (!wordInfo) {
       wordInfo = {
         hash: profileWordHash(spelling),
         data: {},
-        ...difficulty(spelling),
       };
       wordCache.set(spelling, wordInfo);
     }
     const cached = wordInfo.data[profile];
     if (cached) return cached;
+    if (usePrevalence)
+      return (wordInfo.data.casual = {
+        hash: wordInfo.hash,
+        knowledge: scale,
+        recall: 1,
+      });
     const preset = presets[profile];
     const study = preset.study
       ? (wordInfo.study ??= studyPriority(spelling))
       : 0;
-    const adjusted = wordInfo.difficulty * (1 - preset.study * study);
+    const baseDifficulty = (wordInfo.difficulty ??= difficulty(spelling).difficulty);
+    const adjusted = baseDifficulty * (1 - preset.study * study);
     return (wordInfo.data[profile] = {
       hash: wordInfo.hash,
       knowledge:
         Math.min(
           Math.exp(-0.72 * preset.vocabulary * adjusted),
-          (
-            profile === "casual"
-              ? casualStudyWords?.has(spelling)
-              : spelling.length === 2
-          )
-            ? preset.shortWords
+          profile !== "casual" && spelling.length === 2
+            ? presets[profile].shortWords
             : 1,
         ) * scale,
       recall: Math.exp(-0.28 * preset.vocabulary * adjusted),
@@ -268,6 +266,8 @@ export function createPlayerProfiles(
   ): ProfileDecision => {
     if (!moves.length)
       return { bingoFound: false, considered: options.all ? [] : undefined };
+    if (profile === "casual" && english && !casualWords)
+      throw new Error("The Casual word list could not be loaded.");
     const preset = presets[profile];
     const { bagSize, board, seed, playerSeed, rack, solo, scorelessTurns } =
       position;
@@ -307,7 +307,9 @@ export function createPlayerProfiles(
     let topReason: ProfileDecision["topReason"];
     const rawFirst = options.metrics ? moves[0].id : undefined;
 
-    function knows(data: WordProfile) {
+    function knows(data: WordProfile | undefined) {
+      if (!data) return false;
+      if (data.knowledge === scale) return true;
       let result = knownWords.get(data);
       if (result === undefined) {
         result = mixProfileSeed(data.hash ^ playerSeed) < data.knowledge;
@@ -336,6 +338,7 @@ export function createPlayerProfiles(
       }
       const word = wordData(move.word, profile);
       if (
+        !word ||
         !knows(word) ||
         move.crosses.some((cross) => !knows(wordData(cross, profile)))
       ) {

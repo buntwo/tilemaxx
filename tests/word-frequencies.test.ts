@@ -4,10 +4,31 @@ import { test } from "node:test";
 import { encode } from "@msgpack/msgpack";
 import {
   decodeWordFrequencies,
+  englishCasualVocabularyUrl,
   wordFrequencyLanguage,
   wordFrequencyUrl,
 } from "../shared/word-familiarity";
-import { loadWordFrequencies } from "../src/word-frequencies";
+import { loadProfileVocabulary, loadWordFrequencies } from "../src/word-frequencies";
+
+test("English Casual loads the strict EWPN allowlist independently of wordfreq", async (context) => {
+  const paths: string[] = [];
+  context.mock.method(globalThis, "fetch", async (url: string) => {
+    paths.push(url);
+    return paths.length === 1
+      ? new Response("<!DOCTYPE html><h1>Unavailable</h1>")
+      : new Response(readFileSync(`public${url}`));
+  });
+  await assert.rejects(loadProfileVocabulary("scrabble", "casual"), /Casual word list/);
+  const [frequencies, words] = await loadProfileVocabulary("scrabble", "casual");
+  assert.equal(frequencies.size, 0);
+  assert.ok(words?.has("SINKABLE"));
+  assert.ok(words?.has("BEDSPRING"));
+  assert.equal(words?.has("ABASE"), false); // Exactly 75%.
+  assert.equal(words?.has("CHATOYANT"), false); // Below 75%.
+  assert.equal(words?.has("QOPH"), false); // No EWPN entry.
+  assert.equal((await loadProfileVocabulary("crossplay", "casual"))[1], words);
+  assert.deepEqual(paths, [englishCasualVocabularyUrl, englishCasualVocabularyUrl]);
+});
 
 test("accent folding merges tile spellings at their highest frequency", () => {
   const data = encode([

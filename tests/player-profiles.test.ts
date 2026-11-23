@@ -71,7 +71,7 @@ test("nearest common legal spellings cover substitutions, deletions, insertions,
   );
 });
 
-test("player vocabulary is stable across turns and gates newly formed crosswords", () => {
+test("Casual accepts only listed main words and crosses across vocabulary seeds", () => {
   const template = PRESETS[0];
   const lexicon = new Lexicon(["QI", "QIS", "SIT"]);
   const choose = createPlayerProfiles(
@@ -83,6 +83,7 @@ test("player vocabulary is stable across turns and gates newly formed crosswords
       ["SIT", 4],
     ]),
     { coverage: 4, appeal: 12 },
+    new Set(["SIT", "AS"]),
   );
   const board = emptyBoard(template.size);
   board[82] = "Q";
@@ -100,13 +101,14 @@ test("player vocabulary is stable across turns and gates newly formed crosswords
       seed,
       playerSeed,
     });
-  const withUnknownCross = { ...hook, crosses: ["QI"] };
-  const seed = Array.from({ length: 100 }, (_, index) => index).find(
-    (playerSeed) => !decision(withUnknownCross, 0, playerSeed).move && decision(hook, 0, playerSeed).move,
-  )!;
-  assert.notEqual(seed, undefined);
-  assert.equal(decision(withUnknownCross, 61, seed).move, undefined);
-  assert.equal(decision(hook, 61, seed).move, hook);
+  const known = { ...hook, crosses: ["as"] };
+  const extension = moves.find((move) => move.word === "QIS")!;
+  assert.ok(extension);
+  for (const seed of [0, 61, 495]) {
+    assert.equal(decision(known, seed, seed).move, known);
+    assert.equal(decision(hook, seed, seed).move, undefined);
+    assert.equal(decision(extension, seed, seed).move, undefined);
+  }
 });
 
 test("vertical fluency rises with experience for the same known word", () => {
@@ -114,7 +116,7 @@ test("vertical fluency rises with experience for the same known word", () => {
   const board = emptyBoard(template.size);
   const rack = "CAT";
   const lexicon = new Lexicon(["CAT"]);
-  const choose = createPlayerProfiles(lexicon, template, new Map([["CAT", 4]]));
+  const choose = createPlayerProfiles(lexicon, template, new Map([["CAT", 4]]), undefined, new Set(["CAT"]));
   const moves = solve(lexicon, board, rack, template);
   const [across, down] = (["across", "down"] as const).map(
     (direction) => moves.find((move) => move.direction === direction)!,
@@ -138,23 +140,20 @@ test("word-list practice helps learners recall short words at equal corpus famil
   );
   const rack = "QAID";
   const legal = solve(lexicon, board, rack, template);
-  const noticed = (word: string, profile: "casual" | "learner") => {
+  const noticed = (word: string) => {
     const move = legal.find((it) => it.word === word && it.direction === "across")!;
     assert.ok(move);
     let count = 0;
     for (let seed = 0; seed < 256; seed++) {
       const position = { board, rack, bagSize: 86, seed, playerSeed: seed ^ 456 };
-      if (choose([move], profile, position).move) count++;
+      if (choose([move], "learner", position).move) count++;
     }
     return count;
   };
-  const shortGain = noticed("QI", "learner") - noticed("QI", "casual");
-  const longGain = noticed("QAID", "learner") - noticed("QAID", "casual");
-  assert.ok(shortGain > longGain);
-  assert.ok(noticed("QI", "learner") > noticed("QAID", "learner"));
+  assert.ok(noticed("QI") > noticed("QAID"));
 });
 
-test("English short-word study does not gate common French or Italian words", () => {
+test("English Casual vocabulary applies only in English games", () => {
   const preset = PRESETS.find(({ id }) => id === "lexulous")!;
   const lexicon = new Lexicon(["SI"]);
   const frequencies = new Map([["SI", 5]]);
@@ -162,14 +161,11 @@ test("English short-word study does not gate common French or Italian words", ()
   const rack = "SI";
   const [move] = solve(lexicon, board, rack, preset);
   const choices = [preset, templateForLanguage(preset, "fr"), templateForLanguage(preset, "it")]
-    .map((template) => createPlayerProfiles(lexicon, template, frequencies));
+    .map((template) => createPlayerProfiles(lexicon, template, frequencies, undefined, new Set()));
   const position = { board, rack, bagSize: 50, seed: 0, playerSeed: 0 };
-  const playerSeed = Array.from({ length: 100 }, (_, seed) => seed).find(
-    (seed) => !choices[0]([move], "casual", { ...position, playerSeed: seed }).move,
-  );
-  assert.notEqual(playerSeed, undefined);
+  assert.equal(choices[0]([move], "casual", position).move, undefined);
   for (const choose of choices.slice(1))
-    assert.equal(choose([move], "casual", { ...position, playerSeed: playerSeed! }).move, move);
+    assert.equal(choose([move], "casual", position).move, move);
 });
 
 test("profiles value shedding awkward duplicates and keeping flexible leaves", () => {
@@ -199,6 +195,7 @@ test("only Strong uses known-rack lookahead to adjust a close empty-bag choice",
   const moves = solve(lexicon, board, rack, template);
   const create = () => createPlayerProfiles(
     lexicon, template, new Map(words.map((word) => [word, 5])),
+    undefined, new Set(words),
   );
   const choose = create();
   const clock = context.mock.method(performance, "now", () => 0);
@@ -303,6 +300,8 @@ test("Analyze produces the three modeled replies with the real shared picker", (
     lexicon,
     template,
     new Map(Array.from(lexicon.words(), (word) => [word, 4])),
+    undefined,
+    new Set(lexicon.words()),
   );
   const [forecast] = analyzeMoves(
     lexicon,
@@ -340,6 +339,8 @@ test("fast picking agrees with full ranked results on a two-blank rack", () => {
     lexicon,
     template,
     new Map(Array.from(lexicon.words(), (word) => [word, 4])),
+    undefined,
+    new Set(lexicon.words()),
   );
   const board = emptyBoard(template.size);
   const rack = "AIRST??";
@@ -381,6 +382,7 @@ test("only the stronger profiles account for new lanes, with Strong imposing the
     template,
     new Map(words.map((word) => [word, 4])),
     { coverage: 4, appeal: 12 },
+    new Set(words),
   );
   const legal = solve(lexicon, board, rack, template);
   const opening = legal.find(
@@ -482,8 +484,9 @@ test("a localized search can miss familiar plays in a different part of the boar
   const lexicon = new Lexicon(words);
   const frequencies = new Map(words.map((word) => [word, 5]));
   const moves = solve(lexicon, board, rack, template);
-  const local = createPlayerProfiles(lexicon, template, frequencies, { coverage: 0.5, appeal: 0 });
-  const broad = createPlayerProfiles(lexicon, template, frequencies, { coverage: 4, appeal: 0 });
+  const knownWords = new Set(words);
+  const local = createPlayerProfiles(lexicon, template, frequencies, { coverage: 0.5, appeal: 0 }, knownWords);
+  const broad = createPlayerProfiles(lexicon, template, frequencies, { coverage: 4, appeal: 0 }, knownWords);
   const position = { board, rack, bagSize: 50, seed: 37, playerSeed: 17 };
   const known = broad(moves, "casual", position, { all: true }).considered!;
   assert.deepEqual([...new Set(known.map(({ move }) => move.word))].sort(), words);

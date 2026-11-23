@@ -2,7 +2,7 @@ import { loadWordList } from "./word-list-cache";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { analyzeMoves, type AnalysisRequest } from "../shared/move-analysis";
 import { createPlayerProfiles } from "../shared/player-profiles";
-import { loadWordFrequencies } from "./word-frequencies";
+import { loadProfileVocabulary } from "./word-frequencies";
 import { createEndgamePrecompute } from "./endgame-precompute";
 import {
   parallelOpponentEndgame,
@@ -117,11 +117,11 @@ self.onmessage = async (
     return;
   }
   try {
-    const [lexicon, frequencies] = await Promise.all([
+    const [lexicon, [frequencies, casualWords]] = await Promise.all([
       loadDictionary(request.dictionaryId),
-      loadWordFrequencies(request.template.rules),
+      loadProfileVocabulary(request.template.rules),
     ]);
-    const profiles = createPlayerProfiles(lexicon, request.template, frequencies);
+    const profiles = createPlayerProfiles(lexicon, request.template, frequencies, undefined, casualWords);
     const result = analyzeMoves(lexicon, request, profiles, (progress) => {
       self.postMessage({ progress });
     });
