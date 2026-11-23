@@ -1,6 +1,6 @@
 import { recordedMoveNotation } from "../../shared/notation";
 import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, Pencil, Plus, Trophy } from "lucide-react";
+import { ChevronDown, Pencil, Play, Plus, Trophy } from "lucide-react";
 import { isBingo, type Game, type Player } from "../../shared/model";
 import {
   correctTrackedMove,
@@ -63,6 +63,7 @@ export default function GameScores({
   onRecord,
   onCorrection,
   onEditLastOpponentMove,
+  onReplay,
   onChange,
 }: {
   game: Game;
@@ -70,6 +71,7 @@ export default function GameScores({
   onRecord: () => void;
   onCorrection: () => void;
   onEditLastOpponentMove?: () => void;
+  onReplay?: (returnFocus: HTMLButtonElement) => void;
   onChange: (game: Game) => void;
 }) {
   const { solo } = game;
@@ -266,13 +268,23 @@ export default function GameScores({
         </div>
       )}
       {!!chartMoves.length && <ScoreChart moves={chartMoves} solo={solo} />}
-      <details className="score-history">
-        <summary>
-          <span>
-            Tracked move history <small>({moves.length})</small>
-          </span>
-          <ChevronDown size={16} aria-hidden="true" />
-        </summary>
+      <div className="score-history-section">
+        {onReplay && (
+          <button
+            type="button"
+            className="text-button score-history-replay"
+            onClick={(event) => onReplay(event.currentTarget)}
+          >
+            <Play size={14} aria-hidden="true" /> Replay game
+          </button>
+        )}
+        <details className="score-history">
+          <summary>
+            <span>
+              Tracked move history <small>({moves.length})</small>
+            </span>
+            <ChevronDown size={16} aria-hidden="true" />
+          </summary>
         {moves.length ? (
           <table aria-label="Tracked moves">
             <thead>
@@ -367,7 +379,8 @@ export default function GameScores({
         >
           <Plus size={14} aria-hidden="true" /> Add missed move
         </button>
-      </details>
+        </details>
+      </div>
       {review !== undefined && (
         <TurnReview
           game={game}

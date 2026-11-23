@@ -14,7 +14,7 @@ import App from "../../src/App";
 import OptimalExchange from "../../src/components/OptimalExchange";
 import { GameStore, store } from "../../src/store";
 import { BoardEditHistory } from "../../shared/board-entry";
-import { emptyScoring, playTrackedMove } from "../../shared/game-scoring";
+import { emptyScoring, playTrackedMove, recordOpponentPlay } from "../../shared/game-scoring";
 import { summarizeGame } from "../../shared/game-index";
 import { PRESETS } from "../../shared/presets";
 import { importBoard } from "../../shared/screenshot";
@@ -2152,6 +2152,83 @@ function boardDirection() {
   if (arrow?.classList.contains("lucide-arrow-right")) return "Across";
   if (arrow?.classList.contains("lucide-arrow-down")) return "Down";
 }
+
+function replayFixture() {
+  const base = { ...game(), rack: "CATEINS" };
+  const move = solve(new Lexicon(["CAT"]), base.board, base.rack, base.template)
+    .find((move) => move.word === "CAT" && move.direction === "across" && move.tiles[0].index === 111)!;
+  const first = { ...playTrackedMove(base, move), rack: "EINSOUA" };
+  const board = [...first.board];
+  board[83] = "A";
+  board[98] = "R";
+  return {
+    ...recordOpponentPlay(new BoardEditHistory().apply(first, board, "enter")),
+    revision: 1,
+  };
+}
+
+test("live replay opens at the latest recorded move and keeps an in-progress play on exit", async () => {
+  remote.games[0] = replayFixture();
+  const user = await start();
+  await waitFor(() => expect(current().trackedMoves).toHaveLength(2));
+  await user.click(screen.getByText("Rack tools", { selector: "summary" }));
+  await user.click(cell("Enter your play"));
+  await user.click(cell("J8: empty"));
+  await user.keyboard("S");
+  expect(cell("J8: S, draft tile")).toBeTruthy();
+  const original = current();
+  const options = await openGameOptions(user);
+  await user.click(options.getByRole("button", { name: "Replay game" }));
+  const controls = within(screen.getByRole("group", { name: "Game replay" }));
+  const slider = controls.getByRole("slider", { name: "Replay moves" });
+  expect(slider).toHaveProperty("value", "2");
+  expect(document.activeElement).toBe(slider);
+  expect(screen.queryByRole("textbox", { name: "Type on board" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  expect(screen.getByRole("group", { name: "Replay score" }).textContent).toContain("10–4");
+  await user.click(controls.getByRole("button", { name: "Previous move" }));
+  expect(slider).toHaveProperty("value", "1");
+  expect(cell("I6: empty")).toHaveProperty("disabled", true);
+  expect(screen.getByRole("group", { name: "Replay score" }).textContent).toContain("10–0");
+  fireEvent.change(slider, { target: { value: "0" } });
+  expect(screen.getByText("Start of game")).toBeTruthy();
+  expect(controls.getByRole("button", { name: "Previous move" })).toHaveProperty("disabled", true);
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("group", { name: "Game replay" })).toBeNull();
+  expect(document.activeElement).toBe(cell("Game options"));
+  expect(cell("J8: S, draft tile")).toBeTruthy();
+  expect(current()).toEqual(original);
+});
+
+test("archived replay opens at the first position and Done restores later board edits", async () => {
+  const archived = archiveGame(replayFixture());
+  remote.games.push({
+    ...archived,
+    id: "replay-archive",
+    name: "Replay archive",
+    board: archived.board.map((tile, i) => i === 0 ? "Q" : tile),
+  });
+  const user = await start(390);
+  await act(() => store.refresh());
+  await user.click(cell("Open sidebar"));
+  await user.click(cell("Archived games"));
+  await user.click(screen.getByRole("button", { name: /^Replay archive/ }));
+  await screen.findByRole("heading", { name: "Replay archive" });
+  await screen.findByRole("button", { name: "A1: Q, edited after archiving" });
+  const shortcut = cell("Replay game");
+  expect(shortcut.closest(".score-history-section")?.querySelector("details")?.open).toBe(false);
+  await user.click(shortcut);
+  const controls = within(screen.getByRole("group", { name: "Game replay" }));
+  const slider = controls.getByRole("slider", { name: "Replay moves" });
+  expect(slider).toHaveProperty("value", "0");
+  expect(controls.getByRole("button", { name: "Play replay" })).toBeTruthy();
+  await user.click(controls.getByRole("button", { name: "Next move" }));
+  expect(cell("H8: A, start")).toHaveProperty("disabled", true);
+  expect(screen.queryByRole("button", { name: /^A1: Q/ })).toBeNull();
+  await user.click(controls.getByRole("button", { name: "Done" }));
+  expect(cell("A1: Q, edited after archiving")).toHaveProperty("disabled", false);
+  expect(document.activeElement).toBe(shortcut);
+});
 
 test("entering your play infers a blank and records the move without searching", async () => {
   remote.games[0] = {

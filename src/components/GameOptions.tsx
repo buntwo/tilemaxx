@@ -10,6 +10,7 @@ import {
   ImagePlus,
   Pencil,
   Plus,
+  Play,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -48,6 +49,7 @@ export default function GameOptions({
   onChooseGame,
   onArchived,
   onOpen,
+  onReplay,
   onClose,
   notify,
 }: {
@@ -60,6 +62,7 @@ export default function GameOptions({
   onChooseGame: (id: string) => void;
   onArchived: () => void;
   onOpen: (dialog: GameOptionDialog) => void;
+  onReplay?: () => void;
   onClose: () => void;
   notify: (message: string) => void;
 }) {
@@ -129,6 +132,9 @@ export default function GameOptions({
               </button>
               <button disabled={busy} onClick={() => onOpen("history")}>
                 <History size={17} aria-hidden="true" /> Move history
+              </button>
+              <button disabled={busy || !onReplay} onClick={onReplay}>
+                <Play size={17} aria-hidden="true" /> Replay game
               </button>
               <button disabled={busy} onClick={() => onOpen("board-help")}>
                 <CircleHelp size={17} aria-hidden="true" /> Board help

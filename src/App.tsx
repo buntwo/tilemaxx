@@ -1,5 +1,5 @@
 import { isSimulatedStyle } from "../shared/simulated-styles";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Activity, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ImagePlus,
   ArrowLeft,
@@ -45,6 +45,8 @@ import BoardEntry, {
 import BoardFinishOverlay from "./components/BoardFinishOverlay";
 import LastPlay, { type LastPlayBag } from "./components/LastPlay";
 import { useGameFinish } from "./useGameFinish";
+import { useGameReplay } from "./useGameReplay";
+import { ReplayBoard, ReplayControls, ReplayRack } from "./components/GameReplay";
 import {
   GameCalculations,
   useGameCalculating,
@@ -256,6 +258,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const [reviewConflictId, setReviewConflictId] = useState<string>();
   const moveSidebarFocus = useRef(false);
   const boardPanel = useRef<HTMLElement>(null);
+  const gameOptionsButton = useRef<HTMLButtonElement>(null);
   const squareFilterButton = useRef<HTMLButtonElement>(null);
   const rackPanel = useRef<HTMLElement>(null);
   const rackEntry = useRef<RackEntryHandle>(null);
@@ -368,6 +371,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       : undefined;
   const gameFinish = useGameFinish(workspace === "games" ? game : undefined, !!activeFlight);
   const boardLocked = !!gameFinish.current;
+  const gameReplay = useGameReplay(
+    workspace === "games" ? game : undefined,
+    !dialog && !(sidebarOverlay && sidebarDrawerOpen),
+  );
+  const replay = gameReplay.active;
+  const canReplayGame = gameReplay.available && !boardLocked && !activeFlight;
   const [ownPlay, setOwnPlay] = useState<{ gameId: string; board: string }>();
   const canEnterOwnPlay = !!game && workspace === "games" &&
     !game.archived && !gameOver && !boardLocked && !activeFlight;
@@ -377,7 +386,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     if (!enteringOwnPlay) setOwnPlay(undefined);
   }, [enteringOwnPlay]);
   useKeyboardShortcuts({
-    enabled: !!data && !dialog && !boardLocked,
+    enabled: !!data && !dialog && !boardLocked && !replay,
     focusRack() {
       if (!rackEntry.current) return false;
       setSidebarDrawerOpen(false);
@@ -428,7 +437,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     styleExchange.pending ||
     replyAnalysis.calculating ||
     calculating ||
-    !!activeFlight;
+    !!activeFlight ||
+    !!replay;
   const appUpdate = useAutoUpdate(
     state.online ? state.serverVersion : undefined,
     preferences.autoUpdate,
@@ -813,9 +823,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   ].filter(Boolean).join(" · ");
   const headlineScore = game && (
     <GameScoreBadge
-      score={gameFinish.score}
-      turn={nextPlayerToMove(game)}
-      onReplay={gameFinish.replay}
+      score={replay
+        ? { ...replay.frame.scores, solo: game.solo, outcome: "playing" }
+        : gameFinish.score}
+      label={replay ? "Replay score" : undefined}
+      turn={replay ? undefined : nextPlayerToMove(game)}
+      onReplay={replay ? undefined : gameFinish.replay}
       prominent={compactGame}
       showMargin
       showNoScore={!tracksScores(game)}
@@ -842,6 +855,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       onToggle={(enabled) => update(setScoreTracking(game, enabled))}
       onRecord={() => updateAfterTurn(recordOpponentPlay(game))}
       onCorrection={() => update(treatBoardEditAsCorrection(game))}
+      onReplay={canReplayGame ? gameReplay.open : undefined}
       onEditLastOpponentMove={
         lastSearchRecordedOpponentTurn(game)
           ? () => {
@@ -1193,11 +1207,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             {headlineScore}
             {game && (
               <button
+                ref={gameOptionsButton}
                 type="button"
                 className="icon-button game-options-button"
                 aria-label="Game options"
                 aria-haspopup="dialog"
                 title="Game options"
+                disabled={!!replay}
                 onClick={() => openDialog("manage")}
               >
                 <MoreHorizontal size={18} aria-hidden="true" />
@@ -1309,21 +1325,23 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         ) : game ? (
           <GameWorkspace
             definitionRules={game.template.rules}
-            positionKey={signature}
+            positionKey={replay ? `${game.id}:replay:${replay.index}` : signature}
             narrow={narrowLayout}
-            reviewing={moveReview.showing}
-            hasWarnings={warnings.length > 0}
+            reviewing={!replay && moveReview.showing}
+            hasWarnings={!replay && warnings.length > 0}
           >
             <GameBoardColumn
               phone={narrowLayout}
               resizeDisabled={!!activeFlight}
-              warnings={boardWarnings}
+              warnings={!replay && boardWarnings}
               board={<section
                 ref={boardPanel}
                 aria-label="Game board"
                 className="board-panel panel"
+                data-replay={!!replay || undefined}
                 onKeyDown={(event) => {
                   if (
+                    !replay &&
                     !boardLocked &&
                     squareFilter.selecting &&
                     event.key === "Escape"
@@ -1333,6 +1351,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   }
                 }}
               >
+                {replay && (
+                  <>
+                    <ReplayBoard frame={replay.frame} />
+                    <ReplayControls {...replay} />
+                  </>
+                )}
+                <Activity mode={replay ? "hidden" : "visible"}>
                 <LastPlay
                   game={activeFlight?.before ?? game}
                   bag={activeFlight?.bag ?? replyAnalysis}
@@ -1440,6 +1465,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     )}
                   </div>
                 )}
+                </Activity>
               </section>}
               rack={(detailsTarget) => <section
                 ref={rackPanel}
@@ -1449,6 +1475,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   if (activeFlight) setFlight(undefined);
                 }}
               >
+                {replay && <ReplayRack frame={replay.frame} />}
+                <Activity mode={replay ? "hidden" : "visible"}>
                 <RackEntry
                   key={game.id}
                   ref={rackEntry}
@@ -1479,9 +1507,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   }
                   flyingRack={activeFlight}
                 />
+                </Activity>
               </section>}
             />
             <div className="results-column">
+              <Activity mode={replay ? "hidden" : "visible"}>
               {gameOver ? (
                 <section className="results-panel game-over panel" aria-label="Possible moves">
                   <h3>Game over</h3>
@@ -1587,8 +1617,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   </div>
                 </div>
               )}
+              </Activity>
             </div>
-            <div className="game-scores-column">{gameScores}</div>
+            <div className="game-scores-column">
+              <Activity mode={replay ? "hidden" : "visible"}>{gameScores}</Activity>
+            </div>
           </GameWorkspace>
         ) : selectedGame ? (
           <section className="welcome-panel panel" aria-label="Game board">
@@ -2120,6 +2153,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             chooseGame(activeGames.find((item) => item.id !== game.id)?.id ?? "")
           }
           onOpen={openDialog}
+          onReplay={canReplayGame ? () => {
+            gameReplay.open(gameOptionsButton.current);
+            setDialog(null);
+          } : undefined}
           onClose={() => setDialog(null)}
           notify={notify}
         />

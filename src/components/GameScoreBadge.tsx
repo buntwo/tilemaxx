@@ -22,6 +22,7 @@ export default function GameScoreBadge({
   prominent = false,
   showMargin = false,
   showNoScore = false,
+  label = "Tracked score",
   onReplay,
 }: {
   score: GameScoreSummary | null;
@@ -29,6 +30,7 @@ export default function GameScoreBadge({
   prominent?: boolean;
   showMargin?: boolean;
   showNoScore?: boolean;
+  label?: string;
   onReplay?: () => void;
 }) {
   const badgeClass = prominent
@@ -75,7 +77,7 @@ export default function GameScoreBadge({
         .join(" ")}
       type={onReplay ? "button" : undefined}
       role={onReplay ? undefined : "group"}
-      aria-label={onReplay ? "Replay finish animation" : "Tracked score"}
+      aria-label={onReplay ? "Replay finish animation" : label}
       aria-description={onReplay ? describeGameScore(score) : badgeDescription}
       title={onReplay ? "Replay finish animation" : badgeDescription}
       data-outcome={score.outcome}
