@@ -4705,7 +4705,11 @@ test("the phone layout keeps settings, the build version, board help and move fi
   const findMoves = main.getByRole("button", { name: "Find moves" });
   expect(rack.queryByRole("heading", { name: "Your rack" })).toBeNull();
   expect(rack.queryByRole("button", { name: "Find moves" })).toBeNull();
-  expect(rack.getByText("Rack tools")).toBeTruthy();
+  const tiles = rack.getByRole("group", { name: "Your rack tiles" });
+  const tools = rack.getByText("Rack tools").closest(".rack-lane-tools");
+  const bag = rack.getByRole("button", { name: /Unseen tiles,/ });
+  expect(tools?.nextElementSibling).toBe(tiles.parentElement);
+  expect(tiles.parentElement?.nextElementSibling).toBe(bag);
   expect(findMoves.hasAttribute("disabled")).toBe(true);
   await typeRack(user, "CAT");
   await user.click(findMoves);
@@ -6010,7 +6014,7 @@ test.each(["mouse", "touch"])("rack drag inserts between tiles and suppresses a 
   expect(document.activeElement).toBe(rackTile(4));
 });
 
-test("the phone divider restores saved positions and resizes only the board", async () => {
+test("the phone divider restores saved positions and uses the available board width", async () => {
   shellWidth = 390;
   localStorage.setItem("tilewise:phone-rack-width", "58");
   const { unmount } = render(<App />);
@@ -6019,15 +6023,22 @@ test("the phone divider restores saved positions and resizes only the board", as
   const column = divider.closest<HTMLElement>(".phone-board-column")!;
   expect(divider.value).toBe("58");
   expect(divider.getAttribute("aria-valuetext")).toBe("14 pixels narrower");
-  expect(Number(divider.max) - Number(divider.min)).toBeGreaterThan(20);
-  fireEvent.change(divider, { target: { value: "100" } });
-  expect(column.style.getPropertyValue("--phone-board-inset")).toBe("100px");
+  expect(Number(divider.max) - Number(divider.min)).toBeGreaterThan(120);
+  const wideLimit = divider.max;
+  fireEvent.change(divider, { target: { value: "200" } });
+  expect(column.style.getPropertyValue("--phone-board-reduction")).toBe("156px");
   expect(column.style.getPropertyValue("--phone-rack-width")).toBe("44px");
+
+  act(() => resizeShell(320));
+  expect(Number(divider.max)).toBeLessThan(Number(wideLimit));
+  expect(divider.value).toBe(divider.max);
+  act(() => resizeShell(390));
+  expect(divider.value).toBe("200");
 
   unmount();
   render(<App />);
   await screen.findByRole("heading", { name: /First game/ });
-  expect(screen.getByRole<HTMLInputElement>("slider", { name: "Board size" }).value).toBe("100");
+  expect(screen.getByRole<HTMLInputElement>("slider", { name: "Board size" }).value).toBe("200");
 });
 
 test("the vertical rack uses up and down to select tiles and horizontal arrows to mark them", async () => {

@@ -6146,9 +6146,9 @@ label + label {
 .phone-layout .workspace-grid { gap: 9px; }
 .stacked-game .workspace-grid { scroll-margin-block-start: 8px; }
 .phone-board-column {
-  --phone-rack-gap: 12px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--phone-rack-gap) var(--phone-board-inset);
+  /* Keep the unused width beyond the rack as the divider moves. */
+  grid-template-columns: minmax(0, 1fr) var(--phone-rack-gap) var(--phone-rack-width) var(--phone-board-reduction);
   align-items: center;
   container-type: inline-size;
 }
@@ -6183,7 +6183,7 @@ label + label {
   height: 44px;
   min-height: 0;
   margin: 0;
-  margin-inline-end: calc(var(--phone-rack-width) + (var(--phone-rack-gap) - var(--phone-divider-thumb)) / 2);
+  margin-right: calc(var(--phone-rack-width) + (var(--phone-rack-gap) - var(--phone-divider-thumb)) / 2);
   padding: 0;
   border: 0;
   border-radius: 5px;
@@ -6216,8 +6216,6 @@ label + label {
 .phone-rack-divider:disabled { opacity: .5; cursor: default; }
 .phone-board-column > .rack-panel {
   grid-area: 1 / 3;
-  justify-self: center;
-  width: var(--phone-rack-width);
   position: relative;
   z-index: 1;
   margin: 0;
@@ -6253,7 +6251,7 @@ label + label {
 .phone-board-column .rack-bag {
   align-self: center;
   flex: none;
-  margin-bottom: 2px;
+  margin-top: 2px;
 }
 .phone-board-column .rack-panel .rack-tiles {
   flex-direction: column;

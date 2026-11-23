@@ -20,14 +20,15 @@ export function useMoveReview(
 // Use the original key so saved divider positions carry over.
 const DIVIDER_POSITION_KEY = "tilewise:phone-rack-width";
 const RACK_WIDTH = 44;
-const MAX_BOARD_INSET = 104;
+const DIVIDER_GAP = 12;
+const MIN_BOARD_WIDTH = 144;
 
 function readBoardInset() {
   try {
     const saved = localStorage.getItem(DIVIDER_POSITION_KEY);
     if (saved !== null) {
       const inset = Number(saved);
-      if (Number.isInteger(inset) && inset >= RACK_WIDTH && inset <= MAX_BOARD_INSET) {
+      if (Number.isSafeInteger(inset) && inset >= RACK_WIDTH) {
         return inset;
       }
     }
@@ -48,16 +49,35 @@ export function GameBoardColumn({
   warnings: ReactNode;
   rack: (details: HTMLDivElement | null) => ReactNode;
 }) {
-  const [boardInset, setBoardInset] = useState(readBoardInset);
+  const column = useRef<HTMLDivElement>(null);
+  const [savedInset, setSavedInset] = useState(readBoardInset);
+  const [maxInset, setMaxInset] = useState(RACK_WIDTH);
   const [details, setDetails] = useState<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const element = column.current;
+    if (!phone || !element) return;
+    function measure(width: number) {
+      setMaxInset(Math.max(RACK_WIDTH, Math.floor(width) - DIVIDER_GAP - MIN_BOARD_WIDTH));
+    }
+    measure(element.clientWidth);
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) measure(entry.contentRect.width);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [phone]);
+
+  const boardInset = Math.min(savedInset, maxInset);
   const boardReduction = boardInset - RACK_WIDTH;
   return (
     <div
+      ref={column}
       className={phone ? "board-column phone-board-column" : "board-column"}
       style={phone ? {
         "--phone-rack-width": RACK_WIDTH + "px",
-        "--phone-board-inset": boardInset + "px",
-        "--phone-divider-range": `${MAX_BOARD_INSET - RACK_WIDTH}px`,
+        "--phone-rack-gap": DIVIDER_GAP + "px",
+        "--phone-board-reduction": boardReduction + "px",
+        "--phone-divider-range": `${maxInset - RACK_WIDTH}px`,
       } as CSSProperties : undefined}
     >
       {board}
@@ -68,12 +88,12 @@ export function GameBoardColumn({
           aria-label="Board size"
           aria-valuetext={boardReduction ? `${boardReduction} pixels narrower` : "Widest board"}
           min={RACK_WIDTH}
-          max={MAX_BOARD_INSET}
+          max={maxInset}
           value={boardInset}
           disabled={resizeDisabled}
           onChange={(event) => {
             const inset = event.currentTarget.valueAsNumber;
-            setBoardInset(inset);
+            setSavedInset(inset);
             try {
               localStorage.setItem(DIVIDER_POSITION_KEY, String(inset));
             } catch {}

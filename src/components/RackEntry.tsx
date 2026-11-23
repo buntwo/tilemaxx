@@ -799,7 +799,7 @@ export default function RackEntry({
         } as CSSProperties
       }
     >
-      {phoneLayout && bagButton}
+      {phoneLayout && rackTools}
       <div className="rack-lane rack-player-lane">
         {opponentRack && (
           <small className="rack-owner-label" aria-hidden="true">
@@ -826,7 +826,7 @@ export default function RackEntry({
       {opponentRack && (
         <OpponentRack rack={opponentRack}>{!phoneLayout && rackTools}</OpponentRack>
       )}
-      {phoneLayout && rackTools}
+      {phoneLayout && bagButton}
       <input
         className="rack-keyboard-input"
         ref={input}
