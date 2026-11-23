@@ -4637,9 +4637,6 @@ label + label {
   top: 50%;
 }
 .board-word-score.opponent-word-score {
-  width: max-content;
-  height: auto;
-  aspect-ratio: 1;
   border-radius: 0;
 }
 .board-word-score.bingo-word-score {
