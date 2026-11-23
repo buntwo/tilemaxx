@@ -17,21 +17,22 @@ export function useMoveReview(
   };
 }
 
-const RACK_WIDTH_KEY = "tilewise:phone-rack-width";
-const RACK_MIN_WIDTH = 44;
-const RACK_MAX_WIDTH = 64;
+// Use the original key so saved divider positions carry over.
+const DIVIDER_POSITION_KEY = "tilewise:phone-rack-width";
+const RACK_WIDTH = 44;
+const MAX_BOARD_INSET = 104;
 
-function readRackWidth() {
+function readBoardInset() {
   try {
-    const saved = localStorage.getItem(RACK_WIDTH_KEY);
+    const saved = localStorage.getItem(DIVIDER_POSITION_KEY);
     if (saved !== null) {
-      const width = Number(saved);
-      if (Number.isInteger(width) && width >= RACK_MIN_WIDTH && width <= RACK_MAX_WIDTH) {
-        return width;
+      const inset = Number(saved);
+      if (Number.isInteger(inset) && inset >= RACK_WIDTH && inset <= MAX_BOARD_INSET) {
+        return inset;
       }
     }
   } catch {}
-  return RACK_MIN_WIDTH;
+  return RACK_WIDTH;
 }
 
 export function GameBoardColumn({
@@ -47,15 +48,16 @@ export function GameBoardColumn({
   warnings: ReactNode;
   rack: (details: HTMLDivElement | null) => ReactNode;
 }) {
-  const [rackWidth, setRackWidth] = useState(readRackWidth);
+  const [boardInset, setBoardInset] = useState(readBoardInset);
   const [details, setDetails] = useState<HTMLDivElement | null>(null);
+  const boardReduction = boardInset - RACK_WIDTH;
   return (
     <div
       className={phone ? "board-column phone-board-column" : "board-column"}
       style={phone ? {
-        "--phone-rack-width": rackWidth + "px",
-        "--phone-rack-min": RACK_MIN_WIDTH + "px",
-        "--phone-rack-range": `${RACK_MAX_WIDTH - RACK_MIN_WIDTH}px`,
+        "--phone-rack-width": RACK_WIDTH + "px",
+        "--phone-board-inset": boardInset + "px",
+        "--phone-divider-range": `${MAX_BOARD_INSET - RACK_WIDTH}px`,
       } as CSSProperties : undefined}
     >
       {board}
@@ -63,17 +65,17 @@ export function GameBoardColumn({
         <input
           className="phone-rack-divider"
           type="range"
-          aria-label="Rack width"
-          aria-valuetext={rackWidth + " pixels"}
-          min={RACK_MIN_WIDTH}
-          max={RACK_MAX_WIDTH}
-          value={rackWidth}
+          aria-label="Board size"
+          aria-valuetext={boardReduction ? `${boardReduction} pixels narrower` : "Widest board"}
+          min={RACK_WIDTH}
+          max={MAX_BOARD_INSET}
+          value={boardInset}
           disabled={resizeDisabled}
           onChange={(event) => {
-            const width = event.currentTarget.valueAsNumber;
-            setRackWidth(width);
+            const inset = event.currentTarget.valueAsNumber;
+            setBoardInset(inset);
             try {
-              localStorage.setItem(RACK_WIDTH_KEY, String(width));
+              localStorage.setItem(DIVIDER_POSITION_KEY, String(inset));
             } catch {}
           }}
         />

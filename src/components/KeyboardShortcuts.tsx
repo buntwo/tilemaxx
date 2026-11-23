@@ -1,6 +1,6 @@
 import Modal from "./Modal";
 
-const sections = [
+const sections = (phoneLayout: boolean) => [
   {
     title: "Workspace",
     shortcuts: [
@@ -21,9 +21,10 @@ const sections = [
       ["Shift + Enter", "Switch board entry direction"],
       ["→ / ↓", "Switch board direction or advance the cursor"],
       ["Space", "Enter a blank tile"],
-      ["↓", "Cycle rack tile through normal, excluded, and required"],
-      ["↑", "Mark or unmark a rack tile for exchange"],
-      ["Shift + ← / →", "Reorder a focused rack tile"],
+      [phoneLayout ? "↑ / ↓" : "← / →", "Move between rack tiles"],
+      [phoneLayout ? "→" : "↓", "Cycle rack tile through normal, excluded, and required"],
+      [phoneLayout ? "←" : "↑", "Mark or unmark a rack tile for exchange"],
+      [phoneLayout ? "Shift + ↑ / ↓" : "Shift + ← / →", "Reorder a focused rack tile"],
     ],
   },
   {
@@ -37,11 +38,11 @@ const sections = [
   },
 ];
 
-export default function KeyboardShortcuts({ onClose }: { onClose: () => void }) {
+export default function KeyboardShortcuts({ phoneLayout, onClose }: { phoneLayout: boolean; onClose: () => void }) {
   return (
     <Modal title="Keyboard shortcuts" onClose={onClose}>
       <div className="keyboard-shortcuts">
-        {sections.map(({ title, shortcuts }) => (
+        {sections(phoneLayout).map(({ title, shortcuts }) => (
           <section key={title}>
             <h3>{title}</h3>
             <dl>

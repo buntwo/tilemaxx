@@ -1953,7 +1953,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         <UiGuide phoneLayout={narrowLayout} onClose={() => setDialog(null)} />
       )}
       {dialog === "keyboard-shortcuts" && (
-        <KeyboardShortcuts onClose={() => setDialog(null)} />
+        <KeyboardShortcuts phoneLayout={narrowLayout} onClose={() => setDialog(null)} />
       )}
       {dialog === "workspace-settings" && (
         <WorkspaceSettings

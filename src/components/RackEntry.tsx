@@ -433,6 +433,8 @@ export default function RackEntry({
     preview && !flyingRack ? rackSlotsForMove(game, preview.tiles) : null;
   const previousTileKey = phoneLayout ? "ArrowUp" : "ArrowLeft";
   const nextTileKey = phoneLayout ? "ArrowDown" : "ArrowRight";
+  const cycleMarkKey = phoneLayout ? "ArrowRight" : "ArrowDown";
+  const exchangeKeyShortcut = phoneLayout ? "ArrowLeft" : "ArrowUp";
   const playerTiles = (
     <div
       ref={rack}
@@ -874,10 +876,10 @@ export default function RackEntry({
             ![
               "Backspace",
               "Delete",
-              "ArrowLeft",
-              "ArrowRight",
-              "ArrowDown",
-              "ArrowUp",
+              previousTileKey,
+              nextTileKey,
+              cycleMarkKey,
+              exchangeKeyShortcut,
               "Home",
               "End",
               "Escape",
@@ -893,7 +895,7 @@ export default function RackEntry({
             case "Delete":
               erase(true);
               break;
-            case "ArrowLeft":
+            case previousTileKey:
               eraseSelected.current = true;
               setCursor(
                 Math.max(
@@ -903,17 +905,17 @@ export default function RackEntry({
               );
               setSelectAll(false);
               break;
-            case "ArrowRight":
+            case nextTileKey:
               eraseSelected.current = true;
               setCursor(
                 Math.min(capacity, selectAll ? game.rack.length : position + 1),
               );
               setSelectAll(false);
               break;
-            case "ArrowDown":
+            case cycleMarkKey:
               if (!selectAll) cycleTileMark(Math.min(position, capacity - 1));
               break;
-            case "ArrowUp":
+            case exchangeKeyShortcut:
               if (!selectAll) toggleExchange(Math.min(position, capacity - 1));
               break;
             case "Home":

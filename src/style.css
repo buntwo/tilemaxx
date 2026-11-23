@@ -6148,49 +6148,76 @@ label + label {
 .phone-board-column {
   --phone-rack-gap: 12px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--phone-rack-gap) var(--phone-rack-width);
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) var(--phone-rack-gap) var(--phone-board-inset);
+  align-items: center;
   container-type: inline-size;
 }
 .phone-board-column > .board-panel { grid-area: 1 / 1; }
+.phone-board-column .board-entry .board-grid {
+  --board-gap: clamp(1px, .58cqw, 4px);
+}
+.phone-board-column .board-entry .board-grid > .axis {
+  min-height: 0;
+  line-height: 1;
+}
+@container (max-width: 210px) {
+  .phone-board-column .board-entry .board-grid .tile-letter {
+    font-size: clamp(6px, 3.8cqw, 8px);
+  }
+  .phone-board-column .board-entry .board-grid .tile-points {
+    inset: auto 1px 1px auto;
+    font-size: clamp(3px, 1.9cqw, 4px);
+  }
+  .phone-board-column .board-entry .board-grid .premium-label {
+    font-size: clamp(4px, 2.8cqw, 6px);
+  }
+}
 .phone-rack-divider {
+  --phone-divider-thumb: 26px;
   grid-area: 1 / 1 / 2 / -1;
   justify-self: end;
-  align-self: start;
   direction: rtl;
   z-index: 2;
   appearance: none;
-  width: calc(var(--phone-rack-range) + var(--phone-rack-gap));
+  width: calc(var(--phone-divider-range) + var(--phone-divider-thumb));
   height: 44px;
   min-height: 0;
-  margin: 0 var(--phone-rack-min) 0 0;
-  margin-block-start: calc((100cqi - var(--phone-rack-width) - var(--phone-rack-gap)) / 2 + 12px);
+  margin: 0;
+  margin-inline-end: calc(var(--phone-rack-width) + (var(--phone-rack-gap) - var(--phone-divider-thumb)) / 2);
   padding: 0;
   border: 0;
   border-radius: 5px;
   background: transparent;
   cursor: ew-resize;
   touch-action: none;
+  /* The track overlaps the board. Only the thumb should intercept taps. */
+  pointer-events: none;
 }
 .phone-rack-divider::-webkit-slider-thumb {
   appearance: none;
-  width: var(--phone-rack-gap);
-  height: 32px;
-  border: 3px solid var(--bg);
-  border-radius: 7px;
-  background: var(--muted);
+  width: var(--phone-divider-thumb);
+  height: 44px;
+  border: solid transparent;
+  border-width: 6px 10px;
+  border-radius: 14px;
+  background: var(--muted) padding-box;
+  pointer-events: auto;
 }
 .phone-rack-divider::-moz-range-thumb {
   box-sizing: border-box;
-  width: var(--phone-rack-gap);
-  height: 32px;
-  border: 3px solid var(--bg);
-  border-radius: 7px;
-  background: var(--muted);
+  width: var(--phone-divider-thumb);
+  height: 44px;
+  border: solid transparent;
+  border-width: 6px 10px;
+  border-radius: 14px;
+  background: var(--muted) padding-box;
+  pointer-events: auto;
 }
 .phone-rack-divider:disabled { opacity: .5; cursor: default; }
 .phone-board-column > .rack-panel {
   grid-area: 1 / 3;
+  justify-self: center;
+  width: var(--phone-rack-width);
   position: relative;
   z-index: 1;
   margin: 0;
@@ -6204,11 +6231,8 @@ label + label {
   --phone-rack-label-height: 13px;
   --phone-rack-lane-gap: 4px;
   --phone-rack-stack-padding: 12px;
-  --phone-rack-space: calc(
-    100cqi - var(--phone-rack-min) - var(--phone-rack-gap) - 22px
-    + (var(--phone-rack-width) - var(--phone-rack-min)) / 2
-  );
-  --phone-rack-tile-max: min(46px, var(--phone-rack-width) - 8px);
+  --phone-rack-space: calc(100cqi - var(--phone-rack-width) - var(--phone-rack-gap) - 22px);
+  --phone-rack-tile-max: calc(var(--phone-rack-width) - 8px);
   --phone-rack-tile-size: clamp(0px, calc(
     (var(--phone-rack-space) - var(--phone-rack-stack-padding)
       - (var(--rack-size) - 1) * var(--phone-tile-gap)) / var(--rack-size)

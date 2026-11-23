@@ -5038,7 +5038,7 @@ test.each([
   const ghosts = () => board.querySelectorAll(".ghost");
   const rack = screen.getByRole("region", { name: "Your rack" });
   const column = board.closest(".phone-board-column");
-  const divider = screen.getByRole("slider", { name: "Rack width" });
+  const divider = screen.getByRole("slider", { name: "Board size" });
   const expectFixedLayout = () => {
     expect(column).toBeTruthy();
     expect(board.closest(".phone-board-column")).toBe(column);
@@ -6010,21 +6010,52 @@ test.each(["mouse", "touch"])("rack drag inserts between tiles and suppresses a 
   expect(document.activeElement).toBe(rackTile(4));
 });
 
-test("resizing the phone rack restores the width on reload", async () => {
+test("the phone divider restores saved positions and resizes only the board", async () => {
   shellWidth = 390;
+  localStorage.setItem("tilewise:phone-rack-width", "58");
   const { unmount } = render(<App />);
   await screen.findByRole("heading", { name: /First game/ });
-  const divider = screen.getByRole<HTMLInputElement>("slider", { name: "Rack width" });
+  const divider = screen.getByRole<HTMLInputElement>("slider", { name: "Board size" });
   const column = divider.closest<HTMLElement>(".phone-board-column")!;
-  expect(divider.value).toBe("44");
-  fireEvent.change(divider, { target: { value: "58" } });
-  expect(column.style.getPropertyValue("--phone-rack-width")).toBe("58px");
-  expect(divider.getAttribute("aria-valuetext")).toBe("58 pixels");
+  expect(divider.value).toBe("58");
+  expect(divider.getAttribute("aria-valuetext")).toBe("14 pixels narrower");
+  expect(Number(divider.max) - Number(divider.min)).toBeGreaterThan(20);
+  fireEvent.change(divider, { target: { value: "100" } });
+  expect(column.style.getPropertyValue("--phone-board-inset")).toBe("100px");
+  expect(column.style.getPropertyValue("--phone-rack-width")).toBe("44px");
 
   unmount();
   render(<App />);
   await screen.findByRole("heading", { name: /First game/ });
-  expect(screen.getByRole<HTMLInputElement>("slider", { name: "Rack width" }).value).toBe("58");
+  expect(screen.getByRole<HTMLInputElement>("slider", { name: "Board size" }).value).toBe("100");
+});
+
+test("the vertical rack uses up and down to select tiles and horizontal arrows to mark them", async () => {
+  const user = await start(390);
+  await typeRack(user, "CAT");
+  await user.click(rackTile(2));
+  await user.keyboard("{ArrowUp}");
+  expect(rackTile(1).classList.contains("selected")).toBe(true);
+  await user.keyboard("{ArrowDown}");
+  expect(rackTile(2).classList.contains("selected")).toBe(true);
+
+  await user.keyboard("{ArrowRight}");
+  expect(current().excludedRackSlots).toEqual([1]);
+  await user.keyboard("{ArrowRight}");
+  expect(current().requiredRackSlots).toEqual([1]);
+  await user.keyboard("{ArrowRight}");
+  expect(current().excludedRackSlots).toBeUndefined();
+  expect(current().requiredRackSlots).toBeUndefined();
+  await user.keyboard("{ArrowLeft}");
+  expect(rackTile(2).getAttribute("aria-label")).toContain("marked for exchange");
+  await user.keyboard("{ArrowLeft}");
+  expect(rackTile(2).getAttribute("aria-label")).not.toContain("marked for exchange");
+  expect(rackTile(2).classList.contains("selected")).toBe(true);
+
+  await user.keyboard("{Escape}?");
+  const guide = within(screen.getByRole("dialog", { name: "Keyboard shortcuts" }));
+  expect(guide.getByText("Move between rack tiles").previousElementSibling?.textContent).toBe("↑ / ↓");
+  expect(guide.getByText("Mark or unmark a rack tile for exchange").previousElementSibling?.textContent).toBe("←");
 });
 
 test("the vertical rack supports reordering tiles by touch and keyboard", async () => {
@@ -7108,7 +7139,7 @@ test.each(["rack", "results"])("the %s exchange suggestion preserves holds and o
   const user = await start(fromResults ? 390 : 1200);
   await typeRack(user, "CATSUVW");
   await user.click(rackTile(7));
-  await user.keyboard("{ArrowDown}");
+  await user.keyboard(fromResults ? "{ArrowRight}" : "{ArrowDown}");
   const solve = screen.getAllByRole("button", { name: "Find moves" })[0];
   await user.click(solve);
   await screen.findAllByRole("button", { name: /^CATS, / });
