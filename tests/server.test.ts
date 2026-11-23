@@ -742,7 +742,10 @@ test("the game index backfills old SQLite saves and leaves full history on the d
     const archiveWithDate = (endedOn: string) =>
       archiveGame({
         ...saved,
-        scoring: { ...emptyScoring(), end: { manual: true, endedOn } },
+        scoring: {
+          ...emptyScoring(),
+          end: { manual: true, endedOn, scores: { you: 420, opponent: 360 } },
+        },
       });
     const saveArchive = (endedOn: string) =>
       fetch(base + "/games/old", {
@@ -755,7 +758,15 @@ test("the game index backfills old SQLite saves and leaves full history on the d
     assert.equal((await saveArchive(endedOn)).status, 200);
     const archived: Game = await (await fetch(base + "/games/old")).json();
     assert.equal(archived.archivedState?.scoring?.end?.endedOn, endedOn);
-    assert.equal((await getIndex()).games[0].endedOn, endedOn);
+    store.db.prepare(
+      "UPDATE game_summaries SET data=json_remove(data, '$.language', '$.archiveStats') WHERE id=?",
+    ).run(game.id);
+    const archiveSummary = (await getIndex()).games[0];
+    assert.equal(archiveSummary.endedOn, endedOn);
+    assert.equal(archiveSummary.language, "en");
+    assert.deepEqual(archiveSummary.archiveStats, {
+      finalScore: 420, margin: 60, outcome: "win",
+    });
     store.deleteGame(next.id);
     assert.deepEqual((await getIndex()).games, []);
     assert.equal((await fetch(base + "/games/old")).status, 404);

@@ -18,13 +18,17 @@ export function defaultPlatformBoard(platform: string) {
   return gamePlatforms.find(({ name }) => name === platform)?.board;
 }
 
-export function premiumPalette(platform?: string) {
+export function matchGamePlatform(platform?: string) {
   const name = platform?.trim().toLowerCase().replace(/\s+/g, " ");
+  return gamePlatforms.find(
+    (option) =>
+      option.name.toLowerCase() === name ||
+      option.aliases.some((alias) => alias === name),
+  );
+}
+
+export function premiumPalette(platform?: string) {
   return (
-    gamePlatforms.find(
-      (option) =>
-        option.name.toLowerCase() === name ||
-        option.aliases.some((alias) => alias === name),
-    )?.palette ?? "default"
+    matchGamePlatform(platform)?.palette ?? "default"
   );
 }

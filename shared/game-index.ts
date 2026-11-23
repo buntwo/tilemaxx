@@ -1,4 +1,13 @@
-import { localDate, trackedMoveHistory, type AppState, type Game } from "./model";
+import {
+  gameWordLanguage,
+  localDate,
+  restoreArchivedGame,
+  trackedMoveHistory,
+  type AppState,
+  type Game,
+  type GameOutcome,
+  type PlayerScore,
+} from "./model";
 import {
   displayedGameScoring,
   summarizeGameScore,
@@ -20,6 +29,13 @@ export const thumbnailKinds = [
 
 export type GameThumbnail = { size: number; squares: string };
 
+export type ArchivedGameStats = {
+  outcome?: GameOutcome;
+  finalScore?: number;
+  margin?: number;
+  plays?: PlayerScore;
+};
+
 export type GameSummary = Pick<
   Game,
   | "id"
@@ -33,6 +49,8 @@ export type GameSummary = Pick<
 > & {
   dictionaryId?: Game["dictionaryId"];
   endedOn?: string;
+  language?: ReturnType<typeof gameWordLanguage>;
+  archiveStats?: ArchivedGameStats | null;
   thumbnail: GameThumbnail;
   fullMoveHistory: boolean;
   score: GameScoreSummary | null;
@@ -68,11 +86,7 @@ export function recentOpponentNames(
     .map(({ name }) => name);
 }
 
-function hasFullMoveHistory(game: Game): boolean {
-  const position =
-    game.archived && game.archivedBoard
-      ? { ...game, ...game.archivedState, board: game.archivedBoard }
-      : game;
+function hasFullMoveHistory(position: Game): boolean {
   const { board, scoring } = position;
   if (scoring?.imported) return false;
   const history = trackedMoveHistory(position);
@@ -103,6 +117,28 @@ function hasFullMoveHistory(game: Game): boolean {
   return board.every((tile, index) => tile.toUpperCase() === played[index]);
 }
 
+function summarizeArchivedStats(
+  position: Game,
+  fullMoveHistory: boolean,
+): ArchivedGameStats | null {
+  const { scoring } = position;
+  if (!scoring?.end) return null;
+  const { end } = scoring;
+  const score = summarizeGameScore(position, scoring);
+  const result = score?.outcome ?? ("manual" in end ? end.outcome : undefined);
+  const outcome = result === "win" || result === "loss" || result === "tie"
+    ? result
+    : undefined;
+  const plays = fullMoveHistory && tracksScores(position) && !scoring.incomplete &&
+    scoring.you.moves ? scoring.you : undefined;
+  return {
+    outcome: position.solo ? undefined : outcome,
+    finalScore: score?.you,
+    margin: score && !position.solo ? score.you - score.opponent : undefined,
+    plays,
+  };
+}
+
 export function summarizeGame(game: Game): GameSummary {
   const {
     id,
@@ -118,6 +154,8 @@ export function summarizeGame(game: Game): GameSummary {
   } = game;
   const scoring = displayedGameScoring(game);
   const endedOn = scoring?.end?.endedOn;
+  const archivePosition = archived ? restoreArchivedGame(game) : game;
+  const fullMoveHistory = hasFullMoveHistory(archivePosition);
   return {
     id,
     profileId,
@@ -129,7 +167,9 @@ export function summarizeGame(game: Game): GameSummary {
     ...(endedOn !== undefined && { endedOn }),
     archived,
     revision,
-    fullMoveHistory: hasFullMoveHistory(game),
+    language: gameWordLanguage(template.rules),
+    ...(archived && { archiveStats: summarizeArchivedStats(archivePosition, fullMoveHistory) }),
+    fullMoveHistory,
     score: !archived || scoring ? summarizeGameScore(game, scoring) : null,
     thumbnail: {
       size: template.size,

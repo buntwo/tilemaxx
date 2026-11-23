@@ -3686,6 +3686,47 @@ test("game options archive the current game and open a blank game with today's d
   expect(options.queryByRole("button", { name: "Archive & start new game" })).toBeNull();
 });
 
+test("sidebar Stats filters archived games and updates the monthly metric", async () => {
+  const archived = (
+    id: string, platform: string, rules: Game["template"]["rules"],
+    endedOn: string, you: number, opponent: number,
+  ) => archiveGame({
+    ...game(),
+    id,
+    platform,
+    template: { ...game().template, rules },
+    startedOn: "2024-12-31",
+    scoring: { ...emptyScoring(), end: { manual: true, endedOn, scores: { you, opponent } } },
+  });
+  remote.games.push(
+    archived("one", "Wordfeud", "wordfeud-fr", "2025-01-02", 400, 300),
+    archived("two", "Word feud", "wordfeud", "2026-04-12", 300, 380),
+    archived("three", "Lexulous", "lexulous-it", "2026-05-02", 500, 400),
+    { ...archived("different", "Wordfeud", "wordfeud-fr", "2025-01-02", 900, 300), profileId: "other" },
+  );
+  const user = await start(390);
+  await user.click(cell("Open sidebar"));
+  await user.click(cell("Stats"));
+  const stats = within(await screen.findByRole("region", { name: "Stats" }));
+  await stats.findByText("of 3 games in this profile");
+  expect(stats.getByText("400", { selector: "dd" })).toBeTruthy();
+  expect(window.location.hash).toBe("#stats");
+
+  await user.selectOptions(stats.getByRole("combobox", { name: "Platform" }), "platform:wordfeud");
+  expect(stats.getByText("350", { selector: "dd" })).toBeTruthy();
+  await user.selectOptions(stats.getByRole("combobox", { name: "Language" }), "fr");
+  await user.selectOptions(stats.getByRole("combobox", { name: "Year" }), "2025");
+  expect(stats.getByText("400", { selector: "dd" })).toBeTruthy();
+  await user.selectOptions(stats.getByRole("combobox", { name: "Trend metric" }), "winRate");
+  await user.click(stats.getByText("Monthly values"));
+  const table = within(stats.getByRole("table", { name: "Monthly win rate" }));
+  expect(table.getByRole("row", { name: /Jan.*2025.*100%.*1/ })).toBeTruthy();
+  await user.selectOptions(stats.getByRole("combobox", { name: "Year" }), "2026");
+  expect(stats.getByRole("status").textContent).toBe("No archived games match these filters.");
+  await user.click(stats.getByRole("button", { name: "Back to games" }));
+  await screen.findByRole("heading", { name: /First game/ });
+});
+
 test("solo games track one score, use the whole bag, and restart solo from the archive", async () => {
   const user = await start(1200);
   await user.click(cell("New game"));

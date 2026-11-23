@@ -4,6 +4,7 @@ import {
   ImagePlus,
   ArrowLeft,
   ArrowRight,
+  ChartNoAxesCombined,
   CircleArrowUp,
   BookOpen,
   Check,
@@ -85,6 +86,7 @@ import {
   readGameDetails,
 } from "./components/GameDetails";
 import ArchivedGames, { type ArchiveSort } from "./components/ArchivedGames";
+import ArchiveStats from "./components/ArchiveStats";
 import SyncConflictMenu from "./components/SyncConflictMenu";
 import GameScoreBadge from "./components/GameScoreBadge";
 import GameScores from "./components/GameScores";
@@ -150,6 +152,7 @@ type Dialog =
 const workspaceHashes = {
   games: "",
   archive: "#archived-games",
+  stats: "#stats",
   studio: "#board-studio",
 } as const;
 type Workspace = keyof typeof workspaceHashes;
@@ -163,6 +166,7 @@ type TileFlight = NonNullable<ReturnType<typeof prepareTileFlight>> & {
 
 function currentWorkspace(): Workspace {
   if (location.hash === workspaceHashes.archive) return "archive";
+  if (location.hash === workspaceHashes.stats) return "stats";
   if (location.hash === workspaceHashes.studio) return "studio";
   return "games";
 }
@@ -1027,6 +1031,14 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         </button>
         <button
           className="nav-link"
+          aria-current={workspace === "stats" ? "page" : undefined}
+          onClick={() => showWorkspace("stats")}
+        >
+          <ChartNoAxesCombined size={18} aria-hidden="true" />
+          Stats
+        </button>
+        <button
+          className="nav-link"
           aria-current={workspace === "studio" ? "page" : undefined}
           onClick={() => showWorkspace("studio")}
         >
@@ -1285,6 +1297,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               setArchiveEditId(id);
               setDialog("rename");
             }}
+            onBack={openMyGames}
+          />
+        ) : workspace === "stats" ? (
+          <ArchiveStats
+            key={profileId}
+            headerControl={sidebarButton}
+            games={archivedGames}
             onBack={openMyGames}
           />
         ) : game ? (
