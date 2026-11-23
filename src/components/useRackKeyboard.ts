@@ -14,6 +14,7 @@ function capture(viewport: VisualViewport) {
 export function useRackKeyboard(
   phone: boolean,
   reviewing: boolean,
+  cursor: number,
   rack: RefObject<HTMLDivElement | null>,
   input: RefObject<HTMLInputElement | null>,
 ) {
@@ -23,7 +24,7 @@ export function useRackKeyboard(
   useLayoutEffect(() => {
     if (reviewing) session.current = null;
     else schedule.current?.();
-  }, [reviewing]);
+  }, [reviewing, cursor]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -56,10 +57,14 @@ export function useRackKeyboard(
       }
       if (!rackFocused || edit.manualScroll) return;
       edit.opened = true;
-      const rect = rack.current?.getBoundingClientRect();
-      if (!rect || viewport.height < rect.height + 16) return;
       const top = viewport.offsetTop + 8;
       const bottom = viewport.offsetTop + viewport.height - 8;
+      const tray = rack.current?.getBoundingClientRect();
+      if (!tray) return;
+      const rect = tray.height <= bottom - top
+        ? tray
+        : rack.current?.querySelector(".rack-tile.selected")?.getBoundingClientRect();
+      if (!rect) return;
       const offset =
         rect.bottom > bottom
           ? rect.bottom - bottom

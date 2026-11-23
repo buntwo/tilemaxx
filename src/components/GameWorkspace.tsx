@@ -1,7 +1,6 @@
-import { Component, createRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { Rules } from "../../shared/model";
 import { MoveDefinitions } from "./MoveDefinitions";
-import { canAnimateTiles } from "./tile-motion";
 
 export function useMoveReview(
   narrow: boolean,
@@ -18,121 +17,109 @@ export function useMoveReview(
   };
 }
 
-type Props = {
+const RACK_WIDTH_KEY = "tilewise:phone-rack-width";
+const RACK_MIN_WIDTH = 44;
+const RACK_MAX_WIDTH = 64;
+
+function readRackWidth() {
+  try {
+    const saved = localStorage.getItem(RACK_WIDTH_KEY);
+    if (saved !== null) {
+      const width = Number(saved);
+      if (Number.isInteger(width) && width >= RACK_MIN_WIDTH && width <= RACK_MAX_WIDTH) {
+        return width;
+      }
+    }
+  } catch {}
+  return RACK_MIN_WIDTH;
+}
+
+export function GameBoardColumn({
+  phone,
+  resizeDisabled,
+  board,
+  warnings,
+  rack,
+}: {
+  phone: boolean;
+  resizeDisabled: boolean;
+  board: ReactNode;
+  warnings: ReactNode;
+  rack: (details: HTMLDivElement | null) => ReactNode;
+}) {
+  const [rackWidth, setRackWidth] = useState(readRackWidth);
+  const [details, setDetails] = useState<HTMLDivElement | null>(null);
+  return (
+    <div
+      className={phone ? "board-column phone-board-column" : "board-column"}
+      style={phone ? {
+        "--phone-rack-width": rackWidth + "px",
+        "--phone-rack-min": RACK_MIN_WIDTH + "px",
+        "--phone-rack-range": `${RACK_MAX_WIDTH - RACK_MIN_WIDTH}px`,
+      } as CSSProperties : undefined}
+    >
+      {board}
+      {phone && (
+        <input
+          className="phone-rack-divider"
+          type="range"
+          aria-label="Rack width"
+          aria-valuetext={rackWidth + " pixels"}
+          min={RACK_MIN_WIDTH}
+          max={RACK_MAX_WIDTH}
+          value={rackWidth}
+          disabled={resizeDisabled}
+          onChange={(event) => {
+            const width = event.currentTarget.valueAsNumber;
+            setRackWidth(width);
+            try {
+              localStorage.setItem(RACK_WIDTH_KEY, String(width));
+            } catch {}
+          }}
+        />
+      )}
+      {rack(details)}
+      {phone && (
+        <>
+          {warnings}
+          <div className="phone-rack-details" ref={setDetails} />
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function GameWorkspace({
+  definitionRules,
+  positionKey,
+  narrow,
+  reviewing,
+  hasWarnings,
+  children,
+}: {
   definitionRules: Rules;
   positionKey: string;
   narrow: boolean;
   reviewing: boolean;
   hasWarnings: boolean;
   children: ReactNode;
-};
-type Snapshot = Map<HTMLElement, DOMRect> | null;
+}) {
+  const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (narrow || !hasWarnings) return;
+    const warning = root.current?.querySelector(".board-warnings")?.getBoundingClientRect();
+    const viewportTop = window.visualViewport?.offsetTop ?? 0;
+    const viewportBottom = viewportTop + (window.visualViewport?.height ?? window.innerHeight);
+    if (warning && (warning.top < viewportTop || warning.bottom > viewportBottom)) {
+      root.current?.scrollIntoView?.({ block: "start", behavior: "instant" });
+    }
+  }, [hasWarnings, narrow]);
 
-function bounds(element: HTMLElement) {
-  const rect = element.getBoundingClientRect();
-  return new DOMRect(
-    rect.left + window.scrollX,
-    rect.top + window.scrollY,
-    rect.width,
-    rect.height,
+  return (
+    <MoveDefinitions rules={definitionRules} position={positionKey} phoneLayout={narrow}>
+      <div ref={root} className={reviewing ? "workspace-grid move-review" : "workspace-grid"}>
+        {children}
+      </div>
+    </MoveDefinitions>
   );
-}
-
-export default class GameWorkspace extends Component<Props, object, Snapshot> {
-  private root = createRef<HTMLDivElement>();
-  private animations = new Set<Animation>();
-
-  getSnapshotBeforeUpdate(previous: Props): Snapshot {
-    if (
-      !this.root.current ||
-      !this.props.narrow ||
-      !previous.narrow ||
-      this.props.reviewing === previous.reviewing
-    )
-      return null;
-    const snapshot = new Map<HTMLElement, DOMRect>();
-    if (canAnimateTiles()) {
-      for (const element of this.root.current.querySelectorAll<HTMLElement>(
-        ".board-panel, [data-rack-slot], .opponent-rack-tiles span, .results-column",
-      ))
-        snapshot.set(element, bounds(element));
-    }
-    return snapshot;
-  }
-
-  componentDidUpdate(previous: Props, _state: object, snapshot: Snapshot) {
-    const root = this.root.current;
-    if (root && this.props.hasWarnings && !previous.hasWarnings) {
-      const warning = root.querySelector(".board-warnings")?.getBoundingClientRect();
-      const viewportTop = window.visualViewport?.offsetTop ?? 0;
-      const viewportBottom = viewportTop + (window.visualViewport?.height ?? window.innerHeight);
-      if (warning && (warning.top < viewportTop || warning.bottom > viewportBottom))
-        root.scrollIntoView?.({ block: "start", behavior: "instant" });
-    }
-    if (!this.props.narrow || !snapshot) {
-      if (previous.narrow && !this.props.narrow) this.stopMotion();
-      return;
-    }
-    // Measure the old layout before React moves it, including any in-flight
-    // transforms so a quick reversal can start from the current positions.
-    this.stopMotion();
-    if (root && this.props.reviewing) {
-      const boardTop =
-        root.querySelector(".board-panel")?.getBoundingClientRect().top ?? 0;
-      const firstMove = root
-        .querySelector(".result-row")
-        ?.getBoundingClientRect();
-      if (
-        boardTop < 0 ||
-        (boardTop > 8 && firstMove && firstMove.bottom > window.innerHeight)
-      )
-        root.scrollIntoView?.({
-          block: "start",
-          behavior: snapshot.size ? "smooth" : "instant",
-        });
-    }
-    for (const [element, before] of snapshot) {
-      if (!element.isConnected) continue;
-      const after = bounds(element);
-      if (!after.width || !after.height || !before.width || !before.height)
-        continue;
-      const shift = `translate(${before.x - after.x}px, ${before.y - after.y}px)`;
-      const scale = element.classList.contains("results-column")
-        ? ""
-        : ` scale(${before.width / after.width}, ${before.height / after.height})`;
-      const animation = element.animate(
-        [{ transform: shift + scale }, { transform: "none" }],
-        { duration: 320, easing: "cubic-bezier(.22,.8,.25,1)" },
-      );
-      this.animations.add(animation);
-      const release = () => this.animations.delete(animation);
-      animation.finished.then(release, release);
-    }
-  }
-
-  private stopMotion() {
-    for (const animation of this.animations) animation.cancel();
-    this.animations.clear();
-  }
-
-  componentWillUnmount() {
-    this.stopMotion();
-  }
-
-  render() {
-    return (
-      <MoveDefinitions
-        rules={this.props.definitionRules}
-        position={this.props.positionKey}
-        phoneLayout={this.props.narrow}
-      >
-        <div
-          ref={this.root}
-          className={`workspace-grid${this.props.reviewing ? " move-review" : ""}`}
-        >
-          {this.props.children}
-        </div>
-      </MoveDefinitions>
-    );
-  }
 }

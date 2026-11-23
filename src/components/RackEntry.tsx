@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type Ref,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   enterRack,
   eraseRack,
@@ -54,6 +55,7 @@ export default function RackEntry({
   onSolve,
   phoneLayout,
   onReviewEdit,
+  detailsTarget,
   onEnterOwnPlay,
   positionKey,
   exchangeAdvice,
@@ -71,6 +73,7 @@ export default function RackEntry({
   onSolve: () => void;
   phoneLayout: boolean;
   onReviewEdit?: () => void;
+  detailsTarget: HTMLDivElement | null;
   onEnterOwnPlay?: () => void;
   positionKey: string;
   exchangeAdvice?: SwapAdvice;
@@ -126,6 +129,7 @@ export default function RackEntry({
   const trackKeyboardFocus = useRackKeyboard(
     phoneLayout,
     reviewing,
+    cursor,
     rack,
     input,
   );
@@ -159,6 +163,7 @@ export default function RackEntry({
     letters: game.rack,
     positionKey: slotKey,
     enabled: canReorder,
+    vertical: phoneLayout,
     prepare: () => {
       for (const slide of slides.current.values()) slide.stop();
     },
@@ -395,6 +400,11 @@ export default function RackEntry({
     setMode(next);
     setOptimalOpen(undefined);
   }
+  function toggleOptimal() {
+    chooseMode("entry");
+    setSimulation(undefined);
+    setOptimalOpen(showingOptimal ? undefined : { key: optimalKey });
+  }
   function editFromReview(slot: number) {
     onReviewEdit?.();
     chooseMode("entry");
@@ -421,6 +431,8 @@ export default function RackEntry({
   }
   const previewSlots =
     preview && !flyingRack ? rackSlotsForMove(game, preview.tiles) : null;
+  const previousTileKey = phoneLayout ? "ArrowUp" : "ArrowLeft";
+  const nextTileKey = phoneLayout ? "ArrowDown" : "ArrowRight";
   const playerTiles = (
     <div
       ref={rack}
@@ -478,15 +490,15 @@ export default function RackEntry({
             aria-disabled={
               !onReviewEdit && mode !== "entry" && !tile ? true : undefined
             }
-            aria-keyshortcuts={canReorder && tile ? "Shift+ArrowLeft Shift+ArrowRight" : undefined}
+            aria-keyshortcuts={canReorder && tile ? `Shift+${previousTileKey} Shift+${nextTileKey}` : undefined}
             onKeyDown={(event) => {
               if (
                 !canReorder || !tile || !event.shiftKey ||
-                (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
+                (event.key !== previousTileKey && event.key !== nextTileKey)
               )
                 return;
               event.preventDefault();
-              reorder.moveTile(i, i + (event.key === "ArrowLeft" ? -1 : 1));
+              reorder.moveTile(i, i + (event.key === previousTileKey ? -1 : 1));
             }}
             onPointerDown={(event) => {
               if (event.isPrimary === false) return;
@@ -595,11 +607,16 @@ export default function RackEntry({
             }
           }}
         >
-          <summary className="text-button">
-            <SlidersHorizontal size={13} /> Rack tools
+          <summary
+            className="text-button"
+            onClick={phoneLayout ? onReviewEdit : undefined}
+            title={phoneLayout ? "Rack tools" : undefined}
+          >
+            <SlidersHorizontal size={phoneLayout ? 16 : 13} aria-hidden="true" />
+            {phoneLayout ? <span className="rack-visually-hidden">Rack tools</span> : " Rack tools"}
           </summary>
           <div className="rack-tools-menu">
-            {onEnterOwnPlay && !game.solo && (
+            {onEnterOwnPlay && (phoneLayout || !game.solo) && (
               <button type="button" onClick={() => {
                 chooseMode("entry");
                 onEnterOwnPlay();
@@ -607,12 +624,24 @@ export default function RackEntry({
                 <Pencil size={14} /> Enter your play
               </button>
             )}
+            {phoneLayout && (
+              <button
+                type="button"
+                onClick={() => {
+                  chooseMode("entry");
+                  reorder.shuffle();
+                }}
+                disabled={!canReorder || rackLetters(game.rack).length < 2}
+              >
+                <Shuffle size={14} /> Shuffle rack
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
                 chooseMode("entry");
-                  reorder.cancel();
-                  applyOrder(sortedRackSlots(game.rack));
+                reorder.cancel();
+                applyOrder(sortedRackSlots(game.rack));
               }}
             >
               <Shuffle size={14} /> Sort rack
@@ -626,6 +655,16 @@ export default function RackEntry({
             <button type="button" onClick={() => chooseMode("exchange")}>
               <Repeat2 size={14} /> Mark exchange
             </button>
+            {phoneLayout && canOpenOptimal && (
+              <button
+                type="button"
+                onClick={toggleOptimal}
+                disabled={!enoughBingoTiles}
+                aria-expanded={showingOptimal}
+              >
+                <Trophy size={14} /> Optimal exchange
+              </button>
+            )}
           </div>
         </details>
       ) : (
@@ -639,6 +678,115 @@ export default function RackEntry({
       )}
     </div>
   );
+  const bagButton = (
+    <button
+      type="button"
+      className="rack-bag"
+      aria-label={`Unseen tiles, ${bagStatus}`}
+      aria-controls={tilePoolId}
+      aria-expanded={tilePoolOpen}
+      title={bagStatus}
+      data-empty={bagCount === 0 || undefined}
+      data-overdrawn={tileCountsInvalid || undefined}
+      data-digits={String(bagCount).length}
+      onClick={() => {
+        onReviewEdit?.();
+        setTilePoolOpen((open) => !open);
+      }}
+    >
+      {bagCount}
+    </button>
+  );
+  const details = (
+    <>
+      {!!exchangeSlots.length && (
+        <div className="rack-exchange-actions">
+          <button
+            ref={exchangeButton}
+            type="button"
+            className="button secondary"
+            aria-expanded={!!activeSimulation}
+            onClick={() => {
+              setOptimalOpen(undefined);
+              setSimulation(
+                activeSimulation ? undefined : { key: exchangeKey },
+              );
+            }}
+          >
+            Simulate exchange ({exchangeSlots.length})
+          </button>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => setExchangeMarks({})}
+          >
+            Clear marks
+          </button>
+        </div>
+      )}
+      {showingOptimal && optimalOpen && !flyingRack && (
+        <OptimalExchange
+          key={optimalKey}
+          game={game}
+          bag={bagCount}
+          scorelessTurns={exchangeScorelessTurns}
+          restoredResult={optimalOpen.result}
+          onClose={() => {
+            setOptimalOpen(undefined);
+            const control = phoneLayout ? tools.current?.querySelector("summary") : optimalButton.current;
+            control?.focus({ preventScroll: true });
+          }}
+          onUse={({ slots, chance }, result) => {
+            setExchangeMarks(
+              Object.fromEntries(slots.map((slot) => [slot, game.rack[slot]])),
+            );
+            setOptimalOpen(undefined);
+            openExchange.current = { reveal: false };
+            setSimulation({
+              key: JSON.stringify([optimalKey, slots]),
+              optimalResult: result,
+              bingoEstimate: { chance, afterReply: !!result.refinementDraws },
+            });
+          }}
+        />
+      )}
+      {activeSimulation && !!exchangeSlots.length && (
+        <ExchangeAnalysis
+          key={exchangeKey}
+          game={game}
+          slots={exchangeSlots}
+          bagSize={bagCount}
+          bagAssumed={!bagConfirmed}
+          cachedResult={exchangeResults?.get(exchangeKey)}
+          bingoEstimate={activeSimulation.bingoEstimate}
+          onResult={cacheExchangeResult}
+          onBack={
+            activeSimulation.optimalResult
+              ? () => {
+                  setSimulation(undefined);
+                  setOptimalOpen({
+                    key: optimalKey,
+                    result: activeSimulation.optimalResult,
+                  });
+                }
+              : undefined
+          }
+          recommendation={
+            acceptedAdvice?.key === exchangeKey
+              ? acceptedAdvice.detail
+              : undefined
+          }
+        />
+      )}
+      <TilePool
+        game={game}
+        id={tilePoolId}
+        open={tilePoolOpen}
+        hideWhenClosed={phoneLayout}
+        onOpenChange={setTilePoolOpen}
+      />
+    </>
+  );
   return (
     <div
       className="rack-entry"
@@ -649,6 +797,7 @@ export default function RackEntry({
         } as CSSProperties
       }
     >
+      {phoneLayout && bagButton}
       <div className="rack-lane rack-player-lane">
         {opponentRack && (
           <small className="rack-owner-label" aria-hidden="true">
@@ -656,7 +805,7 @@ export default function RackEntry({
           </small>
         )}
         {playerTiles}
-        {!reviewing && (
+        {!phoneLayout && !reviewing && (
           <>
             <button
               type="button"
@@ -668,33 +817,21 @@ export default function RackEntry({
             >
               <Shuffle size={16} aria-hidden="true" />
             </button>
-            <button
-              type="button"
-              className="rack-bag"
-              aria-label={`Unseen tiles, ${bagStatus}`}
-              aria-controls={tilePoolId}
-              aria-expanded={tilePoolOpen}
-              title={bagStatus}
-              data-empty={bagCount === 0 || undefined}
-              data-overdrawn={tileCountsInvalid || undefined}
-              data-digits={String(bagCount).length}
-              onClick={() => setTilePoolOpen((open) => !open)}
-            >
-              {bagCount}
-            </button>
+            {bagButton}
           </>
         )}
       </div>
       {opponentRack && (
-        <OpponentRack rack={opponentRack}>{rackTools}</OpponentRack>
+        <OpponentRack rack={opponentRack}>{!phoneLayout && rackTools}</OpponentRack>
       )}
+      {phoneLayout && rackTools}
       <input
         className="rack-keyboard-input"
         ref={input}
         tabIndex={onReviewEdit ? -1 : undefined}
         aria-label="Rack letters"
         aria-keyshortcuts="Alt+R"
-        aria-describedby={opponentRack ? undefined : helpId}
+        aria-describedby={opponentRack || phoneLayout ? undefined : helpId}
         value={SENTINEL}
         autoCapitalize="characters"
         enterKeyHint="search"
@@ -799,7 +936,7 @@ export default function RackEntry({
           }
         }}
       />
-      {!opponentRack && (
+      {!opponentRack && !phoneLayout && (
         <div className="rack-entry-actions">
           <div className="rack-lane-hint">
             <p id={helpId} className="rack-entry-help" hidden={!!advice}>
@@ -811,9 +948,7 @@ export default function RackEntry({
                     ? "Tap tiles that every move must use"
                     : focused && selectAll
                       ? "All tiles selected · type to replace"
-                      : phoneLayout
-                        ? "Tap to type · hold to mark"
-                        : "Space = blank · ↓ Hold / Require · ↑ Exchange · Enter = find moves"}
+                      : "Space = blank · ↓ Hold / Require · ↑ Exchange · Enter = find moves"}
             </p>
             {advice && (
               <ExchangeSuggestion
@@ -841,11 +976,7 @@ export default function RackEntry({
                 ? `Optimal exchange needs at least ${bingoMinimum} playable rack tiles for a bingo.`
                 : undefined}
               aria-expanded={showingOptimal}
-              onClick={() => {
-                chooseMode("entry");
-                setSimulation(undefined);
-                setOptimalOpen(showingOptimal ? undefined : { key: optimalKey });
-              }}
+              onClick={toggleOptimal}
             >
               <span className="rack-optimal-exchange-label">
                 <Trophy size={13} aria-hidden="true" /> Optimal exchange
@@ -855,90 +986,9 @@ export default function RackEntry({
           {rackTools}
         </div>
       )}
-      {!!exchangeSlots.length && (
-        <div className="rack-exchange-actions">
-          <button
-            ref={exchangeButton}
-            type="button"
-            className="button secondary"
-            aria-expanded={!!activeSimulation}
-            onClick={() => {
-              setOptimalOpen(undefined);
-              setSimulation(
-                activeSimulation ? undefined : { key: exchangeKey },
-              );
-            }}
-          >
-            Simulate exchange ({exchangeSlots.length})
-          </button>
-          <button
-            type="button"
-            className="text-button"
-            onClick={() => setExchangeMarks({})}
-          >
-            Clear marks
-          </button>
-        </div>
-      )}
-      {showingOptimal && optimalOpen && !flyingRack && (
-        <OptimalExchange
-          key={optimalKey}
-          game={game}
-          bag={bagCount}
-          scorelessTurns={exchangeScorelessTurns}
-          restoredResult={optimalOpen.result}
-          onClose={() => {
-            setOptimalOpen(undefined);
-            optimalButton.current?.focus({ preventScroll: true });
-          }}
-          onUse={({ slots, chance }, result) => {
-            setExchangeMarks(
-              Object.fromEntries(slots.map((slot) => [slot, game.rack[slot]])),
-            );
-            setOptimalOpen(undefined);
-            openExchange.current = { reveal: false };
-            setSimulation({
-              key: JSON.stringify([optimalKey, slots]),
-              optimalResult: result,
-              bingoEstimate: { chance, afterReply: !!result.refinementDraws },
-            });
-          }}
-        />
-      )}
-      {activeSimulation && !!exchangeSlots.length && (
-        <ExchangeAnalysis
-          key={exchangeKey}
-          game={game}
-          slots={exchangeSlots}
-          bagSize={bagCount}
-          bagAssumed={!bagConfirmed}
-          cachedResult={exchangeResults?.get(exchangeKey)}
-          bingoEstimate={activeSimulation.bingoEstimate}
-          onResult={cacheExchangeResult}
-          onBack={
-            activeSimulation.optimalResult
-              ? () => {
-                  setSimulation(undefined);
-                  setOptimalOpen({
-                    key: optimalKey,
-                    result: activeSimulation.optimalResult,
-                  });
-                }
-              : undefined
-          }
-          recommendation={
-            acceptedAdvice?.key === exchangeKey
-              ? acceptedAdvice.detail
-              : undefined
-          }
-        />
-      )}
-      <TilePool
-        game={game}
-        id={tilePoolId}
-        open={tilePoolOpen}
-        onOpenChange={setTilePoolOpen}
-      />
+      {phoneLayout
+        ? detailsTarget && createPortal(details, detailsTarget)
+        : details}
     </div>
   );
 }

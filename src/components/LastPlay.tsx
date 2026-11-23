@@ -64,12 +64,16 @@ function multiplierText(word: ScoredWord) {
 export default function LastPlay({
   game,
   bag,
+  reserveSpace = false,
 }: {
   game: Game;
   bag?: LastPlayBag;
+  reserveSpace?: boolean;
 }) {
   const play = useMemo(() => lastRecordedBoardPlay(game), [game]);
-  if (!play) return null;
+  if (!play) return reserveSpace
+    ? <div className="last-play-row" aria-hidden="true" />
+    : null;
   const { move } = play;
   return (
     <LastPlayLane

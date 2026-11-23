@@ -2199,7 +2199,7 @@ test("your play warns on a missing tile and stays drafted through a rack correct
   const ownPlay = () => within(document.querySelector<HTMLElement>(".own-play-actions")!);
   const play = () => ownPlay().getByRole<HTMLButtonElement>("button", { name: "Play" });
 
-  await user.click(screen.getByText("Rack tools", { selector: "summary" }));
+  await user.click(screen.getByText("Rack tools").closest("summary")!);
   await user.click(cell("Enter your play"));
   await user.click(cell("G8: empty"));
   expect(boardDirection()).toBe("Across");
@@ -2239,7 +2239,7 @@ test("your play warns on a missing tile and stays drafted through a rack correct
 test("record anyway confirms the actual rack leave inline before saving a play", async () => {
   const user = await start(390);
   await typeRack(user, "CAER");
-  await user.click(screen.getByText("Rack tools", { selector: "summary" }));
+  await user.click(screen.getByText("Rack tools").closest("summary")!);
   await user.click(cell("Enter your play"));
   await user.click(cell("H8: DW, start"));
   await user.keyboard("CAT");
@@ -4885,7 +4885,7 @@ test.each([
   },
 );
 
-test("phone rack entry reveals the tiles above the keyboard and restores the page when it closes", async () => {
+test.each([52, 380])("phone rack entry reveals the tiles above the keyboard and restores the page (%i px rack)", async (rackHeight) => {
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
     addEventListener() {},
@@ -4910,7 +4910,10 @@ test("phone rack entry reveals the tiles above the keyboard and restores the pag
   const user = await start(390);
   const rack = screen.getByRole("group", { name: "Your rack tiles" });
   vi.spyOn(rack, "getBoundingClientRect").mockImplementation(
-    () => new DOMRect(28, 640 - scrollY, 334, 52),
+    () => new DOMRect(28, 640 - scrollY, 48, rackHeight),
+  );
+  vi.spyOn(rackTile(3), "getBoundingClientRect").mockImplementation(
+    () => new DOMRect(28, 660 - scrollY, 32, 32),
   );
   function resize(height: number, offsetTop = 0) {
     viewport.height = height;
@@ -4992,16 +4995,22 @@ test.each([
   await typeRack(user, "CATS");
   await user.keyboard("{Enter}");
 
-  const warning = await within(board).findByRole("alert");
+  const warningArea = layout === "phone" ? within(workspace) : within(board);
+  const warning = await warningArea.findByRole("alert");
   expect(warning.textContent).toBe("Not in this dictionary: ZCAT.");
-  expect(warning.previousElementSibling?.querySelector(".last-play-summary")?.textContent)
-    .toContain("Last play");
-  expect(warning.nextElementSibling).toBe(board.querySelector(".board-entry"));
+  if (layout === "phone") {
+    expect(warning.parentElement).toBe(board.parentElement);
+    expect(warning.previousElementSibling).toBe(screen.getByRole("region", { name: "Your rack" }));
+  } else {
+    expect(warning.previousElementSibling?.querySelector(".last-play-summary")?.textContent)
+      .toContain("Last play");
+    expect(warning.nextElementSibling).toBe(board.querySelector(".board-entry"));
+  }
   expect(workspace.classList.contains("move-review")).toBe(layout === "phone");
 
   await user.click(cell("A1: TW"));
   await user.keyboard("DOG{Enter}");
-  const warnings = await within(board).findByRole("alert");
+  const warnings = await warningArea.findByRole("alert");
   expect(Array.from(warnings.querySelectorAll(":scope > p"), (message) => message.textContent)).toEqual([
     "Some tiles are disconnected. Check the board transcription.",
     "Not in this dictionary: ZCAT.",
@@ -5010,13 +5019,13 @@ test.each([
 
   await user.click(cell("G8: Z"));
   await user.keyboard("{Delete}");
-  expect(within(board).queryByRole("alert")).toBeNull();
+  expect(warningArea.queryByRole("alert")).toBeNull();
 });
 
 test.each([
   { layout: "phone", width: 390 },
   { layout: "narrow laptop", width: 690 },
-])("on a $layout, searching moves the rack beside the board and selecting it resumes editing", async ({ layout, width }) => {
+])("on a $layout, the rack stays beside the board through search, preview, and close", async ({ layout, width }) => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query !== "(any-hover: hover)",
     addEventListener() {},
@@ -5027,6 +5036,17 @@ test.each([
   const workspace = board.closest(".workspace-grid")!;
   const reviewing = () => workspace.classList.contains("move-review");
   const ghosts = () => board.querySelectorAll(".ghost");
+  const rack = screen.getByRole("region", { name: "Your rack" });
+  const column = board.closest(".phone-board-column");
+  const divider = screen.getByRole("slider", { name: "Rack width" });
+  const expectFixedLayout = () => {
+    expect(column).toBeTruthy();
+    expect(board.closest(".phone-board-column")).toBe(column);
+    expect(rack.closest(".phone-board-column")).toBe(column);
+    expect(divider.closest(".phone-board-column")).toBe(column);
+    expect(screen.getByRole("region", { name: "Your rack" })).toBe(rack);
+  };
+  expectFixedLayout();
   expect(reviewing()).toBe(false);
   await typeRack(user, "CATSQ");
   await user.keyboard("{Enter}");
@@ -5036,6 +5056,7 @@ test.each([
 
   await user.click(row);
   expect(ghosts()).toHaveLength(4);
+  expectFixedLayout();
   expect(document.querySelectorAll(".board-grid")).toHaveLength(1);
   expect(
     screen.getByRole("button", { name: "Play" }).hasAttribute("disabled"),
@@ -5080,6 +5101,9 @@ test.each([
   expect(current().rack).toBe("QXZ");
   await screen.findByRole("heading", { name: "No legal moves found" });
   expect(reviewing()).toBe(false);
+  await user.click(screen.getByRole("button", { name: "Close possible moves" }));
+  expect(reviewing()).toBe(false);
+  expectFixedLayout();
 });
 
 test.each(["phone", "desktop"])("%s square selection filters moves without editing the board", async (layout) => {
@@ -5878,7 +5902,7 @@ test("Down cycles rack marks, Require tiles filters moves, and Undo restores bot
   expect(current().excludedRackSlots).toBeUndefined();
 });
 
-test("a phone rack hold cycles marks without opening the keyboard or marking during a scroll", async () => {
+test("a phone rack hold cycles marks without opening the keyboard or marking during a swipe", async () => {
   const user = await start(390);
   await typeRack(user, "CAT");
   await user.keyboard("{Escape}");
@@ -5892,7 +5916,7 @@ test("a phone rack hold cycles marks without opening the keyboard or marking dur
       fireEvent.click(tile, { detail: 1 });
     };
     touch(tile, "pointerdown");
-    touch(tile, "pointermove", { clientY: 65 });
+    touch(tile, "pointermove", { clientX: 65 });
     hold();
     tapEnds();
     expect(current().excludedRackSlots).toBeUndefined();
@@ -5982,6 +6006,48 @@ test.each(["mouse", "touch"])("rack drag inserts between tiles and suppresses a 
 
   rackTile(3).focus();
   await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+  expect(current().rack).toBe("ATSC");
+  expect(document.activeElement).toBe(rackTile(4));
+});
+
+test("resizing the phone rack restores the width on reload", async () => {
+  shellWidth = 390;
+  const { unmount } = render(<App />);
+  await screen.findByRole("heading", { name: /First game/ });
+  const divider = screen.getByRole<HTMLInputElement>("slider", { name: "Rack width" });
+  const column = divider.closest<HTMLElement>(".phone-board-column")!;
+  expect(divider.value).toBe("44");
+  fireEvent.change(divider, { target: { value: "58" } });
+  expect(column.style.getPropertyValue("--phone-rack-width")).toBe("58px");
+  expect(divider.getAttribute("aria-valuetext")).toBe("58 pixels");
+
+  unmount();
+  render(<App />);
+  await screen.findByRole("heading", { name: /First game/ });
+  expect(screen.getByRole<HTMLInputElement>("slider", { name: "Rack width" }).value).toBe("58");
+});
+
+test("the vertical rack supports reordering tiles by touch and keyboard", async () => {
+  const user = await start(390);
+  await typeRack(user, "CATS");
+  await user.keyboard("{Escape}");
+  const rack = screen.getByRole("group", { name: "Your rack tiles" });
+  vi.spyOn(rack, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 40, 280));
+  for (let i = 0; i < 7; i++) {
+    vi.spyOn(rackTile(i + 1), "getBoundingClientRect").mockReturnValue(new DOMRect(0, i * 40, 36, 36));
+  }
+  const first = rackTile(1);
+  touch(first, "pointerdown", { clientY: 18 });
+  touch(first, "pointermove", { clientY: 118 });
+  expect(first.hasAttribute("data-rack-lifted")).toBe(true);
+  expect(rackTile(2).style.getPropertyValue("--rack-shift-y")).toBe("-40px");
+  touch(first, "pointerup", { clientY: 118 });
+  fireEvent.click(first, { detail: 1 });
+  expect(current().rack).toBe("ATCS");
+  expect(document.activeElement).not.toBe(screen.getByRole("textbox", { name: "Rack letters" }));
+
+  rackTile(3).focus();
+  await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
   expect(current().rack).toBe("ATSC");
   expect(document.activeElement).toBe(rackTile(4));
 });
@@ -6630,7 +6696,8 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
   expect([...visibleRack.children].map((tile) => tile.textContent)).toEqual(["J", "J", ""]);
   expect(panel.getByRole("button", { name: "Unseen tiles, 0 estimated tiles in the bag" }).textContent).toBe("0");
   expectLabeledRacks();
-  expect(panel.getByText("Rack tools").closest(".rack-lane")).toBe(opponentRack()?.parentElement);
+  const tools = panel.getByText("Rack tools").closest(".rack-lane-tools");
+  expect(tools?.parentElement).toBe(phone ? yourRack.closest(".rack-entry") : opponentRack()?.parentElement);
   expect(panel.queryByRole("button", { name: "Optimal exchange" })).toBeNull();
   expect(panel.queryByText(/tap.*to type/i)).toBeNull();
   expect(yourRack.closest(".rack-entry")?.querySelector(".rack-entry-actions")).toBeNull();
@@ -6669,7 +6736,12 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
   await typeRack(user, "Z");
   expect(opponentRack()).toBeNull();
   expect(screen.getByRole("heading", { name: "Possible moves" })).toBeTruthy();
-  expect(panel.getByText("Check tile counts")).toBeTruthy();
+  if (phone) {
+    await user.click(panel.getByRole("button", { name: /Unseen tiles,.*check tile counts/ }));
+    expect(screen.getByText("Check tile counts").closest(".phone-rack-details")).toBeTruthy();
+  } else {
+    expect(panel.getByText("Check tile counts")).toBeTruthy();
+  }
 });
 
 test("the bag warns about excess tiles and clears when the rack is fixed", async () => {
@@ -7055,16 +7127,15 @@ test.each(["rack", "results"])("the %s exchange suggestion preserves holds and o
   const rack = screen.getByRole("region", { name: "Your rack" });
   const header = screen.getByRole("heading", { name: "Possible moves" }).closest("header")!;
   const swap = { name: fromResults ? "Swap UV · +8 pts" : "Swap VU · +8 pts" };
-  const rackAction = within(rack).getByRole("button", swap);
-  const headerAction = within(header).getByRole("button", swap);
+  const action = within(fromResults ? header : rack).getByRole("button", swap);
   const tiles = within(rack).getByRole("group", { name: "Your rack tiles" });
   const scroll = vi.fn();
   tiles.scrollIntoView = scroll;
-  await user.click(fromResults ? headerAction : rackAction);
+  await user.click(action);
   if (fromResults) expect(scroll).toHaveBeenCalledExactlyOnceWith({ block: "start", behavior: "smooth" });
   else expect(scroll).not.toHaveBeenCalled();
   const panel = screen.getByRole("region", { name: "Simulate exchange" });
-  expect(panel.closest(".rack-panel")).toBeTruthy();
+  expect(panel.closest(fromResults ? ".phone-rack-details" : ".rack-panel")).toBeTruthy();
   expect(within(panel).getByText(/Estimated \+8 points vs. CATS/)).toBeTruthy();
   expect(screen.getByLabelText(`Rack tile 5: ${fromResults ? "U" : "V"}, marked for exchange`)).toBeTruthy();
   expect(screen.getByLabelText(`Rack tile 6: ${fromResults ? "V" : "U"}, marked for exchange`)).toBeTruthy();
@@ -7395,6 +7466,7 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   }
   expect(document.querySelector(".board-entry .ghost")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
+  if (phone) await user.click(screen.getByText("Rack tools").closest("summary")!);
   const random = vi.spyOn(Math, "random").mockReturnValue(0);
   try {
     await user.click(screen.getByRole("button", { name: "Shuffle rack" }));
@@ -7403,14 +7475,19 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   }
   expect(current().rack).toBe("SDD");
   const rack = screen.getByRole("group", { name: "Your rack tiles" });
-  vi.spyOn(rack, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 120, 40));
-  for (let i = 0; i < 3; i++)
-    vi.spyOn(rackTile(i + 1), "getBoundingClientRect").mockReturnValue(new DOMRect(i * 40, 0, 36, 36));
+  const tray = phone ? new DOMRect(0, 0, 40, 120) : new DOMRect(0, 0, 120, 40);
+  vi.spyOn(rack, "getBoundingClientRect").mockReturnValue(tray);
+  for (let i = 0; i < 3; i++) {
+    const tile = new DOMRect(phone ? 0 : i * 40, phone ? i * 40 : 0, 36, 36);
+    vi.spyOn(rackTile(i + 1), "getBoundingClientRect").mockReturnValue(tile);
+  }
   const first = rackTile(1);
-  const pointerType = phone ? "touch" : "mouse";
-  touch(first, "pointerdown", { pointerType, clientX: 18 });
-  touch(first, "pointermove", { pointerType, clientX: 118 });
-  touch(first, "pointerup", { pointerType, clientX: 118 });
+  const point = (axis: number) => phone
+    ? { pointerType: "touch", clientX: 18, clientY: axis }
+    : { pointerType: "mouse", clientX: axis, clientY: 18 };
+  touch(first, "pointerdown", point(18));
+  touch(first, "pointermove", point(118));
+  touch(first, "pointerup", point(118));
   expect(current().rack).toBe("DDS");
   expect(requests).toHaveLength(1);
   expect(result.getByRole("region", { name: "Opponent reply details" })).toBeTruthy();

@@ -21,6 +21,7 @@ type Drag = {
 function clearShift(button: HTMLElement) {
   delete button.dataset.rackShift;
   button.style.removeProperty("--rack-shift-x");
+  button.style.removeProperty("--rack-shift-y");
 }
 
 function setBounds(element: HTMLElement, bounds: DOMRect, tray: HTMLElement) {
@@ -46,11 +47,12 @@ function copyTile(button: HTMLButtonElement, bounds: DOMRect, tray: HTMLElement)
   return tile;
 }
 
-function flightFrames(dx: number, dy: number, lift: number, scale: number) {
+function flightFrames(dx: number, dy: number, lift: number, scale: number, vertical: boolean) {
   return Array.from({ length: 17 }, (_, index) => {
     const t = index / 16;
-    const x = dx * (1 - t);
-    const y = dy * (1 - t) - lift * 4 * t * (1 - t);
+    const arc = lift * 4 * t * (1 - t);
+    const x = dx * (1 - t) - (vertical ? arc : 0);
+    const y = dy * (1 - t) - (vertical ? 0 : arc);
     return { transform: `translate(${x}px, ${y}px) scale(${1 + (scale - 1) * (1 - t)})` };
   });
 }
@@ -60,6 +62,7 @@ export function useRackReorder({
   letters,
   positionKey,
   enabled,
+  vertical,
   prepare,
   onReorder,
 }: {
@@ -67,6 +70,7 @@ export function useRackReorder({
   letters: string;
   positionKey: string;
   enabled: boolean;
+  vertical: boolean;
   prepare: () => void;
   onReorder: (order: number[]) => void;
 }) {
@@ -98,10 +102,11 @@ export function useRackReorder({
 
   useLayoutEffect(() => {
     clearDrag();
-  }, [positionKey, enabled]);
+  }, [positionKey, enabled, vertical]);
   useLayoutEffect(() => {
     if (!enabled || flights.current?.rack !== letters) flights.current?.stop();
   }, [letters, enabled]);
+  useLayoutEffect(() => () => flights.current?.stop(), [vertical]);
   useEffect(() => {
     function reset() {
       cancel();
@@ -145,12 +150,12 @@ export function useRackReorder({
       if (Math.hypot(dx, dy) < .25 && from !== lifted) return;
       const shuffled = mode === "shuffle";
       const lift = shuffled
-        ? Math.min(SHUFFLE_ARC + 25, SHUFFLE_ARC * .62 + Math.abs(dx) * .12 + (to % 3) * 8)
+        ? Math.min(SHUFFLE_ARC + 25, SHUFFLE_ARC * .62 + Math.abs(vertical ? dy : dx) * .12 + (to % 3) * 8)
         : from === lifted ? 6 : 0;
       const floating = copyTile(source.button, dest.bounds, tray);
       if (from === lifted) floating.dataset.rackDragging = "";
       dest.button.dataset.rackCovered = "";
-      const animation = floating.animate(flightFrames(dx, dy, lift, from === lifted ? 1.045 : 1), {
+      const animation = floating.animate(flightFrames(dx, dy, lift, from === lifted ? 1.045 : 1, vertical), {
         duration: shuffled ? SHUFFLE_MS : DROP_MS,
         delay: shuffled ? (to % 4) * 17 : 0,
         easing: shuffled ? "cubic-bezier(.36,.04,.23,1)" : "cubic-bezier(.2,.75,.24,1)",
@@ -198,12 +203,14 @@ export function useRackReorder({
     if (!active || !tray || active.pointer !== event.pointerId) return false;
     const dx = event.clientX - active.x;
     const dy = event.clientY - active.y;
+    const travel = Math.abs(vertical ? dy : dx);
+    const crossTravel = Math.abs(vertical ? dx : dy);
     if (!active.slots) {
-      if (event.pointerType === "touch" && Math.abs(dy) > Math.max(10, Math.abs(dx))) {
+      if (event.pointerType === "touch" && crossTravel > Math.max(10, travel)) {
         clearDrag();
         return false;
       }
-      if (Math.abs(dx) < 7 || Math.abs(dx) < Math.abs(dy)) return false;
+      if (travel < 7 || travel < crossTravel) return false;
       prepare();
       active.slots = readSlots();
       const source = active.slots[active.index];
@@ -217,17 +224,24 @@ export function useRackReorder({
     }
     const { slots, floating, marker, index } = active;
     if (!slots || !floating || !marker) return false;
-    const target = slots.filter(({ bounds }, slot) =>
-      slot !== index && event.clientX >= bounds.left + bounds.width / 2).length;
+    const coordinate = vertical ? event.clientY : event.clientX;
+    const target = slots.filter(({ bounds }, slot) => slot !== index &&
+      coordinate >= (vertical ? bounds.top + bounds.height / 2 : bounds.left + bounds.width / 2)
+    ).length;
     active.target = target;
     setBounds(marker, slots[target].bounds, tray);
-    floating.style.transform = `translate(${dx}px, ${dy - 12}px) scale(1.045)`;
+    const floatingX = vertical ? dx - 12 : dx;
+    const floatingY = vertical ? dy : dy - 12;
+    floating.style.transform = `translate(${floatingX}px, ${floatingY}px) scale(1.045)`;
     movedRackSlots(slots.length, index, target).forEach((from, to) => {
       if (from === index) return;
       const { button, bounds } = slots[from];
       if (from === to && button.dataset.rackShift === undefined) return;
       button.dataset.rackShift = "";
-      button.style.setProperty("--rack-shift-x", `${slots[to].bounds.left - bounds.left}px`);
+      if (vertical)
+        button.style.setProperty("--rack-shift-y", `${slots[to].bounds.top - bounds.top}px`);
+      else
+        button.style.setProperty("--rack-shift-x", `${slots[to].bounds.left - bounds.left}px`);
     });
     return true;
   }
@@ -252,16 +266,16 @@ export function useRackReorder({
     const order = movedRackSlots(slots.length, index, to);
     if (outside && canAnimateTiles()) {
       // The neighboring tiles may already have shifted to preview the drop.
-      const shifted = slots.map(({ bounds }, i) => ({
-        left: fromPositions[i].left - bounds.left,
-        index: i,
-      }));
-      for (const { left, index: slot } of shifted)
-        if (slot !== index && Math.abs(left) > .25)
-          slots[slot].button.animate(
-            [{ transform: `translateX(${left}px)` }, { transform: "translateX(0)" }],
-            { duration: 160, easing: "ease-out" },
-          );
+      slots.forEach(({ button, bounds }, slot) => {
+        if (slot === index) return;
+        const dx = fromPositions[slot].left - bounds.left;
+        const dy = fromPositions[slot].top - bounds.top;
+        if (Math.hypot(dx, dy) <= .25) return;
+        button.animate(
+          [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
+          { duration: 160, easing: "ease-out" },
+        );
+      });
     }
     animate(order, slots, fromPositions, "drop", index);
     if (to !== index) onReorder(order);

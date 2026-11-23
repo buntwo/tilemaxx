@@ -7,11 +7,13 @@ export default function TilePool({
   game,
   id,
   open,
+  hideWhenClosed = false,
   onOpenChange,
 }: {
   game: Game;
   id: string;
   open: boolean;
+  hideWhenClosed?: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const [filter, setFilter] = useState("all");
@@ -33,6 +35,7 @@ export default function TilePool({
   return (
     <details
       className="tile-pool"
+      hidden={hideWhenClosed && !open}
       open={open}
       onToggle={(event) => onOpenChange(event.currentTarget.open)}
     >

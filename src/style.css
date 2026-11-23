@@ -4878,7 +4878,7 @@ label + label {
   touch-action: pan-y;
 }
 .rack-tile[data-rack-shift] {
-  transform: translateX(var(--rack-shift-x));
+  transform: translate(var(--rack-shift-x, 0), var(--rack-shift-y, 0));
   transition: transform 160ms cubic-bezier(.2,.75,.24,1);
   pointer-events: none;
 }
@@ -6143,117 +6143,173 @@ label + label {
   line-height: 1.15;
   overflow-wrap: anywhere;
 }
-.phone-layout .rack-panel { margin-top: 8px; padding: 6px 10px 5px; }
-.phone-layout .rack-panel .rack-tiles { margin: 4px auto 3px; }
-.phone-layout .rack-entry-actions .text-button { min-height: 40px; }
-.phone-layout .opponent-rack-lane .text-button { min-height: 32px; }
-.phone-layout .rack-optimal-exchange { gap: 4px; }
-.phone-layout .rack-optimal-exchange-label { min-height: 34px; }
-.phone-layout .opponent-rack-tiles { gap: 3px; }
-@media (max-width: 350px) {
-  .phone-layout .rack-player-lane:has(> .rack-shuffle) > .rack-tiles { gap: 3px; }
-  .phone-layout .rack-optimal-exchange { font-size: 11px; }
-  .phone-layout .rack-optimal-exchange svg { display: none; }
-}
-.phone-layout .rack-panel .tile-pool { margin-top: 4px; }
-.phone-layout .rack-panel .tile-pool summary { padding-top: 2px; }
 .phone-layout .workspace-grid { gap: 9px; }
 .stacked-game .workspace-grid { scroll-margin-block-start: 8px; }
-.stacked-game .workspace-grid :is(.board-panel, .rack-tile, .opponent-rack-tiles span) {
-  transform-origin: top left;
-}
-.stacked-game .workspace-grid .rack-panel {
-  position: relative;
-  z-index: 1;
-}
-.move-review > .board-column {
-  --review-rack-width: 44px;
-  --review-rack-gap: 6px;
+.phone-board-column {
+  --phone-rack-gap: 12px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--review-rack-width);
+  grid-template-columns: minmax(0, 1fr) var(--phone-rack-gap) var(--phone-rack-width);
   align-items: start;
-  gap: var(--review-rack-gap);
   container-type: inline-size;
 }
-.move-review .rack-panel {
-  align-self: center;
+.phone-board-column > .board-panel { grid-area: 1 / 1; }
+.phone-rack-divider {
+  grid-area: 1 / 1 / 2 / -1;
+  justify-self: end;
+  align-self: start;
+  direction: rtl;
+  z-index: 2;
+  appearance: none;
+  width: calc(var(--phone-rack-range) + var(--phone-rack-gap));
+  height: 44px;
+  min-height: 0;
+  margin: 0 var(--phone-rack-min) 0 0;
+  margin-block-start: calc((100cqi - var(--phone-rack-width) - var(--phone-rack-gap)) / 2 + 12px);
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.phone-rack-divider::-webkit-slider-thumb {
+  appearance: none;
+  width: var(--phone-rack-gap);
+  height: 32px;
+  border: 3px solid var(--bg);
+  border-radius: 7px;
+  background: var(--muted);
+}
+.phone-rack-divider::-moz-range-thumb {
+  box-sizing: border-box;
+  width: var(--phone-rack-gap);
+  height: 32px;
+  border: 3px solid var(--bg);
+  border-radius: 7px;
+  background: var(--muted);
+}
+.phone-rack-divider:disabled { opacity: .5; cursor: default; }
+.phone-board-column > .rack-panel {
+  grid-area: 1 / 3;
+  position: relative;
+  z-index: 1;
   margin: 0;
   padding: 0;
   border: 0;
   background: none;
   box-shadow: none;
 }
-.move-review .rack-panel:has(.opponent-rack-tiles) {
-  /* Let the board set the grid row height before sizing the racks. */
-  container-type: size;
-  align-self: stretch;
+.phone-board-column .rack-entry {
+  --phone-tile-gap: 3px;
+  --phone-rack-label-height: 13px;
+  --phone-rack-lane-gap: 4px;
+  --phone-rack-stack-padding: 12px;
+  --phone-rack-space: calc(
+    100cqi - var(--phone-rack-min) - var(--phone-rack-gap) - 22px
+    + (var(--phone-rack-width) - var(--phone-rack-min)) / 2
+  );
+  --phone-rack-tile-max: min(46px, var(--phone-rack-width) - 8px);
+  --phone-rack-tile-size: clamp(0px, calc(
+    (var(--phone-rack-space) - var(--phone-rack-stack-padding)
+      - (var(--rack-size) - 1) * var(--phone-tile-gap)) / var(--rack-size)
+  ), var(--phone-rack-tile-max));
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  align-items: stretch;
 }
-.move-review .rack-entry {
-  --review-tile-gap: 3px;
-  --review-rack-label-height: 14px;
-  --review-lane-gap: 6px;
-  --review-tray-padding: 5px;
-  --review-tray-overhead: calc(2 * (var(--review-tray-padding) + 1px));
-  --review-max-tile-size: calc(var(--review-rack-width) - 8px);
-  --review-rack-tile-size: min(var(--review-max-tile-size), calc(
-    (100cqi - var(--review-rack-width) - var(--review-rack-gap) - var(--review-tray-overhead))
-    / var(--rack-size) - var(--review-tile-gap)
-  ));
-}
-.move-review .rack-entry:has(.opponent-rack-tiles) {
-  --review-stack-gaps: calc((var(--rack-size) + var(--opponent-rack-size) - 2) * var(--review-tile-gap));
-  --review-rack-tile-size: clamp(0px, calc(
-    (100cqh - 2 * var(--review-rack-label-height) - var(--review-lane-gap)
-      - var(--review-tray-overhead) - var(--review-stack-gaps))
+.phone-board-column .rack-entry:has(.opponent-rack-tiles) {
+  --phone-rack-gaps: calc((var(--rack-size) + var(--opponent-rack-size) - 2) * var(--phone-tile-gap));
+  --phone-rack-tile-size: clamp(0px, calc(
+    (var(--phone-rack-space) - 2 * var(--phone-rack-label-height) - var(--phone-rack-lane-gap)
+      - var(--phone-rack-stack-padding) - var(--phone-rack-gaps))
     / (var(--rack-size) + var(--opponent-rack-size) / 2)
-  ), var(--review-max-tile-size));
-  --review-opponent-tile-size: calc(var(--review-rack-tile-size) / 2);
+  ), var(--phone-rack-tile-max));
+  --phone-opponent-tile-size: calc(var(--phone-rack-tile-size) / 2);
 }
-.move-review .rack-panel .rack-tiles {
+.phone-board-column .rack-bag {
+  align-self: center;
+  flex: none;
+  margin-bottom: 2px;
+}
+.phone-board-column .rack-panel .rack-tiles {
   flex-direction: column;
   align-items: center;
-  gap: var(--review-tile-gap);
+  gap: var(--phone-tile-gap);
   width: 100%;
   margin: 0;
-  padding: var(--review-tray-padding) 3px;
-  cursor: pointer;
+  padding: 5px 3px;
 }
-.move-review .rack-panel .rack-tile {
+.phone-board-column .rack-panel .rack-tile {
   flex: none;
-  width: var(--review-rack-tile-size);
-  cursor: pointer;
+  width: var(--phone-rack-tile-size);
 }
-.move-review .rack-lane { display: block; }
-.move-review .rack-lane + .rack-lane { margin-block: var(--review-lane-gap) 0; }
-.move-review .rack-owner-label {
+.phone-board-column .rack-tile[data-rack-reorderable] { touch-action: none; }
+.phone-board-column .rack-lane { display: block; }
+.phone-board-column .rack-lane + .rack-lane { margin-block: var(--phone-rack-lane-gap) 0; }
+.phone-board-column .rack-owner-label {
   display: flex;
   justify-content: center;
-  height: var(--review-rack-label-height);
+  height: var(--phone-rack-label-height);
   font-size: 9px;
 }
-.move-review .opponent-rack-tiles {
+.phone-board-column .opponent-rack-tiles {
   flex-flow: column nowrap;
   align-items: center;
-  gap: var(--review-tile-gap);
+  gap: var(--phone-tile-gap);
   margin: 0 auto;
 }
-.move-review .opponent-rack-tiles span {
-  width: var(--review-opponent-tile-size);
+.phone-board-column .opponent-rack-tiles span {
+  width: var(--phone-opponent-tile-size);
   height: auto;
   aspect-ratio: 1;
-  font-size: min(12px, calc(var(--review-opponent-tile-size) * .65));
+  font-size: calc(var(--phone-opponent-tile-size) * .7);
 }
-.move-review .rack-face { font-size: min(20px, 54cqi); }
-.move-review .rack-face small { right: 2px; bottom: 1px; }
-.move-review :is(
-  .direct-entry-tools, .rack-entry-actions, .rack-lane-tools, .rack-exchange-actions,
-  .rack-simulation, .tile-pool
-) {
-  display: none;
+.phone-board-column .rack-face { font-size: min(23px, 59cqi); }
+.phone-board-column .rack-face small { right: 2px; bottom: 1px; }
+.phone-board-column .rack-lane-tools { align-self: center; }
+.phone-board-column .rack-lane-tools .text-button {
+  justify-content: center;
+  min-width: 44px;
+  min-height: 36px;
+  padding-inline: 2px;
 }
+.rack-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.phone-board-column > :is(.board-warnings, .phone-rack-details) { grid-column: 1 / -1; }
+.phone-rack-details:not(:empty) { padding-inline: 6px; }
+.phone-rack-details .tile-pool { margin-top: 4px; }
+.phone-rack-details .tile-pool summary { padding-top: 3px; }
+.phone-board-column .with-board-history .direct-entry-status {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-height: 24px;
+}
+.phone-board-column .last-play-row {
+  height: 24px;
+  flex-wrap: nowrap;
+}
+.phone-board-column .last-play-summary {
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.phone-board-column .last-play-word,
+.phone-board-column .last-play-bag,
+.phone-board-column .board-review-actions > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phone-board-column .last-play-bag { flex-shrink: 1; }
+.move-review :is(.direct-entry-tools, .phone-rack-details) { display: none; }
 .board-review-actions {
   display: flex;
   align-items: center;

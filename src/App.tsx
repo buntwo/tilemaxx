@@ -50,7 +50,7 @@ import {
 } from "./components/GameCalculations";
 import GameId from "./components/GameId";
 import { MoveSquareFilterControls, useMoveSquareFilter } from "./components/MoveSquareFilter";
-import GameWorkspace, { useMoveReview } from "./components/GameWorkspace";
+import GameWorkspace, { GameBoardColumn, useMoveReview } from "./components/GameWorkspace";
 import RackEntry, { type RackEntryHandle } from "./components/RackEntry";
 import ExchangeSuggestion from "./components/ExchangeSuggestion";
 import {
@@ -430,7 +430,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     preferences.autoUpdate,
     updateBusy,
   );
-  // Keep the board in the review layout until the flying tiles land.
+  // Keep the preview controls active until the flying tiles land.
   const moveReview = useMoveReview(
     narrowLayout && workspace === "games" && (!gameOver || !!activeFlight),
     !busy && !solver.error && solver.results?.total
@@ -936,6 +936,16 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const boardModeHistory = game && (
     <div className="board-mode-history">{boardHistoryControls}</div>
   );
+  const boardWarnings = warnings.length > 0 && (
+    <div className="board-warnings" role="alert">
+      {warnings.map((warning, index) => (
+        <p key={warning}>
+          {index === 0 && <TriangleAlert size={14} aria-hidden="true" />}
+          {warning}
+        </p>
+      ))}
+    </div>
+  );
   return (
     <div
       ref={shell}
@@ -1285,8 +1295,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             reviewing={moveReview.showing}
             hasWarnings={warnings.length > 0}
           >
-            <div className="board-column">
-              <section
+            <GameBoardColumn
+              phone={narrowLayout}
+              resizeDisabled={!!activeFlight}
+              warnings={boardWarnings}
+              board={<section
                 ref={boardPanel}
                 aria-label="Game board"
                 className="board-panel panel"
@@ -1304,17 +1317,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 <LastPlay
                   game={activeFlight?.before ?? game}
                   bag={activeFlight?.bag ?? replyAnalysis}
+                  reserveSpace={narrowLayout}
                 />
-                {warnings.length > 0 && (
-                  <div className="board-warnings" role="alert">
-                    {warnings.map((warning, index) => (
-                      <p key={warning}>
-                        {index === 0 && <TriangleAlert size={14} aria-hidden="true" />}
-                        {warning}
-                      </p>
-                    ))}
-                  </div>
-                )}
+                {!narrowLayout && boardWarnings}
                 <BoardEntry
                   ref={boardEntry}
                   key={`${game.id}:${enteringOwnPlay ? "own-play" : "board"}`}
@@ -1416,8 +1421,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     )}
                   </div>
                 )}
-              </section>
-              <section
+              </section>}
+              rack={(detailsTarget) => <section
                 ref={rackPanel}
                 aria-label="Your rack"
                 className="rack-panel panel"
@@ -1439,6 +1444,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   onSolve={solve}
                   phoneLayout={narrowLayout}
                   onReviewEdit={moveReview.showing ? editPosition : undefined}
+                  detailsTarget={detailsTarget}
                   onEnterOwnPlay={canEnterOwnPlay && !enteringOwnPlay ? startOwnPlay : undefined}
                   positionKey={signature}
                   exchangeAdvice={exchangeAdvice}
@@ -1454,8 +1460,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   }
                   flyingRack={activeFlight}
                 />
-              </section>
-            </div>
+              </section>}
+            />
             <div className="results-column">
               {gameOver ? (
                 <section className="results-panel game-over panel" aria-label="Possible moves">
