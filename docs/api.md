@@ -23,8 +23,11 @@ TILEMAXX_WEB_PASSWORD: ${TILEMAXX_WEB_PASSWORD:?Set the Tilemaxx browser passwor
 
 Recreate the container with `docker compose up -d`. Use the browser's sign-in
 prompt with username `tilemaxx` and the web password. The browser credential
-also protects the legacy web and debug API routes. `GET /api/health` stays
-available for the container health check and returns only a status flag.
+also protects the legacy web and debug API routes. On HTTPS, each browser or
+installed web app stays signed in for 30 days using an HTTP-only cookie. Sign in
+once on each device or browser profile. Clearing the site's cookies or rotating
+the web password ends the remembered sign-in. `GET /api/health` stays available
+for the container health check and returns only a status flag.
 
 Give API clients the bearer token through their local secret store or
 environment. Each credential grants full access to all profiles on the

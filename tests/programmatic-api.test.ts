@@ -13,11 +13,15 @@ const credentials = {
   browserPassword: "b".repeat(64),
 };
 
-async function fixture(t: TestContext, secured = true) {
+async function fixture(
+  t: TestContext,
+  secured = true,
+  browserPassword = credentials.browserPassword,
+) {
   const dir = mkdtempSync(join(tmpdir(), "tilemaxx-api-"));
   const store = createStore(dir, process.cwd());
   const app = createApp(store, {
-    credentials: secured ? credentials : undefined,
+    credentials: secured ? { ...credentials, browserPassword } : undefined,
   });
   app.get("/", (_req, res) =>
     res.send("<!doctype html><title>Tilemaxx</title>"),
@@ -37,7 +41,7 @@ async function fixture(t: TestContext, secured = true) {
   assert(address && typeof address !== "string");
   const url = `http://127.0.0.1:${address.port}`;
   const bearer = `Bearer ${credentials.token}`;
-  const basic = `Basic ${Buffer.from(`tilemaxx:${credentials.browserPassword}`).toString("base64")}`;
+  const basic = `Basic ${Buffer.from(`tilemaxx:${browserPassword}`).toString("base64")}`;
   const auth = { bearer, basic };
   const endpoint = (
     path: string,
@@ -128,6 +132,68 @@ test("bearer and browser credentials protect both API surfaces", async (t) => {
     ).status,
     401,
   );
+});
+
+test("a browser session persists without Basic credentials and has a fixed lifetime", async (t) => {
+  const { url, auth } = await fixture(t);
+  const restarted = await fixture(t);
+  const rotated = await fixture(t, true, "c".repeat(64));
+  const now = Date.now();
+  const lifetime = 30 * 24 * 60 * 60 * 1000;
+  t.mock.timers.enable({ apis: ["Date"], now });
+
+  const login = await fetch(url, { headers: { Authorization: auth.basic } });
+  assert.equal(login.status, 200);
+  const setCookie = login.headers.get("set-cookie");
+  assert(setCookie);
+  assert.match(setCookie, /^__Host-tilemaxx-session=/);
+  assert.match(setCookie, /; Max-Age=2592000\b/);
+  assert.match(setCookie, /; Path=\/;/);
+  assert.match(setCookie, /; HttpOnly\b/);
+  assert.match(setCookie, /; Secure\b/);
+  assert.match(setCookie, /; SameSite=Lax\b/);
+  assert.doesNotMatch(setCookie, /; Domain=/i);
+  const cookie = setCookie.split(";", 1)[0];
+  const headers = { Cookie: `other=1; ${cookie}` };
+
+  for (const path of ["/", "/api/state/index", "/api/debug/games"]) {
+    const response = await fetch(restarted.url + path, { headers });
+    assert.equal(response.status, 200, path);
+    assert.equal(response.headers.get("set-cookie"), null, path);
+    assert.equal(response.headers.get("cache-control"), "private, no-store");
+  }
+  const crossOrigin = await fetch(url + "/api/profiles", {
+    method: "POST",
+    headers: {
+      ...headers,
+      Origin: "https://elsewhere.example",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name: "Cross origin" }),
+  });
+  assert.equal(crossOrigin.status, 403);
+
+  const bearerOnly = await fetch(url + "/api/v1/state/index", { headers });
+  assert.equal(bearerOnly.status, 401);
+  assert.match(bearerOnly.headers.get("www-authenticate") ?? "", /^Bearer /);
+
+  const tampered = cookie.slice(0, -1) + (cookie.endsWith("0") ? "1" : "0");
+  const rejected = await fetch(url, { headers: { Cookie: tampered } });
+  assert.equal(rejected.status, 401);
+  assert.equal(rejected.headers.get("set-cookie"), null);
+  assert.equal((await fetch(rotated.url, { headers })).status, 401);
+
+  t.mock.timers.setTime(now + lifetime - 1);
+  assert.equal((await fetch(url, { headers })).status, 200);
+  t.mock.timers.setTime(now + lifetime);
+  const expired = await fetch(url, { headers });
+  assert.equal(expired.status, 401);
+  assert.match(expired.headers.get("www-authenticate") ?? "", /^Basic /);
+  const signedInAgain = await fetch(url, {
+    headers: { ...headers, Authorization: auth.basic },
+  });
+  assert.equal(signedInAgain.status, 200);
+  assert(signedInAgain.headers.get("set-cookie"));
 });
 
 test("the API and browser share games, revisions and tracked play", async (t) => {

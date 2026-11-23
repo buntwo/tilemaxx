@@ -1,4 +1,9 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
 import type { RequestHandler } from "express";
 
 export type ApiCredentials = {
@@ -7,6 +12,29 @@ export type ApiCredentials = {
 };
 
 const digest = (value: string) => createHash("sha256").update(value).digest();
+const sessionCookie = "__Host-tilemaxx-session";
+const sessionLifetime = 30 * 24 * 60 * 60 * 1000;
+const sessionSignature = (key: Buffer, payload: string) =>
+  createHmac("sha256", key).update(`browser-session:${payload}`).digest();
+
+function validSession(key: Buffer, cookies: string | undefined) {
+  const cookie = cookies
+    ?.split(";")
+    .map((entry) => entry.trim())
+    .find((entry) => entry.startsWith(`${sessionCookie}=`));
+  const match = /^(\d{1,16})\.([a-f0-9]{32})\.([a-f0-9]{64})$/.exec(
+    cookie?.slice(sessionCookie.length + 1) ?? "",
+  );
+  if (!match) return false;
+  const [, expires, nonce, signature] = match;
+  return (
+    Number(expires) > Date.now() &&
+    timingSafeEqual(
+      sessionSignature(key, `${expires}.${nonce}`),
+      Buffer.from(signature, "hex"),
+    )
+  );
+}
 
 export function apiAuthentication(credentials?: ApiCredentials) {
   if (
@@ -44,6 +72,10 @@ export function apiAuthentication(credentials?: ApiCredentials) {
       return;
     }
     res.setHeader("Cache-Control", "private, no-store");
+    if (validSession(browser, req.get("cookie"))) {
+      next();
+      return;
+    }
     const match = /^Basic ([A-Za-z0-9+/]{98}==)$/i.exec(
       req.get("authorization") ?? "",
     );
@@ -54,6 +86,16 @@ export function apiAuthentication(credentials?: ApiCredentials) {
         browser,
       )
     ) {
+      const expires = Date.now() + sessionLifetime;
+      const payload = `${expires}.${randomBytes(16).toString("hex")}`;
+      const signature = sessionSignature(browser, payload).toString("hex");
+      res.cookie(sessionCookie, `${payload}.${signature}`, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: sessionLifetime,
+      });
       next();
       return;
     }
