@@ -738,7 +738,20 @@ test("the full history badge requires tracked plays from an empty board to the s
   const first = { ...playTrackedMove(game, opening), rack: "S" };
   const nextMove = solve(lexicon, first.board, first.rack, first.template)[0];
   const complete = playTrackedMove(first, nextMove);
-  assert.equal(summarizeGame(game).fullMoveHistory, false);
+  assert.equal(summarizeGame(game).fullMoveHistory, true);
+  assert.equal(
+    summarizeGame({ ...game, trackScores: false }).fullMoveHistory,
+    false,
+  );
+  assert.equal(
+    summarizeGame({ ...game, scoring: emptyScoring(true) }).fullMoveHistory,
+    false,
+  );
+  assert.equal(
+    summarizeGame({ ...game, scoring: { ...emptyScoring(), incomplete: true } })
+      .fullMoveHistory,
+    false,
+  );
   assert.equal(summarizeGame(complete).fullMoveHistory, true);
   assert.equal(summarizeGame({ ...complete, past: [] }).fullMoveHistory, true);
   const archived = archiveGame(complete);

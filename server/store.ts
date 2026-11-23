@@ -350,6 +350,14 @@ export function createStore(directory: string, root: string) {
         PRAGMA user_version=4;`);
     });
   }
+  if (db.prepare("PRAGMA user_version").get()?.user_version === 4) {
+    transaction(() => {
+      if (db.prepare("PRAGMA user_version").get()?.user_version !== 4) return;
+      // Earlier summaries marked empty tracked games as having incomplete history.
+      db.exec(`DELETE FROM game_summaries WHERE json_extract(data, '$.fullMoveHistory') = 0;
+        PRAGMA user_version=5;`);
+    });
+  }
   return {
     db,
     async definitions(language: DefinitionLanguage, words: string[]) {

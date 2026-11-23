@@ -3623,9 +3623,15 @@ test("new games start with score tracking on even after an earlier opt-out", asy
     screen.queryByText("No score", {
       selector: ".game-heading .game-title-score",
     });
+  const historyIcon = () =>
+    within(cell("Switch game")).queryByRole("img", {
+      name: "Incomplete move history",
+    });
   expect(noScoreBadge()).toBeTruthy();
+  expect(historyIcon()).toBeTruthy();
   await createGame("Tracked opponent", true);
   expect(noScoreBadge()).toBeNull();
+  expect(historyIcon()).toBeNull();
   expect(scoreTotals()).toBe("0–0");
   expect(trackedScore().hasAttribute("data-turn")).toBe(false);
   expect(scoreDelta()?.textContent).toBe("0");
@@ -4330,8 +4336,7 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
 test("the game header, picker, and archive mark incomplete move histories", async () => {
   const user = await start();
   const icon = { name: "Incomplete move history" };
-  expect(within(cell("Switch game")).getByRole("img", icon)).toBeTruthy();
-  expect(cell("Switch game").getAttribute("aria-description")).toContain(icon.name);
+  expect(within(cell("Switch game")).queryByRole("img", icon)).toBeNull();
   await user.click(cell("H8: DW, start"));
   await user.keyboard("CAT");
   await user.click(cell("Record opponent move"));
@@ -4362,7 +4367,10 @@ test("the game header, picker, and archive mark incomplete move histories", asyn
   expect(within(active).queryByRole("img", icon)).toBeNull();
   const activePartial = screen.getByRole("menuitemradio", { name: /^Active partial match/ });
   expect(within(activePartial).getByRole("img", icon)).toBeTruthy();
-  await user.keyboard("{Escape}");
+  await user.click(activePartial);
+  await screen.findByRole("heading", { name: "Active partial match" });
+  expect(within(cell("Switch game")).getByRole("img", icon)).toBeTruthy();
+  expect(cell("Switch game").getAttribute("aria-description")).toContain(icon.name);
   await user.click(cell("Archived games"));
   const tracked = screen.getByRole("button", { name: /^Tracked match/ });
   expect(within(tracked).queryByRole("img", icon)).toBeNull();

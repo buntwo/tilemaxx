@@ -2,6 +2,7 @@ import { localDate, trackedMoveHistory, type AppState, type Game } from "./model
 import {
   displayedGameScoring,
   summarizeGameScore,
+  tracksScores,
   type GameScoreSummary,
 } from "./game-scoring";
 import { reviewTurns } from "./turn-review";
@@ -78,7 +79,14 @@ function hasFullMoveHistory(game: Game): boolean {
   const count = scoring
     ? scoring.you.moves + scoring.opponent.moves
     : history.length;
-  if (!count || count > history.length) return false;
+  if (!count)
+    return (
+      !history.length &&
+      !scoring?.incomplete &&
+      tracksScores(position) &&
+      !board.some(Boolean)
+    );
+  if (count > history.length) return false;
   const played = Array<string>(board.length).fill("");
   let legacyTurns: ReturnType<typeof reviewTurns> | undefined;
   for (let i = history.length - count; i < history.length; i++) {

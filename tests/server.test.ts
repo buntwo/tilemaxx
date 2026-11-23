@@ -648,6 +648,28 @@ test("upgrading the game index restores active scores from saved games", () => {
   }
 });
 
+test("upgrading the game index refreshes the move history badge for saved empty games", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-empty-history-"));
+  let store = createStore(dir, process.cwd());
+  try {
+    const [game] = store.state().games;
+    store.db.prepare(
+      `UPDATE game_summaries SET data=json_set(data, '$.fullMoveHistory', json('false')) WHERE id=?`,
+    ).run(game.id);
+    store.db.exec("PRAGMA user_version=4");
+    store.db.close();
+
+    store = createStore(dir, process.cwd());
+    const [summary] = store.index().games;
+    assert.equal(summary.fullMoveHistory, true);
+    assert.equal(summary.revision, game.revision);
+    assert.deepEqual(store.getGame(game.id), game);
+  } finally {
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("the game index backfills old SQLite saves and leaves full history on the detail API", async () => {
   const dir = mkdtempSync(join(tmpdir(), "tilemaxx-index-test-"));
   const database = new DatabaseSync(join(dir, "tilewise.sqlite"));
