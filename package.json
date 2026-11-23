@@ -1,6 +1,6 @@
 {
   "name": "tilemaxx",
-  "version": "0.2.125",
+  "version": "0.2.126",
   "private": true,
   "type": "module",
   "engines": {
@@ -10,7 +10,7 @@
     "debug:games": "node --import tsx scripts/debug.ts games",
     "debug:game": "node --import tsx scripts/debug.ts game",
     "dev": "node --import tsx server/index.ts --dev",
-    "build": "tsc --noEmit && vite build && node scripts/build-offline.mjs && esbuild server/index.ts server/api-analysis.worker.ts scripts/import-definitions.ts --bundle --platform=node --format=esm --packages=external --outdir=dist-server --entry-names=[name]",
+    "build": "tsc --noEmit && vite build && node scripts/build-offline.mjs && esbuild server/index.ts server/api-analysis.worker.ts server/api-candidate.worker.ts scripts/import-definitions.ts --bundle --platform=node --format=esm --packages=external --outdir=dist-server --entry-names=[name]",
     "start": "node dist-server/index.js",
     "import:definitions": "node --import tsx scripts/import-definitions.ts",
     "test": "npm run test:unit && npm run test:ui",

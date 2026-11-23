@@ -31,8 +31,8 @@ export type ComputationResult =
 
 const builtWorker = new URL("./api-analysis.worker.js", import.meta.url);
 const sourceWorker = new URL("./api-analysis.worker.ts", import.meta.url);
-const concurrency = 2;
-const timeout = 55_000;
+const concurrency = 1;
+const timeout = 210_000;
 
 export function createComputationRunner() {
   let active = 0;

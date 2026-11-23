@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { CandidateWorker } from "./api-worker-adapter";
 import { parentPort, workerData } from "node:worker_threads";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import {
@@ -12,6 +13,8 @@ import { analyzePosition } from "./api-analysis";
 import type { Computation, ComputationResult } from "./api-computation";
 import { ApiError } from "./api-error";
 import { readScreenshot } from "./api-screenshot";
+
+globalThis.Worker = CandidateWorker as unknown as typeof Worker;
 
 async function compute(input: Computation) {
   if (input.kind === "screenshot") return readScreenshot(input.request);

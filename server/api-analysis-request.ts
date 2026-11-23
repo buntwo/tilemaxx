@@ -86,7 +86,7 @@ export const analysisRequest = z.strictObject({
       style: z.enum([...PLAYER_PROFILES, ...SIMULATED_STYLES]).optional(),
       seed: seed.default(0),
       sample: seed.default(0),
-      budgetMs: z.number().int().min(1_000).max(25_000).default(10_000),
+      budgetMs: z.number().int().min(1_000).max(180_000).default(10_000),
     }),
     z.strictObject({
       kind: z.literal("compare"),

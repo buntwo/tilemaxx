@@ -395,13 +395,13 @@ export async function analyzePosition(
             : undefined;
         const session =
           style === "master"
-            ? createMasterSession(lexicon, settings, moves, 1)
+            ? createMasterSession(lexicon, settings, moves, 8)
             : createBingoHunterSession(
                 lexicon,
                 settings,
                 moves,
                 odds,
-                1,
+                8,
                 style,
               );
         const { ranked, summary } = await session.run(

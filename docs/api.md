@@ -171,9 +171,9 @@ identify covered premiums from those opening scores. Use
 
 Errors return an `error` string. Expect `401` for invalid credentials,
 `400` or `422` for invalid input, `409` for a conflict, and `413` for a
-large request. Compute-intensive requests run in at most two server workers.
+large request. The server runs one compute-intensive request at a time. Simulated playing styles can use up to eight candidate workers.
 A busy server returns `429` with `Retry-After`. A hard computation timeout
-returns `504`. Allow up to 60 seconds in the HTTP client and reverse proxy.
+returns `504`. Allow up to 210 seconds in the HTTP client and reverse proxy for extended move analysis.
 
 The API works with server-saved data. Theme, layout, keyboard and hover state,
 offline downloads, and unsynced edits belong to each browser. Archive filters,
