@@ -320,8 +320,8 @@ export default function Board({
                     .map((word) => (
                       <span
                         key={word.direction}
-                        className={`board-word-score ${word.direction}${word.bingo ? " bingo-word-score" : ""}`}
-                        aria-label={`${word.word} ${word.direction}, ${word.score} ${word.fromPlay ? "points" : "face-value points"}${word.bingo ? ", bingo" : ""}`}
+                        className={`board-word-score ${word.direction}${word.player === "opponent" ? " opponent-word-score" : ""}${word.bingo ? " bingo-word-score" : ""}`}
+                        aria-label={`${word.word} ${word.direction}, ${word.score} ${word.fromPlay ? "points" : "face-value points"}${word.player === "opponent" ? ", opponent play" : ""}${word.bingo ? ", bingo" : ""}`}
                       >
                         {word.bingo && <BingoBadge />}
                         {word.score}

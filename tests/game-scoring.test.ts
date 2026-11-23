@@ -804,6 +804,7 @@ test("board hover scores each crossing word with its original premiums when avai
         cells: [111, 112, 113],
         score: 10,
         fromPlay: true,
+        player: "opponent",
       },
       {
         word: "ART",
@@ -811,15 +812,16 @@ test("board hover scores each crossing word with its original premiums when avai
         cells: [83, 98, 113],
         score: 3,
         fromPlay: true,
+        player: "opponent",
       },
     ]);
   }
   const imported = importBoard(first, crossing);
   assert.deepEqual(
-    boardWordsAt(imported, 113).map(({ score, fromPlay }) => [score, fromPlay]),
+    boardWordsAt(imported, 113).map(({ score, fromPlay, player }) => [score, fromPlay, player]),
     [
-      [5, false],
-      [2, false],
+      [5, false, undefined],
+      [2, false, undefined],
     ],
   );
 });
@@ -848,8 +850,10 @@ test("board hover adds the bingo bonus only to the main word, using retained tra
     const played = playTrackedMove(game, move);
     const [main, cross] = boardWordsAt(played, 119);
     assert.equal(main.word, "RETAINS");
+    assert.equal(main.player, "you");
     assert.equal(main.bingo, true);
     assert.equal(cross.word, "TS");
+    assert.equal(cross.player, "you");
     assert.equal(cross.bingo, undefined);
     assert.equal(main.score + cross.score, move.score);
     const wordValue = boardWordsAt(

@@ -2379,9 +2379,12 @@ test.each([390, 1200])("the footer opens the dictionary credits at %i px", async
 
 test("board hover shows both word scores on a shared ending and keeps them across tile gaps", async () => {
   const user = await start();
+  await typeRack(user, "CAT");
+  await user.click(screen.getByText("Rack tools", { selector: "summary" }));
+  await user.click(cell("Enter your play"));
   await user.click(cell("G8: empty"));
-  await user.keyboard("CAT");
-  await user.click(cell("Record opponent move"));
+  await user.keyboard("CAT{Enter}");
+  await waitFor(() => expect(current().board[113]).toBe("T"));
   await user.click(cell("I6: empty"));
   await user.keyboard("{ArrowDown}AR");
   const end = cell("I8: T");
@@ -2402,7 +2405,9 @@ test("board hover shows both word scores on a shared ending and keeps them acros
   ).toMatch(/^CAT across/);
   expect(
     end.querySelector(".board-word-score.down")?.getAttribute("aria-label"),
-  ).toMatch(/^ART down/);
+  ).toBe("ART down, 4 points, opponent play");
+  expect(end.querySelector(".board-word-score.across.opponent-word-score")).toBeNull();
+  expect(end.querySelector(".board-word-score.down.opponent-word-score")).toBeTruthy();
   expect(grid.querySelectorAll(".word-hover")).toHaveLength(5);
   mouseOver(grid);
   expect(grid.querySelectorAll(".word-hover")).toHaveLength(5);
@@ -5719,7 +5724,8 @@ test("correcting the last opponent play updates the board, Last play, and histor
   expect(trackedScore().getAttribute("data-turn")).toBe("you");
   expect(cell("Edit last opponent move")).toBeTruthy();
   await user.hover(blank);
-  expect(screen.getByLabelText("CAT across, 4 points")).toBeTruthy();
+  expect(screen.getByLabelText("CAT across, 4 points, opponent play")
+    .classList.contains("opponent-word-score")).toBe(true);
   await user.click(lastPlay("CAT", 4));
   const breakdown = within(screen.getByRole("table", { name: "Last play point breakdown" }));
   expect(breakdown.getByText("2 × 2 DW")).toBeTruthy();

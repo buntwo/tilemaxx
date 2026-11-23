@@ -547,6 +547,7 @@ type BoardWord = {
 type BoardWordScore = BoardWord & {
   score: number;
   fromPlay: boolean;
+  player?: Player;
   bingo?: boolean;
 };
 
@@ -579,12 +580,10 @@ export function boardWordsAt(game: Game, index: number) {
     fromPlay: false,
   }));
   const unresolved = new Set(words);
-  function useReview({
-    board: base,
-    tiles,
-    direction,
-    premiums,
-  }: NonNullable<TrackedMove["review"]>) {
+  function useReview(
+    { board: base, tiles, direction, premiums }: NonNullable<TrackedMove["review"]>,
+    player: Player | undefined,
+  ) {
     if (
       ![...unresolved].some(({ cells }) =>
         tiles.some(({ index }) => cells.includes(index)),
@@ -593,11 +592,12 @@ export function boardWordsAt(game: Game, index: number) {
       return;
     const played = [...base];
     for (const tile of tiles) played[tile.index] = tile.letter;
-    fillScores(base, played, direction, premiums);
+    fillScores(base, played, player, direction, premiums);
   }
   function fillScores(
     base: Board,
     after: Board,
+    player: Player | undefined,
     direction?: Move["direction"],
     premiums = template.premiums,
   ) {
@@ -619,13 +619,14 @@ export function boardWordsAt(game: Game, index: number) {
       if (!match) continue;
       word.score = match.score + (match === play.words[0] ? play.bonus : 0);
       word.fromPlay = true;
+      if (player) word.player = player;
       if (match === play.words[0] && play.bingo) word.bingo = true;
       unresolved.delete(word);
     }
   }
   if (unresolved.size && scoring?.pendingBase) {
     for (const turn of pendingOpponentTurns(game).reverse()) {
-      fillScores(turn.base, turn.board);
+      fillScores(turn.base, turn.board, "opponent");
     }
   }
   const moves = trackedMoveHistory(game);
@@ -645,7 +646,7 @@ export function boardWordsAt(game: Game, index: number) {
       if (word.cells.some((cell) => i < (firstEligible.get(cell) ?? 0)))
         unresolved.delete(word);
     }
-    if (unresolved.size) useReview(review);
+    if (unresolved.size) useReview(review, player);
   }
   for (let i = past.length - 1; i >= 0 && unresolved.size; i--) {
     const entry = past[i];
@@ -657,13 +658,14 @@ export function boardWordsAt(game: Game, index: number) {
     const after = past[i + 1]?.board ?? board;
     if (entry.review) {
       const key = `${entry.player}:${entry.at}:${entry.review.tiles.map(({ index }) => index).join(",")}`;
-      if (!recordedTurns.has(key)) useReview(entry.review);
+      if (!recordedTurns.has(key)) useReview(entry.review, entry.player);
     } else if (entry.score !== undefined) {
       fillScores(
         entry.player === "opponent"
           ? (entry.scoring?.pendingBase ?? entry.board)
           : entry.board,
         entry.player === "opponent" ? entry.board : after,
+        entry.player,
       );
     }
     // A replacement or removal breaks the link to any older play.

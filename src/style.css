@@ -4636,6 +4636,12 @@ label + label {
   left: calc(100% + 2px);
   top: 50%;
 }
+.board-word-score.opponent-word-score {
+  width: max-content;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 0;
+}
 .board-word-score.bingo-word-score {
   display: inline-flex;
   gap: 2px;
