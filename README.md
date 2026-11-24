@@ -174,6 +174,8 @@ Then run `./update.sh`. If the pull fails, your settings are in `compose.yaml.ba
 
 Stop Tilemaxx and copy its entire data directory. To restore or move to another host, copy the backup into an empty data directory before starting Tilemaxx. For Docker, run `sudo chown -R 1000:1000 data` from the destination checkout. If moving a Compose install, bring along the local `.env` and any settings in `compose.yaml`. Reconnect your devices to the new server address.
 
+Before upgrading an existing installation to 0.3.46, make a stopped backup of the data directory. On startup, database version 7 makes recorded moves independently reviewable and clears the old undo and redo stacks in archived games in one transaction. Active games keep their editing history. Reverting the app version alone cannot recover discarded undo steps. SQLite can reuse the freed pages. To shrink the file on disk, stop Tilemaxx after the upgrade and run `sqlite3 /path/to/data/tilewise.sqlite 'VACUUM;'`.
+
 <details>
 <summary>Export data from the older <code>tilewise-data</code> Docker volume</summary>
 

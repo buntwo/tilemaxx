@@ -184,6 +184,17 @@ const historySchema = z.object({
   review,
   at: z.string().max(50),
 });
+const savedBoardWordScores = z.object({
+  board: z.string().max(625).regex(/^[a-zA-Z.]+$/),
+  words: z.array(z.object({
+    start: z.number().int().min(0).max(624),
+    direction: z.enum(["across", "down"]),
+    score: z.number().int().nonnegative(),
+    fromPlay: z.boolean(),
+    player: z.enum(["you", "opponent"]).optional(),
+    bingo: z.boolean().optional(),
+  })).max(1250),
+}).optional();
 const gameProgress = z.object({
   trackScores: z.boolean().optional(),
   scoring: scoringSchema.optional(),
@@ -193,6 +204,7 @@ const gameProgress = z.object({
   requiredRackSlots: rackSlots,
   past: z.array(historySchema).max(100),
   future: z.array(historySchema).max(100),
+  savedBoardWordScores,
 });
 export const gameSchema = gameProgress
   .extend({
@@ -244,6 +256,9 @@ export const gameSchema = gameProgress
     const validProgress = (progress: z.infer<typeof gameProgress>) =>
       (progress.trackedMoves?.every((move) => validReview(move.review)) ??
         true) &&
+      (!progress.savedBoardWordScores ||
+        (progress.savedBoardWordScores.board.length === size &&
+          progress.savedBoardWordScores.words.every(({ start }) => start < size))) &&
       [progress, ...progress.past, ...progress.future].every(
         (entry) =>
           validRackMarks(entry) &&

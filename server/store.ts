@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { join, basename } from "node:path";
 import { randomUUID } from "node:crypto";
+import { compactArchivedHistory } from "../shared/archive-history";
 import type { DefinitionLanguage } from "../shared/definitions";
 import {
   createDefinitionFrequencyLookup,
@@ -47,6 +48,16 @@ import { type z } from "zod";
 import { type screenshotExampleSchema } from "./validation";
 
 const removingSuffix = ".tilemaxx-removing";
+
+function prepareNewArchive(game: Game): Game {
+  if (!game.archived) return game;
+  const snapshot = game.archivedBoard && game.archivedState;
+  if (!snapshot) return compactArchivedHistory(archiveGame(game));
+  // An offline client may have edited the archived board before the first sync.
+  return snapshot.past.length || snapshot.future.length
+    ? compactArchivedHistory(game)
+    : game;
+}
 
 function cleanRemovedDictionary(path: string) {
   try {
@@ -227,6 +238,9 @@ export function createStore(directory: string, root: string) {
     const row = db.prepare("SELECT data FROM games WHERE id=?").get(id);
     return row ? (JSON.parse(row.data as string) as Game) : undefined;
   };
+  const savedArchiveStatus = db.prepare(
+    "SELECT json_extract(data, '$.archived') AS archived FROM games WHERE id=? AND revision=?",
+  );
   const profiles = (): Profile[] =>
     db
       .prepare(
@@ -260,14 +274,16 @@ export function createStore(directory: string, root: string) {
     input: Omit<Game, "id" | "revision" | "updatedAt">,
     id: string = randomUUID(),
   ): Game {
-    const game = correctSuperLexulousCenter({
-      ...input,
-      startedOn: input.startedOn ?? localDate(),
-      trackScores: input.trackScores ?? true,
-      id,
-      revision: 0,
-      updatedAt: new Date().toISOString(),
-    });
+    const game = correctSuperLexulousCenter(
+      prepareNewArchive({
+        ...input,
+        startedOn: input.startedOn ?? localDate(),
+        trackScores: input.trackScores ?? true,
+        id,
+        revision: 0,
+        updatedAt: new Date().toISOString(),
+      }),
+    );
     db.prepare("INSERT INTO games VALUES (?,?,?)").run(
       game.id,
       game.revision,
@@ -295,8 +311,11 @@ export function createStore(directory: string, root: string) {
     game: Game,
     updatedAt = new Date().toISOString(),
   ): Game | undefined {
+    const previous = game.archived
+      ? savedArchiveStatus.get(game.id, game.revision)
+      : undefined;
     const saved = correctSuperLexulousCenter({
-      ...game,
+      ...(previous?.archived === 0 ? prepareNewArchive(game) : game),
       revision: game.revision + 1,
       updatedAt,
     });
@@ -374,6 +393,27 @@ export function createStore(directory: string, root: string) {
           AND json_extract(data, '$.fullMoveHistory') = 0;
         PRAGMA user_version=6;`);
     });
+  }
+  if (db.prepare("PRAGMA user_version").get()?.user_version === 6) {
+    try {
+      transaction(() => {
+        if (db.prepare("PRAGMA user_version").get()?.user_version !== 6) return;
+        const archivedGames = db.prepare(
+          "SELECT id FROM games WHERE json_extract(data, '$.archived') = 1",
+        ).all();
+        for (const { id } of archivedGames) {
+          const game = getGame(id as string)!;
+          const compacted = compactArchivedHistory(game);
+          if (compacted !== game && !writeGame(compacted, game.updatedAt)) {
+            throw new Error("Could not update archived game history.");
+          }
+        }
+        db.exec("PRAGMA user_version=7");
+      });
+    } catch (error) {
+      db.close();
+      throw error;
+    }
   }
   return {
     db,

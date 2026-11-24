@@ -7,8 +7,10 @@ import { join } from "node:path";
 import { version } from "../version.json";
 import { createStore } from "../server/store";
 import { createApp } from "../server/app";
+import { archiveForReview } from "../shared/archive-history";
+import { gameReplayFrames } from "../shared/game-replay";
 import { BoardEditHistory } from "../shared/board-entry";
-import { archiveGame, emptyBoard, type AppState, type Game } from "../shared/model";
+import { archiveGame, emptyBoard, remember, type AppState, type Game } from "../shared/model";
 import { emptyScoring, gameScoreTotals, playTrackedMove } from "../shared/game-scoring";
 import { Lexicon } from "../shared/lexicon";
 import { solve } from "../shared/solver";
@@ -472,7 +474,10 @@ test("archive and start saves the original and creates one fresh game in one tra
     assert.equal(archived.notes, original.notes);
     assert.deepEqual(archived.board, original.board);
     assert.deepEqual(archived.archivedBoard, original.board);
-    assert.deepEqual(archived.archivedState?.past, original.past);
+    assert.deepEqual(archived.past, []);
+    assert.deepEqual(archived.future, []);
+    assert.deepEqual(archived.archivedState?.past, []);
+    assert.deepEqual(archived.archivedState?.future, []);
     assert.deepEqual(
       archived.archivedState?.trackedMoves,
       original.trackedMoves,
@@ -691,6 +696,104 @@ test("upgrading the game index refreshes the badge for a saved opponent entry", 
     assert.equal(summary.fullMoveHistory, true);
     assert.equal(summary.revision, saved.revision);
     assert.deepEqual(store.getGame(saved.id), persisted);
+  } finally {
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("archived undo migration rolls back on error, preserves replay, and runs once", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-archive-history-"));
+  let store: ReturnType<typeof createStore> | undefined = createStore(dir, process.cwd());
+  try {
+    const [initial] = store.state().games;
+    const ready = { ...initial, rack: "CAT" };
+    const play = solve(new Lexicon(["CAT"]), ready.board, ready.rack, ready.template)[0];
+    const active = store.saveGame(playTrackedMove(ready, play))!;
+    const [first, second, empty] = ["legacy-a", "legacy-b", "already-compact"].map(id =>
+      store!.createGame({ ...active, archived: false }, id),
+    );
+    const legacy = archiveGame(first);
+    const legacyWithoutSnapshot = { ...second, archived: true };
+    const alreadyCompact = archiveForReview(empty);
+    const write = store.db.prepare("UPDATE games SET data=? WHERE id=?");
+    for (const game of [legacy, legacyWithoutSnapshot, alreadyCompact]) {
+      write.run(JSON.stringify(game), game.id);
+    }
+    const gameRows = "SELECT data FROM games ORDER BY rowid";
+    const summaryRows = "SELECT data FROM game_summaries ORDER BY rowid";
+    const before = store.db.prepare(gameRows).all();
+    const beforeSummaries = store.db.prepare(summaryRows).all();
+    store.db.exec(`PRAGMA user_version=6;
+      CREATE TRIGGER interrupt_archive_migration BEFORE UPDATE ON games
+      WHEN OLD.id = 'legacy-b'
+      BEGIN SELECT RAISE(ABORT, 'Interrupted archive migration'); END;`);
+    store.db.close();
+    store = undefined;
+
+    assert.throws(() => createStore(dir, process.cwd()), /Interrupted archive migration/);
+    const audit = new DatabaseSync(join(dir, "tilewise.sqlite"));
+    try {
+      assert.equal(audit.prepare("PRAGMA user_version").get()?.user_version, 6);
+      assert.deepEqual(audit.prepare(gameRows).all(), before);
+      assert.deepEqual(audit.prepare(summaryRows).all(), beforeSummaries);
+      audit.exec("DROP TRIGGER interrupt_archive_migration");
+    } finally {
+      audit.close();
+    }
+
+    store = createStore(dir, process.cwd());
+    assert.equal(store.db.prepare("PRAGMA user_version").get()?.user_version, 7);
+    const persisted = (game: Game) => JSON.parse(JSON.stringify(game));
+    assert.deepEqual(store.getGame(active.id), persisted(active));
+    assert.deepEqual(store.getGame(alreadyCompact.id), persisted(alreadyCompact));
+    for (const original of [legacy, legacyWithoutSnapshot]) {
+      const archived: Game = store.getGame(original.id)!;
+      assert.equal(archived.revision, original.revision + 1);
+      assert.equal(archived.updatedAt, original.updatedAt);
+      assert.deepEqual(archived.past, []);
+      assert.deepEqual(archived.future, []);
+      assert.deepEqual(archived.archivedState?.past, original.archivedState && []);
+      assert.deepEqual(gameReplayFrames(archived), gameReplayFrames(persisted(original)));
+      assert.deepEqual(store.index().games.find(({ id }) => id === archived.id),
+        JSON.parse(JSON.stringify(summarizeGame(archived))));
+    }
+    const saved = store.db.prepare(gameRows).all();
+    store.db.close();
+    store = undefined;
+    store = createStore(dir, process.cwd());
+    assert.deepEqual(store.db.prepare(gameRows).all(), saved);
+  } finally {
+    store?.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("archive saves trim old history and keep undo for edits made after archiving", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-archive-edit-"));
+  const store = createStore(dir, process.cwd());
+  try {
+    const [initial] = store.state().games;
+    const active = store.saveGame({ ...initial, ...remember(initial, "Edited rack"), rack: "CAT" })!;
+    const localArchive = archiveForReview(active);
+    const offline = { ...localArchive, ...remember(localArchive, "Edited rack"), rack: "DOG" };
+    const saved = store.saveGame(offline)!;
+    assert.equal(saved.past.length, 1);
+    assert.equal(saved.past[0].rack, "CAT");
+    assert.deepEqual(saved.archivedState?.past, []);
+    const later = store.saveGame({ ...saved, ...remember(saved, "Edited rack"), rack: "TAR" })!;
+    assert.equal(later.past.length, 2);
+    assert.equal(later.archivedState?.rack, "CAT");
+    const stale = store.saveGame(archiveGame(active));
+    assert.equal(stale, undefined);
+    const reopened = store.saveGame({ ...later, archived: false, archivedBoard: undefined, archivedState: undefined })!;
+    assert.equal(reopened.past.length, 2);
+    const archivedAgain = store.saveGame(archiveGame(reopened))!;
+    assert.deepEqual(archivedAgain.past, []);
+    assert.deepEqual(archivedAgain.archivedState?.past, []);
+    const cloned = store.createGame(archiveGame(active));
+    assert.deepEqual(cloned.past, []);
+    assert.deepEqual(cloned.archivedState?.past, []);
   } finally {
     store.db.close();
     rmSync(dir, { recursive: true, force: true });

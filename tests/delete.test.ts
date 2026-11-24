@@ -209,7 +209,7 @@ test("word list removal protects built-ins and games, then removes the file acro
     await new Promise<void>((resolve) => server.close(() => resolve()));
     store.db.close();
     store = createStore(dir, process.cwd());
-    assert.deepEqual(store.getGame(archived.id), reassigned);
+    assert.deepEqual(store.getGame(archived.id), JSON.parse(JSON.stringify(reassigned)));
     assert.ok(store.dictionaries().every(({ builtin }) => builtin));
   } finally {
     server.close();

@@ -130,6 +130,7 @@ import {
   undo,
 } from "../shared/model";
 import { recentOpponentNames } from "../shared/game-index";
+import { archiveForReview } from "../shared/archive-history";
 
 type Dialog =
   | "screenshot"
@@ -1388,7 +1389,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                             : () => {
                                 gameFinish.dismiss();
                                 editPosition();
-                                update(archiveGame(game));
+                                update(archiveForReview(game));
                                 notify("Game archived.");
                               }
                         }
@@ -2124,7 +2125,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             editPosition();
             if (busy) solver.cancelSearch();
             solver.cancelBoardOdds();
-            update(archive ? archiveGame(next) : next);
+            update(archive ? archiveForReview(next) : next);
             if (archive)
               chooseGame(
                 activeGames.find((item) => item.id !== next.id)?.id ?? "",

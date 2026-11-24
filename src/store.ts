@@ -527,6 +527,8 @@ export class GameStore {
         const draft = this.drafts.get(id)!;
         try {
           const submitted = correctSuperLexulousCenter(draft);
+          const newArchive =
+            submitted.archived && !this.confirmedSummaries.get(id)?.archived;
           const saved = await api<Game>(
             draft.revision < 0 ? "/games" : `/games/${encodeURIComponent(id)}`,
             draft.revision < 0 ? "POST" : "PUT",
@@ -537,18 +539,20 @@ export class GameStore {
           if (this.deletedGames.has(id)) continue;
           this.snapshot.online = true;
           if (this.drafts.get(id) === draft) {
-            // The server may normalize metadata, but position and history are
-            // accepted as submitted. Keep their identity through acknowledgement.
-            this.finishDraft({
-              ...saved,
-              board: submitted.board,
-              scoring: submitted.scoring,
-              past: submitted.past,
-              future: submitted.future,
-              trackedMoves: submitted.trackedMoves,
-              excludedRackSlots: submitted.excludedRackSlots,
-              requiredRackSlots: submitted.requiredRackSlots,
-            });
+            // Keep position identity on normal saves. A new archive may come
+            // from an older offline draft with undo history the server removed.
+            this.finishDraft(newArchive
+              ? saved
+              : {
+                  ...saved,
+                  board: submitted.board,
+                  scoring: submitted.scoring,
+                  past: submitted.past,
+                  future: submitted.future,
+                  trackedMoves: submitted.trackedMoves,
+                  excludedRackSlots: submitted.excludedRackSlots,
+                  requiredRackSlots: submitted.requiredRackSlots,
+                });
           } else {
             const newer = {
               ...this.drafts.get(id)!,

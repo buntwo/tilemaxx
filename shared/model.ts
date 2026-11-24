@@ -117,6 +117,17 @@ export interface HistoryEntry extends Position {
   review?: TurnPosition;
   at: string;
 }
+export type SavedBoardWordScores = {
+  board: string;
+  words: {
+    start: number;
+    direction: Move["direction"];
+    score: number;
+    fromPlay: boolean;
+    player?: Player;
+    bingo?: boolean;
+  }[];
+};
 export interface Game extends Position {
   id: string;
   profileId: string;
@@ -139,6 +150,7 @@ export interface Game extends Position {
   archived: boolean;
   archivedBoard?: Board;
   archivedState?: ArchiveState;
+  savedBoardWordScores?: SavedBoardWordScores;
 }
 export type ArchiveState = Pick<
   Game,
@@ -150,6 +162,7 @@ export type ArchiveState = Pick<
   | "trackedMoves"
   | "past"
   | "future"
+  | "savedBoardWordScores"
 > & { premiums?: Premium[] };
 
 export function archiveGame(game: Game): Game {
@@ -162,6 +175,7 @@ export function archiveGame(game: Game): Game {
     trackedMoves,
     past,
     future,
+    savedBoardWordScores,
   } = game;
   return {
     ...game,
@@ -177,6 +191,7 @@ export function archiveGame(game: Game): Game {
       trackedMoves,
       past,
       future,
+      savedBoardWordScores,
     },
   };
 }
@@ -227,6 +242,7 @@ export function restoreArchivedGame(game: Game): Game {
     trackedMoves,
     past,
     future,
+    savedBoardWordScores,
   } = game.archivedState;
   return {
     ...game,
@@ -240,6 +256,7 @@ export function restoreArchivedGame(game: Game): Game {
     trackedMoves,
     past,
     future,
+    savedBoardWordScores,
   };
 }
 export const MAX_GAME_NOTES = 2000;

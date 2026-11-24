@@ -2200,20 +2200,24 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(current()).toEqual(original);
 });
 
-test("archived replay opens at the first position and Done restores later board edits", async () => {
-  const archived = archiveGame(replayFixture());
-  remote.games.push({
-    ...archived,
-    id: "replay-archive",
-    name: "Replay archive",
-    board: archived.board.map((tile, i) => i === 0 ? "Q" : tile),
-  });
+test("archiving drops undo history, keeps replay, and allows later edits", async () => {
+  remote.games[0] = { ...replayFixture(), name: "Replay archive" };
   const user = await start(390);
-  await act(() => store.refresh());
+  await waitFor(() => expect(current().trackedMoves).toHaveLength(2));
+  expect(current().past.length).toBeGreaterThan(0);
+  const options = await openGameOptions(user);
+  await user.click(options.getByRole("button", { name: "Archive game" }));
+  await act(() => store.flush());
+  expect(remote.games[0].archived).toBe(true);
+  expect(remote.games[0].past).toEqual([]);
+  expect(remote.games[0].archivedState?.past).toEqual([]);
   await user.click(cell("Open sidebar"));
   await user.click(cell("Archived games"));
   await user.click(screen.getByRole("button", { name: /^Replay archive/ }));
   await screen.findByRole("heading", { name: "Replay archive" });
+  expect(cell("Undo")).toHaveProperty("disabled", true);
+  await user.click(cell("A1: TW"));
+  await user.keyboard("Q");
   await screen.findByRole("button", { name: "A1: Q, edited after archiving" });
   const shortcut = cell("Replay game");
   expect(shortcut.closest(".score-history-section")?.querySelector("details")?.open).toBe(false);

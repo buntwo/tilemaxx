@@ -569,6 +569,10 @@ export function boardWordsThrough(board: Board, size: number, index: number) {
   );
 }
 
+export function boardWordScoreSignature(board: Board) {
+  return board.map((tile) => tile || ".").join("");
+}
+
 export function boardWordsAt(game: Game, index: number) {
   const { board, template, past, scoring } = game;
   const words: BoardWordScore[] = boardWordsThrough(board, template.size, index).map((word) => ({
@@ -580,6 +584,21 @@ export function boardWordsAt(game: Game, index: number) {
     fromPlay: false,
   }));
   const unresolved = new Set(words);
+  const saved = game.savedBoardWordScores;
+  if (saved && saved.board === boardWordScoreSignature(board)) {
+    for (const word of words) {
+      const score = saved.words.find(
+        (item) => item.start === word.cells[0] && item.direction === word.direction,
+      );
+      if (!score) continue;
+      word.score = score.score;
+      word.fromPlay = score.fromPlay;
+      if (score.player !== undefined) word.player = score.player;
+      if (score.bingo !== undefined) word.bingo = score.bingo;
+      unresolved.delete(word);
+    }
+    if (!unresolved.size) return words;
+  }
   function useReview(
     { board: base, tiles, direction, premiums }: NonNullable<TrackedMove["review"]>,
     player: Player | undefined,

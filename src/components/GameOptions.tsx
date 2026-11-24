@@ -14,8 +14,8 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
+import { archiveForReview } from "../../shared/archive-history";
 import {
-  archiveGame,
   emptyBoard,
   localDate,
   newGameFromSettings,
@@ -103,7 +103,7 @@ export default function GameOptions({
     onUpdate(
       game.archived
         ? { ...game, archived: false, archivedBoard: undefined, archivedState: undefined }
-        : archiveGame(game),
+        : archiveForReview(game),
     );
     if (!game.archived) onArchived();
     onClose();
