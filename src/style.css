@@ -6183,6 +6183,19 @@ label + label {
   container-type: inline-size;
 }
 .phone-board-column > .board-panel { grid-area: 1 / 1; }
+.phone-board-column::before {
+  content: "";
+  grid-area: 1 / 2;
+  justify-self: center;
+  width: 2px;
+  height: 32px;
+  background: var(--muted);
+  pointer-events: none;
+}
+.phone-board-column:has(> .phone-rack-divider:focus-visible)::before {
+  background: var(--primary);
+}
+.phone-board-column:has(> .phone-rack-divider:disabled)::before { opacity: .5; }
 .phone-board-column .board-entry .board-grid {
   --board-gap: clamp(1px, .58cqw, 4px);
 }
@@ -6204,8 +6217,6 @@ label + label {
 }
 .phone-rack-divider {
   --phone-divider-thumb: 26px;
-  --phone-divider-color: var(--muted);
-  --phone-divider-line: linear-gradient(var(--phone-divider-color), var(--phone-divider-color)) center / 2px 32px no-repeat;
   grid-area: 1 / 1 / 2 / -1;
   justify-self: end;
   direction: rtl;
@@ -6220,15 +6231,12 @@ label + label {
   border: 0;
   border-radius: 5px;
   background: transparent;
+  /* The grid paints the line. Keep all native slider paint off the board and rack. */
+  opacity: 0;
   cursor: ew-resize;
   touch-action: none;
   /* The track overlaps the board. Only the thumb should intercept taps. */
   pointer-events: none;
-}
-.phone-rack-divider:focus-visible {
-  /* Indicate keyboard focus on the handle instead of outlining the full track. */
-  --phone-divider-color: var(--primary);
-  outline: none;
 }
 .phone-rack-divider::-webkit-slider-thumb {
   appearance: none;
@@ -6236,7 +6244,6 @@ label + label {
   height: 44px;
   border: 0;
   border-radius: 0;
-  background: var(--phone-divider-line);
   pointer-events: auto;
 }
 .phone-rack-divider::-moz-range-thumb {
@@ -6245,10 +6252,9 @@ label + label {
   height: 44px;
   border: 0;
   border-radius: 0;
-  background: var(--phone-divider-line);
   pointer-events: auto;
 }
-.phone-rack-divider:disabled { opacity: .5; cursor: default; }
+.phone-rack-divider:disabled { cursor: default; }
 .phone-board-column > .rack-panel {
   grid-area: 1 / 3;
   /* Let the board set the row height and fit the rack within it. */
