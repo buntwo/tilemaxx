@@ -45,6 +45,8 @@ const presets = {
     vertical: 0.85,
     bingo: 0.2,
     blank: 0.55,
+    secondBlank: 0.10,
+    lateFamiliarity: 0.9,
     score: 0.6,
     premium: 3,
     cross: 1.5,
@@ -63,6 +65,8 @@ const presets = {
     vertical: 0.94,
     bingo: 0.52,
     blank: 0.75,
+    secondBlank: 0.18,
+    lateFamiliarity: 0.65,
     score: 0.85,
     premium: 1,
     cross: 0.85,
@@ -81,6 +85,8 @@ const presets = {
     vertical: 0.99,
     bingo: 0.86,
     blank: 0.92,
+    secondBlank: 1,
+    lateFamiliarity: 0,
     score: 1,
     premium: 0,
     cross: 0.4,
@@ -91,6 +97,10 @@ const presets = {
     finalists: 5,
   },
 };
+
+export function lateProfileFamiliarityWeight(bagSize: number, rackSize: number) {
+  return Math.max(0, 1 - bagSize / rackSize);
+}
 
 const scale = 2 ** 32;
 type WordProfile = {
@@ -221,6 +231,12 @@ export function createPlayerProfiles(
     });
   }
 
+  function knownWordDifficulty(word: string) {
+    const spelling = word.toUpperCase();
+    const wordInfo = wordCache.get(spelling)!;
+    return (wordInfo.difficulty ??= difficulty(spelling).difficulty);
+  }
+
   const { size, premiums } = template;
   const lengthChance = Object.fromEntries(
     PLAYER_PROFILES.map((profile) => [
@@ -236,7 +252,8 @@ export function createPlayerProfiles(
       profile,
       Array.from(
         { length: template.rackSize + 1 },
-        (_, blanks) => presets[profile].blank ** blanks,
+        (_, blanks) => presets[profile].blank ** blanks
+          * presets[profile].secondBlank ** Math.max(0, blanks - 1),
       ),
     ]),
   ) as Record<PlayerProfile, number[]>;
@@ -272,6 +289,8 @@ export function createPlayerProfiles(
     const { bagSize, board, seed, playerSeed, rack, solo, scorelessTurns } =
       position;
     const emptyBag = bagSize === 0 && template.rules !== "crossplay";
+    const familiarityWeight = preset.lateFamiliarity
+      * lateProfileFamiliarityWeight(bagSize, template.rackSize);
     const pool =
       !solo && emptyBag && profile === "strong"
         ? unseenTiles(position, template)
@@ -374,7 +393,14 @@ export function createPlayerProfiles(
           (move.direction === "down" && move.word.length > 2
             ? preset.vertical
             : 1);
-      const visibility = recall * crossVisibility ** move.crosses.length;
+      let familiarity = 1;
+      if (familiarityWeight) {
+        let hardest = knownWordDifficulty(move.word);
+        for (const cross of move.crosses)
+          hardest = Math.max(hardest, knownWordDifficulty(cross));
+        familiarity = Math.exp(-familiarityWeight * hardest);
+      }
+      const visibility = recall * crossVisibility ** move.crosses.length * familiarity;
       reject("found");
       bingoFound ||= isBingo(template, move.tiles.length);
       let premium = 0;

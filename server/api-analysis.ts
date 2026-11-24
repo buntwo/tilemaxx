@@ -42,6 +42,7 @@ import {
 } from "../shared/player-exchange";
 import {
   createPlayerProfiles,
+  lateProfileFamiliarityWeight,
   profileWordHash,
   type PlayerProfile,
 } from "../shared/player-profiles";
@@ -83,12 +84,13 @@ function profiles(
   lexicon: Lexicon,
   template: Request["position"]["template"],
   profile: PlayerProfile,
+  bagSize = 0,
 ) {
   const language = wordFrequencyLanguage(template.rules);
   const read = (path: string) =>
     gunzipSync(readFileSync(join(root, "public", path)));
   const casual = language === "en" && profile === "casual";
-  const frequencies = casual
+  const frequencies = casual && !lateProfileFamiliarityWeight(bagSize, template.rackSize)
     ? new Map<string, number>()
     : decodeWordFrequencies(read(wordFrequencyUrl(language)), language);
   const vocabulary = casual
@@ -353,7 +355,7 @@ export async function analyzePosition(
     let styleSummary;
     if (style && !isSimulatedStyle(style)) {
       const positionKey = `${board.join(".")}:${rackComposition(position.rack)}`;
-      const ranking = profiles(root, lexicon, template, style)(
+      const ranking = profiles(root, lexicon, template, style, bagSize)(
         moves,
         style,
         {

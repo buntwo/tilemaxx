@@ -64,6 +64,9 @@ test("familiarity uses the saved ruleset and caches each language independently"
   const retry = loadWordFrequencies("lexulous-it");
   assert.equal(loadWordFrequencies("lexulous-it"), retry);
   assert.equal((await english).get("SPATULA"), 2.86);
+  const [lateFrequencies, casualWords] = await loadProfileVocabulary("scrabble", "casual", true);
+  assert.equal(lateFrequencies, await english);
+  assert.ok(casualWords?.has("SINKABLE"));
   assert.equal((await french).get("FENETRE"), 4.52);
   assert.equal((await retry).get("MANGIARE"), 5.01);
   assert.deepEqual(paths, [

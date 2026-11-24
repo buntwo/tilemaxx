@@ -168,6 +168,76 @@ test("English Casual vocabulary applies only in English games", () => {
     assert.equal(choose([move], "casual", position).move, move);
 });
 
+test("late Casual and Learner favor familiar main words and crosses", () => {
+  const template = PRESETS[0];
+  const board = emptyBoard(template.size);
+  const rack = "ACOT";
+  const lexicon = new Lexicon(["CAT", "COT", "AT", "OT"]);
+  const choose = createPlayerProfiles(
+    lexicon,
+    template,
+    new Map([["CAT", 5], ["COT", 1.21], ["AT", 5], ["OT", 1.21]]),
+    undefined,
+    new Set(lexicon.words()),
+  );
+  const legal = solve(lexicon, board, rack, template);
+  const cat = legal.find((move) => move.word === "CAT" && move.direction === "across")!;
+  const cot = legal.find((move) => move.word === "COT" && move.direction === "across")!;
+  assert.ok(cat && cot);
+  const moves = [
+    cat,
+    cot,
+    { ...cat, id: "common-cross", crosses: ["AT"] },
+    { ...cat, id: "rare-cross", crosses: ["OT"] },
+  ];
+  for (const profile of PLAYER_PROFILES) {
+    const playerSeed = Array.from({ length: 256 }, (_, seed) => seed).find((seed) =>
+      choose(moves, profile, { board, rack, bagSize: 20, seed: 0, playerSeed: seed }, { all: true })
+        .considered?.length === moves.length,
+    );
+    assert.notEqual(playerSeed, undefined);
+    const visibility = (bagSize: number) => new Map(
+      choose(moves, profile, { board, rack, bagSize, seed: 0, playerSeed: playerSeed! }, { all: true })
+        .considered!.map(({ move, utility }) => [move.id, utility.visibility]),
+    );
+    const early = visibility(20);
+    const late = visibility(0);
+    if (profile === "strong") {
+      assert.deepEqual(late, early);
+      continue;
+    }
+    assert.equal(late.get(cat.id), early.get(cat.id));
+    assert.equal(late.get("common-cross"), early.get("common-cross"));
+    for (const id of [cot.id, "rare-cross"]) {
+      assert.ok(late.get(id)! < early.get(id)! / 20);
+      assert.ok(visibility(4).get(id)! > late.get(id)!);
+    }
+  }
+});
+
+test("Casual and Learner penalize a second blank much more than the first", () => {
+  const template = PRESETS[0];
+  const board = emptyBoard(template.size);
+  const rack = "CAT??";
+  const lexicon = new Lexicon(["CAT"]);
+  const moves = solve(lexicon, board, rack, template).filter(
+    (move) => move.word === "CAT" && move.direction === "across",
+  );
+  const choose = createPlayerProfiles(lexicon, template, new Map([["CAT", 5]]),
+    undefined, new Set(lexicon.words()));
+  for (const profile of PLAYER_PROFILES) {
+    const result = choose(moves, profile, { board, rack, bagSize: 20, seed: 0, playerSeed: 0 }, { all: true });
+    const visibility = [0, 1, 2].map((count) =>
+      result.considered!.find(({ move }) => move.blanks === count)!.utility.visibility,
+    );
+    const first = visibility[1] / visibility[0];
+    const second = visibility[2] / visibility[1];
+    const relativePenalty = second / first;
+    if (profile === "strong") assert.ok(Math.abs(relativePenalty - 1) < 1e-8);
+    else assert.ok(relativePenalty < 0.2);
+  }
+});
+
 test("profiles value shedding awkward duplicates and keeping flexible leaves", () => {
   assert.ok(profileLeaveValue("ION") > profileLeaveValue("IIINT"));
   assert.ok(profileLeaveValue("QU") > profileLeaveValue("QV"));

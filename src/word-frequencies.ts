@@ -55,10 +55,15 @@ function loadEnglishCasualVocabulary() {
     }));
 }
 
-export function loadProfileVocabulary(rules: Rules, profile?: PlayerProfile) {
+export function loadProfileVocabulary(
+  rules: Rules,
+  profile?: PlayerProfile,
+  needsCasualFrequencies = false,
+) {
   const english = wordFrequencyLanguage(rules) === "en";
   return Promise.all([
-    english && profile === "casual" ? new Map<string, number>() : loadWordFrequencies(rules),
+    english && profile === "casual" && !needsCasualFrequencies
+      ? new Map<string, number>() : loadWordFrequencies(rules),
     english && (!profile || profile === "casual") ? loadEnglishCasualVocabulary() : undefined,
   ]);
 }

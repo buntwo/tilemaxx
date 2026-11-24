@@ -30,7 +30,7 @@ import {
   type EndgameEstimate,
 } from "../shared/endgame-estimate";
 import type { SolverMessage, SolverRequest } from "./solver-messages";
-import { createPlayerProfiles, profileWordHash } from "../shared/player-profiles";
+import { createPlayerProfiles, lateProfileFamiliarityWeight, profileWordHash } from "../shared/player-profiles";
 import { loadProfileVocabulary } from "./word-frequencies";
 import { rackComposition } from "../shared/rack-entry";
 import { createSoloStyleSearch } from "../shared/solo-styles";
@@ -59,11 +59,16 @@ async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind:
   const { profile, profileBagSize = 0, profileSeed = 0, profileSample = 0 } = query;
   if (result && profile && !isSimulatedStyle(profile) && !result.hasProfile(query)) {
     try {
-      const [frequencies, casualWords] = await loadProfileVocabulary(result.position.template.rules, profile);
+      const template = result.position.template;
+      const needsCasualFrequencies = profile === "casual"
+        && lateProfileFamiliarityWeight(profileBagSize, template.rackSize) > 0;
+      const [frequencies, casualWords] = await loadProfileVocabulary(
+        template.rules, profile, needsCasualFrequencies,
+      );
       if (results.get(searchId) !== result) return post({ id, kind: "page" });
       if (result.hasProfile(query)) return post({ id, kind: "page", page: result.page(query) });
       const { position, lexicon } = result;
-      const templateKey = JSON.stringify([position.template, profile === "casual"]);
+      const templateKey = JSON.stringify([template, profile === "casual", needsCasualFrequencies]);
       if (models?.lexicon !== lexicon || models.templateKey !== templateKey) {
         models = { lexicon, templateKey, choose: createPlayerProfiles(lexicon, position.template, frequencies, undefined, casualWords) };
       }
