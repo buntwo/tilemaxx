@@ -9,7 +9,8 @@ import {
   type TrackedMove,
   type TurnPosition,
 } from "./model";
-import { rackLetters, rackSlotsForMove } from "./rack-entry";
+import { rackSlotsForMove } from "./rack-entry";
+import { unseenTiles } from "./tile-pool";
 
 export type ReplayFrame = {
   board?: Board;
@@ -17,6 +18,7 @@ export type ReplayFrame = {
   move?: TrackedMove;
   position?: TurnPosition;
   rack?: string;
+  playedSlots?: number[];
   scores: Record<Player, number>;
 };
 
@@ -28,17 +30,30 @@ export function hasRecordedMoves(game: Game) {
   return trackedMoveHistory(replaySource(game)).length > 0;
 }
 
-function rackAfterPlay(move: TrackedMove, position: TurnPosition) {
-  if (move.player === "opponent") return position.observerRack;
-  if (position.rack === undefined) return;
-  const slots = rackSlotsForMove(
-    { ...position, rack: position.rack },
-    position.tiles,
-  );
-  if (!slots) return;
-  const remaining = [...position.rack];
-  for (const slot of slots) remaining[slot] = ".";
-  return rackLetters(remaining.join(""));
+function replayRack(
+  player: Player,
+  position: TurnPosition,
+  template: BoardTemplate,
+): Pick<ReplayFrame, "rack" | "playedSlots"> {
+  const { board, tiles, observerRack } = position;
+  if (player === "you") {
+    const { rack } = position;
+    if (rack === undefined) return {};
+    return {
+      rack,
+      playedSlots: rackSlotsForMove({ ...position, rack }, tiles) ?? undefined,
+    };
+  }
+  if (observerRack === undefined) return {};
+  const pool = unseenTiles({ board, rack: observerRack }, template);
+  // With tiles in the bag the opponent would have a full rack, so a pool
+  // no larger than a full rack can only be their rack.
+  if (pool.excess.length || pool.total > template.rackSize) return {};
+  const rack = pool.tiles
+    .map(({ symbol, count }) => symbol.repeat(count))
+    .join("");
+  const playedSlots = rackSlotsForMove({ board, rack }, tiles);
+  return playedSlots ? { rack, playedSlots } : {};
 }
 
 export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreStart: number } {
@@ -89,14 +104,15 @@ export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreSt
   for (const turn of turns) {
     const { move, index } = turn;
     const position = savedPosition(turn.position);
+    const frameTemplate = boardTemplate(position);
     if (index === scoreStart) scores = zero;
     scores = { ...scores, [move.player]: scores[move.player] + move.score };
     frames.push({
       board: position?.board,
-      template: boardTemplate(position),
+      template: frameTemplate,
       move,
       position,
-      rack: position && rackAfterPlay(move, position),
+      ...(position && replayRack(move.player, position, frameTemplate)),
       scores,
     });
   }

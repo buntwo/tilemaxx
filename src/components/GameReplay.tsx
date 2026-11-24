@@ -278,44 +278,47 @@ export function ReplayScores({
 }
 
 export function ReplayRack({ frame }: { frame: ReplayFrame }) {
-  const { rack, move, template } = frame;
-  const label =
-    rack === undefined
-      ? "Rack unavailable"
-      : move?.player === "you"
-        ? "Rack leave"
-        : "Your rack";
+  const { rack, move, playedSlots, template } = frame;
+  const opponent = move?.player === "opponent";
+  const label = opponent ? "Opponent rack" : "Your rack";
   return (
     <div
       className="rack-entry replay-rack"
+      data-player={move?.player}
       style={{ "--rack-size": template.rackSize } as CSSProperties}
     >
-      <div className="replay-rack-label">{label}</div>
-      {rack !== undefined && (
-        <div className="rack-tiles" role="group" aria-label={label}>
-          {Array.from({ length: template.rackSize }, (_, i) => {
-            const tile = rack[i] === "." ? "" : rack[i];
-            return (
-              <span
-                key={i}
-                className={`rack-tile${tile ? "" : " empty"}`}
-                role="img"
-                aria-hidden={!tile || undefined}
-                aria-label={tile === "?" ? "Blank" : tile}
-              >
-                <span className="rack-slot">
-                  <span
-                    className={`rack-face${tile === "?" ? " blank" : !tile ? " empty" : ""}`}
-                  >
-                    {tile === "?" ? "" : tile || "·"}
-                    {tile && <small>{tileScore(tile, template.rules)}</small>}
-                  </span>
+      <div className="replay-rack-label" aria-hidden="true">
+        {opponent ? "Opponent" : "You"}
+      </div>
+      <div
+        className="rack-tiles"
+        role="group"
+        aria-label={rack === undefined ? `${label} unavailable` : label}
+      >
+        {Array.from({ length: template.rackSize }, (_, i) => {
+          const tile = rack?.[i] === "." ? undefined : rack?.[i];
+          const played = playedSlots?.includes(i);
+          const tileLabel = tile === "?" ? "Blank" : tile;
+          return (
+            <span
+              key={i}
+              className={`rack-tile${tile ? "" : " empty"}${played ? " move-preview" : ""}`}
+              role="img"
+              aria-hidden={!tile || undefined}
+              aria-label={played ? `${tileLabel}, played` : tileLabel}
+            >
+              <span className="rack-slot">
+                <span
+                  className={`rack-face${tile === "?" ? " blank" : !tile ? " empty" : ""}`}
+                >
+                  {tile === "?" ? "" : tile || "·"}
+                  {tile && <small>{tileScore(tile, template.rules)}</small>}
                 </span>
               </span>
-            );
-          })}
-        </div>
-      )}
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }
