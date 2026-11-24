@@ -6198,7 +6198,8 @@ label + label {
 }
 .phone-rack-divider {
   --phone-divider-thumb: 26px;
-  --phone-divider-line: linear-gradient(var(--muted), var(--muted)) center / 2px 32px no-repeat;
+  --phone-divider-color: var(--muted);
+  --phone-divider-line: linear-gradient(var(--phone-divider-color), var(--phone-divider-color)) center / 2px 32px no-repeat;
   grid-area: 1 / 1 / 2 / -1;
   justify-self: end;
   direction: rtl;
@@ -6217,6 +6218,11 @@ label + label {
   touch-action: none;
   /* The track overlaps the board. Only the thumb should intercept taps. */
   pointer-events: none;
+}
+.phone-rack-divider:focus-visible {
+  /* Indicate keyboard focus on the handle instead of outlining the full track. */
+  --phone-divider-color: var(--primary);
+  outline: none;
 }
 .phone-rack-divider::-webkit-slider-thumb {
   appearance: none;
