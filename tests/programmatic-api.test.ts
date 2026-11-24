@@ -286,6 +286,9 @@ test("the API and browser share games, revisions and tracked play", async (t) =>
   ).json();
   assert.equal(game.archived, true);
   assert.deepEqual(game.archivedBoard, game.board);
+  const endedAt = game.scoring?.end?.endedAt;
+  assert(endedAt && Number.isFinite(Date.parse(endedAt)));
+  assert.equal(game.archivedState?.scoring?.end?.endedAt, endedAt);
   const stats = await endpoint(`/archive/statistics?profileId=${profile.id}`);
   assert.equal(stats.status, 200);
   const words = await endpoint("/word-check", {

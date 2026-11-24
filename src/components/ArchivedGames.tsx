@@ -42,8 +42,11 @@ export default function ArchivedGames({
       const byDate = (b.endedOn ?? b.startedOn ?? "").localeCompare(
         a.endedOn ?? a.startedOn ?? "",
       );
+      const byTime = (b.archiveSortTime ?? Number.MIN_SAFE_INTEGER) -
+        (a.archiveSortTime ?? Number.MIN_SAFE_INTEGER);
+      const byFinish = byDate || byTime;
       const byOpponent = opponentOrder.compare(a.name, b.name);
-      return sort === "date" ? byDate || byOpponent : byOpponent || byDate;
+      return sort === "date" ? byFinish || byOpponent : byOpponent || byFinish;
     });
   const total = games.length.toLocaleString();
   const count = query.trim()

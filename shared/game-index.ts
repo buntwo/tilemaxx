@@ -49,6 +49,7 @@ export type GameSummary = Pick<
 > & {
   dictionaryId?: Game["dictionaryId"];
   endedOn?: string;
+  archiveSortTime?: number | null;
   language?: ReturnType<typeof gameWordLanguage>;
   archiveStats?: ArchivedGameStats | null;
   thumbnail: GameThumbnail;
@@ -157,8 +158,14 @@ export function summarizeGame(game: Game): GameSummary {
     board,
   } = game;
   const scoring = displayedGameScoring(game);
-  const endedOn = scoring?.end?.endedOn;
   const archivePosition = archived ? restoreArchivedGame(game) : game;
+  const end = archivePosition.scoring?.end ?? scoring?.end;
+  const endedOn = end?.endedOn;
+  // Older games may only have a date. Their final recorded move approximates
+  // the finish without using a save time that edits or imports can change.
+  const archiveSortTime = archived
+    ? Date.parse(end?.endedAt ?? trackedMoveHistory(archivePosition).at(-1)?.at ?? "")
+    : NaN;
   const fullMoveHistory = hasFullMoveHistory(archivePosition);
   return {
     id,
@@ -172,7 +179,10 @@ export function summarizeGame(game: Game): GameSummary {
     archived,
     revision,
     language: gameWordLanguage(template.rules),
-    ...(archived && { archiveStats: summarizeArchivedStats(archivePosition, fullMoveHistory) }),
+    ...(archived && {
+      archiveSortTime: Number.isFinite(archiveSortTime) ? archiveSortTime : null,
+      archiveStats: summarizeArchivedStats(archivePosition, fullMoveHistory),
+    }),
     fullMoveHistory,
     score: !archived || scoring ? summarizeGameScore(game, scoring) : null,
     thumbnail: {

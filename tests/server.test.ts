@@ -869,34 +869,43 @@ test("the game index backfills old SQLite saves and leaves full history on the d
     assert.equal(saved.revision, 4);
     assert.equal((await getIndex()).games[0].name, "Saved");
     assert.equal((await getIndex()).games[0].endedOn, undefined);
-    const archiveWithDate = (endedOn: string) =>
+    const lastMoveAt = "2026-11-16T14:00:00.000Z";
+    const archiveWithDate = (endedOn: string, endedAt?: string) =>
       archiveGame({
         ...saved,
         scoring: {
           ...emptyScoring(),
-          end: { manual: true, endedOn, scores: { you: 420, opponent: 360 } },
+          end: { manual: true, endedOn, endedAt, scores: { you: 420, opponent: 360 } },
         },
+        trackedMoves: [{ player: "you", word: "AT", score: 4, at: lastMoveAt }],
       });
-    const saveArchive = (endedOn: string) =>
+    const saveArchive = (endedOn: string, endedAt?: string) =>
       fetch(base + "/games/old", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(archiveWithDate(endedOn)),
+        body: JSON.stringify(archiveWithDate(endedOn, endedAt)),
       });
     assert.equal((await saveArchive("2026-11-31")).status, 400);
     const endedOn = "2026-11-16";
+    assert.equal((await saveArchive(endedOn, endedOn)).status, 400);
     assert.equal((await saveArchive(endedOn)).status, 200);
     const archived: Game = await (await fetch(base + "/games/old")).json();
     assert.equal(archived.archivedState?.scoring?.end?.endedOn, endedOn);
     store.db.prepare(
-      "UPDATE game_summaries SET data=json_remove(data, '$.language', '$.archiveStats') WHERE id=?",
+      "UPDATE game_summaries SET data=json_remove(data, '$.archiveSortTime') WHERE id=?",
     ).run(game.id);
     const archiveSummary = (await getIndex()).games[0];
     assert.equal(archiveSummary.endedOn, endedOn);
+    assert.equal(archiveSummary.archiveSortTime, Date.parse(lastMoveAt));
+    assert.equal((await getIndex()).games[0].revision, archived.revision);
     assert.equal(archiveSummary.language, "en");
     assert.deepEqual(archiveSummary.archiveStats, {
       finalScore: 420, margin: 60, outcome: "win",
     });
+    store.db.prepare(
+      "UPDATE game_summaries SET data=json_remove(data, '$.language', '$.archiveStats') WHERE id=?",
+    ).run(game.id);
+    assert.deepEqual((await getIndex()).games[0], archiveSummary);
     store.deleteGame(next.id);
     assert.deepEqual((await getIndex()).games, []);
     assert.equal((await fetch(base + "/games/old")).status, 404);

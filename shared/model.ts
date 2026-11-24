@@ -94,6 +94,7 @@ export interface GameScoring {
   incomplete?: boolean;
   end?: ({ out: Player; rackPoints: number } | ManualGameEnd) & {
     endedOn?: string;
+    endedAt?: string;
   };
 }
 export const BOARD_EDIT_LABELS = {

@@ -4240,7 +4240,7 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
   expect(board().queryByRole("heading", { name: "You lose" })).toBeNull();
 });
 
-test("archived games sort by end date with a start-date fallback and can filter by opponent", async () => {
+test("archived games sort by finishing time with date and last-move fallbacks and can filter by opponent", async () => {
   remote.dictionaries.push({
     ...remote.dictionaries[0], id: "club", name: "Club word list", builtin: false,
   });
@@ -4255,8 +4255,34 @@ test("archived games sort by end date with a start-date fallback and can filter 
       scoring: {
         you: { points: 0, moves: 0, best: 0, bingos: 0 },
         opponent: { points: 0, moves: 0, best: 0, bingos: 0 },
-        end: { manual: true, endedOn: "2026-06-05" },
+        end: { manual: true, endedOn: "2026-06-05", endedAt: "2026-06-05T20:00:00.000Z" },
       },
+    },
+    {
+      ...game(),
+      id: "early",
+      name: "Alba",
+      archived: true,
+      startedOn: "2026-06-05",
+      trackedMoves: [
+        { player: "you", word: "CAT", score: 10, at: "2026-06-05T10:00:00.000Z" },
+      ],
+      scoring: {
+        you: { points: 10, moves: 1, best: 10, bingos: 0 },
+        opponent: { points: 0, moves: 0, best: 0, bingos: 0 },
+        end: { manual: true, endedOn: "2026-06-05", endedAt: "2026-06-05T15:00:00.000Z" },
+      },
+    },
+    {
+      ...game(),
+      id: "legacy",
+      name: "Zora",
+      archived: true,
+      startedOn: "2026-06-05",
+      updatedAt: "2026-06-06T23:00:00.000Z",
+      trackedMoves: [
+        { player: "you", word: "CAT", score: 10, at: "2026-06-05T17:00:00.000Z" },
+      ],
     },
     {
       ...game(),
@@ -4287,26 +4313,26 @@ test("archived games sort by end date with a start-date fallback and can filter 
       .queryAllByRole("listitem")
       .map((row) => row.querySelector("strong")?.textContent);
 
-  expect(count.textContent).toBe("3");
-  expect(names()).toEqual(["Sam Cooke", "Morgan", "Alex Sampson"]);
-  expect(archive.getByText("Ended Jun 5, 2026")).toBeTruthy();
+  expect(count.textContent).toBe("5");
+  expect(names()).toEqual(["Sam Cooke", "Zora", "Alba", "Morgan", "Alex Sampson"]);
+  expect(archive.getAllByText("Ended Jun 5, 2026")).toHaveLength(2);
   expect(archive.getByRole("button", { name: /^Sam Cooke.*Club word list.*Ended/ })).toBeTruthy();
   expect(archive.getByRole("button", { name: /^Alex Sampson.*Test words/ })).toBeTruthy();
   expect(archive.getByRole("button", { name: /^Morgan.*Sam · Word list unavailable/ })).toBeTruthy();
   expect(store.getSnapshot().games.recent).toBeUndefined();
   await user.type(search, " sAm ");
   expect(names()).toEqual(["Sam Cooke", "Alex Sampson"]);
-  expect(count.textContent).toBe("2 / 3");
+  expect(count.textContent).toBe("2 / 5");
   await user.selectOptions(sort, "opponent");
   expect(names()).toEqual(["Alex Sampson", "Sam Cooke"]);
   expect(search).toHaveProperty("value", " sAm ");
   await user.type(search, "Z");
   expect(names()).toHaveLength(0);
-  expect(count.textContent).toBe("0 / 3");
+  expect(count.textContent).toBe("0 / 5");
   expect(archive.getByText("No matching games.")).toBeTruthy();
   await user.clear(search);
-  expect(names()).toEqual(["Alex Sampson", "Morgan", "Sam Cooke"]);
-  expect(count.textContent).toBe("3");
+  expect(names()).toEqual(["Alba", "Alex Sampson", "Morgan", "Sam Cooke", "Zora"]);
+  expect(count.textContent).toBe("5");
 });
 
 test("Review changes lists conflicts and opens the selected warning across profiles", async () => {
@@ -5014,6 +5040,7 @@ test("entering the opponent's final tile updates the score and ends the game on 
     out: "opponent",
     rackPoints: 10,
     endedOn: localDate(),
+    endedAt: expect.any(String),
   });
   const undo = cell("Undo");
   expect(undo).toHaveProperty("disabled", true);
@@ -5081,6 +5108,7 @@ test("end game defaults to deductions and archiving with both settings reversibl
     scores: { you: 20, opponent: 23 },
     outcome: "win",
     endedOn: localDate(),
+    endedAt: expect.any(String),
   });
   expect(remote.games[0].archived).toBe(false);
   await user.click(cell("Undo"));

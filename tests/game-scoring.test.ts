@@ -52,6 +52,8 @@ import { importBoard } from "../shared/screenshot";
 import { solve } from "../shared/solver";
 import { TILE_SYMBOLS } from "../shared/tile-pool";
 
+const rackOutTime = new Date(2026, 10, 16, 23, 50);
+
 function fixture(): Game {
   return {
     id: "g",
@@ -142,8 +144,9 @@ test("the turn indicator follows the latest recorded word, including consecutive
   assert.equal(nextPlayerToMove(setScoreTracking(saved, false)), undefined);
 });
 
-test("manual game results preserve the end date through saves, undo, redo, and archives", (t) => {
-  t.mock.timers.enable({ apis: ["Date"], now: new Date(2026, 10, 16, 20) });
+test("manual game results preserve the finish timestamp through saves, undo, redo, and archives", (t) => {
+  const finishedAt = new Date(2026, 10, 16, 20);
+  t.mock.timers.enable({ apis: ["Date"], now: finishedAt });
   const endedOn = "2026-11-16";
   const base = fixture();
   const game = {
@@ -171,9 +174,11 @@ test("manual game results preserve the end date through saves, undo, redo, and a
   const ended = endGameManually(game, { manual: true, scores, outcome: "win" });
   const saved = gameSchema.parse(JSON.parse(JSON.stringify(ended)));
   assert.equal(saved.scoring?.end?.endedOn, endedOn);
+  assert.equal(saved.scoring?.end?.endedAt, finishedAt.toISOString());
   assert.deepEqual(gameScoreTotals(saved.scoring), scores);
   const archive = summarizeGame(archiveGame(saved));
   assert.equal(archive.endedOn, endedOn);
+  assert.equal(archive.archiveSortTime, finishedAt.getTime());
   assert.deepEqual(archive.score, {
     ...scores,
     outcome: "win",
@@ -183,7 +188,8 @@ test("manual game results preserve the end date through saves, undo, redo, and a
   const resumed = undo(saved);
   assert.deepEqual(resumed.scoring, game.scoring);
   assert.equal(summarizeGame(resumed).endedOn, undefined);
-  t.mock.timers.setTime(new Date(2026, 10, 17, 8).getTime());
+  const nextDay = new Date(2026, 10, 17, 8);
+  t.mock.timers.setTime(nextDay.getTime());
   assert.deepEqual(redo(resumed).scoring?.end, ended.scoring?.end);
   assert.deepEqual(trackedMoveHistory(saved), trackedMoveHistory(game));
   const unscored = endGameManually(
@@ -193,6 +199,7 @@ test("manual game results preserve the end date through saves, undo, redo, and a
   assert.deepEqual(unscored.scoring?.end, {
     manual: true,
     endedOn: "2026-11-17",
+    endedAt: nextDay.toISOString(),
   });
   const unscoredArchive = summarizeGame(archiveGame(unscored));
   assert.equal(unscoredArchive.score, null);
@@ -301,7 +308,8 @@ test("legacy rack-outs can be recovered from a recorded final play and a matchin
   );
 });
 
-test("correcting a finished rack-out transfers the corrected opponent rack value", () => {
+test("correcting a finished rack-out transfers the corrected opponent rack value", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: rackOutTime });
   const game = fixture();
   game.rack = "AT";
   game.template = {
@@ -312,7 +320,7 @@ test("correcting a finished rack-out transfers the corrected opponent rack value
   };
   const opening = solve(new Lexicon(["AT"]), game.board, game.rack, game.template)[0];
   const finished = playTrackedMove(game, opening, 0);
-  const end = { out: "you", rackPoints: 0, endedOn: localDate() };
+  const end = { out: "you", rackPoints: 0, endedOn: localDate(rackOutTime), endedAt: rackOutTime.toISOString() };
   assert.deepEqual(finished.scoring?.end, end);
   const board = [...finished.board];
   const square = opening.tiles.find(({ letter }) => letter === "A")!.index;
@@ -355,7 +363,8 @@ function rackOutFixture(rack: string): Game {
   return game;
 }
 
-test("solo play finishes only after every tile is played and keeps a single score", () => {
+test("solo play finishes only after every tile is played and keeps a single score", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: rackOutTime });
   const game: Game = { ...rackOutFixture("S"), solo: true, scoring: emptyScoring() };
   game.scoring!.you.points = 20;
   const move = solve(new Lexicon(["CATS"]), game.board, game.rack, game.template)
@@ -367,7 +376,7 @@ test("solo play finishes only after every tile is played and keeps a single scor
 
   game.template = { ...game.template, tileCounts: { ...game.template.tileCounts, Q: 0 } };
   const finished = playTrackedMove(game, move, 0);
-  assert.deepEqual(finished.scoring?.end, { out: "you", rackPoints: 0, endedOn: localDate() });
+  assert.deepEqual(finished.scoring?.end, { out: "you", rackPoints: 0, endedOn: localDate(rackOutTime), endedAt: rackOutTime.toISOString() });
   assert.deepEqual(summarizeGameScore(finished), {
     you: 26, opponent: 0, solo: true, outcome: "finished",
   });
@@ -399,7 +408,8 @@ test("solo board edits cannot turn into opponent moves during search or score re
   assert.equal(restored.scoring?.opponent.moves, 0);
 });
 
-test("entering an opponent rack-out records their play and finish in one undo step", () => {
+test("entering an opponent rack-out records their play and finish in one undo step", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: rackOutTime });
   const game = rackOutFixture("Q");
   const { start } = game.template;
   game.board[start + 2] = "";
@@ -414,7 +424,8 @@ test("entering an opponent rack-out records their play and finish in one undo st
   assert.deepEqual(finished.scoring?.end, {
     out: "opponent",
     rackPoints: 10,
-    endedOn: localDate(),
+    endedOn: localDate(rackOutTime),
+    endedAt: rackOutTime.toISOString(),
   });
   assert.deepEqual(gameScoreTotals(finished.scoring), {
     you: 10,
@@ -445,7 +456,8 @@ test("entering an opponent rack-out records their play and finish in one undo st
   assert.deepEqual(stored.archivedState?.scoring?.end, finished.scoring?.end);
 });
 
-test("opponent rack-out waits for complete valid counts and a scoreable play", () => {
+test("opponent rack-out waits for complete valid counts and a scoreable play", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: rackOutTime });
   const game = rackOutFixture("");
   const board = [...game.board];
   board[game.template.start + 3] = "S";
@@ -477,7 +489,8 @@ test("opponent rack-out waits for complete valid counts and a scoreable play", (
   assert.deepEqual(finished.scoring?.end, {
     out: "opponent",
     rackPoints: 10,
-    endedOn: localDate(),
+    endedOn: localDate(rackOutTime),
+    endedAt: rackOutTime.toISOString(),
   });
   assert.equal(recordOpponentRackOut(finished), finished);
   assert.equal(finished.past.length, 1);
@@ -685,7 +698,8 @@ test("search leaves ambiguous, untracked, archived, and undone board entries alo
   }
 });
 
-test("a rack refill after searching can establish opponent rack-out without a second score entry", () => {
+test("a rack refill after searching can establish opponent rack-out without a second score entry", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: rackOutTime });
   const game = rackOutFixture("");
   const board = [...game.board];
   board[game.template.start + 3] = "S";
@@ -698,14 +712,16 @@ test("a rack refill after searching can establish opponent rack-out without a se
   assert.deepEqual(finished.scoring?.end, {
     out: "opponent",
     rackPoints: 10,
-    endedOn: localDate(),
+    endedOn: localDate(rackOutTime),
+    endedAt: rackOutTime.toISOString(),
   });
   assert.equal(trackedMoveHistory(finished).length, 1);
   assert.equal(finished.past.length, 1);
   assert.deepEqual(undo(finished).board, game.board);
 });
 
-test("playing out uses the actual remaining rack and respects a known nonempty bag", () => {
+test("playing out uses the actual remaining rack and respects a known nonempty bag", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: rackOutTime });
   const game = rackOutFixture("S");
   const move = solve(
     new Lexicon(["CATS"]),
@@ -718,7 +734,8 @@ test("playing out uses the actual remaining rack and respects a known nonempty b
   assert.deepEqual(finished.scoring?.end, {
     out: "you",
     rackPoints: 10,
-    endedOn: localDate(),
+    endedOn: localDate(rackOutTime),
+    endedAt: rackOutTime.toISOString(),
   });
   assert.deepEqual(gameScoreTotals(finished.scoring), { you: 36, opponent: 0 });
   assert.equal(undo(finished).scoring?.end, undefined);

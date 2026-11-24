@@ -774,10 +774,15 @@ function rackOutResult(game: Game, out: Player): GameScoring["end"] {
   };
 }
 
+function finishTime() {
+  const now = new Date();
+  return { endedOn: localDate(now), endedAt: now.toISOString() };
+}
+
 function opponentRackOut(game: Game) {
   if (game.scoring?.pendingBase && canRecordRackOut(game)) {
     const end = rackOutResult(game, "opponent");
-    if (end) return { ...end, endedOn: localDate() };
+    if (end) return { ...end, ...finishTime() };
   }
 }
 
@@ -791,7 +796,7 @@ export function recordOpponentRackOut(game: Game) {
     if (result)
       return {
         ...game,
-        scoring: { ...game.scoring!, end: { ...result, endedOn: localDate() } },
+        scoring: { ...game.scoring!, end: { ...result, ...finishTime() } },
       };
   }
   return game;
@@ -1086,7 +1091,7 @@ export function endGameManually(game: Game, result: ManualGameEnd): Game {
     scoring: {
       ...(recorded.scoring ?? emptyScoring(isImportedPosition(recorded))),
       pendingBase: undefined,
-      end: { ...result, endedOn: localDate() },
+      end: { ...result, ...finishTime() },
     },
   };
 }
@@ -1125,7 +1130,7 @@ export function playTrackedMove(
   if (canRecordRackOut(previous) && !rackLetters(result.rack) && !bagSize) {
     // In a solo game the unseen pool must also be empty.
     const end = rackOutResult(result, "you");
-    if (end) scoring.end = { ...end, endedOn: localDate() };
+    if (end) scoring.end = { ...end, ...finishTime() };
   }
   return {
     ...result,

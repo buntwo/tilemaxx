@@ -185,7 +185,8 @@ export function createStore(directory: string, root: string) {
       OR json_type(summaries.data, '$.dictionaryId') IS NULL
       OR json_type(summaries.data, '$.language') IS NULL
       OR (json_extract(summaries.data, '$.archived') = 1
-          AND json_type(summaries.data, '$.archiveStats') IS NULL)`;
+          AND (json_type(summaries.data, '$.archiveStats') IS NULL
+            OR json_type(summaries.data, '$.archiveSortTime') IS NULL))`;
   const staleSummaryJoin = `
     FROM games LEFT JOIN game_summaries AS summaries
       ON summaries.id=games.id AND summaries.revision=games.revision
