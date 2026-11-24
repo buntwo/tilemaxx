@@ -5,6 +5,7 @@ import {
   ChevronDown,
   CircleHelp,
   Copy,
+  Download,
   Eraser,
   History,
   ImagePlus,
@@ -26,6 +27,7 @@ import {
 } from "../../shared/model";
 import { resetGameScoring } from "../../shared/game-scoring";
 import { CLEARED_BOARD } from "../../shared/score-recovery";
+import { downloadGame } from "../game-export";
 import { store } from "../store";
 import { GameOptionDetails } from "./GameDetails";
 import Modal from "./Modal";
@@ -110,6 +112,17 @@ export default function GameOptions({
     notify(game.archived ? "Game moved to My games." : "Game archived.");
   }
 
+  function exportGame() {
+    setError("");
+    try {
+      downloadGame(game, dictionaries);
+      onClose();
+      notify("Game export started.");
+    } catch {
+      setError("The game export could not be downloaded. Try again.");
+    }
+  }
+
   return (
     <Modal
       title="Game options"
@@ -168,6 +181,9 @@ export default function GameOptions({
             <ChevronDown size={16} aria-hidden="true" />
           </summary>
           <div className="game-option-list">
+            <button disabled={busy} onClick={exportGame}>
+              <Download size={17} aria-hidden="true" /> Export game
+            </button>
             {game.archived && (
               <button
                 disabled={busy || !online}

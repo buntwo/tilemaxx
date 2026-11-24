@@ -2167,6 +2167,71 @@ function replayFixture() {
   };
 }
 
+test.each([false, true])("game options export the open game offline (archived=%s)", async (archived) => {
+  const base = replayFixture();
+  const earlier = { ...remote.dictionaries[0], id: "earlier", name: "Earlier words", builtin: false };
+  const unused = { ...earlier, id: "unused", name: "Unused words" };
+  remote.dictionaries.push(earlier, unused);
+  base.trackedMoves![0].review!.dictionaryId = earlier.id;
+  const saved = {
+    ...(archived ? archiveGame(base) : base),
+    name: "First game / Élodie",
+    startedOn: "2026-02-18",
+    notes: "Imported layout",
+  };
+  remote.games[0] = saved;
+  const user = await start(archived ? 390 : 1200);
+  if (archived) {
+    await user.click(cell("Open sidebar"));
+    await user.click(cell("Archived games"));
+    await user.click(screen.getByRole("button", { name: /^First game \/ Élodie/ }));
+  }
+  await waitFor(() => expect(current().trackedMoves).toHaveLength(2));
+  act(() => {
+    store.snapshot.online = false;
+    store.update({ ...current(), rack: "?EINS", notes: "Edited offline" });
+  });
+  const options = await openGameManagement(user);
+  const createObjectURL = vi.fn((_file: Blob) => "blob:game-export");
+  vi.stubGlobal("URL", class extends URL {
+    static createObjectURL = createObjectURL;
+    static revokeObjectURL = vi.fn();
+  });
+  let downloadName: string | undefined;
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+    downloadName = this.download;
+  });
+  try {
+    await user.click(options.getByRole("button", { name: "Export game" }));
+  } finally {
+    click.mockRestore();
+  }
+
+  expect(downloadName).toBe("tilemaxx-First-game-Élodie-2026-02-18.json");
+  expect(createObjectURL).toHaveBeenCalledOnce();
+  const file = createObjectURL.mock.calls[0][0];
+  expect(file.type).toBe("application/json;charset=utf-8");
+  const contents = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+  const { id, profileId, revision, updatedAt, ...gameSnapshot } = current();
+  expect(JSON.parse(contents)).toEqual({
+    format: "tilemaxx-game",
+    version: 1,
+    game: JSON.parse(JSON.stringify(gameSnapshot)),
+    wordLists: [
+      { id: "test", name: "Test words", builtin: true },
+      { id: "earlier", name: "Earlier words", builtin: false },
+    ],
+  });
+  expect(current().rack).toBe("?EINS");
+  expect(remote.games[0].rack).toBe(saved.rack);
+  if (archived) expect(gameSnapshot.archivedState?.rack).toBe(base.rack);
+});
+
 test("live replay opens at the latest recorded move and keeps an in-progress play on exit", async () => {
   remote.games[0] = replayFixture();
   const user = await start();
