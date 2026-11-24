@@ -28,6 +28,7 @@
 
 ## Git and deployment
 
+- Never commit identifiable details about our setup. Keep actual hostnames, IP addresses, account names, local paths, signing-key labels, and credentials in local configuration. Use placeholders in documentation, tests, screenshots, and logs.
 - Bump the Tilemaxx patch version by one in `version.json` before staging each commit. Bump major or minor only when the user explicitly asks, and set the patch to `1` for either bump. Keep `package.json` and `package-lock.json` stable for app version bumps so Docker can reuse installed dependencies.
 - Sign Tilemaxx commits with your configured Git signing key. Run Git non-interactively and never allocate a PTY for commit or push commands. Diagnose signing failures before retrying.
 - After verifying and committing Tilemaxx changes, push them to GitHub's `origin/main` with a fast-forward push. The NAS pulls updates from that branch.
