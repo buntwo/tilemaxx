@@ -218,6 +218,8 @@ test("the API and browser share games, revisions and tracked play", async (t) =>
   const creation = await endpoint("/games/new", input);
   assert.equal(creation.status, 201);
   let game: Game = await creation.json();
+  assert.equal(game.startedAt, game.updatedAt);
+  const startedAt = game.startedAt;
   assert.equal(
     (await (await endpoint("/games/new", input)).json()).id,
     game.id,
@@ -285,6 +287,7 @@ test("the API and browser share games, revisions and tracked play", async (t) =>
     })
   ).json();
   assert.equal(game.archived, true);
+  assert.equal(game.startedAt, startedAt);
   assert.deepEqual(game.archivedBoard, game.board);
   const endedAt = game.scoring?.end?.endedAt;
   assert(endedAt && Number.isFinite(Date.parse(endedAt)));

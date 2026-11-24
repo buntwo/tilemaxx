@@ -557,6 +557,7 @@ export class GameStore {
             const newer = {
               ...this.drafts.get(id)!,
               revision: saved.revision,
+              startedAt: saved.startedAt,
               updatedAt: saved.updatedAt,
             };
             this.confirmGame(saved);

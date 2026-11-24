@@ -82,7 +82,8 @@ test("editing during an in-flight save preserves newer input and advances its re
     client.update({ ...game, rack: "CAT" });
     const saving = client.flush();
     client.update({ ...game, rack: "CATS" });
-    finish(response({ ...game, rack: "CAT", revision: 1 }));
+    const startedAt = "2026-11-20T15:05:00.000Z";
+    finish(response({ ...game, rack: "CAT", revision: 1, startedAt }));
     await saving;
     assert.equal(client.drafts.get("g")!.rack, "CATS");
     assert.equal(client.drafts.get("g")!.revision, 1);
@@ -91,6 +92,7 @@ test("editing during an in-flight save preserves newer input and advances its re
     await client.flush();
     assert.equal(client.drafts.size, 0);
     assert.equal(client.snapshot.games.g.rack, "CATS");
+    assert.equal(client.snapshot.games.g.startedAt, startedAt);
     assert.equal(client.snapshot.data!.games[0].revision, 2);
   } finally {
     cleanup();

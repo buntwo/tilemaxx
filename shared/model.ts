@@ -136,6 +136,7 @@ export interface Game extends Position {
   solo?: true;
   platform?: string;
   startedOn?: string;
+  startedAt?: string;
   notes?: string;
   trackScores?: boolean;
   scoring?: GameScoring;

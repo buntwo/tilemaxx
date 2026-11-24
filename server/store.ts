@@ -275,14 +275,17 @@ export function createStore(directory: string, root: string) {
     input: Omit<Game, "id" | "revision" | "updatedAt">,
     id: string = randomUUID(),
   ): Game {
+    const now = new Date();
+    const timestamp = now.toISOString();
     const game = correctSuperLexulousCenter(
       prepareNewArchive({
         ...input,
-        startedOn: input.startedOn ?? localDate(),
+        startedOn: input.startedOn ?? localDate(now),
+        startedAt: input.startedAt ?? timestamp,
         trackScores: input.trackScores ?? true,
         id,
         revision: 0,
-        updatedAt: new Date().toISOString(),
+        updatedAt: timestamp,
       }),
     );
     db.prepare("INSERT INTO games VALUES (?,?,?)").run(

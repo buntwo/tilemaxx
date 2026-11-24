@@ -471,6 +471,7 @@ test("archive and start saves the original and creates one fresh game in one tra
       await results.find(({ status }) => status === 201)!.json();
     assert.equal(archived.id, original.id);
     assert.equal(archived.startedOn, original.startedOn);
+    assert.equal(archived.startedAt, original.startedAt);
     assert.equal(archived.notes, original.notes);
     assert.deepEqual(archived.board, original.board);
     assert.deepEqual(archived.archivedBoard, original.board);
@@ -489,6 +490,7 @@ test("archive and start saves the original and creates one fresh game in one tra
     assert.equal(created.name, original.name);
     assert.equal(created.platform, original.platform);
     assert.equal(created.startedOn, startedOn);
+    assert.equal(created.startedAt, created.updatedAt);
     assert.equal(created.dictionaryId, original.dictionaryId);
     assert.equal(created.trackScores, false);
     assert.deepEqual(created.template, template);
@@ -941,14 +943,25 @@ test("game creation assigns a server ID, recognizes retries, and preserves legac
     const game = (await created.json()) as Game;
     assert.equal(game.id, id);
     assert.equal(game.revision, 0);
+    assert.equal(game.startedAt, source.startedAt);
     const creationToken = "123456789abcdef0123456789abcdef0";
-    const online = await post({ ...source, name: "Online", creationToken });
+    const onlineInput = { ...source, startedAt: undefined, name: "Online", creationToken };
+    const online = await post(onlineInput);
     assert.equal(online.status, 201);
     const assigned: Game = await online.json();
     assert.match(assigned.id, /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
     assert.notEqual(assigned.id, source.id);
-    const edited = store.saveGame({ ...assigned, rack: "DOG" })!;
-    assert.deepEqual(await (await post({ ...source, name: "Online", creationToken })).json(), edited);
+    assert.equal(assigned.startedAt, assigned.updatedAt);
+    assert(Number.isFinite(Date.parse(assigned.startedAt!)));
+    const updated = await fetch(`${base}/games/${assigned.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...assigned, rack: "DOG" }),
+    });
+    assert.equal(updated.status, 200);
+    const edited: Game = await updated.json();
+    assert.equal(edited.startedAt, assigned.startedAt);
+    assert.deepEqual(await (await post(onlineInput)).json(), edited);
     assert.equal(store.state().games.filter((g) => g.name === "Online").length, 1);
     const order = [id, assigned.id, source.id];
     const reordered = await fetch(`${base}/profiles/${source.profileId}/game-order`, {

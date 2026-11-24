@@ -217,6 +217,7 @@ export const gameSchema = gameProgress
     solo: z.literal(true).optional(),
     platform: nameSchema.optional(),
     startedOn: z.iso.date().optional(),
+    startedAt: z.iso.datetime().optional(),
     notes: z.string().trim().max(MAX_GAME_NOTES).optional(),
     template: templateSchema,
     originalPremiums: premiums.optional(),
