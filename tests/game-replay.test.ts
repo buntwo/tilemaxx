@@ -5,7 +5,7 @@ import {
   compactArchivedHistory,
 } from "../shared/archive-history";
 import { summarizeGame } from "../shared/game-index";
-import { gameReplayFrames, hasRecordedMoves } from "../shared/game-replay";
+import { gameReplayTimeline, hasRecordedMoves } from "../shared/game-replay";
 import {
   boardWordsAt,
   emptyScoring,
@@ -68,7 +68,7 @@ test("replay uses the saved archive, historical premiums, placed blanks, and rac
   game.trackedMoves = [];
 
   assert.equal(hasRecordedMoves(game), true);
-  const [before, after] = gameReplayFrames(game);
+  const [before, after] = gameReplayTimeline(game).frames;
   assert.equal(before.board, board);
   assert.equal(before.rack, "CA?E");
   assert.equal(after.template.premiums, premiums);
@@ -82,7 +82,7 @@ test("score-only moves keep their points and do not invent a board or rack", () 
   const game = gameWithMoves([
     { player: "opponent", word: "CAT", score: 10, at: "" },
   ]);
-  const [opening, scoreOnly] = gameReplayFrames(game);
+  const [opening, scoreOnly] = gameReplayTimeline(game).frames;
   assert.equal(opening.board, undefined);
   assert.equal(scoreOnly.board, undefined);
   assert.equal(scoreOnly.rack, undefined);
@@ -141,7 +141,7 @@ test("archiving keeps legacy moves, the original rack, blanks, and historical pr
   assert.deepEqual(turn.position?.board, before);
   assert.deepEqual(turn.position?.premiums, premiums);
   assert.equal(turn.position?.tiles.at(-1)?.letter, "t");
-  assert.equal(gameReplayFrames(archived)[0].rack, "CA?ERS");
+  assert.equal(gameReplayTimeline(archived).frames[0].rack, "CA?ERS");
   assert.equal(summarizeGame(archived).fullMoveHistory, false);
   assert.equal(compactArchivedHistory(archived), archived);
   assert.equal(compactArchivedHistory(game), game);
@@ -209,7 +209,7 @@ test("an edited archive keeps both move logs and their separate rack contexts", 
   assert.equal(frozen.trackedMoves?.[0].review?.dictionaryId, "previous");
   assert.equal(result.trackedMoves?.[1].review?.observerRack, "XYZABCD");
   assert.equal(result.trackedMoves?.[1].review?.rack, undefined);
-  assert.equal(gameReplayFrames(result).length, 2);
+  assert.equal(gameReplayTimeline(result).frames.length, 2);
   assert.equal(frozen.trackedMoves?.length, 1);
 });
 
@@ -228,7 +228,7 @@ test("old snapshot imports and score-only turns retain their meaning after archi
   const archived = archiveForReview(game);
   assert.equal(tracksScores(archived), false);
   assert.equal(restoreArchivedGame(archived).scoring?.imported, true);
-  const [, frame] = gameReplayFrames(archived);
+  const [, frame] = gameReplayTimeline(archived).frames;
   assert.equal(frame.position, undefined);
   assert.equal(frame.rack, undefined);
   assert.equal(frame.scores.opponent, 10);
@@ -303,5 +303,5 @@ test("pruning edits does not credit a removed and replaced word to an old move",
   assert.equal(original[0].fromPlay, false);
   const archived = gameSchema.parse(archiveForReview(replaced));
   assert.deepEqual(boardWordsAt(archived, 112), original);
-  assert.equal(gameReplayFrames(archived)[1].position?.rack, "CAT");
+  assert.equal(gameReplayTimeline(archived).frames[1].position?.rack, "CAT");
 });

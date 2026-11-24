@@ -77,6 +77,8 @@
 }
 
 .score-chart-line.score-chart-opponent { stroke-dasharray: 4 3; }
+.score-chart-line[data-future] { opacity: .38; stroke-dasharray: 3 4; }
+.score-chart-graph text[data-current] { fill: var(--text); font-weight: 650; }
 
 .score-chart-graph :is(circle, rect) { fill: var(--series-color); }
 .score-chart-active :is(circle, rect) {
@@ -169,3 +171,20 @@
     margin-inline-start: var(--score-axis-inset);
   }
 }
+
+.score-chart-replay-tooltip { padding-bottom: 6px; }
+.score-chart-replay-tooltip .score-chart-tooltip {
+  --replay-tip-width: min(216px, 100%);
+  position: relative;
+  left: clamp(0px, calc(var(--score-cursor-x) - var(--replay-tip-width) / 2), calc(100% - var(--replay-tip-width)));
+  width: var(--replay-tip-width);
+  max-width: none;
+  margin: 0;
+  background: var(--soft);
+}
+.score-chart-replay-tooltip .score-chart-tooltip dl { margin-top: 5px; }
+.score-chart-replay-tooltip .score-chart-total { padding-inline-start: 8px; }
+.score-chart-tooltip [data-unplayed] > :is(dt, dd) { color: var(--muted); font-weight: 400; }
+.score-chart-tooltip [data-unplayed] .score-chart-swatch { --series-color: var(--muted); }
+.score-chart-tooltip [data-current] .score-chart-play { color: var(--primary); }
+.score-chart-note { color: var(--muted); font-weight: 400; }

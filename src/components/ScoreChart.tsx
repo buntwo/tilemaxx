@@ -93,26 +93,30 @@ function ScoreMarkers({
   y,
   active = false,
   solo,
+  waitingFor,
 }: {
   pair: ScorePair;
   x: number;
   y: (points: number) => number;
   active?: boolean;
   solo: boolean;
+  waitingFor?: Player;
 }) {
   const opponentOutline =
     !pair.plays.opponent || pair.totals.you === pair.totals.opponent;
   const square = opponentOutline ? (active ? 13 : 10) : active ? 11 : 7;
   return (
     <g className={active ? "score-chart-active" : undefined}>
-      <circle
-        className="score-chart-you"
-        cx={x}
-        cy={y(pair.totals.you)}
-        r={active ? 6 : 3.8}
-        data-outline={(pair.last > 0 && !pair.plays.you) || undefined}
-      />
-      {!solo && (
+      {waitingFor !== "you" && (
+        <circle
+          className="score-chart-you"
+          cx={x}
+          cy={y(pair.totals.you)}
+          r={active ? 6 : 3.8}
+          data-outline={(pair.last > 0 && !pair.plays.you) || undefined}
+        />
+      )}
+      {!solo && waitingFor !== "opponent" && (
         <rect
           className="score-chart-opponent"
           x={x - square / 2}
@@ -130,9 +134,15 @@ function ScoreMarkers({
 export default function ScoreChart({
   moves,
   solo = false,
+  replay,
 }: {
   moves: readonly ChartMove[];
   solo?: boolean;
+  replay?: {
+    index: number;
+    scores: Record<Player, number>;
+    seek: (index: number) => void;
+  };
 }) {
   const chartPlayers = solo ? soloPlayers : players;
   const heading = useId();
@@ -164,9 +174,29 @@ export default function ScoreChart({
   );
   const markerStep = Math.max(1, Math.ceil((10 * last) / (right - left)));
 
-  const selected = hovered ?? focused ?? pinned;
+  const selected = replay
+    ? Math.max(
+        0,
+        pairs.findIndex((pair) => pair.last >= replay.index),
+      )
+    : (hovered ?? focused ?? pinned);
   const index = Math.min(selected ?? last, last);
   const pair = pairs[index];
+  const waitingFor =
+    replay &&
+    chartPlayers.find((player) => {
+      const play = pair.plays[player];
+      return play && play.number > replay.index;
+    });
+  const displayed = replay
+    ? {
+        ...pair,
+        totals: replay.scores,
+        plays: waitingFor
+          ? { ...pair.plays, [waitingFor]: undefined }
+          : pair.plays,
+      }
+    : pair;
   const selectedX = x(index);
   const yourY = y(pair.totals.you);
   const opponentY = solo ? yourY : y(pair.totals.opponent);
@@ -189,14 +219,14 @@ export default function ScoreChart({
 
   useLayoutEffect(() => {
     const element = tooltip.current;
-    if (!element) return;
+    if (!element || replay) return;
     const { offsetWidth, offsetHeight } = element;
     const fitRight = selectedX + 10 + offsetWidth <= width;
     const tipLeft = fitRight ? selectedX + 10 : selectedX - offsetWidth - 10;
     const tipTop = fitRight ? lower : upper - offsetHeight - 8;
     element.style.left = `${Math.max(left, Math.min(width - offsetWidth, tipLeft))}px`;
     element.style.top = `${Math.max(0, Math.min(plotBottom - offsetHeight, tipTop))}px`;
-  }, [selected, pair, width, left, selectedX, upper, lower]);
+  }, [selected, pair, width, left, selectedX, upper, lower, replay]);
 
   function pairAt(clientX: number, element: SVGSVGElement) {
     const bounds = element.getBoundingClientRect();
@@ -208,8 +238,64 @@ export default function ScoreChart({
     );
   }
 
+  const scoreTooltip = selected !== null && (
+    <div
+      className="score-chart-tooltip"
+      ref={tooltip}
+      aria-hidden={replay ? undefined : true}
+    >
+      <strong>{pairLabel(pair)}</strong>
+      <dl>
+        {chartPlayers.map((player) => {
+          const play = displayed.plays[player];
+          const muted = replay && pair.last > 0 && !play;
+          const current = replay && play?.number === replay.index;
+          return (
+            <div
+              key={player}
+              data-unplayed={muted || undefined}
+              data-current={current || undefined}
+            >
+              <dt className="score-chart-player">
+                <i className={`score-chart-swatch score-chart-${player}`} />
+                <span>{player === "opponent" ? "Opp" : labels[player]}</span>
+              </dt>
+              <dd className="score-chart-total">
+                {number.format(displayed.totals[player])}
+              </dd>
+              <dd className={play || muted ? "score-chart-play" : undefined}>
+                {play && (
+                  <>
+                    {play.bingo && <BingoBadge />}
+                    <span
+                      className={play.bingo ? "bingo-move-word" : undefined}
+                    >
+                      {play.word}
+                    </span>
+                    <span className="score-chart-points">
+                      +{number.format(play.score)} pts
+                    </span>
+                  </>
+                )}
+                {muted && (
+                  <span className="score-chart-note">
+                    {waitingFor === player ? "Yet to play" : "No recorded play"}
+                  </span>
+                )}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    </div>
+  );
+
   return (
-    <figure className="score-chart" aria-labelledby={heading}>
+    <figure
+      className="score-chart"
+      aria-labelledby={heading}
+      data-replay={!!replay || undefined}
+    >
       <figcaption className="score-chart-heading">
         <h3 id={heading}>Score by move</h3>
         <div className="score-chart-legend" aria-hidden="true">
@@ -223,22 +309,35 @@ export default function ScoreChart({
       </figcaption>
       <div
         className="score-chart-plot"
-        style={{ "--score-axis-inset": `${left}px` } as CSSProperties}
+        style={
+          {
+            "--score-axis-inset": `${left}px`,
+            "--score-cursor-x": replay ? `${selectedX}px` : undefined,
+          } as CSSProperties
+        }
       >
+        {replay && (
+          <div className="score-chart-replay-tooltip">{scoreTooltip}</div>
+        )}
         <svg
           ref={svg}
           className="score-chart-graph"
           viewBox={`0 0 ${width} ${chartHeight}`}
           role="img"
-          aria-label={solo ? "Running score after each tracked move" : "Running scores after each pair of tracked moves"}
+          aria-label={
+            solo
+              ? "Running score after each tracked move"
+              : "Running scores after each pair of tracked moves"
+          }
           onPointerMove={(event) => {
-            if (event.pointerType !== "touch")
+            if (!replay && event.pointerType !== "touch")
               setHovered(pairAt(event.clientX, event.currentTarget));
           }}
           onPointerLeave={() => setHovered(null)}
           onClick={(event) => {
             const next = pairAt(event.clientX, event.currentTarget);
-            setPinned((current) => (current === next ? null : next));
+            if (replay) replay.seek(pairs[next].last);
+            else setPinned((current) => (current === next ? null : next));
           }}
         >
           {scores.map((score, tick) => (
@@ -261,6 +360,7 @@ export default function ScoreChart({
               x={x(tick)}
               y={chartHeight - 17}
               textAnchor="middle"
+              data-current={(replay && tick === index) || undefined}
             >
               {moveNumbers(pairs[tick])}
             </text>
@@ -268,28 +368,44 @@ export default function ScoreChart({
           <text x={(left + right) / 2} y={chartHeight - 2} textAnchor="middle">
             {solo ? "Move" : "Move pair"}
           </text>
-          {chartPlayers.map((player) => (
-            <polyline
-              className={`score-chart-line score-chart-${player}`}
-              key={player}
-              points={pairs
-                .map((point, index) => `${x(index)},${y(point.totals[player])}`)
-                .join(" ")}
-            />
-          ))}
-          {pairs.map(
-            (point, index) =>
-              index > 0 &&
-              (index % markerStep === 0 || index === last) && (
-                <ScoreMarkers
-                  key={point.last}
-                  pair={point}
-                  solo={solo}
-                  x={x(index)}
-                  y={y}
+          {chartPlayers.map((player) => {
+            const points = pairs.map(
+              (point, i) => `${x(i)},${y(point.totals[player])}`,
+            );
+            const through = replay
+              ? index - Number(waitingFor === player)
+              : last;
+            const className = `score-chart-line score-chart-${player}`;
+            return (
+              <g key={player}>
+                {replay && through < last && (
+                  <polyline
+                    className={className}
+                    points={points.slice(through).join(" ")}
+                    data-future
+                  />
+                )}
+                <polyline
+                  className={className}
+                  points={points.slice(0, through + 1).join(" ")}
                 />
-              ),
-          )}
+              </g>
+            );
+          })}
+          {!replay &&
+            pairs.map(
+              (point, index) =>
+                index > 0 &&
+                (index % markerStep === 0 || index === last) && (
+                  <ScoreMarkers
+                    key={point.last}
+                    pair={point}
+                    solo={solo}
+                    x={x(index)}
+                    y={y}
+                  />
+                ),
+            )}
           {selected !== null && (
             <g>
               <line
@@ -299,65 +415,46 @@ export default function ScoreChart({
                 y1={plotTop}
                 y2={plotBottom}
               />
-              <ScoreMarkers pair={pair} x={selectedX} y={y} solo={solo} active />
+              <ScoreMarkers
+                pair={displayed}
+                x={selectedX}
+                y={y}
+                solo={solo}
+                waitingFor={waitingFor}
+                active
+              />
             </g>
           )}
         </svg>
         <input
           type="range"
           className="score-chart-range"
-          aria-label={solo ? "Inspect scores by move" : "Inspect scores by move pair"}
-          aria-valuetext={describePair(pair, solo)}
+          aria-label={
+            replay
+              ? solo
+                ? "Replay from score chart"
+                : "Replay from move pair"
+              : solo
+                ? "Inspect scores by move"
+                : "Inspect scores by move pair"
+          }
+          aria-valuetext={describePair(displayed, solo)}
           min={0}
           max={last}
           value={index}
           onFocus={() => setFocused(index)}
           onBlur={() => setFocused(null)}
           onChange={(event) => {
+            const next = event.currentTarget.valueAsNumber;
+            if (replay) {
+              replay.seek(pairs[next].last);
+              return;
+            }
             setHovered(null);
-            setFocused(event.currentTarget.valueAsNumber);
+            setFocused(next);
           }}
         />
-        {selected !== null && (
-          <div className="score-chart-tooltip" ref={tooltip} aria-hidden="true">
-            <strong>{pairLabel(pair)}</strong>
-            <dl>
-              {chartPlayers.map((player) => {
-                const play = pair.plays[player];
-                return (
-                  <div key={player}>
-                    <dt className="score-chart-player">
-                      <i
-                        className={`score-chart-swatch score-chart-${player}`}
-                      />
-                      <span>{player === "opponent" ? "Opp" : labels[player]}</span>
-                    </dt>
-                    <dd className="score-chart-total">
-                      {number.format(pair.totals[player])}
-                    </dd>
-                    <dd className={play ? "score-chart-play" : undefined}>
-                      {play && (
-                        <>
-                          {play.bingo && <BingoBadge />}
-                          <span
-                            className={
-                              play.bingo ? "bingo-move-word" : undefined
-                            }
-                          >
-                            {play.word}
-                          </span>
-                          <span className="score-chart-points">
-                            +{number.format(play.score)} pts
-                          </span>
-                        </>
-                      )}
-                    </dd>
-                  </div>
-                );
-              })}
-            </dl>
-          </div>
-        )}
+        {!replay && scoreTooltip}
       </div>
     </figure>
   );

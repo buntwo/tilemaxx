@@ -41,10 +41,10 @@ function rackAfterPlay(move: TrackedMove, position: TurnPosition) {
   return rackLetters(remaining.join(""));
 }
 
-export function gameReplayFrames(game: Game): ReplayFrame[] {
+export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreStart: number } {
   const source = replaySource(game);
   const turns = reviewTurns(source);
-  if (!turns.length) return [];
+  if (!turns.length) return { frames: [], scoreStart: 0 };
   const { template } = source;
   const size = template.size ** 2;
   function savedPosition(position: TurnPosition | undefined) {
@@ -78,9 +78,12 @@ export function gameReplayFrames(game: Game): ReplayFrame[] {
       scores: zero,
     },
   ];
-  const scoreStart = currentScoreStart(
-    source,
-    turns.map(({ move }) => move),
+  const scoreStart = Math.min(
+    turns.length,
+    currentScoreStart(
+      source,
+      turns.map(({ move }) => move),
+    ),
   );
   let scores = zero;
   for (const turn of turns) {
@@ -97,5 +100,5 @@ export function gameReplayFrames(game: Game): ReplayFrame[] {
       scores,
     });
   }
-  return frames;
+  return { frames, scoreStart };
 }

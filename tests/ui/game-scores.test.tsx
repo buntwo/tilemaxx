@@ -4,6 +4,7 @@ import { emptyScoring } from "../../shared/game-scoring";
 import { emptyBoard, type Game } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
 import GameScores from "../../src/components/GameScores";
+import ScoreChart from "../../src/components/ScoreChart";
 
 function gameWithScores(you: number, opponent: number): Game {
   const scoring = emptyScoring();
@@ -172,6 +173,44 @@ test("consecutive plays by one player stay distinct in an older archived history
     "Move 1. You 0 points. Opponent 12 points, RAT for 12 points",
   );
 });
+
+test.each(["you", "opponent"] as const)(
+  "replay carries the other score forward when %s has back-to-back recorded plays",
+  (player) => {
+    const other = player === "you" ? "opponent" : "you";
+    const moves = [
+      { player, word: "CAT", score: 10, number: 1 },
+      { player, word: "DOG", score: 12, number: 2 },
+      { player: other, word: "OX", score: 20, number: 3 },
+    ] as const;
+    const seek = vi.fn();
+    const showChart = (index: number, scored: number, otherScore: number) =>
+      <ScoreChart moves={moves} replay={{
+        index,
+        scores: player === "you"
+          ? { you: scored, opponent: otherScore }
+          : { you: otherScore, opponent: scored },
+        seek,
+      }} />;
+    const { container, rerender } = render(showChart(1, 10, 0));
+    const cursor = () => container.querySelector(".score-chart-cursor")!.getAttribute("x1");
+    const first = cursor();
+    expect(screen.getByText("No recorded play").closest("[data-unplayed]")?.querySelector(".score-chart-total")?.textContent).toBe("0");
+    expect(screen.getByText("CAT")).toBeTruthy();
+    expect(screen.queryByText("OX")).toBeNull();
+    rerender(showChart(2, 22, 0));
+    const pair = cursor();
+    expect(pair).not.toBe(first);
+    expect(screen.getByText("Moves 2–3")).toBeTruthy();
+    expect(screen.getByText("Yet to play")).toBeTruthy();
+    rerender(showChart(3, 22, 20));
+    expect(cursor()).toBe(pair);
+    expect(screen.queryByText("Yet to play")).toBeNull();
+    expect(screen.getByText("OX")).toBeTruthy();
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "1" } });
+    expect(seek).toHaveBeenCalledWith(1);
+  },
+);
 
 
 test("the score chart starts over after a scoring reset and keeps the saved move log", () => {

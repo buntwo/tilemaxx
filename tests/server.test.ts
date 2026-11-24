@@ -8,7 +8,7 @@ import { version } from "../version.json";
 import { createStore } from "../server/store";
 import { createApp } from "../server/app";
 import { archiveForReview } from "../shared/archive-history";
-import { gameReplayFrames } from "../shared/game-replay";
+import { gameReplayTimeline } from "../shared/game-replay";
 import { BoardEditHistory } from "../shared/board-entry";
 import { archiveGame, emptyBoard, remember, type AppState, type Game } from "../shared/model";
 import { emptyScoring, gameScoreTotals, playTrackedMove } from "../shared/game-scoring";
@@ -754,7 +754,7 @@ test("archived undo migration rolls back on error, preserves replay, and runs on
       assert.deepEqual(archived.past, []);
       assert.deepEqual(archived.future, []);
       assert.deepEqual(archived.archivedState?.past, original.archivedState && []);
-      assert.deepEqual(gameReplayFrames(archived), gameReplayFrames(persisted(original)));
+      assert.deepEqual(gameReplayTimeline(archived), gameReplayTimeline(persisted(original)));
       assert.deepEqual(store.index().games.find(({ id }) => id === archived.id),
         JSON.parse(JSON.stringify(summarizeGame(archived))));
     }

@@ -6440,6 +6440,9 @@ label + label {
 .compact-game .board-column { grid-area: 1 / 1; }
 .compact-game .results-column { grid-area: 1 / 2 / span 2; }
 .compact-game .game-scores-column { grid-area: 2 / 1; }
+.replay-workspace > .results-column { display: none; }
+.compact-game .replay-workspace { grid-template-rows: auto; }
+.compact-game .replay-workspace > .game-scores-column { grid-area: 1 / 2; }
 .app-shell:not(.phone-layout) .board-panel { padding-top: 5px; }
 .app-shell:not(.phone-layout) .board-panel .board-wrap { padding: 1px 14px 2px 9px; }
 .board-panel {
@@ -6603,6 +6606,26 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   container-type: inline-size;
 }
 .phone-layout .board-replay-controls { --replay-hit: 44px; }
+.board-replay-controls:focus { outline: none; }
+.replay-score-history { list-style: none; margin: 4px 0 0; padding: 0; }
+.replay-score-history-move {
+  display: grid;
+  grid-template-columns: 3ch 3ch minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 28px;
+  padding: 3px 5px;
+  text-align: start;
+  font-size: 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+}
+.replay-score-history-move:is(:hover, [aria-current="step"]) { background: var(--soft); }
+.replay-score-history-move[aria-current="step"] { border-color: var(--line); }
+.replay-score-history-move > :nth-child(3) { overflow-wrap: anywhere; }
+.phone-layout .replay-score-history-move { min-height: 44px; }
 .board-replay-slider {
   grid-area: scrub;
   appearance: none;

@@ -6,21 +6,23 @@ import {
   useRef,
   useState,
 } from "react";
-import { gameReplayFrames, hasRecordedMoves } from "../shared/game-replay";
+import { gameReplayTimeline, hasRecordedMoves } from "../shared/game-replay";
 import type { Game } from "../shared/model";
 
 const STEP_MS = 1100;
 
-type Session = {
+type Session = ReturnType<typeof gameReplayTimeline> & {
   gameId: string;
   archived: boolean;
-  frames: ReturnType<typeof gameReplayFrames>;
   index: number;
   playing: boolean;
   returnFocus: HTMLElement | null;
 };
 
-export function useGameReplay(game: Game | undefined, canUseEscape: boolean) {
+export function useGameReplay(
+  game: Game | undefined,
+  shortcutsEnabled: boolean,
+) {
   const [session, setSession] = useState<Session>();
   const focusAfterClose = useRef<HTMLElement | null>(null);
   const active =
@@ -56,20 +58,50 @@ export function useGameReplay(game: Game | undefined, canUseEscape: boolean) {
     focusAfterClose.current = active.returnFocus;
     setSession(undefined);
   }
-  const onEscape = useEffectEvent((event: KeyboardEvent) => {
+  const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (
-      event.key !== "Escape" ||
       event.defaultPrevented ||
-      !canUseEscape ||
+      !shortcutsEnabled ||
+      event.isComposing ||
       document.querySelector("dialog[open]")
     )
       return;
-    event.preventDefault();
-    close();
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+      return;
+    }
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
+      return;
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    if (
+      target?.closest(
+        "textarea, select, [contenteditable], input:not(.board-replay-slider, .score-chart-range)",
+      )
+    )
+      return;
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      if (target?.matches(".board-replay-slider")) {
+        target
+          .closest<HTMLElement>(".board-replay-controls")
+          ?.focus({ preventScroll: true });
+      }
+      const direction = event.key === "ArrowLeft" ? -1 : 1;
+      seek((current) => current + direction);
+    } else if (event.key === " ") {
+      if (
+        target?.closest("summary, a, button") &&
+        !target.closest(".board-replay-transport")
+      )
+        return;
+      event.preventDefault();
+      if (!event.repeat) togglePlay();
+    }
   });
   useEffect(() => {
     if (!active) return;
-    const listener = (event: KeyboardEvent) => onEscape(event);
+    const listener = (event: KeyboardEvent) => onKeyDown(event);
     document.addEventListener("keydown", listener);
     return () => document.removeEventListener("keydown", listener);
   }, [!!active]);
@@ -81,22 +113,28 @@ export function useGameReplay(game: Game | undefined, canUseEscape: boolean) {
 
   function open(returnFocus: HTMLElement | null) {
     if (!game || !available) return;
-    const frames = gameReplayFrames(game);
+    const timeline = gameReplayTimeline(game);
     setSession({
       gameId: game.id,
       archived: game.archived,
-      frames,
-      index: game.archived ? 0 : frames.length - 1,
+      ...timeline,
+      index: game.archived ? 0 : timeline.frames.length - 1,
       playing: false,
       returnFocus,
     });
   }
-  function seek(next: number) {
+  function seek(next: number | ((index: number) => number)) {
     setSession(
       (current) =>
         current && {
           ...current,
-          index: Math.max(0, Math.min(next, current.frames.length - 1)),
+          index: Math.max(
+            0,
+            Math.min(
+              typeof next === "function" ? next(current.index) : next,
+              current.frames.length - 1,
+            ),
+          ),
           playing: false,
         },
     );
@@ -116,6 +154,8 @@ export function useGameReplay(game: Game | undefined, canUseEscape: boolean) {
     available,
     open,
     active: active && {
+      frames: active.frames,
+      scoreStart: active.scoreStart,
       frame: active.frames[index],
       index,
       last,

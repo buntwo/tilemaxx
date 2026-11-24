@@ -46,7 +46,7 @@ import BoardFinishOverlay from "./components/BoardFinishOverlay";
 import LastPlay, { type LastPlayBag } from "./components/LastPlay";
 import { useGameFinish } from "./useGameFinish";
 import { useGameReplay } from "./useGameReplay";
-import { ReplayBoard, ReplayControls, ReplayRack } from "./components/GameReplay";
+import { ReplayBoard, ReplayControls, ReplayRack, ReplayScores } from "./components/GameReplay";
 import {
   GameCalculations,
   useGameCalculating,
@@ -1329,6 +1329,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             positionKey={replay ? `${game.id}:replay:${replay.index}` : signature}
             narrow={narrowLayout}
             reviewing={!replay && moveReview.showing}
+            replaying={!!replay}
             hasWarnings={!replay && warnings.length > 0}
           >
             <GameBoardColumn
@@ -1621,6 +1622,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               </Activity>
             </div>
             <div className="game-scores-column">
+              {replay && <ReplayScores {...replay} solo={game.solo} />}
               <Activity mode={replay ? "hidden" : "visible"}>{gameScores}</Activity>
             </div>
           </GameWorkspace>

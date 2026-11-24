@@ -1,11 +1,24 @@
-import { useEffect, useRef, type CSSProperties } from "react";
-import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { ChevronDown, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import type { ReplayFrame } from "../../shared/game-replay";
 import { emptyBoard, isBingo, tileScore } from "../../shared/model";
 import { scorePlacement } from "../../shared/game-scoring";
 import { moveLocation } from "../../shared/notation";
 import Board from "./Board";
 import MoveWord from "./MoveWord";
+import ScoreChart from "./ScoreChart";
+
+function replayBingo({ move, position, template }: ReplayFrame) {
+  return (
+    move?.bingo ?? (!!position && isBingo(template, position.tiles.length))
+  );
+}
 
 export function ReplayBoard({ frame }: { frame: ReplayFrame }) {
   const { board, template, position, move } = frame;
@@ -36,13 +49,7 @@ export function ReplayBoard({ frame }: { frame: ReplayFrame }) {
             <>
               <span>{move.player === "you" ? "You" : "Opp"}</span>
               <strong className="last-play-word">
-                <MoveWord
-                  word={move.word}
-                  bingo={
-                    move.bingo ??
-                    (!!position && isBingo(template, position.tiles.length))
-                  }
-                />
+                <MoveWord word={move.word} bingo={replayBingo(frame)} />
               </strong>
               <span className="last-play-points">{move.score} pts</span>
               {location && <span>{location}</span>}
@@ -93,10 +100,10 @@ export function ReplayControls({
   togglePlay: () => void;
   close: () => void;
 }) {
-  const slider = useRef<HTMLInputElement>(null);
+  const controls = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    slider.current?.focus({ preventScroll: true });
-    slider.current?.scrollIntoView?.({ block: "nearest" });
+    controls.current?.focus({ preventScroll: true });
+    controls.current?.scrollIntoView?.({ block: "nearest" });
   }, []);
   const playLabel = playing
     ? "Pause replay"
@@ -109,12 +116,14 @@ export function ReplayControls({
       : `Move ${index} of ${last}, ${frame.move?.player === "you" ? "you" : "opponent"}, ${frame.move?.word}, ${frame.move?.score} points`;
   return (
     <div
+      ref={controls}
       className="board-replay-controls"
       role="group"
       aria-label="Game replay"
+      aria-keyshortcuts="ArrowLeft ArrowRight Space"
+      tabIndex={-1}
     >
       <input
-        ref={slider}
         type="range"
         className="board-replay-slider"
         aria-label="Replay moves"
@@ -174,6 +183,97 @@ export function ReplayControls({
         Done
       </button>
     </div>
+  );
+}
+
+export function ReplayScores({
+  frames,
+  scoreStart,
+  index,
+  solo,
+  seek,
+}: {
+  frames: readonly ReplayFrame[];
+  scoreStart: number;
+  index: number;
+  solo?: boolean;
+  seek: (index: number) => void;
+}) {
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const moves = useMemo(
+    () =>
+      frames.flatMap((frame, number) =>
+        frame.move
+          ? [{ ...frame.move, number, bingo: replayBingo(frame) }]
+          : [],
+      ),
+    [frames],
+  );
+  // A score reset starts a new chart. Keep the earlier record accessible when
+  // replaying it and use the same pairing boundary as the live score chart.
+  const earlier = scoreStart > 0 && index <= scoreStart;
+  const chartMoves = useMemo(
+    () => (earlier ? moves.slice(0, scoreStart) : moves.slice(scoreStart)),
+    [earlier, moves, scoreStart],
+  );
+  const scores = frames[index].scores;
+  const players = solo ? (["you"] as const) : (["you", "opponent"] as const);
+  return (
+    <section
+      className="panel score-panel replay-score-panel"
+      aria-label="Game scores"
+    >
+      <div className="score-header">
+        <h2>Game scores</h2>
+      </div>
+      <dl className="score-players" data-solo={solo}>
+        {players.map((player) => (
+          <div key={player} data-player={player}>
+            <dt>{player === "you" ? "You" : "Opponent"}</dt>
+            <dd className="score-total">
+              {scores[player]} <small>pts</small>
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <ScoreChart
+        moves={chartMoves}
+        solo={solo}
+        replay={{ index, scores, seek }}
+      />
+      <div className="score-history-section">
+        <details
+          className="score-history"
+          onToggle={(event) => setHistoryOpen(event.currentTarget.open)}
+        >
+          <summary>
+            <span>
+              Tracked move history <small>({moves.length})</small>
+            </span>
+            <ChevronDown size={16} aria-hidden="true" />
+          </summary>
+          {historyOpen && (
+            <ol className="replay-score-history">
+              {[...moves].reverse().map((move) => (
+                <li key={move.number}>
+                  <button
+                    type="button"
+                    className="replay-score-history-move"
+                    aria-current={move.number === index ? "step" : undefined}
+                    onClick={() => seek(move.number)}
+                  >
+                    <span>{move.number}</span>
+                    <span>{move.player === "you" ? "You" : "Opp"}</span>
+                    <MoveWord word={move.word} bingo={move.bingo} />
+                    <span>+{move.score} pts</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          )}
+        </details>
+      </div>
+    </section>
   );
 }
 

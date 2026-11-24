@@ -116,6 +116,7 @@ export default function GameWorkspace({
   positionKey,
   narrow,
   reviewing,
+  replaying,
   hasWarnings,
   children,
 }: {
@@ -123,6 +124,7 @@ export default function GameWorkspace({
   positionKey: string;
   narrow: boolean;
   reviewing: boolean;
+  replaying: boolean;
   hasWarnings: boolean;
   children: ReactNode;
 }) {
@@ -139,7 +141,7 @@ export default function GameWorkspace({
 
   return (
     <MoveDefinitions rules={definitionRules} position={positionKey} phoneLayout={narrow}>
-      <div ref={root} className={reviewing ? "workspace-grid move-review" : "workspace-grid"}>
+      <div ref={root} className={`workspace-grid${reviewing ? " move-review" : ""}${replaying ? " replay-workspace" : ""}`}>
         {children}
       </div>
     </MoveDefinitions>
