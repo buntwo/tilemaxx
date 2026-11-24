@@ -59,7 +59,7 @@ import MoveAnalysis from "./MoveAnalysis";
 import HighCeilingSetups from "./HighCeilingSetups";
 import EmptyMoveTiles from "./EmptyMoveTiles";
 import MoveWord, { BingoBadge, MoveLetters } from "./MoveWord";
-import BingoOddsControls from "./BingoOddsControls";
+import BingoOddsControls, { MoveListOptions } from "./BingoOddsControls";
 import CalculationIndicator from "./CalculationIndicator";
 import OptimalReplyDetails from "./OptimalReplyDetails";
 import OpponentEndgameResults, {
@@ -884,10 +884,9 @@ export default function Results({
       <span>Solve endgame</span>
     </button>
   );
-  const moveListControls = viewPicker && (
-    <div className="move-list-controls">
-      {viewPicker}
-      {solveEndgame}
+  const phoneToolbar = phoneLayout && collapsibleSearch;
+  const playingStyleControls = analysisGame && (
+    <div className="move-style-controls">
       <select
         className="move-playing-style"
         aria-label="Playing style"
@@ -934,6 +933,13 @@ export default function Results({
           <Shuffle size={15} aria-hidden="true" />
         </button>
       )}
+    </div>
+  );
+  const moveListControls = viewPicker && (
+    <div className="move-list-controls" hidden={phoneToolbar && (searchOpen || !!filter)}>
+      {viewPicker}
+      {solveEndgame}
+      {!phoneToolbar && playingStyleControls}
     </div>
   );
   const searchField = (
@@ -1141,11 +1147,16 @@ export default function Results({
         )}
       </header>
       {showFilters && (!collapsibleSearch || !hasBingoControls || !totalMoves) && (
-        <div className="result-filters">
+        <div className="result-filters" data-phone-toolbar={phoneToolbar || undefined}>
           {moveListControls}
           {searchField}
-          {squareFilterControl}
-          {collapsibleSearch && searchToggle}
+          {phoneToolbar ? (
+            <div className="bingo-odds-utilities">
+              {playingStyleControls && <MoveListOptions>{playingStyleControls}</MoveListOptions>}
+              {squareFilterControl}
+              {searchToggle}
+            </div>
+          ) : <>{squareFilterControl}{collapsibleSearch && searchToggle}</>}
         </div>
       )}
       {!busy &&
@@ -1171,9 +1182,9 @@ export default function Results({
                   ? filteredShortlist
                   : page.head
             }
-            settings={
-              replyEnabled && <ReplySettings analysis={replyAnalysis} />
-            }
+            settings={replyEnabled && <ReplySettings analysis={replyAnalysis} />}
+            toolbarOptions={phoneToolbar && playingStyleControls}
+            inlineSearch={phoneToolbar}
             toolbarStart={collapsibleSearch && moveListControls}
             toolbarEnd={collapsibleSearch && <>{squareFilterControl}{searchToggle}</>}
             searchField={collapsibleSearch && searchField}

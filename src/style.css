@@ -2122,6 +2122,11 @@ label + label {
   align-items: center;
   gap: 4px;
 }
+.move-style-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .move-list-controls .result-view-picker {
   flex-wrap: nowrap;
   padding: 0;
@@ -5700,6 +5705,7 @@ label + label {
 }
 .bingo-odds-utilities { display: contents; }
 .bingo-odds-settings[open] { width: 100%; }
+.bingo-odds-settings-icon { display: none; }
 .bingo-odds-options { padding: 6px 0; }
 .bingo-odds-controls summary {
   cursor: pointer;
@@ -6412,11 +6418,90 @@ label + label {
 .board-review-play:hover:not(:disabled) > .button {
   background: var(--primary-hover);
 }
-.phone-layout .bingo-odds-actions { gap: 4px 6px; justify-content: space-between; }
-.phone-layout .bingo-odds-actions .result-view-picker { padding: 0; }
-.phone-layout .bingo-odds-utilities { display: flex; gap: 6px; align-items: center; }
-.phone-layout .bingo-odds-utilities:has(details[open]) { display: contents; }
-.phone-layout .bingo-odds-settings[open] { order: 1; }
+.phone-layout .results-panel :is(.bingo-odds-actions, .result-filters[data-phone-toolbar]) {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 32px;
+  gap: 4px;
+  align-items: center;
+}
+.phone-layout .result-filters[data-phone-toolbar] {
+  margin: 0 12px 6px;
+  padding: 0;
+}
+.phone-layout :is(.bingo-odds-actions, .result-filters[data-phone-toolbar]) > :is(.move-list-controls, .search-input) {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.phone-layout .move-list-controls[hidden] { display: none; }
+.phone-layout .move-list-controls .result-view-picker { min-width: 0; }
+.phone-layout .move-list-controls .result-view-picker button {
+  min-width: 0;
+  padding-inline: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phone-layout .move-list-controls .solve-endgame-action {
+  flex: none;
+  width: 30px;
+  min-height: 30px;
+  padding: 0;
+}
+.phone-layout .move-list-controls .solve-endgame-action span { display: none; }
+.phone-layout .bingo-odds-utilities {
+  grid-area: 1 / 2;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.phone-layout .bingo-odds-settings[open] { width: auto; }
+.phone-layout .bingo-odds-settings > summary {
+  display: flex;
+  min-width: 30px;
+  height: 30px;
+  padding-inline: 4px;
+  align-items: center;
+  justify-content: center;
+  list-style: none;
+  color: var(--primary);
+  cursor: pointer;
+}
+.phone-layout .bingo-odds-settings[open] > summary {
+  border-radius: 6px;
+  background: var(--soft);
+}
+.phone-layout .results-panel:has(.bingo-odds-settings[open]) { overflow: visible; }
+.phone-layout .bingo-odds-options {
+  position: absolute;
+  z-index: 5;
+  inset: 100% 0 auto auto;
+  width: min(355px, 100%);
+  max-height: 48svh;
+  overflow: auto;
+  padding: 9px 12px;
+  font-size: 11px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  box-shadow: 0 6px 16px #0002;
+}
+.phone-layout .bingo-odds-options .move-playing-style {
+  flex: 1;
+  height: 32px;
+  min-width: 0;
+  font-size: 16px;
+}
+.phone-layout :is(.bingo-odds-actions, .result-filters[data-phone-toolbar]) > .search-input {
+  height: 32px;
+  padding-inline: 6px;
+  gap: 4px;
+}
+.phone-layout :is(.bingo-odds-actions, .result-filters[data-phone-toolbar]) > .search-input input {
+  padding-block: 0;
+  font-size: 16px;
+}
 @container (max-width: 340px) {
   .phone-layout .results-panel .results-title { gap: 6px; padding-inline: 8px; }
   .phone-layout .results-title .heading-with-icon { gap: 5px; }
@@ -6425,11 +6510,12 @@ label + label {
   .phone-layout .results-title .count-badge { padding-inline: 5px; }
   .phone-layout .results-title .analysis-toggle { gap: 4px; padding-inline: 6px; }
   .phone-layout .bingo-odds-controls { margin-inline: 8px; }
-  .phone-layout .bingo-odds-actions .result-view-picker button {
+  .phone-layout .move-list-controls .result-view-picker button {
     padding-inline: 6px;
     font-size: 11px;
   }
-  .phone-layout .bingo-odds-utilities { gap: 4px; }
+  .phone-layout .bingo-odds-settings > summary { width: 30px; font-size: 0; }
+  .phone-layout .bingo-odds-settings-icon { display: block; }
 }
 @container (max-width: 390px) {
   .move-review .with-reply-column :is(.result-columns, .result-row, .result-slot) {
