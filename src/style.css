@@ -4571,7 +4571,8 @@ label + label {
   background: var(--cell);
   box-shadow: none;
 }
-.board-grid[data-preview-player="opponent"] .square.occupied.ghost:not(.blank) {
+.board-grid[data-preview-player="opponent"] .square.occupied.ghost:not(.blank),
+.replay-rack[data-player="opponent"] .rack-tile.move-preview .rack-face:not(.blank) {
   --preview-dark: #ba6b66;
   --preview-tint: #efaaa2;
   --preview-edge: #893934;
@@ -6877,6 +6878,10 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   text-align: center;
 }
 .replay-rack .rack-tile { cursor: default; }
+.replay-rack[data-player="opponent"] {
+  --preview-tile-light: 70%;
+  --preview-tile-scale: 1;
+}
 .replay-rack .rack-tile[data-used-group-start] { margin-inline-start: 4px; }
 .compact-game .replay-rack-row {
   display: grid;

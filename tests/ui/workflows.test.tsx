@@ -2345,7 +2345,7 @@ test("the replay setting shows played opponent tiles only on their turn", async 
 
 test("archiving drops undo history, keeps replay and endgame racks, and allows later edits", async () => {
   const saved = replayFixture();
-  const physicalTiles = [...saved.board, ...saved.rack, "Z"];
+  const physicalTiles = [...saved.board, ...saved.rack, "Z", "Y"];
   delete saved.trackedMoves![1].review!.observerRack;
   remote.games[0] = {
     ...saved,
@@ -2392,9 +2392,10 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   await user.click(controls.getByRole("button", { name: "Next move" }));
   const opponentTray = screen.getByRole("group", { name: "Opponent rack" });
   expect(screen.getByRole("button", { name: "Unseen tiles, 0 estimated tiles in the bag before the play" })).toBeTruthy();
-  expect(within(opponentTray).getAllByRole("img").map((tile) => tile.getAttribute("aria-label")))
-    .toEqual(["A", "R", "Z"]);
-  expect(opponentTray.querySelector(".move-preview")).toBeNull();
+  expect(Array.from(opponentTray.querySelectorAll(".rack-tile"), (tile) => tile.getAttribute("aria-label")))
+    .toEqual(["Y", "Z", "A, played", "R, played", null, null, null]);
+  expect(opponentTray.querySelectorAll(".move-preview")).toHaveLength(2);
+  expect(within(opponentTray).getByRole("img", { name: "A, played" }).hasAttribute("data-used-group-start")).toBe(true);
   const bag = screen.getByRole("button", { name: /^Unseen tiles, 0 estimated/ });
   await user.click(bag);
   expect(screen.getByRole("list", { name: "Unseen tile counts" }).closest(".phone-rack-details")).toBeTruthy();

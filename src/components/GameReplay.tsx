@@ -320,7 +320,7 @@ export function ReplayRack({
     : undefined;
   const rack = frame.rack ?? partial;
   const slots = sortedRackSlots((rack ?? "").slice(0, template.rackSize));
-  const used = opponent ? [] : slots.filter((slot) => playedSlots?.includes(slot));
+  const used = slots.filter((slot) => playedSlots?.includes(slot));
   const leave = slots.filter((slot) => !used.includes(slot));
   const empty = Array<undefined>(template.rackSize - slots.length).fill(undefined);
   const order = [...leave, ...used, ...empty];
@@ -342,6 +342,7 @@ export function ReplayRack({
   return (
     <div
       className="rack-entry replay-rack"
+      data-player={move?.player}
       style={{ "--rack-size": template.rackSize } as CSSProperties}
     >
       <div className="replay-rack-label" aria-hidden="true">
