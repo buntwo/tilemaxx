@@ -62,6 +62,7 @@ export function MoveLetters({
 type MoveWordProps =
   | {
       word: string;
+      notation?: string;
       bingo?: boolean;
     }
   | {
@@ -71,15 +72,16 @@ type MoveWordProps =
 
 export default function MoveWord(props: MoveWordProps) {
   const word = "move" in props ? props.move.word : props.word;
+  const notation = "notation" in props ? props.notation ?? word : word;
   const bingo =
     "move" in props
       ? isBingo(props.rules, props.move.tiles.length)
       : props.bingo;
   return bingo ? (
     <DefinitionWord word={word} className="bingo-move-word">
-      {word} <BingoBadge />
+      {notation} <BingoBadge />
     </DefinitionWord>
   ) : (
-    <DefinitionWord word={word} />
+    <DefinitionWord word={word}>{notation}</DefinitionWord>
   );
 }

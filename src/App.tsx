@@ -1477,7 +1477,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   if (activeFlight) setFlight(undefined);
                 }}
               >
-                {replay && <ReplayRack frame={replay.frame} />}
+                {replay && (
+                  <ReplayRack
+                    frame={replay.frame}
+                    nextFrame={replay.nextFrame}
+                    showOpponentTiles={preferences.showReplayOpponentTiles}
+                  />
+                )}
                 <Activity mode={replay ? "hidden" : "visible"}>
                 <RackEntry
                   key={game.id}

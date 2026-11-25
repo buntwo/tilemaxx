@@ -77,6 +77,10 @@ test("replay keeps the archived rack order and highlights the slots played", () 
   assert.equal(after.template.premiums, premiums);
   assert.equal(after.position?.tiles[2].letter, "t");
   assert.equal(after.rack, "C.A?AE");
+  assert.deepEqual(after.bag, { count: 88, estimated: true, invalid: false });
+  assert.deepEqual(before.bag, after.bag);
+  const solo = gameReplayTimeline({ ...restoreArchivedGame(game), solo: true });
+  assert.deepEqual(solo.frames[1].bag, { count: 95, estimated: false, invalid: false });
   assert.deepEqual(after.playedSlots, [0, 4, 3]);
   assert.deepEqual(after.scores, { you: 14, opponent: 0 });
   assert.equal(game.board[0], "X");
@@ -105,6 +109,13 @@ test("replay only shows an opponent rack established by the historical tile pool
   const [, known] = gameReplayTimeline(game).frames;
   assert.equal(known.rack, "ANT?");
   assert.deepEqual(known.playedSlots, [0, 3]);
+  assert.equal(known.opponentPlayedTiles, "A?");
+  assert.deepEqual(known.bag, { count: 0, estimated: true, invalid: false });
+
+  const [, midgame] = gameReplayTimeline({ ...game, template: PRESETS[0] }).frames;
+  assert.equal(midgame.rack, undefined);
+  assert.equal(midgame.opponentPlayedTiles, "A?");
+  assert.equal(midgame.bag?.count, 90);
 
   const cases = [
     { ...game, template: PRESETS[0] },
@@ -127,6 +138,8 @@ test("score-only moves keep their points and do not invent a board or rack", () 
   assert.equal(opening.board, undefined);
   assert.equal(scoreOnly.board, undefined);
   assert.equal(scoreOnly.rack, undefined);
+  assert.equal(scoreOnly.bag, undefined);
+  assert.equal(scoreOnly.opponentPlayedTiles, undefined);
   assert.deepEqual(scoreOnly.scores, { you: 0, opponent: 10 });
   assert.equal(hasRecordedMoves(gameWithMoves([])), false);
 });

@@ -8,10 +8,10 @@ import {
 import { ChevronDown, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import type { ReplayFrame } from "../../shared/game-replay";
 import { emptyBoard, isBingo, tileScore } from "../../shared/model";
-import { scorePlacement } from "../../shared/game-scoring";
-import { moveLocation } from "../../shared/notation";
+import { recordedMoveDetails } from "../../shared/notation";
 import Board from "./Board";
 import MoveWord from "./MoveWord";
+import OpponentRack from "./OpponentRack";
 import ScoreChart from "./ScoreChart";
 
 function replayBingo({ move, position, template }: ReplayFrame) {
@@ -22,46 +22,10 @@ function replayBingo({ move, position, template }: ReplayFrame) {
 
 export function ReplayBoard({ frame }: { frame: ReplayFrame }) {
   const { board, template, position, move } = frame;
-  const after = board?.slice();
-  if (after && position)
-    for (const { index, letter } of position.tiles) after[index] = letter;
-  const main =
-    board &&
-    after &&
-    position &&
-    move &&
-    scorePlacement(board, after, template, position.direction)?.words.find(
-      ({ word }) => word === move.word.toUpperCase(),
-    );
-  const location =
-    main &&
-    moveLocation({
-      row: Math.floor(main.cells[0] / template.size),
-      col: main.cells[0] % template.size,
-      direction: main.direction,
-    });
   return (
     <>
       <div className="last-play-lane">
-        <div className="last-play-row" role="status" aria-atomic="true">
-          <span>Replay</span>
-          {move ? (
-            <>
-              <span>{move.player === "you" ? "You" : "Opp"}</span>
-              <strong className="last-play-word">
-                <MoveWord word={move.word} bingo={replayBingo(frame)} />
-              </strong>
-              <span className="last-play-points">{move.score} pts</span>
-              {location && <span>{location}</span>}
-            </>
-          ) : (
-            <strong className="last-play-word">
-              {board?.every((tile) => !tile)
-                ? "Start of game"
-                : "Before first recorded move"}
-            </strong>
-          )}
-        </div>
+        <div className="last-play-row"><span>Replay</span></div>
       </div>
       <div className="board-entry">
         <Board
@@ -80,6 +44,46 @@ export function ReplayBoard({ frame }: { frame: ReplayFrame }) {
         />
       </div>
     </>
+  );
+}
+
+function ReplayMoveStrip({ frame }: { frame: ReplayFrame }) {
+  const { board, move, position, template } = frame;
+  const details = move && recordedMoveDetails(move, position, template.size);
+  return (
+    <div
+      className="replay-move-strip"
+      data-player={move?.player}
+      role="status"
+      aria-atomic="true"
+    >
+      {move ? (
+        <>
+          <div className="replay-move-word">
+            <span className="replay-move-player">
+              {move.player === "you" ? "You" : "Opp"}
+            </span>
+            <strong className="last-play-word">
+              <MoveWord
+                word={move.word}
+                notation={details?.notation}
+                bingo={replayBingo(frame)}
+              />
+            </strong>
+          </div>
+          <div className="replay-move-result">
+            <strong>{move.score >= 0 && "+"}{move.score} pts</strong>
+            {details?.location && <span>{details.location}</span>}
+          </div>
+        </>
+      ) : (
+        <span>
+          {board?.every((tile) => !tile)
+            ? "Start of game"
+            : "Before first recorded move"}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -123,23 +127,26 @@ export function ReplayControls({
       aria-keyshortcuts="ArrowLeft ArrowRight Space"
       tabIndex={-1}
     >
-      <input
-        type="range"
-        className="board-replay-slider"
-        aria-label="Replay moves"
-        aria-valuetext={value}
-        min={0}
-        max={last}
-        step={1}
-        value={index}
-        style={
-          { "--replay-progress": `${(100 * index) / last}%` } as CSSProperties
-        }
-        onChange={(event) => seek(event.currentTarget.valueAsNumber)}
-      />
-      <span className="board-replay-count" aria-hidden="true">
-        {index} / {last}
-      </span>
+      <ReplayMoveStrip frame={frame} />
+      <div className="board-replay-track">
+        <input
+          type="range"
+          className="board-replay-slider"
+          aria-label="Replay moves"
+          aria-valuetext={value}
+          min={0}
+          max={last}
+          step={1}
+          value={index}
+          style={
+            { "--replay-progress": `${(100 * index) / last}%` } as CSSProperties
+          }
+          onChange={(event) => seek(event.currentTarget.valueAsNumber)}
+        />
+        <span className="board-replay-count" aria-hidden="true">
+          {index} / {last}
+        </span>
+      </div>
       <div className="board-replay-transport">
         <button
           className="icon-button"
@@ -277,32 +284,54 @@ export function ReplayScores({
   );
 }
 
-export function ReplayRack({ frame }: { frame: ReplayFrame }) {
-  const { rack, move, playedSlots, template } = frame;
+export function ReplayRack({
+  frame,
+  nextFrame,
+  showOpponentTiles,
+}: {
+  frame: ReplayFrame;
+  nextFrame?: ReplayFrame;
+  showOpponentTiles: boolean;
+}) {
+  const { bag, move, playedSlots, template } = frame;
   const opponent = move?.player === "opponent";
+  const revealed = showOpponentTiles ? frame.opponentPlayedTiles : undefined;
+  const rack = frame.rack ?? revealed;
+  const partial = frame.rack === undefined && revealed !== undefined;
   const label = opponent ? "Opponent rack" : "Your rack";
+  const nextRack = showOpponentTiles ? nextFrame?.opponentPlayedTiles : undefined;
+  const bagCount = bag?.count ?? "?";
+  const bagLabel = bag
+    ? `${bag.count}${bag.estimated ? " estimated" : ""} ${bag.count === 1 ? "tile" : "tiles"} in the bag before the play${bag.invalid ? ", check tile counts" : ""}`
+    : "Bag count unavailable";
   return (
     <div
       className="rack-entry replay-rack"
       data-player={move?.player}
-      style={{ "--rack-size": template.rackSize } as CSSProperties}
+      style={{
+        "--rack-size": template.rackSize,
+        "--opponent-rack-rows": nextRack ? Math.ceil(nextRack.length / 2) : 0,
+      } as CSSProperties}
     >
       <div className="replay-rack-label" aria-hidden="true">
-        {opponent ? "Opponent" : "You"}
+        {partial ? "Opp. played" : opponent ? "Opponent" : "You"}
       </div>
       <div
         className="rack-tiles"
         role="group"
-        aria-label={rack === undefined ? `${label} unavailable` : label}
+        aria-label={
+          partial ? "Opponent tiles played" :
+          rack === undefined ? `${label} unavailable` : label
+        }
       >
         {Array.from({ length: template.rackSize }, (_, i) => {
           const tile = rack?.[i] === "." ? undefined : rack?.[i];
-          const played = playedSlots?.includes(i);
+          const played = partial || playedSlots?.includes(i);
           const tileLabel = tile === "?" ? "Blank" : tile;
           return (
             <span
               key={i}
-              className={`rack-tile${tile ? "" : " empty"}${played ? " move-preview" : ""}`}
+              className={`rack-tile${tile ? "" : " empty"}${tile && played ? " move-preview" : ""}`}
               role="img"
               aria-hidden={!tile || undefined}
               aria-label={played ? `${tileLabel}, played` : tileLabel}
@@ -319,6 +348,24 @@ export function ReplayRack({ frame }: { frame: ReplayFrame }) {
           );
         })}
       </div>
+      {nextRack && (
+        <OpponentRack
+          rack={nextRack}
+          label="Opp. next"
+          tileLabel="Opponent’s next play uses"
+        />
+      )}
+      <span
+        className="rack-bag"
+        role="img"
+        aria-label={bagLabel}
+        title={bagLabel}
+        data-empty={bagCount === 0 || undefined}
+        data-overdrawn={bag?.invalid || undefined}
+        data-digits={String(bagCount).length}
+      >
+        {bagCount}
+      </span>
     </div>
   );
 }

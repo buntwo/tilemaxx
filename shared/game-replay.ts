@@ -19,6 +19,8 @@ export type ReplayFrame = {
   position?: TurnPosition;
   rack?: string;
   playedSlots?: number[];
+  opponentPlayedTiles?: string;
+  bag?: { count: number; estimated: boolean; invalid: boolean };
   scores: Record<Player, number>;
 };
 
@@ -30,30 +32,53 @@ export function hasRecordedMoves(game: Game) {
   return trackedMoveHistory(replaySource(game)).length > 0;
 }
 
-function replayRack(
+function replayBag(
+  pool: ReturnType<typeof unseenTiles>,
+  ownRack: string | undefined,
+  template: BoardTemplate,
+  solo: boolean,
+): ReplayFrame["bag"] {
+  const assumedRackTiles =
+    (solo ? 0 : template.rackSize) + (ownRack === undefined ? template.rackSize : 0);
+  return {
+    count: Math.max(0, pool.total - assumedRackTiles),
+    estimated: !solo || ownRack === undefined,
+    invalid: pool.excess.length > 0,
+  };
+}
+
+function replayPlacement(
   player: Player,
   position: TurnPosition,
   template: BoardTemplate,
-): Pick<ReplayFrame, "rack" | "playedSlots"> {
-  const { board, tiles, observerRack } = position;
+  solo: boolean,
+): Pick<ReplayFrame, "rack" | "playedSlots" | "opponentPlayedTiles" | "bag"> {
+  const { board, tiles } = position;
+  const ownRack = player === "you" ? position.rack : position.observerRack;
+  const pool = unseenTiles({ board, rack: ownRack ?? "" }, template);
+  const bag = replayBag(pool, ownRack, template, solo);
   if (player === "you") {
-    const { rack } = position;
-    if (rack === undefined) return {};
     return {
-      rack,
-      playedSlots: rackSlotsForMove({ ...position, rack }, tiles) ?? undefined,
+      bag,
+      rack: ownRack,
+      playedSlots: ownRack === undefined
+        ? undefined
+        : rackSlotsForMove({ ...position, rack: ownRack }, tiles) ?? undefined,
     };
   }
-  if (observerRack === undefined) return {};
-  const pool = unseenTiles({ board, rack: observerRack }, template);
+  const opponentPlayedTiles = tiles.length <= template.rackSize
+    ? tiles.map(({ letter }) => letter === letter.toUpperCase() ? letter : "?").join("")
+    : undefined;
+  const details = { bag, opponentPlayedTiles };
+  if (solo || ownRack === undefined) return details;
   // With tiles in the bag the opponent would have a full rack, so a pool
   // no larger than a full rack can only be their rack.
-  if (pool.excess.length || pool.total > template.rackSize) return {};
+  if (pool.excess.length || pool.total > template.rackSize) return details;
   const rack = pool.tiles
     .map(({ symbol, count }) => symbol.repeat(count))
     .join("");
   const playedSlots = rackSlotsForMove({ board, rack }, tiles);
-  return playedSlots ? { rack, playedSlots } : {};
+  return playedSlots ? { ...details, rack, playedSlots } : details;
 }
 
 export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreStart: number } {
@@ -84,12 +109,21 @@ export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreSt
       : template;
   }
   const first = savedPosition(turns[0].position);
+  const firstTemplate = boardTemplate(first);
+  const firstRack = turns[0].move.player === "you" ? first?.rack : first?.observerRack;
+  const solo = !!source.solo;
   const zero = { you: 0, opponent: 0 };
   const frames: ReplayFrame[] = [
     {
       board: first?.board,
-      template: boardTemplate(first),
-      rack: turns[0].move.player === "you" ? first?.rack : first?.observerRack,
+      template: firstTemplate,
+      rack: firstRack,
+      bag: first && replayBag(
+        unseenTiles({ board: first.board, rack: firstRack ?? "" }, firstTemplate),
+        firstRack,
+        firstTemplate,
+        solo,
+      ),
       scores: zero,
     },
   ];
@@ -112,7 +146,7 @@ export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreSt
       template: frameTemplate,
       move,
       position,
-      ...(position && replayRack(move.player, position, frameTemplate)),
+      ...(position && replayPlacement(move.player, position, frameTemplate, solo)),
       scores,
     });
   }

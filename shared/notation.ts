@@ -83,13 +83,13 @@ export function moveNotation(move: NotationMove, size?: number, board?: Board) {
   return wordNotation(moveLetters(move, size, board));
 }
 
-/** Recover a recorded main word from its placement without guessing at missing history. */
-export function recordedMoveNotation(
+/** Recover a recorded main word and its location from the saved placement. */
+export function recordedMoveDetails(
   move: Pick<TrackedMove, "word">,
   position: Pick<TurnPosition, "board" | "tiles" | "direction"> | undefined,
   size: number,
-) {
-  if (!position?.tiles.length) return move.word;
+): { notation: string; location?: string } {
+  if (!position?.tiles.length) return { notation: move.word };
   const board = [...position.board];
   for (const tile of position.tiles) board[tile.index] = tile.letter;
   const first = position.tiles[0].index;
@@ -118,12 +118,26 @@ export function recordedMoveNotation(
         break;
       word += board[index];
     }
-    if (word.toUpperCase() === move.word.toUpperCase())
-      return moveNotation(
-        { word, start, direction, tiles: position.tiles },
-        size,
-        position.board,
-      );
+    if (word.toUpperCase() === move.word.toUpperCase()) {
+      return {
+        notation: moveNotation(
+          { word, start, direction, tiles: position.tiles },
+          size,
+          position.board,
+        ),
+        location: moveLocation({
+          row: Math.floor(start / size),
+          col: start % size,
+          direction,
+        }),
+      };
+    }
   }
-  return move.word;
+  return { notation: move.word };
+}
+
+export function recordedMoveNotation(
+  ...args: Parameters<typeof recordedMoveDetails>
+) {
+  return recordedMoveDetails(...args).notation;
 }

@@ -4,6 +4,7 @@ import { emptyBoard, type Move } from "../shared/model";
 import {
   moveLocation,
   moveNotation,
+  recordedMoveDetails,
   recordedMoveNotation,
 } from "../shared/notation";
 
@@ -73,7 +74,26 @@ test("recorded notation recovers a played-through word but does not invent missi
   const board = emptyBoard(15);
   board[112] = "a";
   const position = { board, tiles: move.tiles };
+  assert.deepEqual(recordedMoveDetails(move, position, 15), {
+    notation: "C(a)tS",
+    location: "8G",
+  });
   assert.equal(recordedMoveNotation(move, position, 15), "C(a)tS");
+
+  const down = emptyBoard(15);
+  down[112] = "E";
+  assert.deepEqual(
+    recordedMoveDetails({ word: "HONEY" }, {
+      board: down,
+      tiles: [
+        { index: 67, letter: "h" },
+        { index: 82, letter: "O" },
+        { index: 97, letter: "N" },
+        { index: 127, letter: "Y" },
+      ],
+    }, 15),
+    { notation: "hON(E)Y", location: "H5" },
+  );
   assert.equal(
     recordedMoveNotation({ word: "CORRECTED" }, position, 15),
     "CORRECTED",
