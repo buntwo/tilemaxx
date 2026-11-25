@@ -1549,6 +1549,8 @@ label + label {
 .score-history td {
   overflow-wrap: anywhere;
 }
+.score-history tr:has(.score-review-link[aria-current="step"]) { background: var(--soft); }
+.phone-layout .score-history .score-review-link { min-height: 30px; }
 .score-move-play {
   display: flex;
   align-items: baseline;
@@ -1578,6 +1580,7 @@ label + label {
   width: fit-content;
   margin: 3px auto 0;
 }
+.score-move-index,
 .score-edit-move {
   display: inline-flex;
   align-items: center;
@@ -6768,25 +6771,6 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   padding-inline: 6px;
 }
 .board-replay-controls:focus { outline: none; }
-.replay-score-history { list-style: none; margin: 4px 0 0; padding: 0; }
-.replay-score-history-move {
-  display: grid;
-  grid-template-columns: 3ch 3ch minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-height: 28px;
-  padding: 3px 5px;
-  text-align: start;
-  font-size: 12px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
-}
-.replay-score-history-move:is(:hover, [aria-current="step"]) { background: var(--soft); }
-.replay-score-history-move[aria-current="step"] { border-color: var(--line); }
-.replay-score-history-move > :nth-child(3) { overflow-wrap: anywhere; }
-.phone-layout .replay-score-history-move { min-height: 44px; }
 .board-replay-slider {
   appearance: none;
   flex: 1 1 auto;

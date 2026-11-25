@@ -28,6 +28,7 @@ import {
   type TrackedMove,
   type TurnPosition,
 } from "./model";
+import { recordedMoveNotation } from "./notation";
 import { rackLetters, rackSlotsForMove } from "./rack-entry";
 import { endgameOpponentRack, unseenTiles } from "./tile-pool";
 import { PRESETS } from "./presets";
@@ -372,6 +373,20 @@ export function reviewTurns(game: Game) {
     };
     return { move, index, position };
   });
+}
+
+export function scoreHistoryMoves(
+  turns: readonly { move: TrackedMove; position?: TurnPosition; index: number }[],
+  template: BoardTemplate,
+) {
+  const totals = { you: 0, opponent: 0 };
+  return turns.map(({ move, position, index }) => ({
+    ...move,
+    notation: recordedMoveNotation(move, position, template.size),
+    bingo: move.bingo ?? (!!position && isBingo(template, position.tiles.length)),
+    number: index + 1,
+    total: (totals[move.player] += move.score),
+  }));
 }
 
 export function lastRecordedBoardPlay(game: Game) {

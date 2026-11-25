@@ -2631,10 +2631,22 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   expect(scorePanel.getByText("1 move · Avg 4.0")).toBeTruthy();
   expect(controls.getByRole("button", { name: "Play from start" })).toBeTruthy();
   expect(controls.queryByText("Final board")).toBeNull();
+  await user.click(scorePanel.getByText("Tracked move history"));
+  const history = within(await scorePanel.findByRole("table", { name: "Tracked moves" }));
+  expect(history.getAllByRole("columnheader").map((header) => header.textContent))
+    .toEqual(["#", "You", "Pts", "Opponent"]);
+  const reply = history.getByRole("button", { name: "Replay move 2: ART" });
+  expect(reply.textContent).toBe("AR(T)");
+  expect(reply.closest("tr")?.querySelector(".score-move-total")?.textContent).toBe("(4)");
+  expect(scorePanel.queryByRole("button", { name: "Add missed move" })).toBeNull();
+  expect(history.queryByRole("button", { name: /^Edit move/ })).toBeNull();
   fireEvent.change(slider, { target: { value: "0" } });
   expect(scorePanel.getAllByText("0 moves · Avg —")).toHaveLength(2);
   expect(scorePanel.getAllByText("Best — · 0 bingos")).toHaveLength(2);
-  fireEvent.change(slider, { target: { value: "1" } });
+  const opening = history.getByRole("button", { name: "Replay move 1: CAT" });
+  await user.click(opening);
+  expect(slider).toHaveProperty("value", "1");
+  expect(opening.getAttribute("aria-current")).toBe("step");
   expect(scorePanel.getByText("1 move · Avg 10.0")).toBeTruthy();
   expect(scorePanel.getByText("Best 10 · 0 bingos")).toBeTruthy();
   expect(scorePanel.getByText("0 moves · Avg —")).toBeTruthy();

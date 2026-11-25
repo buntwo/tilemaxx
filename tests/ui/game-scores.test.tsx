@@ -333,7 +333,7 @@ test.each(["you", "opponent"] as const)(
 );
 
 
-test("the score chart starts over after a scoring reset and keeps the saved move log", () => {
+test("the score chart starts over after a scoring reset and keeps the saved move log", async () => {
   const game = gameWithScores(0, 70);
   game.scoring!.historyStart = 1;
   game.scoring!.opponent.moves = 1;
@@ -350,4 +350,15 @@ test("the score chart starts over after a scoring reset and keeps the saved move
   rerender(<GameScores game={{ ...game, scoring }} onToggle={vi.fn()} onRecord={vi.fn()}
     onCorrection={vi.fn()} onChange={vi.fn()} />);
   expect(screen.queryByRole("figure", { name: "Score by move" })).toBeNull();
+
+  rerender(<ReplayScores {...gameReplayTimeline(game)} index={2} seek={vi.fn()} />);
+  const details = screen.getByText("Tracked move history").closest("details")!;
+  details.open = true;
+  fireEvent(details, new Event("toggle"));
+  const table = within(await screen.findByRole("table", { name: "Tracked moves" }));
+  const bingo = table.getByRole("button", { name: "Replay move 2: STEALER" });
+  const row = within(bingo.closest("tr")!);
+  expect(row.getByText("(100)")).toBeTruthy();
+  expect(row.getByLabelText("Bingo")).toBeTruthy();
+  expect(table.getByRole("button", { name: "Replay move 1: OLD" })).toBeTruthy();
 });

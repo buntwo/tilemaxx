@@ -1,7 +1,6 @@
-import { recordedMoveNotation } from "../../shared/notation";
 import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, Pencil, Play, Plus, Trophy } from "lucide-react";
-import { isBingo, type Game, type Player, type PlayerScore } from "../../shared/model";
+import { Trophy } from "lucide-react";
+import type { Game, Player, PlayerScore } from "../../shared/model";
 import {
   correctTrackedMove,
   currentScoreStart,
@@ -12,15 +11,16 @@ import {
   nextPlayerToMove,
   pendingOpponentTurns,
   reviewTurns,
+  scoreHistoryMoves,
   tracksScores,
   summarizeGameScore,
 } from "../../shared/game-scoring";
 import { scoreTone, signedPoints } from "../score-tone";
 import Modal from "./Modal";
-import MoveWord, { BingoBadge } from "./MoveWord";
-import { DefinitionWord } from "./MoveDefinitions";
+import MoveWord from "./MoveWord";
 import ScoreBreakdown from "./ScoreBreakdown";
 import ScoreChart from "./ScoreChart";
+import TrackedMoveHistory from "./TrackedMoveHistory";
 import TurnReview from "./TurnReview";
 
 function ScorePlayerMarker({
@@ -129,7 +129,6 @@ export default function GameScores({
   const adjusted = gameScoreTotals(scoring);
   const margin = adjusted.you - adjusted.opponent;
   const tone = scoreTone(margin);
-  const totals = { you: 0, opponent: 0 };
   const turns = useMemo(() => reviewTurns(game), [game]);
   const history = turns.map((turn) => turn.move);
   const historyKey = JSON.stringify(history);
@@ -157,15 +156,7 @@ export default function GameScores({
     });
     setError("");
   }
-  const moves = turns.map(({ move, position }, index) => ({
-    ...move,
-    notation: recordedMoveNotation(move, position, game.template.size),
-    bingo:
-      move.bingo ??
-      (position !== undefined && isBingo(game.template, position.tiles.length)),
-    number: index + 1,
-    total: (totals[move.player] += move.score),
-  }));
+  const moves = useMemo(() => scoreHistoryMoves(turns, game.template), [turns, game.template]);
   const newestMoves = [...moves].reverse();
   const chartMoves = moves.slice(currentScoreStart(game, history));
   return (
@@ -282,119 +273,14 @@ export default function GameScores({
         </div>
       )}
       {!!chartMoves.length && <ScoreChart moves={chartMoves} solo={solo} />}
-      <div className="score-history-section">
-        {onReplay && (
-          <button
-            type="button"
-            className="text-button score-history-replay"
-            onClick={(event) => onReplay(event.currentTarget)}
-          >
-            <Play size={14} aria-hidden="true" /> Replay game
-          </button>
-        )}
-        <details className="score-history">
-          <summary>
-            <span>
-              Tracked move history <small>({moves.length})</small>
-            </span>
-            <ChevronDown size={16} aria-hidden="true" />
-          </summary>
-        {moves.length ? (
-          <table aria-label="Tracked moves">
-            <thead>
-              <tr>
-                <th scope="col" aria-label="Move number">
-                  #
-                </th>
-                <th scope="col">You</th>
-                <th scope="col">Pts</th>
-                {!solo && <th scope="col">Opponent</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {newestMoves.map((move) => (
-                <tr key={move.number}>
-                  <td className="score-move-number">
-                    <button
-                      type="button"
-                      className="score-edit-move"
-                      aria-label={`Edit move ${move.number}: ${move.word}`}
-                      onClick={() => openEditor(move.number - 1)}
-                    >
-                      {move.number}
-                      <Pencil size={11} aria-hidden="true" />
-                    </button>
-                  </td>
-                  <td>
-                    {move.player === "you" && (
-                      <div className="score-move-play">
-                        <button
-                          type="button"
-                          className="score-review-link"
-                          aria-label={`Review move ${move.number}: ${move.word}`}
-                          onClick={() => setReview(move.number - 1)}
-                        >
-                          <span
-                            className={
-                              move.bingo ? "bingo-move-word" : undefined
-                            }
-                          >
-                            <DefinitionWord word={move.word}>{move.notation}</DefinitionWord>
-                          </span>
-                        </button>{" "}
-                        <small className="score-move-total">
-                          ({move.total})
-                        </small>
-                      </div>
-                    )}
-                  </td>
-                  <td className="score-move-points">
-                    {move.score}
-                    {move.bingo && (
-                      <BingoBadge className="score-history-bingo" />
-                    )}
-                  </td>
-                  {!solo && (
-                    <td>
-                      {move.player === "opponent" && (
-                        <div className="score-move-play">
-                          <small className="score-move-total">
-                            ({move.total})
-                          </small>{" "}
-                          <button
-                            type="button"
-                            className="score-review-link"
-                            aria-label={`Review move ${move.number}: ${move.word}`}
-                            onClick={() => setReview(move.number - 1)}
-                          >
-                            <span
-                              className={
-                                move.bingo ? "bingo-move-word" : undefined
-                              }
-                            >
-                              <DefinitionWord word={move.word}>{move.notation}</DefinitionWord>
-                            </span>
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p>No tracked moves yet.</p>
-        )}
-        <button
-          type="button"
-          className="button secondary score-action"
-          onClick={() => openEditor()}
-        >
-          <Plus size={14} aria-hidden="true" /> Add missed move
-        </button>
-        </details>
-      </div>
+      <TrackedMoveHistory
+        moves={newestMoves}
+        solo={solo}
+        onSelect={(number) => setReview(number - 1)}
+        onEdit={(number) => openEditor(number - 1)}
+        onAdd={() => openEditor()}
+        onStartReplay={onReplay}
+      />
       {review !== undefined && (
         <TurnReview
           game={game}

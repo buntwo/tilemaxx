@@ -2,17 +2,17 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
   type CSSProperties,
 } from "react";
-import { ChevronDown, Pause, Play, SkipBack, SkipForward } from "lucide-react";
-import { gameScoreTotals, type GameScoreSummary } from "../../shared/game-scoring";
+import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { gameScoreTotals, scoreHistoryMoves, type GameScoreSummary } from "../../shared/game-scoring";
 import type { ReplayFrame } from "../../shared/game-replay";
 import { tileScore, type GameScoring } from "../../shared/model";
 import { recordedMoveDetails } from "../../shared/notation";
 import { ScorePlayers } from "./GameScores";
 import MoveWord from "./MoveWord";
 import ScoreChart from "./ScoreChart";
+import TrackedMoveHistory from "./TrackedMoveHistory";
 
 function ReplayMoveStrip({
   frame, historical, showRecorded, onToggleRecorded,
@@ -216,16 +216,16 @@ export function ReplayScores({
   finalOutcome?: GameScoreSummary["outcome"];
   seek: (index: number) => void;
 }) {
-  const [historyOpen, setHistoryOpen] = useState(false);
   const moves = useMemo(
-    () =>
-      frames.flatMap((frame, number) =>
-        frame.move
-          ? [{ ...frame.move, number }]
-          : [],
+    () => scoreHistoryMoves(
+      frames.flatMap(({ move, position }, number) =>
+        move ? [{ move, position, index: number - 1 }] : [],
       ),
+      frames[0].template,
+    ),
     [frames],
   );
+  const newestMoves = useMemo(() => [...moves].reverse(), [moves]);
   const frameIndex = Math.min(index, frames.length - 1);
   // A score reset starts a new chart. Keep the earlier record accessible when
   // replaying it and use the same pairing boundary as the live score chart.
@@ -258,38 +258,7 @@ export function ReplayScores({
         solo={solo}
         replay={{ index: frameIndex, scores, seek }}
       />
-      <div className="score-history-section">
-        <details
-          className="score-history"
-          onToggle={(event) => setHistoryOpen(event.currentTarget.open)}
-        >
-          <summary>
-            <span>
-              Tracked move history <small>({moves.length})</small>
-            </span>
-            <ChevronDown size={16} aria-hidden="true" />
-          </summary>
-          {historyOpen && (
-            <ol className="replay-score-history">
-              {[...moves].reverse().map((move) => (
-                <li key={move.number}>
-                  <button
-                    type="button"
-                    className="replay-score-history-move"
-                    aria-current={move.number === index ? "step" : undefined}
-                    onClick={() => seek(move.number)}
-                  >
-                    <span>{move.number}</span>
-                    <span>{move.player === "you" ? "You" : "Opp"}</span>
-                    <MoveWord word={move.word} bingo={move.bingo} />
-                    <span>+{move.score} pts</span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          )}
-        </details>
-      </div>
+      <TrackedMoveHistory moves={newestMoves} solo={solo} replayIndex={index} onSelect={seek} />
     </section>
   );
 }
