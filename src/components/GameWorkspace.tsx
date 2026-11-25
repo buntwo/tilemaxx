@@ -20,7 +20,6 @@ export function useMoveReview(
 // Use the original key so saved divider positions carry over.
 const DIVIDER_POSITION_KEY = "tilewise:phone-rack-width";
 const RACK_WIDTH = 44;
-const RACK_WITH_DRAW_WIDTH = 68;
 const DRAW_LABEL_SPACE = 14;
 const DIVIDER_GAP = 12;
 const MIN_BOARD_WIDTH = 144;
@@ -71,7 +70,7 @@ export function GameBoardColumn({
     return () => observer.disconnect();
   }, [phone]);
 
-  const rackWidth = drawShelf ? RACK_WITH_DRAW_WIDTH + DRAW_LABEL_SPACE : RACK_WIDTH;
+  const rackWidth = drawShelf ? 2 * RACK_WIDTH + DRAW_LABEL_SPACE : RACK_WIDTH;
   const dividerMax = Math.max(rackWidth, maxInset);
   const boardInset = Math.max(rackWidth, Math.min(savedInset, dividerMax));
   const boardReduction = boardInset - rackWidth;

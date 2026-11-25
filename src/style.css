@@ -6306,28 +6306,33 @@ label + label {
   --phone-rack-tray-side-space: calc(2 * (var(--phone-rack-tray-side-padding) + 1px));
   --phone-rack-control-height: clamp(24px, 14cqh, 36px);
   --phone-rack-stack-padding: calc(2 * (var(--phone-rack-tray-padding) + 1px));
-  --phone-rack-space: calc(100cqh - 2 * var(--phone-rack-control-height) - 2px);
+  --phone-rack-labels: 0px;
+  --phone-rack-space: calc(100cqh - 2 * var(--phone-rack-control-height) - var(--phone-rack-labels) - 2px);
   --phone-rack-tile-max: calc(var(--phone-rack-width) - var(--phone-rack-tray-side-space));
   --phone-rack-tile-size: clamp(0px, calc(
     (var(--phone-rack-space) - var(--phone-rack-stack-padding)
       - (var(--rack-size) - 1) * var(--phone-tile-gap)) / var(--rack-size)
   ), var(--phone-rack-tile-max));
+  --phone-rack-tray-width: calc(var(--phone-rack-tile-size) + var(--phone-rack-tray-side-space));
   min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: start;
+}
+.phone-board-column .rack-entry:has(.rack-owner-label) {
+  --phone-rack-labels: var(--phone-rack-label-height);
 }
 .phone-board-column .rack-entry:has(.opponent-rack-tiles) {
+  --phone-rack-labels: calc(2 * var(--phone-rack-label-height) + var(--phone-rack-lane-gap));
   --phone-rack-gaps: calc((var(--rack-size) + var(--opponent-rack-rows) - 2) * var(--phone-tile-gap));
   --phone-opponent-tile-scale: .65;
   --phone-rack-tile-size: clamp(0px, calc(
-    (var(--phone-rack-space) - 2 * var(--phone-rack-label-height) - var(--phone-rack-lane-gap)
-      - var(--phone-rack-stack-padding) - var(--phone-rack-gaps))
+    (var(--phone-rack-space) - var(--phone-rack-stack-padding) - var(--phone-rack-gaps))
     / (var(--rack-size) + var(--opponent-rack-rows) * var(--phone-opponent-tile-scale))
   ), var(--phone-rack-tile-max));
   --phone-opponent-tile-size: min(
     calc(var(--phone-rack-tile-size) * var(--phone-opponent-tile-scale)),
-    calc((var(--phone-rack-width) - var(--phone-tile-gap)) / 2)
+    calc((var(--phone-rack-tray-width) - var(--phone-tile-gap)) / 2)
   );
 }
 .phone-board-column .rack-bag {
@@ -6337,13 +6342,13 @@ label + label {
   align-self: start;
   flex: none;
   margin-block-start: 2px;
-  margin-inline-start: calc((var(--phone-rack-tile-size) + var(--phone-rack-tray-side-space) - var(--bag-width)) / 2);
+  margin-inline-start: calc((var(--phone-rack-tray-width) - var(--bag-width)) / 2);
 }
 .phone-board-column .rack-panel .rack-tiles {
   flex-direction: column;
   align-items: center;
   gap: var(--phone-tile-gap);
-  width: calc(var(--phone-rack-tile-size) + var(--phone-rack-tray-side-space));
+  width: var(--phone-rack-tray-width);
   margin: 0;
   padding: var(--phone-rack-tray-padding) var(--phone-rack-tray-side-padding);
 }
@@ -6352,7 +6357,10 @@ label + label {
   width: var(--phone-rack-tile-size);
 }
 .phone-board-column .rack-tile[data-rack-reorderable] { touch-action: none; }
-.phone-board-column .rack-lane { display: block; }
+.phone-board-column .rack-lane {
+  display: block;
+  width: var(--phone-rack-tray-width);
+}
 .phone-board-column .rack-lane + .rack-lane { margin-block: var(--phone-rack-lane-gap) 0; }
 .phone-board-column .rack-owner-label {
   display: flex;
@@ -6364,6 +6372,8 @@ label + label {
 .phone-board-column .opponent-rack-tiles {
   display: grid;
   grid-template-columns: repeat(2, var(--phone-opponent-tile-size));
+  width: max-content;
+  margin-inline: auto;
   gap: var(--phone-tile-gap);
 }
 .phone-board-column .opponent-rack-tiles span {
@@ -6379,10 +6389,14 @@ label + label {
 }
 .phone-board-column .rack-face { font-size: min(23px, 59cqi); }
 .phone-board-column .rack-face small { right: 2px; bottom: 1px; }
-.phone-board-column .rack-lane-tools { align-self: center; }
+.phone-board-column .rack-lane-tools {
+  display: grid;
+  justify-items: center;
+  width: var(--phone-rack-tray-width);
+}
 .phone-board-column .rack-lane-tools .text-button {
   justify-content: center;
-  min-width: 44px;
+  min-width: min(44px, var(--phone-rack-tray-width));
   height: var(--phone-rack-control-height);
   min-height: 0;
   padding: 0 2px;
@@ -6780,7 +6794,7 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   .replay-move-player { grid-area: player; }
   .replay-move-word .last-play-word { grid-area: word; }
   .replay-move-result { grid-area: result; }
-  .replay-move-strip:not(:has(.replay-move-word)) > :last-child { grid-column: 2 / -1; }
+  .replay-move-strip > .replay-strip-label + span { grid-column: 2 / -1; }
 }
 .replay-move-player, .replay-move-result {
   white-space: nowrap;
@@ -6893,7 +6907,7 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   font-size: 12px;
 }
 @container (max-width: 255px) {
-  .board-replay-track { grid-column: 1 / -1; grid-row: 3; }
+  .board-replay-controls:has(> .board-replay-done) .board-replay-track { grid-column: 1 / -1; grid-row: 3; }
   .board-replay-done { grid-row: 2; }
 }
 .rack-entry[data-recorded-preview] {
@@ -6970,7 +6984,7 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .phone-board-column .rack-player-lane > .replay-draw-space {
   position: absolute;
   inset-block-start: 0;
-  inset-inline-start: calc(var(--phone-rack-tile-size) + var(--phone-rack-tray-side-space) + var(--phone-draw-label-space));
+  inset-inline-start: calc(var(--phone-rack-tray-width) + var(--phone-draw-label-space));
 }
 .phone-board-column .rack-player-lane:has(.rack-owner-label) > .replay-draw-space {
   inset-block-start: var(--phone-rack-label-height);

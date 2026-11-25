@@ -2426,11 +2426,14 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   const slider = controls.getByRole("slider", { name: "Replay moves" });
   expect(slider).toHaveProperty("value", "3");
   expect(controls.getByRole("button", { name: "Play from start" })).toBeTruthy();
+  expect(controls.queryByText("Final board")).toBeNull();
   fireEvent.change(slider, { target: { value: "1" } });
-  expect(cell("H8: DW, start")).toHaveProperty("disabled", false);
+  expect(cell("H8: A, start")).toHaveProperty("disabled", false);
   expect(screen.queryByRole("button", { name: /^A1: Q/ })).toBeNull();
   expect(cell("Define")).toBeTruthy();
-  await user.click(controls.getByRole("button", { name: "Preview recorded move CAT" }));
+  expect(controls.getByRole("button", { name: "Preview recorded move CAT" }).getAttribute("aria-pressed")).toBe("true");
+  expect(cell("H8: A, start").classList.contains("ghost")).toBe(true);
+  expect(controls.queryByText("Final board")).toBeNull();
   expect(screen.getByRole("button", { name: "Unseen tiles, 0 estimated tiles in the bag before the play" })).toBeTruthy();
   expect(screen.queryByRole("group", { name: /Draw unknown|Tiles drawn/ })).toBeNull();
 
@@ -2445,14 +2448,15 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   expect(cell("Redo")).toHaveProperty("disabled", false);
   await user.click(cell("Redo"));
   await user.click(cell("Back to move 1"));
-  expect(cell("H8: DW, start")).toBeTruthy();
+  expect(cell("H8: A, start").classList.contains("ghost")).toBe(true);
   expect(cell("Undo")).toHaveProperty("disabled", true);
   await act(() => store.flush());
   expect(current().revision).toBe(archivedRevision);
   expect(current().board).toEqual(archivedBoard);
 
   await user.click(cell("Jump to move 2"));
-  await user.click(controls.getByRole("button", { name: "Preview recorded move ART" }));
+  expect(controls.getByRole("button", { name: "Preview recorded move ART" }).getAttribute("aria-pressed")).toBe("true");
+  expect(cell("I6: A").classList.contains("ghost")).toBe(true);
   const opponentTray = screen.getByRole("group", { name: "Opponent rack" });
   expect(replayRackLabels(opponentTray))
     .toEqual(["Y", "Z", "A, played", "R, played", "empty", "empty", "empty"]);
@@ -2460,7 +2464,7 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   const bag = screen.getByRole("button", { name: /^Unseen tiles, 0 estimated/ });
   await user.click(bag);
   expect(screen.getByRole("list", { name: "Unseen tile counts" }).closest(".phone-rack-details")).toBeTruthy();
-  await user.click(controls.getByRole("button", { name: "Final board" }));
+  fireEvent.change(slider, { target: { value: "3" } });
   expect(cell("A1: Q, edited after archiving")).toHaveProperty("disabled", false);
   expect(slider).toHaveProperty("value", "3");
 });

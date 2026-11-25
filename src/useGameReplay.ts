@@ -89,7 +89,7 @@ export function useGameReplay(game: Game | undefined, shortcutsEnabled: boolean)
       ...current,
       index,
       playing: false,
-      showRecorded: !current.source.archived,
+      showRecorded: index > 0,
       trial: undefined,
     });
   }
@@ -118,7 +118,7 @@ export function useGameReplay(game: Game | undefined, shortcutsEnabled: boolean)
   }
   function backToTurn() {
     if (current?.trial)
-      setSession({ ...current, playing: false, showRecorded: false, trial: undefined });
+      setSession({ ...current, playing: false, showRecorded: current.index > 0, trial: undefined });
   }
 
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {

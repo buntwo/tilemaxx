@@ -66,9 +66,9 @@ function ReplayMoveStrip({
             {details?.location && <span>{details.location}</span>}
           </div>
         </>
-      ) : (
+      ) : historical && (
         <span>
-          {!historical ? "Final board" : board?.every((tile) => !tile)
+          {board?.every((tile) => !tile)
             ? "Start of game"
             : "Before first recorded move"}
         </span>
@@ -190,12 +190,12 @@ export function ReplayControls({
           <SkipForward size={16} aria-hidden="true" />
         </button>
       </div>
-      {historical && <button
+      {historical && !archived && <button
         className="text-button board-replay-done"
         type="button"
         onClick={close}
       >
-        {archived ? "Final board" : "Back to live"}
+        Back to live
       </button>}
     </div>
   );
