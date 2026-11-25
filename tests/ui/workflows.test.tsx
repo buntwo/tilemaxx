@@ -2403,6 +2403,8 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   await user.click(controls.getByRole("button", { name: "Next move" }));
   expect(cell("H8: A, start")).toHaveProperty("disabled", true);
   expect(screen.queryByRole("button", { name: /^A1: Q/ })).toBeNull();
+  expect(screen.getByRole("button", { name: "Unseen tiles, 0 estimated tiles in the bag before the play" })).toBeTruthy();
+  expect(screen.queryByRole("group", { name: /Draw unknown|Tiles drawn/ })).toBeNull();
   await user.click(controls.getByRole("button", { name: "Next move" }));
   const opponentTray = screen.getByRole("group", { name: "Opponent rack" });
   expect(screen.getByRole("button", { name: "Unseen tiles, 0 estimated tiles in the bag before the play" })).toBeTruthy();

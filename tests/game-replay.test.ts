@@ -194,6 +194,29 @@ test("replay shows a short solo refill and skips the shelf when the bag is empty
   }
 });
 
+test("replay omits the draw when the two-player bag shows zero and the next rack is missing", () => {
+  const board = emptyBoard(15);
+  const tiles = [{ index: 112, letter: "A" }, { index: 113, letter: "T" }];
+  const after = board.slice();
+  for (const { index, letter } of tiles) after[index] = letter;
+  const game: Game = {
+    ...gameWithMoves([
+      { player: "you", word: "AT", score: 4, at: "", review: { board, tiles, rack: "ATE", dictionaryId: "test" } },
+      { player: "opponent", word: "ATS", score: 3, at: "", review: {
+        board: after, tiles: [{ index: 114, letter: "S" }], dictionaryId: "test",
+      } },
+    ]),
+    template: {
+      ...PRESETS[0],
+      tileCounts: Object.fromEntries(TILE_SYMBOLS.map((tile) => [tile, Number("AENTS".includes(tile))])),
+    },
+  };
+  const [, frame] = gameReplayTimeline(game).frames;
+  assert.equal(frame.unseen?.total, 2);
+  assert.deepEqual(frame.bag, { count: 0, estimated: true, invalid: false });
+  assert.equal(frame.draw, undefined);
+});
+
 test("replay exposes a board-based tile pool and flags overdrawn placements without a saved rack", () => {
   const board = emptyBoard(15);
   board[112] = "A";

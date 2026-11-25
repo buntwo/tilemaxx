@@ -74,19 +74,18 @@ function matchesBoardAfter(position: TurnPosition, after: Board) {
 }
 
 function replayDraw(
-  { position, rack, playedSlots, unseen, template, bag }: ReplayFrame,
+  { position, rack, playedSlots, template, bag }: ReplayFrame,
   next: Pick<ReplayFrame, "board" | "rack">,
 ): ReplayFrame["draw"] {
-  if (!position || !rack || !playedSlots?.length || unseen?.total === 0)
+  if (!position || !rack || !playedSlots?.length || bag?.count === 0)
     return;
 
-  // The opponent's rack may be short, so the two-player bag estimate is
-  // only a lower bound. Use it for a full refill, or an exact solo count.
+  // Use the positive two-player estimate to establish a full refill.
+  // Solo replays can also establish how many tiles are left for a short draw.
   const played = playedSlots.length;
   const count = bag && !bag.invalid
     ? bag.count >= played ? played : !bag.estimated ? bag.count : undefined
     : undefined;
-  if (count === 0) return;
   const unknown = { tiles: "", count };
   if (next.rack === undefined || !next.board || !matchesBoardAfter(position, next.board))
     return unknown;
