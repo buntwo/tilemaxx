@@ -397,11 +397,11 @@ export function replayGamePosition(
   const unknownCount = frame.bag && frame.bag.count > 0
     ? Math.max(0, frame.template.rackSize - slots.length)
     : 0;
-  // Empty slots keep unknown letters out of the working rack and solver.
-  const order = [...leave, ...Array<number>(unknownCount).fill(-1), ...played];
+  const order = [...leave, ...played];
+  // Unknown letters are only displayed after the known tiles.
   const rackLayout: ReplayRackLayout = {
-    unknownSlots: Array.from({ length: unknownCount }, (_, index) => leave.length + index),
-    playedSlots: played.map((_, index) => leave.length + unknownCount + index),
+    unknownSlots: Array.from({ length: unknownCount }, (_, index) => order.length + index),
+    playedSlots: played.map((_, index) => leave.length + index),
     incomplete: !useSnapshot || unknownCount > 0,
   };
   const orderedRack = reorderRack({

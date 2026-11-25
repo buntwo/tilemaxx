@@ -150,6 +150,22 @@ export default function GameOptions({
                   </button>
                 </>
               )}
+              {game.archived && (
+                <button
+                  disabled={busy || boardLocked || !game.archivedBoard}
+                  onClick={() => {
+                    onUpdate(restoreArchivedGame(game));
+                    onClose();
+                    notify(
+                      game.archivedState
+                        ? "Archived position restored."
+                        : "Archived board restored.",
+                    );
+                  }}
+                >
+                  <Undo2 size={17} aria-hidden="true" /> Restore game
+                </button>
+              )}
               <button disabled={busy || !onReplay} onClick={onReplay}>
                 <Play size={17} aria-hidden="true" /> Replay game
               </button>
@@ -201,22 +217,7 @@ export default function GameOptions({
                 </span>
               </button>
             )}
-            {game.archived ? (
-              <button
-                disabled={busy || boardLocked || !game.archivedBoard}
-                onClick={() => {
-                  onUpdate(restoreArchivedGame(game));
-                  onClose();
-                  notify(
-                    game.archivedState
-                      ? "Archived position restored."
-                      : "Archived board restored.",
-                  );
-                }}
-              >
-                <Undo2 size={17} aria-hidden="true" /> Restore game
-              </button>
-            ) : !game.scoring?.end && (
+            {!game.archived && !game.scoring?.end && (
               <button disabled={busy} onClick={() => onOpen("end-game")}>
                 <Check size={17} aria-hidden="true" /> End game
               </button>

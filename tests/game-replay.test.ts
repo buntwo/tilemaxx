@@ -726,11 +726,11 @@ test("replay reserves unknown leave slots without supplying blanks to the solver
   const frame = gameReplayTimeline(source).frames[1];
   const scores = { you: 0, opponent: 0 };
   const { game, rackLayout } = replayGamePosition(source, frame, scores, 1);
-  assert.equal(game.rack, "S...ACT");
+  assert.equal(game.rack, "SACT");
   assert.deepEqual(splitRack(game), { available: "SACT", held: "" });
   assert.deepEqual(game.requiredRackSlots, [0]);
-  assert.deepEqual(rackLayout.unknownSlots, [1, 2, 3]);
-  assert.deepEqual(rackLayout.playedSlots, [4, 5, 6]);
+  assert.deepEqual(rackLayout.unknownSlots, [4, 5, 6]);
+  assert.deepEqual(rackLayout.playedSlots, [1, 2, 3]);
   assert.equal(rackLayout.incomplete, true);
 
   const zero = replayGamePosition(source, { ...frame, bag: { count: 0, estimated: true, invalid: false } }, scores, 1);
@@ -739,6 +739,7 @@ test("replay reserves unknown leave slots without supplying blanks to the solver
   assert.deepEqual(zero.rackLayout.playedSlots, [1, 2, 3]);
 
   const mismatched = replayGamePosition(source, { ...frame, rack: "ZST" }, scores, 1);
-  assert.equal(mismatched.game.rack, "....ACT");
-  assert.deepEqual(mismatched.rackLayout.playedSlots, [4, 5, 6]);
+  assert.equal(mismatched.game.rack, "ACT");
+  assert.deepEqual(mismatched.rackLayout.playedSlots, [0, 1, 2]);
+  assert.deepEqual(mismatched.rackLayout.unknownSlots, [3, 4, 5, 6]);
 });

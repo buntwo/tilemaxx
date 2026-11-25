@@ -105,6 +105,9 @@ export function useGameReplay(game: Game | undefined, shortcutsEnabled: boolean)
       trial: undefined,
     });
   }
+  function pause() {
+    if (current?.playing) setSession({ ...current, playing: false });
+  }
   function hideRecorded() {
     if (current && (current.playing || current.showRecorded))
       setSession({ ...current, playing: false, showRecorded: false });
@@ -159,6 +162,7 @@ export function useGameReplay(game: Game | undefined, shortcutsEnabled: boolean)
     position: trial ?? position,
     historical,
     trial,
+    pause,
     hideRecorded,
     updateTrial,
     backToTurn,

@@ -216,6 +216,11 @@ function positionSignature(game: Game) {
   ]);
 }
 
+function describeGameBoard(game: Game) {
+  const { name, size } = game.template;
+  return `${name}${hasCustomPremiums(game) ? " (custom)" : ""} · ${size} × ${size}`;
+}
+
 function GameLoadStatus({ id, error }: { id: string; error?: string }) {
   return error ? (
     <div>
@@ -590,10 +595,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     return () => clearTimeout(timer);
   }, [toast]);
   function update(next: Game) {
-    if (historical) {
-      gameReplay.updateTrial(next);
-      return;
-    }
+    if (historical) gameReplay.updateTrial(next);
+    else updateSavedGame(next);
+  }
+  function updateSavedGame(next: Game) {
     // Older archives have no saved baseline. Capture their board before the
     // first edit so that additions stay marked after reloading or undoing.
     if (next.archived && !next.archivedBoard) {
@@ -632,6 +637,18 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     if (boardLocked || !game?.future.length) return;
     update(redo(game));
   }
+  function changeSavedGameHistory(action: "undo" | "redo") {
+    if (!historical) {
+      if (action === "undo") undoGame();
+      else redoGame();
+      return;
+    }
+    if (!savedGame) return;
+    const next = action === "undo" ? undo(savedGame) : redo(savedGame);
+    if (next === savedGame) return;
+    replay?.close();
+    updateSavedGame(next);
+  }
   function notify(text: string) {
     setToast(text);
   }
@@ -664,7 +681,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     setFormBusy(false);
     setDialog(next);
     setSidebarDrawerOpen(false);
-    if (next === "screenshot") importBase.current = game || null;
+    if (next === "manage") gameReplay.pause();
+    if (next === "screenshot") importBase.current = savedGame ?? null;
     if (next === "rename") setArchiveEditId(undefined);
     if (next === "profile") setFormName("");
     if (next === "rename-profile" && profile) {
@@ -974,9 +992,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       ))}
     </div>
   );
-  const boardName =
-    game && game.template.name + (hasCustomPremiums(game) ? " (custom)" : "");
-  const boardSize = game && `${game.template.size} × ${game.template.size}`;
   const boardHistoryControls = game && (
     <BoardHistoryControls
       canUndo={!boardLocked && !!game.past.length}
@@ -1239,7 +1254,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               )}
             </div>
             {headlineScore}
-            {game && (
+            {savedGame && (
               <button
                 ref={gameOptionsButton}
                 type="button"
@@ -1247,7 +1262,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 aria-label="Game options"
                 aria-haspopup="dialog"
                 title="Game options"
-                disabled={historical}
                 onClick={() => openDialog("manage")}
               >
                 <MoreHorizontal size={18} aria-hidden="true" />
@@ -1752,7 +1766,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               throw new Error(
                 "The board changed while you were reviewing. Close this import and try again with the latest game.",
               );
-            update(importBoard(latest, board, premiums, clearBoard));
+            replay?.close();
+            updateSavedGame(importBoard(latest, board, premiums, clearBoard));
             setDialog(null);
             notify(
               clearBoard
@@ -1925,7 +1940,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                update({ ...editGame, ...readGameDetails(e.currentTarget, editGame.solo) });
+                updateSavedGame({ ...editGame, ...readGameDetails(e.currentTarget, editGame.solo) });
                 setDialog(null);
               }}
             >
@@ -1947,7 +1962,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       {dialog === "board-help" && game && (
         <Modal
           title="Board help"
-          subtitle={`${boardName} · ${boardSize}`}
+          subtitle={describeGameBoard(game)}
           onClose={() => setDialog(null)}
         >
           <div className="board-help-dialog">
@@ -1956,22 +1971,22 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           </div>
         </Modal>
       )}
-      {dialog === "history" && game && (
+      {dialog === "history" && savedGame && (
         <Modal
           title="Your moves, remembered."
           subtitle="Undo restores the board and rack from before a move or board edit."
           onClose={() => setDialog(null)}
         >
-          {!game.past.length ? (
+          {!savedGame.past.length ? (
             <div className="empty-history">
               <History size={28} />
               <p>No moves yet. Your next word starts the story.</p>
             </div>
           ) : (
             <ol className="history-list">
-              {[...game.past].reverse().map((h, i) => (
+              {[...savedGame.past].reverse().map((h, i) => (
                 <li key={`${h.at}-${i}`}>
-                  <span className="history-number">{game.past.length - i}</span>
+                  <span className="history-number">{savedGame.past.length - i}</span>
                   <div>
                     <strong>{h.label}</strong>
                     <small>
@@ -1994,16 +2009,16 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           <footer className="modal-footer">
             <button
               className="button secondary"
-              disabled={boardLocked || !game.future.length}
-              onClick={redoGame}
+              disabled={!!gameFinish.current || !savedGame.future.length}
+              onClick={() => changeSavedGameHistory("redo")}
             >
               <Redo2 size={16} />
               Redo
             </button>
             <button
               className="button primary"
-              disabled={boardLocked || !game.past.length}
-              onClick={undoGame}
+              disabled={!!gameFinish.current || !savedGame.past.length}
+              onClick={() => changeSavedGameHistory("undo")}
             >
               <Undo2 size={16} />
               Undo last change
@@ -2014,7 +2029,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       {dialog === "dictionaries" && (
         <WordLists
           dictionaries={data.dictionaries}
-          selectedId={game?.dictionaryId}
+          selectedId={savedGame?.dictionaryId}
           onClose={() => setDialog(null)}
           onNotify={notify}
         />
@@ -2132,10 +2147,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           </p>
         </Modal>
       )}
-      {dialog === "delete" && game && (
+      {dialog === "delete" && savedGame && (
         <Modal
           title="Delete this game?"
-          subtitle={game.name}
+          subtitle={savedGame.name}
           onClose={() => {
             if (!formBusy) setDialog(null);
           }}
@@ -2163,7 +2178,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               disabled={formBusy}
               onClick={() =>
                 void action(async () => {
-                  await store.deleteGame(game.id);
+                  await store.deleteGame(savedGame.id);
                   setDialog(null);
                   setGameId("");
                   notify("Game deleted.");
@@ -2184,7 +2199,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             editPosition();
             if (busy) solver.cancelSearch();
             solver.cancelBoardOdds();
-            update(archive ? archiveForReview(next) : next);
+            updateSavedGame(archive ? archiveForReview(next) : next);
             if (archive)
               chooseGame(
                 activeGames.find((item) => item.id !== next.id)?.id ?? "",
@@ -2199,21 +2214,27 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           onClose={() => setDialog(null)}
         />
       )}
-      {dialog === "manage" && game && (
+      {dialog === "manage" && savedGame && (
         <GameOptions
-          key={game.id}
-          game={game}
-          board={`${boardName} · ${boardSize}`}
+          key={savedGame.id}
+          game={savedGame}
+          board={describeGameBoard(savedGame)}
           dictionaries={data.dictionaries}
           online={state.online}
-          boardLocked={boardLocked}
-          onUpdate={update}
+          boardLocked={!!gameFinish.current}
+          onUpdate={(next) => {
+            replay?.close();
+            updateSavedGame(next);
+          }}
           onChooseGame={chooseGame}
           onArchived={() =>
-            chooseGame(activeGames.find((item) => item.id !== game.id)?.id ?? "")
+            chooseGame(activeGames.find((item) => item.id !== savedGame.id)?.id ?? "")
           }
-          onOpen={openDialog}
-          onReplay={canReplayGame ? () => {
+          onOpen={(next) => {
+            if (next === "end-game") replay?.close();
+            openDialog(next);
+          }}
+          onReplay={canReplayGame && !historical ? () => {
             gameReplay.open(gameOptionsButton.current);
             setDialog(null);
           } : undefined}

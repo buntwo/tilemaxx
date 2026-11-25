@@ -2169,7 +2169,7 @@ function replayFixture(opponentBlank = false, ownRack = "CATEINS") {
   };
 }
 
-test.each([false, true])("game options export the open game offline (archived=%s)", async (archived) => {
+test.each([false, true])("game options export the saved game offline during replay (archived=%s)", async (archived) => {
   const base = replayFixture();
   const earlier = { ...remote.dictionaries[0], id: "earlier", name: "Earlier words", builtin: false };
   const unused = { ...earlier, id: "unused", name: "Unused words" };
@@ -2194,6 +2194,12 @@ test.each([false, true])("game options export the open game offline (archived=%s
   act(() => {
     store.update({ ...current(), rack: "?EINS", notes: "Edited offline" });
   });
+  if (!archived) {
+    const menu = await openGameOptions(user);
+    await user.click(menu.getByRole("button", { name: "Replay game" }));
+  }
+  const slider = screen.getByRole("slider", { name: "Replay moves" });
+  fireEvent.change(slider, { target: { value: "1" } });
   const options = await openGameManagement(user);
   const createObjectURL = vi.fn((_file: Blob) => "blob:game-export");
   vi.stubGlobal("URL", class extends URL {
@@ -2230,6 +2236,7 @@ test.each([false, true])("game options export the open game offline (archived=%s
       { id: "earlier", name: "Earlier words", builtin: false },
     ],
   });
+  expect(slider).toHaveProperty("value", "1");
   expect(current().rack).toBe("?EINS");
   expect(remote.games[0].rack).toBe(saved.rack);
   if (archived) expect(gameSnapshot.archivedState?.rack).toBe(base.rack);
@@ -2274,7 +2281,7 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(strip.getByText("I6")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Unseen tiles, 83 estimated tiles in the bag before the play" })).toBeTruthy();
   const opponentTray = screen.getByRole("group", { name: "Opponent rack" });
-  expect(replayRackLabels(opponentTray)).toEqual(["unknown", "unknown", "unknown", "unknown", "unknown", "A, played", "R, played"]);
+  expect(replayRackLabels(opponentTray)).toEqual(["A, played", "R, played", "unknown", "unknown", "unknown", "unknown", "unknown"]);
   expect(opponentTray.querySelectorAll(".rack-face.unknown")).toHaveLength(5);
   expect(screen.queryByRole("group", { name: "Tiles drawn" })).toBeNull();
   const chart = screen.getByRole("figure", { name: "Score by move" });
@@ -2313,7 +2320,12 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   act(() => (slider.closest<HTMLElement>(".board-replay-controls"))!.focus());
   await user.keyboard(" ");
   expect(controls.getByRole("button", { name: "Pause replay" })).toBeTruthy();
-  await user.keyboard(" ");
+  const pausedOptions = await openGameOptions(user);
+  await user.click(pausedOptions.getByRole("button", { name: "Move history" }));
+  const history = within(screen.getByRole("dialog", { name: "Your moves, remembered." }));
+  expect(history.getByRole("list").textContent).toContain("CAT");
+  await user.click(history.getByRole("button", { name: "Close dialog" }));
+  expect(slider).toHaveProperty("value", "1");
   expect(controls.getByRole("button", { name: "Play replay" })).toBeTruthy();
   await user.keyboard("{ArrowRight}");
   expect(slider).toHaveProperty("value", "2");
@@ -2350,7 +2362,7 @@ test("replay always highlights opponent placements and exposes tile counts when 
   const controls = within(screen.getByRole("group", { name: "Game replay" }));
   expect(within(controls.getByRole("status")).getByText("aR(T)")).toBeTruthy();
   const partial = screen.getByRole("group", { name: "Opponent rack" });
-  expect(replayRackLabels(partial)).toEqual(["unknown", "unknown", "unknown", "unknown", "unknown", "blank, played", "R, played"]);
+  expect(replayRackLabels(partial)).toEqual(["blank, played", "R, played", "unknown", "unknown", "unknown", "unknown", "unknown"]);
   expect(partial.querySelectorAll(".rack-face.unknown")).toHaveLength(5);
   expect(partial.querySelector(".rack-face.unknown")?.textContent).toBe("?");
   expect(partial.querySelector(".rack-face.blank")?.textContent).toBe("0");
@@ -2366,7 +2378,7 @@ test("replay always highlights opponent placements and exposes tile counts when 
   const own = screen.getByRole("group", { name: "Your rack tiles" });
   expect(screen.queryByText("Your rack wasn’t recorded. These counts include any tiles it held.")).toBeNull();
   expect(replayRackLabels(own))
-    .toEqual(["S", "unknown", "unknown", "unknown", "A, played", "C, played", "T, played"]);
+    .toEqual(["S", "A, played", "C, played", "T, played", "unknown", "unknown", "unknown"]);
   expect(screen.queryByRole("group", { name: /Opponent.*(rack|tiles)/ })).toBeNull();
   await user.click(controls.getByRole("button", { name: "Next move" }));
   expect(screen.getByRole("group", { name: "Opponent rack" })).toBeTruthy();
@@ -2472,6 +2484,9 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   await user.click((await screen.findAllByRole("button", { name: /^CATS, / }))[0]);
   await screen.findByText("Trial from move 1");
+  const trialOptions = await openGameOptions(user);
+  await user.click(trialOptions.getByRole("button", { name: "Close dialog" }));
+  expect(screen.getByText("Trial from move 1")).toBeTruthy();
   expect(cell("Undo")).toHaveProperty("disabled", false);
   await user.click(cell("Undo"));
   expect(cell("Redo")).toHaveProperty("disabled", false);
@@ -2496,6 +2511,17 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   fireEvent.change(slider, { target: { value: "3" } });
   expect(cell("A1: Q, edited after archiving")).toHaveProperty("disabled", false);
   expect(slider).toHaveProperty("value", "3");
+
+  fireEvent.change(slider, { target: { value: "1" } });
+  const restoreOptions = await openGameManagement(user);
+  const boardTools = within(restoreOptions.getByRole("region", { name: "Board tools" }));
+  const restore = boardTools.getByRole("button", { name: "Restore game" });
+  expect(restoreOptions.getByText("Manage game").closest("details")?.contains(restore)).toBe(false);
+  await user.click(restore);
+  expect(slider).toHaveProperty("value", "3");
+  expect(cell("A1: TW")).toBeTruthy();
+  await act(() => store.flush());
+  expect(remote.games[0].board).toEqual(saved.board);
 });
 
 test("entering your play infers a blank and records the move without searching", async () => {
