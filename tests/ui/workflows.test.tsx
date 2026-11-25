@@ -313,7 +313,7 @@ test("All moves and Shortlist share the selected playing style as their return v
         const result = this.results.get(request.searchId);
         if (result) result.setProfile(request.query, result.moves.slice(1, 2).map((move) => ({
           move, utility: {
-            total: 7.55, points: 8.5, premium: 0, visibility: 1, appeal: 2, leave: 0.2, goingOut: 0, premiumLane: -1.15,
+            total: 8.8, points: 8.5, premium: 0, visibility: 1, appeal: 2, leave: 0.2, goingOut: 0, premiumLane: -1.15, lookahead: 1.25,
           },
         })));
       }
@@ -343,6 +343,8 @@ test("All moves and Shortlist share the selected playing style as their return v
   expect(tooltip.getByText("Appeal multiplier")).toBeTruthy();
   expect(tooltip.getByText("Rack leave")).toBeTruthy();
   expect(tooltip.getByText("Premium lane risk")).toBeTruthy();
+  expect(tooltip.getByText("Lookahead adjustment")).toBeTruthy();
+  expect(tooltip.getByText("1.25").classList.contains("value-good")).toBe(true);
   expect(tooltip.getByText("-1.15").classList.contains("value-bad")).toBe(true);
   expect(tooltip.queryByText("Score breakdown")).toBeNull();
   expect(current().board.some(Boolean)).toBe(false);

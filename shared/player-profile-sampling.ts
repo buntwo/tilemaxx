@@ -3,6 +3,7 @@ import type { Board, Move } from "./model";
 const seedRange = 2 ** 32;
 const areaWidth = 3;
 const appealScale = 25;
+export const DEFAULT_PROFILE_APPEAL = 48;
 
 export function mixProfileSeed(value: number) {
   value = Math.imul(value ^ (value >>> 16), 0x7feb352d);

@@ -23,14 +23,15 @@ import { computeWorkerLimit } from "./compute-workers";
 import { checkPremiumDefense } from "../shared/premium-defense";
 import { extraReplyCandidates } from "../shared/reply-candidates";
 import { REPLY_LIMIT } from "../shared/reply-analysis";
-import { MOVE_CACHE_LIMIT, MoveResultIndex } from "../shared/move-results";
+import { MOVE_CACHE_LIMIT, MoveResultIndex, profileQueryKey, type MoveQuery } from "../shared/move-results";
 import { exchangeAdvicePlays } from "../shared/exchange-advice";
 import {
   prepareEndgameEstimate,
   type EndgameEstimate,
 } from "../shared/endgame-estimate";
 import type { SolverMessage, SolverRequest } from "./solver-messages";
-import { createPlayerProfiles, lateProfileFamiliarityWeight, profileWordHash } from "../shared/player-profiles";
+import { createPlayerProfiles, lateProfileFamiliarityWeight, profileWordHash, type PlayerProfile } from "../shared/player-profiles";
+import { createLearnerLookahead } from "../shared/learner-lookahead";
 import { loadProfileVocabulary } from "./word-frequencies";
 import { rackComposition } from "../shared/rack-entry";
 import { createSoloStyleSearch } from "../shared/solo-styles";
@@ -39,8 +40,20 @@ import type { HunterProgress } from "./parallel-bingo-hunter";
 let activeHunter: { id: number; searchId: number; abort: AbortController; finished: Promise<unknown> } | undefined;
 const hunterSessions = new Map<SimulatedStyle, { searchId: number; key: string; lastId?: number; session: ReturnType<typeof createBingoHunterSession> | ReturnType<typeof createMasterSession> | ReturnType<typeof soloSession> }>();
 type SolveRequest = Extract<SolverRequest, { kind: "solve" }>;
-const results = new Map<number, MoveResultIndex & { position: SolveRequest; lexicon: Lexicon; odds?: ReturnType<RackBingoIndex["calculate"]> }>();
-let models: { lexicon: Lexicon; templateKey: string; choose: ReturnType<typeof createPlayerProfiles> } | undefined;
+type SolverResult = MoveResultIndex & {
+  position: SolveRequest;
+  lexicon: Lexicon;
+  odds?: ReturnType<RackBingoIndex["calculate"]>;
+};
+type ProfileJob = { key: string; ready: Promise<void> };
+const results = new Map<number, SolverResult>();
+let profileJobs = new WeakMap<SolverResult, ProfileJob>();
+let models: {
+  lexicon: Lexicon;
+  templateKey: string;
+  choose: ReturnType<typeof createPlayerProfiles>;
+  learner?: ReturnType<typeof createLearnerLookahead>;
+} | undefined;
 let activeSolve: { id: number; abort: AbortController } | undefined;
 let activeEndgame: { id: number; abort: AbortController } | undefined;
 let dictionary:
@@ -54,39 +67,86 @@ const ENDGAME_ESTIMATE_TIME_MS = 2_500;
 const ENDGAME_ESTIMATE_MOVES = 4_000;
 const ENDGAME_ESTIMATE_MOVE_MS = 80;
 
+async function prepareProfile(
+  result: SolverResult,
+  profile: PlayerProfile,
+  query: MoveQuery,
+  current: () => boolean,
+) {
+  const { profileBagSize: bagSize = 0, profileSeed: playerSeed = 0, profileSample = 0 } = query;
+  const { position, lexicon } = result;
+  const { template } = position;
+  const needsCasualFrequencies = profile === "casual"
+    && lateProfileFamiliarityWeight(bagSize, template.rackSize) > 0;
+  const [frequencies, casualWords] = await loadProfileVocabulary(
+    template.rules, profile, needsCasualFrequencies,
+  );
+  if (!current()) return;
+
+  const templateKey = JSON.stringify([template, profile === "casual", needsCasualFrequencies]);
+  if (models?.lexicon !== lexicon || models.templateKey !== templateKey) {
+    models = { lexicon, templateKey, choose: createPlayerProfiles(lexicon, template, frequencies, undefined, casualWords) };
+  }
+  const positionKey = `${position.board.join(".")}:${rackComposition(position.rack)}`;
+  const seed = profileWordHash(profileSample ? `${positionKey}:${profileSample}` : positionKey);
+  const profilePosition = {
+    ...position, bagSize, seed, playerSeed, scorelessTurns: query.profileScorelessTurns,
+  };
+  const { considered, learnerSlate } = models.choose(result.moves, profile, profilePosition, {
+    all: true, learnerSlate: profile === "learner",
+  });
+
+  if (!learnerSlate || learnerSlate.length < 2) {
+    result.setProfile(query, considered ?? []);
+    return;
+  }
+
+  const evaluate = models.learner ??= createLearnerLookahead(lexicon, template, models.choose);
+  const steps = evaluate(profilePosition, considered ?? [], learnerSlate);
+  let slice = performance.now();
+  let step = steps.next();
+  while (!step.done) {
+    if (performance.now() - slice >= 12) {
+      await yieldToQueries();
+      if (!current()) return;
+      slice = performance.now();
+    }
+    step = steps.next();
+  }
+  result.setProfile(query, step.value);
+}
+
 async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind: "page" }>) {
   const result = results.get(searchId);
-  const { profile, profileBagSize = 0, profileSeed = 0, profileSample = 0 } = query;
-  if (result && profile && !isSimulatedStyle(profile) && !result.hasProfile(query)) {
-    try {
-      const template = result.position.template;
-      const needsCasualFrequencies = profile === "casual"
-        && lateProfileFamiliarityWeight(profileBagSize, template.rackSize) > 0;
-      const [frequencies, casualWords] = await loadProfileVocabulary(
-        template.rules, profile, needsCasualFrequencies,
-      );
-      if (results.get(searchId) !== result) return post({ id, kind: "page" });
-      if (result.hasProfile(query)) return post({ id, kind: "page", page: result.page(query) });
-      const { position, lexicon } = result;
-      const templateKey = JSON.stringify([template, profile === "casual", needsCasualFrequencies]);
-      if (models?.lexicon !== lexicon || models.templateKey !== templateKey) {
-        models = { lexicon, templateKey, choose: createPlayerProfiles(lexicon, position.template, frequencies, undefined, casualWords) };
+  const { profile } = query;
+  if (result && profile && !isSimulatedStyle(profile)) {
+    const key = profileQueryKey(query);
+    const pending = profileJobs.get(result);
+    if (pending && pending.key !== key) profileJobs.delete(result);
+    if (!result.hasProfile(query)) {
+      let job = profileJobs.get(result);
+      if (!job) {
+        const task: ProfileJob = {
+          key,
+          ready: prepareProfile(result, profile, query,
+            () => results.get(searchId) === result && profileJobs.get(result) === task),
+        };
+        profileJobs.set(result, task);
+        job = task;
       }
-      const positionKey = `${position.board.join(".")}:${rackComposition(position.rack)}`;
-      const seed = profileWordHash(profileSample ? `${positionKey}:${profileSample}` : positionKey);
-      const { considered } = models.choose(result.moves, profile, {
-        ...position,
-        bagSize: profileBagSize,
-        solo: position.solo,
-        seed,
-        playerSeed: profileSeed,
-        scorelessTurns: query.profileScorelessTurns,
-      }, { all: true });
-      result.setProfile(query, considered ?? []);
-    } catch (error) {
-      const page = { ...result.page(query), rows: [], head: [], total: 0, bingoCount: 0,
-        error: error instanceof Error ? error.message : "The playing style could not be loaded." };
-      return post({ id, kind: "page", page });
+      try {
+        await job.ready;
+      } catch (error) {
+        if (profileJobs.get(result) !== job || results.get(searchId) !== result)
+          return post({ id, kind: "page" });
+        const page = { ...result.page(query), rows: [], head: [], total: 0, bingoCount: 0,
+          error: error instanceof Error ? error.message : "The playing style could not be loaded." };
+        return post({ id, kind: "page", page });
+      } finally {
+        if (profileJobs.get(result) === job) profileJobs.delete(result);
+      }
+      if (results.get(searchId) !== result || !result.hasProfile(query))
+        return post({ id, kind: "page" });
     }
   }
   post({ id, kind: "page", page: result?.page(query) });
@@ -284,6 +344,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     request.kind === "board-odds" ? undefined : new AbortController();
   if (abort && request.kind === "solve") {
     activeSolve?.abort.abort();
+    profileJobs = new WeakMap();
     activeSolve = { id, abort };
   } else if (abort && request.kind === "endgame") {
     activeEndgame?.abort.abort();

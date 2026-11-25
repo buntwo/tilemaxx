@@ -13,6 +13,7 @@ import {
   PROFILE_ENDGAME_TILES,
 } from "./player-profile-endgame";
 import {
+  DEFAULT_PROFILE_APPEAL,
   mixProfileSeed,
   profileAppeal,
   profileAttention,
@@ -59,11 +60,11 @@ const presets = {
   learner: {
     focus: 0.38,
     hookAttention: 0,
-    vocabulary: 0.07,
+    vocabulary: 0.13,
     shortWords: 0.96,
-    study: 0.5,
+    study: 0.65,
     vertical: 0.94,
-    bingo: 0.52,
+    bingo: 0.72,
     blank: 0.75,
     secondBlank: 0.18,
     lateFamiliarity: 0.65,
@@ -114,7 +115,7 @@ export interface ProfileSampling {
   appeal: number;
 }
 
-const defaultSampling: ProfileSampling = { coverage: 1, appeal: 48 };
+const defaultSampling: ProfileSampling = { coverage: 1, appeal: DEFAULT_PROFILE_APPEAL };
 
 export type ProfilePosition = Position & {
   bagSize: number;
@@ -132,8 +133,15 @@ export type ProfileUtility = {
   leave: number;
   goingOut: number;
   endgame?: number;
+  lookahead?: number;
   defense?: number;
   premiumLane?: number;
+};
+
+export type LearnerCandidate = {
+  move: Move;
+  value: number;
+  visibility: number;
 };
 
 export type RankedProfileMove = { move: Move; utility: ProfileUtility };
@@ -141,6 +149,7 @@ export type ProfileDecision = {
   move?: Move;
   bingoFound: boolean;
   considered?: RankedProfileMove[];
+  learnerSlate?: LearnerCandidate[];
   suggestions?: Move[];
   visibleIdeas?: number;
   withoutLeave?: Move;
@@ -279,7 +288,12 @@ export function createPlayerProfiles(
     moves: readonly Move[],
     profile: PlayerProfile,
     position: ProfilePosition,
-    options: { all?: boolean; topThree?: boolean; metrics?: boolean } = {},
+    options: {
+      all?: boolean;
+      topThree?: boolean;
+      metrics?: boolean;
+      learnerSlate?: boolean;
+    } = {},
   ): ProfileDecision => {
     if (!moves.length)
       return { bingoFound: false, considered: options.all ? [] : undefined };
@@ -304,13 +318,7 @@ export function createPlayerProfiles(
       rack.replaceAll(".", "").length + pool.total <= PROFILE_ENDGAME_TILES;
     const shortlistSize =
       !solo && (bagSize > 0 || planEndgame) ? preset.finalists : 1;
-    type Candidate = {
-      move: Move;
-      value: number;
-      visibility: number;
-      weight: number;
-      utility?: ProfileUtility;
-    };
+    type Candidate = LearnerCandidate & { weight: number; utility?: ProfileUtility };
     const shortlist: Candidate[] = [];
     const candidates: Candidate[] = [];
     const knownWords = new Map<WordProfile, boolean>();
@@ -530,11 +538,18 @@ export function createPlayerProfiles(
     }
     const limit = options.all ? candidates.length : options.topThree ? 3 : 1;
     const order = sampleProfilePlacements(candidates, seed, limit);
-    const move = order[0]?.move;
+    const first = order[0];
+    const move = first?.move;
+    const learnerSlate = options.learnerSlate && profile === "learner" &&
+      first && !solo && bagSize > 0
+        ? [first, ...shortlist.filter(({ move }) => move.word !== first.move.word)]
+            .slice(0, preset.finalists)
+        : undefined;
     if (topReason === "found" && move?.id !== rawFirst) topReason = "rank";
     return {
       move,
       bingoFound,
+      learnerSlate,
       considered: options.all
         ? order.map(({ move, utility }) => ({ move, utility: utility! }))
         : undefined,

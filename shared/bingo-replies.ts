@@ -30,13 +30,19 @@ export function createBingoReplySearch<T>(
   factory: ReturnType<typeof createSolverFactory>,
   board: Board,
   rankLeave: boolean,
-  check: (solver: Solver, rack: string, limits: { maxMs: number }) => T,
+  check: (
+    solver: Solver,
+    rack: string,
+    limits: { maxMs: number },
+    board: Board,
+    reply: Move | null,
+  ) => T,
 ) {
   const baseline = factory(board);
   const replies = new Map<string, Move | null>();
   const followups = new Map<
     string | null,
-    { solver: Solver; racks: Map<string, T> }
+    { board: Board; solver: Solver; racks: Map<string, T> }
   >();
 
   function limits(deadline: number) {
@@ -59,15 +65,17 @@ export function createBingoReplySearch<T>(
       const key = reply?.id ?? null;
       const cached = followups.get(key);
       if (cached) followups.delete(key);
+      const next = cached?.board ?? (reply ? factory.place(board, reply) : board);
       const after = cached ?? {
-        solver: reply ? factory(factory.place(board, reply)) : baseline,
+        board: next,
+        solver: reply ? factory(next) : baseline,
         racks: new Map<string, T>(),
       };
       followups.set(key, after);
       if (followups.size > 32) followups.delete(followups.keys().next().value!);
       const result = after.racks.get(rack);
       if (result !== undefined) return result;
-      const outcome = check(after.solver, rack, limits(deadline));
+      const outcome = check(after.solver, rack, limits(deadline), after.board, reply);
       after.racks.set(rack, outcome);
       return outcome;
     },

@@ -172,6 +172,7 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
     { label: "Weighted points", value: utility.points, show: true },
     { label: "Premium squares", value: utility.premium },
     { label: "Rack leave", value: utility.leave },
+    { label: "Lookahead adjustment", value: utility.lookahead, show: utility.lookahead !== undefined, tone: scoreTone(utility.lookahead) },
     { label: "Endgame lookahead", value: utility.endgame, show: utility.endgame !== undefined },
     { label: "Going out", value: utility.goingOut },
     {
@@ -213,11 +214,13 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
         <span>Appeal multiplier</span>
         <span>×{weightNumber.format(utility.appeal)}</span>
       </div>
-      {(checksDefense || utility.endgame !== undefined) && (
+      {(checksDefense || utility.endgame !== undefined || utility.lookahead !== undefined) && (
         <div className="move-score-adjustment">
           {utility.endgame !== undefined
             ? "Leading candidates were compared using the known endgame racks."
-            : "Leading candidates are checked for premium threats before sampling."}
+            : utility.lookahead !== undefined
+              ? "Eight shared tile deals compare your play, the reply, and your next turn."
+              : "Leading candidates are checked for premium threats before sampling."}
         </div>
       )}
     </div>

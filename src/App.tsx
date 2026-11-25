@@ -353,7 +353,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const exchangeSeed = game ? profileWordHash(game.id) : 0;
   const exchangeSearch = solver.results?.searchId;
   const exchangeChoice = exchangeProfile && exchangeSearch !== undefined
-    ? solver.styleChoice(exchangeSearch, exchangeProfile, replyAnalysis.bagSize, exchangeSeed, styleSample)
+    ? solver.styleChoice(exchangeSearch, exchangeProfile, replyAnalysis.bagSize, exchangeSeed, styleSample, replyAnalysis.scorelessTurns)
     : undefined;
   const styleExchange = useStyleExchange(
     workspace === "games" && !game?.solo && !gameOver && !busy && !solver.error && !warnings.length && !replyAnalysis.invalid ? game : undefined,

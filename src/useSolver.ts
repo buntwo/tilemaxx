@@ -15,7 +15,7 @@ import type {
   MoveResults,
   ShortlistOptions,
 } from "../shared/move-results";
-import { MOVE_CACHE_LIMIT } from "../shared/move-results";
+import { MOVE_CACHE_LIMIT, profileQueryKey, styleScorelessTurns } from "../shared/move-results";
 import type { ShortlistEntry } from "../shared/move-shortlist";
 import type { HunterOptions, SolverMessage, SolverRequest } from "./solver-messages";
 import type { EndgameSettings } from "../shared/endgame";
@@ -34,8 +34,11 @@ type Snapshot = {
   boardOdds?: BoardOddsResult;
   exchangeAdvice?: Omit<ExchangeAdvice, "slots"> & { tiles: string };
 };
-const styleChoiceKey = (searchId: number, profile: PlayerProfile, bag: number, seed: number, sample: number) =>
-  `${searchId}:${profile}:${bag}:${seed}:${sample}`;
+const styleChoiceKey = (searchId: number, profile: PlayerProfile, bag: number, seed: number, sample: number, scorelessTurns?: number) =>
+  `${searchId}:${profileQueryKey({
+    profile, profileBagSize: bag, profileSeed: seed, profileSample: sample,
+    profileScorelessTurns: styleScorelessTurns(profile, bag, scorelessTurns),
+  })}`;
 
 const emptySnapshot: Snapshot = { results: null, warnings: [] };
 type QueryReply = Extract<
@@ -496,7 +499,7 @@ export function useSolver(positionKey: string, game: Game | undefined) {
       const { profile, profileBagSize = 0, profileSeed = 0, profileSample = 0 } = options;
       const choice = !page?.error && page?.styleChoice;
       if (profile && !isSimulatedStyle(profile) && choice) {
-        const key = styleChoiceKey(searchId, profile, profileBagSize, profileSeed, profileSample);
+        const key = styleChoiceKey(searchId, profile, profileBagSize, profileSeed, profileSample, options.profileScorelessTurns);
         setStyleChoices((current) => {
           if (current.has(key)) return current;
           const next = new Map(current);
@@ -623,8 +626,8 @@ export function useSolver(positionKey: string, game: Game | undefined) {
       else replaceResults();
     },
     page,
-    styleChoice(searchId: number, profile: PlayerProfile, bag: number, seed: number, sample: number) {
-      return styleChoices.get(styleChoiceKey(searchId, profile, bag, seed, sample));
+    styleChoice(searchId: number, profile: PlayerProfile, bag: number, seed: number, sample: number, scorelessTurns?: number) {
+      return styleChoices.get(styleChoiceKey(searchId, profile, bag, seed, sample, scorelessTurns));
     },
     shortlist,
     rankEndgame,

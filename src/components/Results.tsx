@@ -89,6 +89,7 @@ import {
   type MoveSort,
   type RequiredSquares,
   type ShortlistOptions,
+  styleScorelessTurns,
 } from "../../shared/move-results";
 import {
   moveRowHeight,
@@ -641,7 +642,8 @@ export default function Results({
       filter,
       profile,
       profileBagSize: profile ? bagSize : undefined,
-      profileScorelessTurns: profile === "strong" && !analysisGame?.solo && bagSize === 0 ? scorelessTurns : undefined,
+      profileScorelessTurns: analysisGame?.solo
+        ? undefined : styleScorelessTurns(profile, bagSize, scorelessTurns),
       profileSeed: hunterSelected ? hunterResult?.id :
         profile && analysisGame ? profileWordHash(analysisGame.id) : undefined,
       profileSample: profile && !hunterSelected ? styleSample : undefined,

@@ -1,7 +1,7 @@
 import { createBingoReplySearch, type BingoDeal } from "./bingo-replies";
 import type { HunterPosition } from "./bingo-hunter";
 import { endgameStreaks, nextEndgameStreak, rackPoints } from "./endgame";
-import { isBingo, type Move } from "./model";
+import { isBingo, type Board, type Move } from "./model";
 import { leaveValue } from "./rack-leave";
 import { rackComposition } from "./rack-entry";
 import type { createSolverFactory } from "./solver";
@@ -33,6 +33,7 @@ export function createMasterEvaluator(
   position: HunterPosition,
   action: MasterAction,
   policy: MasterPolicy,
+  selectFollowUp?: (moves: Move[], board: Board, rack: string, bagSize: number) => Move | undefined,
 ) {
   const { board, bagSize, template, scorelessTurns } = position;
   const { move, leave, draw } = action;
@@ -44,7 +45,14 @@ export function createMasterEvaluator(
     factory,
     boardAfter,
     bagAfter > 0,
-    (solver, rack, limits) => solver.bestReply(rack, policy.leaf > 0, limits),
+    (solver, rack, limits, next, reply) => selectFollowUp
+      ? selectFollowUp(
+          solver.solve(rack, limits, { unsorted: true }),
+          next,
+          rack,
+          Math.max(0, bagAfter - (reply?.tiles.length ?? 0)),
+        ) ?? null
+      : solver.bestReply(rack, policy.leaf > 0, limits),
   );
   const points = (rack: string) => rackPoints(rack, template.rules);
   return (deal: BingoDeal, deadline: number): MasterOutcome => {

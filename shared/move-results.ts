@@ -72,7 +72,16 @@ export interface EndgameRanking {
 
 type ProfileQuery = Pick<MoveQuery, "profile" | "profileBagSize" | "profileSeed" | "profileSample" | "profileScorelessTurns">;
 
-function utilityKey({
+export function styleScorelessTurns(
+  profile: MoveStyle | undefined,
+  bagSize: number,
+  scorelessTurns: number | undefined,
+) {
+  if ((profile === "learner" && bagSize > 0) || (profile === "strong" && bagSize === 0))
+    return scorelessTurns;
+}
+
+export function profileQueryKey({
   profile,
   profileBagSize = 0,
   profileSeed = 0,
@@ -278,12 +287,12 @@ export class MoveResultIndex {
 
   hasProfile(query: MoveQuery) {
     const order = isSimulatedStyle(query.profile) ? this.hunterOrders.get(query.profile) : this.profileOrder;
-    return order?.key === utilityKey(query);
+    return order?.key === profileQueryKey(query);
   }
 
   setProfile(query: ProfileQuery, ranked: readonly RankedMove[]) {
     const order = {
-      key: utilityKey(query),
+      key: profileQueryKey(query),
       moves: ranked.map(({ move }) => move),
       ranked,
       ranks: new Map(ranked.map(({ move }, index) => [move.id, index + 1])),
@@ -324,7 +333,7 @@ export class MoveResultIndex {
       this.endgame?.id === endgameId ? this.endgame?.estimates : undefined;
     const profileOrder = isSimulatedStyle(profile) ? this.hunterOrders.get(profile) : this.profileOrder;
     const profileKey = profile
-      ? utilityKey({ profile, profileBagSize, profileSeed, profileSample, profileScorelessTurns })
+      ? profileQueryKey({ profile, profileBagSize, profileSeed, profileSample, profileScorelessTurns })
       : undefined;
     const ranked = profileOrder?.key === profileKey ? profileOrder : undefined;
     const source = profile ? ranked?.moves ?? [] : this.moves;
