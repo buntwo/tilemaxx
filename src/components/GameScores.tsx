@@ -23,7 +23,7 @@ import ScoreBreakdown from "./ScoreBreakdown";
 import ScoreChart from "./ScoreChart";
 import TurnReview from "./TurnReview";
 
-function ScorePlayerMarker({
+export function ScorePlayerMarker({
   player,
   turn,
   winner,

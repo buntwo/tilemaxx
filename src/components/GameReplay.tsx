@@ -13,6 +13,7 @@ import { emptyBoard, isBingo, tileScore } from "../../shared/model";
 import { recordedMoveDetails } from "../../shared/notation";
 import { sortedRackSlots } from "../../shared/rack-entry";
 import Board from "./Board";
+import { ScorePlayerMarker } from "./GameScores";
 import MoveWord from "./MoveWord";
 import RackBag from "./RackBag";
 import TilePool from "./TilePool";
@@ -76,7 +77,7 @@ function ReplayMoveStrip({ frame }: { frame: ReplayFrame }) {
             </strong>
           </div>
           <div className="replay-move-result">
-            <strong>{move.score >= 0 && "+"}{move.score} pts</strong>
+            <strong>{move.score} pts</strong>
             {details?.location && <span>{details.location}</span>}
           </div>
         </>
@@ -93,6 +94,7 @@ function ReplayMoveStrip({ frame }: { frame: ReplayFrame }) {
 
 export function ReplayControls({
   frame,
+  frames,
   index,
   last,
   playing,
@@ -101,6 +103,7 @@ export function ReplayControls({
   close,
 }: {
   frame: ReplayFrame;
+  frames: readonly ReplayFrame[];
   index: number;
   last: number;
   playing: boolean;
@@ -109,6 +112,10 @@ export function ReplayControls({
   close: () => void;
 }) {
   const controls = useRef<HTMLDivElement>(null);
+  const pointDigits = useMemo(
+    () => frames.reduce((width, { move }) => Math.max(width, String(move?.score ?? 0).length), 2),
+    [frames],
+  );
   useEffect(() => {
     controls.current?.focus({ preventScroll: true });
     controls.current?.scrollIntoView?.({ block: "nearest" });
@@ -126,6 +133,7 @@ export function ReplayControls({
     <div
       ref={controls}
       className="board-replay-controls"
+      style={{ "--replay-point-digits": pointDigits } as CSSProperties}
       role="group"
       aria-label="Game replay"
       aria-keyshortcuts="ArrowLeft ArrowRight Space"
@@ -227,7 +235,8 @@ export function ReplayScores({
     () => (earlier ? moves.slice(0, scoreStart) : moves.slice(scoreStart)),
     [earlier, moves, scoreStart],
   );
-  const scores = frames[index].scores;
+  const { scores, move } = frames[index];
+  const turn = solo ? undefined : move?.player;
   const players = solo ? (["you"] as const) : (["you", "opponent"] as const);
   return (
     <section
@@ -243,6 +252,7 @@ export function ReplayScores({
             <dt>{player === "you" ? "You" : "Opponent"}</dt>
             <dd className="score-total">
               {scores[player]} <small>pts</small>
+              <ScorePlayerMarker player={player} turn={turn} />
             </dd>
           </div>
         ))}
@@ -313,8 +323,8 @@ export function ReplayRack({
   const used = opponent ? [] : slots.filter((slot) => playedSlots?.includes(slot));
   const leave = slots.filter((slot) => !used.includes(slot));
   const empty = Array<undefined>(template.rackSize - slots.length).fill(undefined);
-  const order = [...leave, ...empty, ...used];
-  const usedStart = order.length - used.length;
+  const order = [...leave, ...used, ...empty];
+  const usedEnd = leave.length + used.length;
   const label = opponent ? "Opponent rack" : "Your rack";
   const bagLabel = bag
     ? `${bag.count}${bag.estimated ? " estimated" : ""} ${bag.count === 1 ? "tile" : "tiles"} in the bag before the play${bag.invalid ? ", check tile counts" : ""}`
@@ -348,7 +358,7 @@ export function ReplayRack({
         >
           {order.map((slot, i) => {
             const tile = slot === undefined ? undefined : rack?.[slot];
-            const played = i >= usedStart;
+            const played = i >= leave.length && i < usedEnd;
             const tileLabel = tile === "?" ? "Blank" : tile;
             return (
               <span

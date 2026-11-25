@@ -115,6 +115,15 @@ export function unseenTiles(
   };
 }
 
+/** With an empty bag, all unseen tiles belong to the opponent. */
+export function endgameOpponentRack(
+  pool: ReturnType<typeof unseenTiles>,
+  rackSize: number,
+) {
+  if (pool.excess.length || pool.total > rackSize) return;
+  return pool.tiles.map(({ symbol, count }) => symbol.repeat(count)).join("");
+}
+
 /** Chance a random rack drawn without replacement contains a specified multiset. */
 export function rackContainsChance(
   unseen: ReturnType<typeof unseenTiles>,

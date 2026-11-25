@@ -4864,7 +4864,11 @@ label + label {
 .rack-bag[data-digits="4"] { --bag-font-max: 11px; --bag-font-scale: .355; }
 .rack-bag[data-digits="5"] { --bag-font-max: 9px; --bag-font-scale: .29; }
 .rack-bag:disabled { opacity: 1; }
-.rack-bag[data-empty] { color: light-dark(#54675d, #b0c0b6); }
+.rack-bag[data-empty] {
+  --bag-fill: light-dark(#e4e4e6, #444447);
+  --bag-edge: light-dark(#a5a5aa, #828287);
+  color: light-dark(#545458, #d2d2d6);
+}
 .rack-bag[data-overdrawn] {
   --bag-fill: light-dark(#f3d8d5, #623d3b);
   --bag-edge: light-dark(#bd6d64, #dc8982);
@@ -4966,8 +4970,8 @@ label + label {
   pointer-events: none;
 }
 .rack-tile.selected .rack-slot {
-  transform: translateY(-4px);
-  box-shadow: var(--rack-slot-mark, 0 0 transparent), 0 4px #4a2e1f, 0 6px 6px #43281480;
+  transform: translateY(-2px);
+  box-shadow: var(--rack-slot-mark, 0 0 transparent), 0 2px #4a2e1f, 0 4px 6px #43281480;
 }
 @media (prefers-reduced-motion: reduce) {
   .rack-slot { transition: none; }
@@ -6742,14 +6746,11 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   line-height: 1.2;
 }
 .replay-move-strip > :only-child { grid-column: 1 / -1; }
-.replay-move-word, .replay-move-result {
+.replay-move-word {
   display: flex;
   align-items: baseline;
-  gap: 5px;
-}
-.replay-move-word {
   flex-wrap: wrap;
-  row-gap: 0;
+  gap: 0 5px;
 }
 .replay-move-word .last-play-word {
   min-width: 0;
@@ -6762,7 +6763,14 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   .replay-move-strip { padding-inline: 5px; }
 }
 .replay-move-player, .replay-move-result { white-space: nowrap; }
-.replay-move-result { font-variant-numeric: tabular-nums; }
+.replay-move-result {
+  display: grid;
+  grid-template-columns: calc(var(--replay-point-digits) * 1ch + 2em) 3ch;
+  align-items: baseline;
+  gap: 4px;
+  text-align: start;
+  font-variant-numeric: tabular-nums;
+}
 .replay-move-result strong { color: var(--value-good); }
 .replay-move-strip[data-player="opponent"] .replay-move-result strong { color: var(--value-bad); }
 .board-replay-track {

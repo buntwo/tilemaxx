@@ -828,7 +828,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         ? { ...replay.frame.scores, solo: game.solo, outcome: "playing" }
         : gameFinish.score}
       label={replay ? "Replay score" : undefined}
-      turn={replay ? undefined : nextPlayerToMove(game)}
+      turn={replay && !game.solo ? replay.frame.move?.player : nextPlayerToMove(game)}
       onReplay={replay ? undefined : gameFinish.replay}
       prominent={compactGame}
       showMargin
@@ -1412,7 +1412,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     boardHistoryControls
                   }
                   statusAction={
-                    compactGame && !boardLocked && !game.board.some(Boolean) && (
+                    compactGame && !game.archived && !boardLocked && !game.board.some(Boolean) && (
                       <button
                         type="button"
                         className="icon-button board-import"

@@ -1683,6 +1683,23 @@ test("correcting a move from before a score reset keeps current totals and pendi
   assert.equal(trackedMoveHistory(corrected)[0].score, 12);
 });
 
+test("opponent review saves a stable short rack when it establishes an empty bag", () => {
+  const base = fixture();
+  const tileCounts = Object.fromEntries(
+    TILE_SYMBOLS.map((symbol) => [
+      symbol, [..."ATCATZ"].filter((tile) => tile === symbol).length,
+    ]),
+  );
+  const game = { ...base, rack: "AT", template: { ...base.template, tileCounts } };
+  const board = game.board.slice();
+  board.splice(game.template.start, 3, "C", "A", "T");
+  const entered = new BoardEditHistory().apply(game, board, "enter");
+  const recorded = recordOpponentPlay(entered);
+  assert.equal(recorded.trackedMoves?.[0].review?.observerRack, "AT");
+  const normalBag = recordOpponentPlay({ ...entered, template: base.template });
+  assert.equal(normalBag.trackedMoves?.[0].review?.observerRack, undefined);
+});
+
 test("opponent review saves a full observer rack from before entry, with older or changed racks left unknown", () => {
   const game = { ...fixture(), rack: "ZSEI?MR" };
   const board = [...game.board];

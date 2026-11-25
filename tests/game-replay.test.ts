@@ -132,6 +132,57 @@ test("replay only shows an opponent rack established by the historical tile pool
   }
 });
 
+test("replay recovers an exact endgame rack across contiguous older opponent turns", () => {
+  const opening = emptyBoard(15);
+  opening[112] = "E";
+  const afterFirst = opening.slice();
+  afterFirst[111] = "T";
+  afterFirst[113] = "A";
+  const final = afterFirst.slice();
+  final[114] = "M";
+
+  const moves: TrackedMove[] = [
+    {
+      player: "opponent", word: "TEA", score: 3, at: "",
+      review: {
+        board: opening, dictionaryId: "test",
+        tiles: [{ index: 111, letter: "T" }, { index: 113, letter: "A" }],
+      },
+    },
+    {
+      player: "opponent", word: "TEAM", score: 6, at: "",
+      review: {
+        board: afterFirst, dictionaryId: "test",
+        tiles: [{ index: 114, letter: "M" }],
+      },
+    },
+  ];
+  const game = {
+    ...gameWithMoves(moves),
+    board: final,
+    rack: "SN",
+    template: {
+      ...PRESETS[0],
+      tileCounts: Object.fromEntries(TILE_SYMBOLS.map((symbol) => [
+        symbol, Number("AEMNSTZ".includes(symbol)),
+      ])),
+    },
+  };
+  const archived = archiveForReview(game);
+  const [start, first, second] = gameReplayTimeline({ ...archived, rack: "ZZ" }).frames;
+  assert.equal(start.rack, "SN");
+  assert.equal(first.rack, "AMTZ");
+  assert.equal(second.rack, "MZ");
+  assert.equal(first.bag?.count, 0);
+  assert.deepEqual(first.playedSlots, [2, 0]);
+
+  const mismatched = final.slice();
+  mismatched[0] = "Z";
+  const [, unknown] = gameReplayTimeline({ ...game, board: mismatched }).frames;
+  assert.equal(unknown.rack, undefined);
+  assert.equal(unknown.opponentPlayedTiles, "TA");
+});
+
 test("score-only moves keep their points and do not invent a board or rack", () => {
   const game = gameWithMoves([
     { player: "opponent", word: "CAT", score: 10, at: "" },

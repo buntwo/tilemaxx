@@ -137,15 +137,19 @@ export default function GameOptions({
           <section aria-labelledby="game-option-board">
             <h3 id="game-option-board">Board tools</h3>
             <div className="game-option-list">
-              <button
-                disabled={busy || boardLocked}
-                onClick={() => onOpen("screenshot")}
-              >
-                <ImagePlus size={17} aria-hidden="true" /> Import screenshot
-              </button>
-              <button disabled={busy} onClick={() => onOpen("history")}>
-                <History size={17} aria-hidden="true" /> Move history
-              </button>
+              {!game.archived && (
+                <>
+                  <button
+                    disabled={busy || boardLocked}
+                    onClick={() => onOpen("screenshot")}
+                  >
+                    <ImagePlus size={17} aria-hidden="true" /> Import screenshot
+                  </button>
+                  <button disabled={busy} onClick={() => onOpen("history")}>
+                    <History size={17} aria-hidden="true" /> Move history
+                  </button>
+                </>
+              )}
               <button disabled={busy || !onReplay} onClick={onReplay}>
                 <Play size={17} aria-hidden="true" /> Replay game
               </button>

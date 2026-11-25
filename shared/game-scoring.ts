@@ -28,7 +28,7 @@ import {
   type TurnPosition,
 } from "./model";
 import { rackLetters, rackSlotsForMove } from "./rack-entry";
-import { unseenTiles } from "./tile-pool";
+import { endgameOpponentRack, unseenTiles } from "./tile-pool";
 import { PRESETS } from "./presets";
 import {
   boardEditLabels,
@@ -1038,11 +1038,20 @@ function recordOpponentTurn(
   const start = opponentEntryStart(game, base);
   const physicalRack = (rack: string) => [...rackLetters(rack)].sort().join("");
   const rack = physicalRack(game.rack);
-  // A full rack present before entry and unchanged through recording is
-  // usable. A verified rack-out also accounts for every tile in a short rack.
+  const boardBefore = base.map((tile, index) => (tile ? game.board[index] : ""));
+  const tiles = game.board.flatMap((letter, index) =>
+    letter && !base[index] ? [{ index, letter }] : [],
+  );
+  const { template } = game;
+  const endgameRack = rack && rack.length < template.rackSize
+    ? endgameOpponentRack(unseenTiles({ board: boardBefore, rack }, template), template.rackSize)
+    : undefined;
+  // A stable rack is usable if it is full or accounts for the endgame tile pool.
+  // Verified opponent rack-outs also establish the rack after a delayed refill.
   const observerRack =
     (end && "out" in end && end.out === "opponent") ||
-    (rack.length === game.template.rackSize &&
+    ((rack.length === template.rackSize ||
+      (endgameRack !== undefined && rackSlotsForMove({ board: boardBefore, rack: endgameRack }, tiles))) &&
       start !== undefined &&
       game.past
         .slice(start)
@@ -1056,13 +1065,11 @@ function recordOpponentTurn(
     "opponent",
     play.bingo,
     {
-      board: base.map((tile, index) => (tile ? game.board[index] : "")),
+      board: boardBefore,
       ...(observerRack !== undefined && { observerRack }),
       dictionaryId: game.dictionaryId,
-      premiums: game.template.premiums,
-      tiles: game.board.flatMap((letter, index) =>
-        letter && !base[index] ? [{ index, letter }] : [],
-      ),
+      premiums: template.premiums,
+      tiles,
     },
   );
   if (start !== undefined) {
