@@ -18,10 +18,12 @@
 
 .score-chart-heading h3 { font-size: 13px; }
 .score-chart-legend {
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 4px 16px;
   color: var(--existing-letter);
   font-size: 11px;
 }
+.score-chart-legend .score-chart-player { flex: none; }
 
 .score-chart-player {
   justify-content: flex-start;
@@ -35,7 +37,8 @@
 .score-chart-opponent { --series-color: var(--value-bad); }
 
 .score-chart-swatch {
-  flex: 0 0 15px;
+  flex: none;
+  inline-size: 15px;
   border-top: 2px solid var(--series-color);
 }
 
