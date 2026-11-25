@@ -379,6 +379,7 @@ test("All moves and Shortlist share the selected playing style as their return v
   expect(allMoves.getAttribute("aria-pressed")).toBe("true");
   expect(allMoves.title).toBe("Return to Word-List Learner");
   await user.click(screen.getByRole("button", { name: "All moves" }));
+  expect(allMoves.getAttribute("aria-pressed")).toBe("false");
   expect(await screen.findByText("#1")).toBeTruthy();
   expect(picker).toHaveProperty("value", "learner");
 });
@@ -5206,6 +5207,11 @@ test("the phone layout keeps settings, the build version, board help and move fi
   await user.keyboard("{Escape}");
   expect(toolbar.queryByRole("textbox", { name: "Filter moves" })).toBeNull();
   expect(document.activeElement).toBe(search);
+  await user.click(search);
+  expect(search.getAttribute("aria-expanded")).toBe("true");
+  await user.click(search);
+  expect(search.getAttribute("aria-expanded")).toBe("false");
+  expect(toolbar.queryByRole("textbox", { name: "Filter moves" })).toBeNull();
   expect(toolbar.getByRole("button", { name: "All moves" })).toBe(allMoves);
   expect(main.getByRole("button", { name: "Undo" }).closest(".board-review-actions")).toBeTruthy();
   await chooseMoveOption(user, "Mark squares");

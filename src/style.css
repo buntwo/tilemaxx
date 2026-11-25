@@ -5709,11 +5709,12 @@ label + label {
   position: absolute;
   inset: 0;
 }
-.has-move-results :is(.move-search-toggle, .move-all-toggle) {
+.has-move-results .icon-button:is(.move-search-toggle, .move-all-toggle) {
   flex: none;
   color: var(--primary);
+  background: transparent;
 }
-.has-move-results :is([aria-pressed="true"], [aria-expanded="true"]).icon-button {
+.has-move-results .icon-button:is(.move-search-toggle[aria-expanded="true"], .move-all-toggle[aria-pressed="true"]) {
   background: var(--soft);
 }
 .move-word-filter {
