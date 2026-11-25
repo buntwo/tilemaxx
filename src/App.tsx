@@ -1328,6 +1328,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             definitionRules={game.template.rules}
             positionKey={replay ? `${game.id}:replay:${replay.index}` : signature}
             narrow={narrowLayout}
+            resizeDisabled={!!activeFlight}
             reviewing={!replay && moveReview.showing}
             replaying={!!replay}
             hasWarnings={!replay && warnings.length > 0}
@@ -1480,8 +1481,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 {replay && (
                   <ReplayRack
                     frame={replay.frame}
-                    nextFrame={replay.nextFrame}
                     showOpponentTiles={preferences.showReplayOpponentTiles}
+                    solo={game.solo}
+                    phone={narrowLayout}
+                    detailsTarget={detailsTarget}
                   />
                 )}
                 <Activity mode={replay ? "hidden" : "visible"}>

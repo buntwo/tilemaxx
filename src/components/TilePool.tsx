@@ -1,23 +1,24 @@
 import { useState } from "react";
 import { ChevronDown, TriangleAlert } from "lucide-react";
-import { type Game } from "../../shared/model";
-import { unseenTiles } from "../../shared/tile-pool";
+import type { unseenTiles } from "../../shared/tile-pool";
 
 export default function TilePool({
-  game,
+  pool,
+  solo,
   id,
   open,
   hideWhenClosed = false,
   onOpenChange,
 }: {
-  game: Game;
+  pool: ReturnType<typeof unseenTiles>;
+  solo?: boolean;
   id: string;
   open: boolean;
   hideWhenClosed?: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const [filter, setFilter] = useState("all");
-  const { tiles, totals, total, excess } = unseenTiles(game, game.template);
+  const { tiles, totals, total, excess } = pool;
   const visible = tiles.filter((tile) => {
     switch (filter) {
       case "remaining":
@@ -84,7 +85,7 @@ export default function TilePool({
       </summary>
       <div className="tile-pool-content" id={id}>
         <div className="tile-pool-controls">
-          <p>{game.solo
+          <p>{solo
             ? "Unseen tiles are the tiles remaining in the bag."
             : "Includes tiles in the bag and on other players’ racks."}</p>
           <select

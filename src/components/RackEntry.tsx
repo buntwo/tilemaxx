@@ -39,6 +39,8 @@ import OptimalExchange from "./OptimalExchange";
 import ExchangeSuggestion, { exchangeAdviceDetail, type SwapAdvice } from "./ExchangeSuggestion";
 import OpponentRack from "./OpponentRack";
 import TilePool from "./TilePool";
+import RackBag from "./RackBag";
+import { unseenTiles } from "../../shared/tile-pool";
 
 const SENTINEL = "\u200b";
 const EXCHANGE_CACHE_LIMIT = 16;
@@ -681,23 +683,17 @@ export default function RackEntry({
     </div>
   );
   const bagButton = (
-    <button
-      type="button"
-      className="rack-bag"
-      aria-label={`Unseen tiles, ${bagStatus}`}
-      aria-controls={tilePoolId}
-      aria-expanded={tilePoolOpen}
-      title={bagStatus}
-      data-empty={bagCount === 0 || undefined}
-      data-overdrawn={tileCountsInvalid || undefined}
-      data-digits={String(bagCount).length}
+    <RackBag
+      count={bagCount}
+      label={bagStatus}
+      invalid={tileCountsInvalid}
+      controls={tilePoolId}
+      expanded={tilePoolOpen}
       onClick={() => {
         onReviewEdit?.();
         setTilePoolOpen((open) => !open);
       }}
-    >
-      {bagCount}
-    </button>
+    />
   );
   const details = (
     <>
@@ -781,7 +777,8 @@ export default function RackEntry({
         />
       )}
       <TilePool
-        game={game}
+        pool={unseenTiles(game, game.template)}
+        solo={game.solo}
         id={tilePoolId}
         open={tilePoolOpen}
         hideWhenClosed={phoneLayout}

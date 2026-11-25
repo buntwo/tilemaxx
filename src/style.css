@@ -4571,8 +4571,7 @@ label + label {
   background: var(--cell);
   box-shadow: none;
 }
-.board-grid[data-preview-player="opponent"] .square.occupied.ghost:not(.blank),
-.replay-rack[data-player="opponent"] .rack-tile.move-preview .rack-face:not(.blank) {
+.board-grid[data-preview-player="opponent"] .square.occupied.ghost:not(.blank) {
   --preview-dark: #ba6b66;
   --preview-tint: #efaaa2;
   --preview-edge: #893934;
@@ -4838,27 +4837,33 @@ label + label {
 .rack-bag {
   --bag-fill: light-dark(#dcecdf, #385345);
   --bag-edge: light-dark(#9db5a4, #799786);
+  --bag-width: 36px;
+  --bag-height-ratio: 1.195;
+  --bag-inset-ratio: .25;
+  --bag-font-scale: .52;
+  --bag-font-max: 16px;
   position: relative;
   isolation: isolate;
   display: grid;
   grid-area: bag;
   place-items: center;
   justify-self: center;
-  width: 36px;
-  height: 43px;
-  padding: 9px 0 0;
+  width: var(--bag-width);
+  height: calc(var(--bag-width) * var(--bag-height-ratio));
+  padding: calc(var(--bag-width) * var(--bag-inset-ratio)) 0 0;
   appearance: none;
   border: 0;
   background: none;
   color: light-dark(#214c39, #d7ebdf);
-  font-size: 16px;
+  font-size: min(var(--bag-font-max), calc(var(--bag-width) * var(--bag-font-scale)));
   font-weight: 740;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
-.rack-bag[data-digits="3"] { font-size: 13px; }
-.rack-bag[data-digits="4"] { font-size: 11px; }
-.rack-bag[data-digits="5"] { font-size: 9px; }
+.rack-bag[data-digits="3"] { --bag-font-max: 13px; --bag-font-scale: .42; }
+.rack-bag[data-digits="4"] { --bag-font-max: 11px; --bag-font-scale: .355; }
+.rack-bag[data-digits="5"] { --bag-font-max: 9px; --bag-font-scale: .29; }
+.rack-bag:disabled { opacity: 1; }
 .rack-bag[data-empty] { color: light-dark(#54675d, #b0c0b6); }
 .rack-bag[data-overdrawn] {
   --bag-fill: light-dark(#f3d8d5, #623d3b);
@@ -4889,8 +4894,6 @@ label + label {
   border-bottom: 2px solid var(--bag-edge);
   border-radius: 1px 1px 9px 9px;
 }
-.phone-layout .rack-bag { width: 31px; height: 36px; padding-top: 7px; }
-.phone-layout .rack-bag[data-digits="5"] { width: 36px; }
 .phone-layout .rack-shuffle.button { min-height: 40px; }
 .rack-entry .rack-tile {
   flex: 1 1 0;
@@ -5881,11 +5884,6 @@ label + label {
 .exact-reply-metadata small { color: var(--muted); font-size: 10px; font-weight: 500; }
 .inline-reply-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 
-/* Keep the board, rack and first move rows in view in a desktop game. */
-.compact-game {
-  --game-workspace-columns: min(54%, max(320px, calc(100svh - 188px))) minmax(0, 1fr);
-  --game-workspace-gap: 14px;
-}
 .compact-game .main-content { max-width: none; }
 .sidebar .profile-picker { padding-top: 12px; }
 .game-heading {
@@ -6216,46 +6214,68 @@ label + label {
     font-size: clamp(4px, 2.8cqw, 6px);
   }
 }
-.phone-rack-divider {
-  --phone-divider-thumb: 26px;
+:is(.phone-rack-divider, .desktop-board-divider) {
+  --divider-thumb: 26px;
   grid-area: 1 / 1 / 2 / -1;
-  justify-self: end;
-  direction: rtl;
   z-index: 2;
   appearance: none;
-  width: calc(var(--phone-divider-range) + var(--phone-divider-thumb));
   height: 44px;
   min-height: 0;
   margin: 0;
-  margin-right: calc(var(--phone-rack-width) + (var(--phone-rack-gap) - var(--phone-divider-thumb)) / 2);
   padding: 0;
   border: 0;
-  border-radius: 5px;
   background: transparent;
-  /* The grid paints the line. Keep all native slider paint off the board and rack. */
+  /* Paint the divider separately and only let the slider thumb intercept input. */
   opacity: 0;
   cursor: ew-resize;
   touch-action: none;
-  /* The track overlaps the board. Only the thumb should intercept taps. */
   pointer-events: none;
 }
-.phone-rack-divider::-webkit-slider-thumb {
+:is(.phone-rack-divider, .desktop-board-divider)::-webkit-slider-thumb {
   appearance: none;
-  width: var(--phone-divider-thumb);
+  width: var(--divider-thumb);
   height: 44px;
   border: 0;
   border-radius: 0;
   pointer-events: auto;
 }
-.phone-rack-divider::-moz-range-thumb {
+:is(.phone-rack-divider, .desktop-board-divider)::-moz-range-thumb {
   box-sizing: border-box;
-  width: var(--phone-divider-thumb);
+  width: var(--divider-thumb);
   height: 44px;
   border: 0;
   border-radius: 0;
   pointer-events: auto;
 }
-.phone-rack-divider:disabled { cursor: default; }
+:is(.phone-rack-divider, .desktop-board-divider):disabled { cursor: default; }
+.phone-rack-divider {
+  justify-self: end;
+  direction: rtl;
+  width: calc(var(--phone-divider-range) + var(--divider-thumb));
+  margin-right: calc(var(--phone-rack-width) + (var(--phone-rack-gap) - var(--divider-thumb)) / 2);
+}
+.desktop-board-divider {
+  justify-self: start;
+  align-self: start;
+  width: calc(var(--desktop-divider-range) + var(--divider-thumb));
+  margin-inline-start: calc(var(--desktop-board-min) + (var(--desktop-divider-width) - var(--divider-thumb)) / 2);
+  margin-block-start: calc(var(--desktop-board-width) / 2 - 22px);
+}
+.desktop-divider-line {
+  grid-area: 1 / 2;
+  justify-self: center;
+  align-self: start;
+  width: 2px;
+  min-width: 2px;
+  height: 32px;
+  margin-block-start: calc(var(--desktop-board-width) / 2 - 16px);
+  background: var(--muted);
+  pointer-events: none;
+}
+.workspace-grid:has(> .desktop-board-divider:focus-visible) > .desktop-divider-line {
+  background: var(--primary);
+}
+.workspace-grid:has(> .desktop-board-divider:disabled) > .desktop-divider-line { opacity: .5; }
 .phone-board-column > .rack-panel {
   grid-area: 1 / 3;
   /* Let the board set the row height and fit the rack within it. */
@@ -6305,10 +6325,13 @@ label + label {
   );
 }
 .phone-board-column .rack-bag {
-  align-self: center;
+  --bag-width: clamp(15px, calc(var(--phone-rack-tile-size) * .92), 31px);
+  --bag-height-ratio: 1.16;
+  --bag-inset-ratio: .226;
+  align-self: start;
   flex: none;
-  margin-top: 2px;
-  height: var(--phone-rack-control-height);
+  margin-block-start: 2px;
+  margin-inline-start: calc((var(--phone-rack-tile-size) + var(--phone-rack-tray-side-space) - var(--bag-width)) / 2);
 }
 .phone-board-column .rack-panel .rack-tiles {
   flex-direction: column;
@@ -6532,16 +6555,16 @@ label + label {
 }
 
 .compact-game .workspace-grid {
-  grid-template-columns: var(--game-workspace-columns);
+  grid-template-columns: var(--desktop-board-width) var(--desktop-divider-width) minmax(0, 1fr);
   grid-template-rows: auto 1fr;
-  gap: var(--game-workspace-gap);
+  gap: 14px 0;
 }
 .compact-game .board-column { grid-area: 1 / 1; }
-.compact-game .results-column { grid-area: 1 / 2 / span 2; }
+.compact-game .results-column { grid-area: 1 / 3 / span 2; }
 .compact-game .game-scores-column { grid-area: 2 / 1; }
 .replay-workspace > .results-column { display: none; }
 .compact-game .replay-workspace { grid-template-rows: auto; }
-.compact-game .replay-workspace > .game-scores-column { grid-area: 1 / 2; }
+.compact-game .replay-workspace > .game-scores-column { grid-area: 1 / 3; }
 .app-shell:not(.phone-layout) .board-panel { padding-top: 5px; }
 .app-shell:not(.phone-layout) .board-panel .board-wrap { padding: 1px 14px 2px 9px; }
 .board-panel {
@@ -6846,27 +6869,33 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   text-align: center;
 }
 .replay-rack .rack-tile { cursor: default; }
-.replay-rack .opponent-rack-lane {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin-block: 5px 3px;
+.replay-rack .rack-tile[data-used-group-start] { margin-inline-start: 4px; }
+.compact-game .replay-rack-row {
+  display: grid;
+  grid-template-columns: minmax(42px, 1fr) minmax(0, var(--rack-tray-width)) minmax(42px, 1fr);
+  grid-template-areas: ". tiles bag";
+  align-items: center;
 }
-.replay-rack .rack-bag { margin: 3px auto 0; }
+.compact-game .replay-rack-row > .rack-tiles { grid-area: tiles; width: 100%; }
 .phone-board-column .replay-rack {
-  --phone-rack-space: calc(100cqh - var(--phone-rack-control-height) - 2 * var(--phone-rack-label-height) - 7px);
+  --phone-rack-space: calc(100cqh - var(--phone-rack-control-height) - 2 * var(--phone-rack-label-height) - 10px);
 }
-.phone-board-column .replay-rack .opponent-rack-lane { display: block; }
-.phone-board-column .replay-rack .rack-owner-label {
-  align-items: flex-start;
-  white-space: nowrap;
+.phone-board-column .replay-rack-row {
+  display: flex;
+  flex-direction: column;
 }
-.phone-board-column .replay-rack-label {
-  font-size: 9px;
+.phone-board-column .replay-rack .rack-tile[data-used-group-start] {
+  margin-inline-start: 0;
+  margin-block-start: 3px;
 }
+.phone-board-column .replay-rack-label { font-size: 9px; }
 .compact-game .rack-panel {
+  container-type: inline-size;
   margin-top: 6px;
   padding: 7px 11px 8px;
+}
+.compact-game .rack-panel .rack-bag {
+  --bag-width: clamp(18px, calc((100cqi - 102px) / var(--rack-size) - 4px), 36px);
 }
 :is(.compact-game, .phone-layout) .rack-panel .rack-entry {
   --rack-tray-width: min(100%, calc(var(--rack-size) * 53px + 7px));

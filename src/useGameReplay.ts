@@ -157,7 +157,6 @@ export function useGameReplay(
       frames: active.frames,
       scoreStart: active.scoreStart,
       frame: active.frames[index],
-      nextFrame: active.frames[index + 1],
       index,
       last,
       playing,

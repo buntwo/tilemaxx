@@ -20,6 +20,7 @@ export type ReplayFrame = {
   rack?: string;
   playedSlots?: number[];
   opponentPlayedTiles?: string;
+  unseen?: ReturnType<typeof unseenTiles>;
   bag?: { count: number; estimated: boolean; invalid: boolean };
   scores: Record<Player, number>;
 };
@@ -52,14 +53,16 @@ function replayPlacement(
   position: TurnPosition,
   template: BoardTemplate,
   solo: boolean,
-): Pick<ReplayFrame, "rack" | "playedSlots" | "opponentPlayedTiles" | "bag"> {
+): Pick<ReplayFrame, "rack" | "playedSlots" | "opponentPlayedTiles" | "bag" | "unseen"> {
   const { board, tiles } = position;
   const ownRack = player === "you" ? position.rack : position.observerRack;
   const pool = unseenTiles({ board, rack: ownRack ?? "" }, template);
   const bag = replayBag(pool, ownRack, template, solo);
+  const unseen = ownRack === undefined ? undefined : pool;
   if (player === "you") {
     return {
       bag,
+      unseen,
       rack: ownRack,
       playedSlots: ownRack === undefined
         ? undefined
@@ -69,7 +72,7 @@ function replayPlacement(
   const opponentPlayedTiles = tiles.length <= template.rackSize
     ? tiles.map(({ letter }) => letter === letter.toUpperCase() ? letter : "?").join("")
     : undefined;
-  const details = { bag, opponentPlayedTiles };
+  const details = { bag, unseen, opponentPlayedTiles };
   if (solo || ownRack === undefined) return details;
   // With tiles in the bag the opponent would have a full rack, so a pool
   // no larger than a full rack can only be their rack.
@@ -112,18 +115,18 @@ export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreSt
   const firstTemplate = boardTemplate(first);
   const firstRack = turns[0].move.player === "you" ? first?.rack : first?.observerRack;
   const solo = !!source.solo;
+  const firstPool = first && unseenTiles(
+    { board: first.board, rack: firstRack ?? "" },
+    firstTemplate,
+  );
   const zero = { you: 0, opponent: 0 };
   const frames: ReplayFrame[] = [
     {
       board: first?.board,
       template: firstTemplate,
       rack: firstRack,
-      bag: first && replayBag(
-        unseenTiles({ board: first.board, rack: firstRack ?? "" }, firstTemplate),
-        firstRack,
-        firstTemplate,
-        solo,
-      ),
+      bag: firstPool && replayBag(firstPool, firstRack, firstTemplate, solo),
+      unseen: firstRack === undefined ? undefined : firstPool,
       scores: zero,
     },
   ];

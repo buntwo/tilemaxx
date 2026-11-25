@@ -3,24 +3,20 @@ import type { ReactNode } from "react";
 export default function OpponentRack({
   rack,
   children,
-  label = "Opponent",
-  tileLabel = "Opponent rack",
 }: {
   rack: string;
-  children?: ReactNode;
-  label?: string;
-  tileLabel?: string;
+  children: ReactNode;
 }) {
   const tiles = [...rack];
   return (
     <div className="rack-lane opponent-rack-lane">
       <small className="rack-owner-label" aria-hidden="true">
-        {label}
+        Opponent
       </small>
       <div
         className="opponent-rack-tiles"
         role="img"
-        aria-label={`${tileLabel}: ${tiles.map((tile) => (tile === "?" ? "blank" : tile)).join(", ")}`}
+        aria-label={`Opponent rack: ${tiles.map((tile) => (tile === "?" ? "blank" : tile)).join(", ")}`}
       >
         {tiles.map((tile, index) => (
           <span

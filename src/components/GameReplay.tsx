@@ -1,17 +1,21 @@
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
 } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import type { ReplayFrame } from "../../shared/game-replay";
 import { emptyBoard, isBingo, tileScore } from "../../shared/model";
 import { recordedMoveDetails } from "../../shared/notation";
+import { sortedRackSlots } from "../../shared/rack-entry";
 import Board from "./Board";
 import MoveWord from "./MoveWord";
-import OpponentRack from "./OpponentRack";
+import RackBag from "./RackBag";
+import TilePool from "./TilePool";
 import ScoreChart from "./ScoreChart";
 
 function replayBingo({ move, position, template }: ReplayFrame) {
@@ -286,86 +290,97 @@ export function ReplayScores({
 
 export function ReplayRack({
   frame,
-  nextFrame,
   showOpponentTiles,
+  solo,
+  phone,
+  detailsTarget,
 }: {
   frame: ReplayFrame;
-  nextFrame?: ReplayFrame;
   showOpponentTiles: boolean;
+  solo?: boolean;
+  phone: boolean;
+  detailsTarget: HTMLDivElement | null;
 }) {
-  const { bag, move, playedSlots, template } = frame;
+  const { bag, move, playedSlots, template, unseen } = frame;
+  const tilePoolId = useId();
+  const [poolOpen, setPoolOpen] = useState(false);
   const opponent = move?.player === "opponent";
-  const revealed = showOpponentTiles ? frame.opponentPlayedTiles : undefined;
-  const rack = frame.rack ?? revealed;
-  const partial = frame.rack === undefined && revealed !== undefined;
+  const partial = opponent && frame.rack === undefined && showOpponentTiles
+    ? frame.opponentPlayedTiles
+    : undefined;
+  const rack = frame.rack ?? partial;
+  const slots = sortedRackSlots((rack ?? "").slice(0, template.rackSize));
+  const used = opponent ? [] : slots.filter((slot) => playedSlots?.includes(slot));
+  const leave = slots.filter((slot) => !used.includes(slot));
+  const empty = Array<undefined>(template.rackSize - slots.length).fill(undefined);
+  const order = [...leave, ...empty, ...used];
+  const usedStart = order.length - used.length;
   const label = opponent ? "Opponent rack" : "Your rack";
-  const nextRack = showOpponentTiles ? nextFrame?.opponentPlayedTiles : undefined;
-  const bagCount = bag?.count ?? "?";
   const bagLabel = bag
     ? `${bag.count}${bag.estimated ? " estimated" : ""} ${bag.count === 1 ? "tile" : "tiles"} in the bag before the play${bag.invalid ? ", check tile counts" : ""}`
     : "Bag count unavailable";
+  const details = unseen && (
+    <TilePool
+      pool={unseen}
+      solo={solo}
+      id={tilePoolId}
+      open={poolOpen}
+      hideWhenClosed={phone}
+      onOpenChange={setPoolOpen}
+    />
+  );
   return (
     <div
       className="rack-entry replay-rack"
-      data-player={move?.player}
-      style={{
-        "--rack-size": template.rackSize,
-        "--opponent-rack-rows": nextRack ? Math.ceil(nextRack.length / 2) : 0,
-      } as CSSProperties}
+      style={{ "--rack-size": template.rackSize } as CSSProperties}
     >
       <div className="replay-rack-label" aria-hidden="true">
-        {partial ? "Opp. played" : opponent ? "Opponent" : "You"}
+        {opponent ? "Opponent" : "You"}
       </div>
-      <div
-        className="rack-tiles"
-        role="group"
-        aria-label={
-          partial ? "Opponent tiles played" :
-          rack === undefined ? `${label} unavailable` : label
-        }
-      >
-        {Array.from({ length: template.rackSize }, (_, i) => {
-          const tile = rack?.[i] === "." ? undefined : rack?.[i];
-          const played = partial || playedSlots?.includes(i);
-          const tileLabel = tile === "?" ? "Blank" : tile;
-          return (
-            <span
-              key={i}
-              className={`rack-tile${tile ? "" : " empty"}${tile && played ? " move-preview" : ""}`}
-              role="img"
-              aria-hidden={!tile || undefined}
-              aria-label={played ? `${tileLabel}, played` : tileLabel}
-            >
-              <span className="rack-slot">
-                <span
-                  className={`rack-face${tile === "?" ? " blank" : !tile ? " empty" : ""}`}
-                >
-                  {tile === "?" ? "" : tile || "·"}
-                  {tile && <small>{tileScore(tile, template.rules)}</small>}
+      <div className="replay-rack-row">
+        <div
+          className="rack-tiles"
+          role="group"
+          aria-label={
+            partial ? "Opponent tiles played" :
+            rack === undefined ? `${label} unavailable` : label
+          }
+        >
+          {order.map((slot, i) => {
+            const tile = slot === undefined ? undefined : rack?.[slot];
+            const played = i >= usedStart;
+            const tileLabel = tile === "?" ? "Blank" : tile;
+            return (
+              <span
+                key={i}
+                className={`rack-tile${tile ? "" : " empty"}${played ? " move-preview" : ""}`}
+                data-used-group-start={played && i === leave.length && i > 0 || undefined}
+                role="img"
+                aria-hidden={!tile || undefined}
+                aria-label={played ? `${tileLabel}, played` : tileLabel}
+              >
+                <span className="rack-slot">
+                  <span
+                    className={`rack-face${tile === "?" ? " blank" : !tile ? " empty" : ""}`}
+                  >
+                    {tile === "?" ? "" : tile || "·"}
+                    {tile && <small>{tileScore(tile, template.rules)}</small>}
+                  </span>
                 </span>
               </span>
-            </span>
-          );
-        })}
-      </div>
-      {nextRack && (
-        <OpponentRack
-          rack={nextRack}
-          label="Opp. next"
-          tileLabel="Opponent’s next play uses"
+            );
+          })}
+        </div>
+        <RackBag
+          count={bag?.count ?? "?"}
+          label={bagLabel}
+          invalid={bag?.invalid}
+          controls={unseen ? tilePoolId : undefined}
+          expanded={unseen ? poolOpen : undefined}
+          onClick={unseen ? () => setPoolOpen((open) => !open) : undefined}
         />
-      )}
-      <span
-        className="rack-bag"
-        role="img"
-        aria-label={bagLabel}
-        title={bagLabel}
-        data-empty={bagCount === 0 || undefined}
-        data-overdrawn={bag?.invalid || undefined}
-        data-digits={String(bagCount).length}
-      >
-        {bagCount}
-      </span>
+      </div>
+      {phone ? detailsTarget && createPortal(details, detailsTarget) : details}
     </div>
   );
 }

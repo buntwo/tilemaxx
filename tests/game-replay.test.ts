@@ -79,6 +79,8 @@ test("replay keeps the archived rack order and highlights the slots played", () 
   assert.equal(after.rack, "C.A?AE");
   assert.deepEqual(after.bag, { count: 88, estimated: true, invalid: false });
   assert.deepEqual(before.bag, after.bag);
+  assert.equal(after.unseen?.total, 95);
+  assert.equal(after.unseen?.tiles.find(({ symbol }) => symbol === "?")?.count, 1);
   const solo = gameReplayTimeline({ ...restoreArchivedGame(game), solo: true });
   assert.deepEqual(solo.frames[1].bag, { count: 95, estimated: false, invalid: false });
   assert.deepEqual(after.playedSlots, [0, 4, 3]);
@@ -139,6 +141,7 @@ test("score-only moves keep their points and do not invent a board or rack", () 
   assert.equal(scoreOnly.board, undefined);
   assert.equal(scoreOnly.rack, undefined);
   assert.equal(scoreOnly.bag, undefined);
+  assert.equal(scoreOnly.unseen, undefined);
   assert.equal(scoreOnly.opponentPlayedTiles, undefined);
   assert.deepEqual(scoreOnly.scores, { you: 0, opponent: 10 });
   assert.equal(hasRecordedMoves(gameWithMoves([])), false);

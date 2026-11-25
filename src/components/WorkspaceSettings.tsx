@@ -34,7 +34,7 @@ const sections = [
   {
     title: "Replay",
     options: [
-      ["showReplayOpponentTiles", "Show tiles from the opponent’s next play"],
+      ["showReplayOpponentTiles", "Show opponent’s played tiles"],
     ],
   },
   {

@@ -111,10 +111,80 @@ export function GameBoardColumn({
   );
 }
 
+const DESKTOP_BOARD_WIDTH_KEY = "tilemaxx:desktop-board-width";
+const DESKTOP_MIN_BOARD = 272;
+const DESKTOP_MIN_SIDE = 320;
+const DESKTOP_GUTTER = 14;
+
+function readDesktopBoardWidth() {
+  try {
+    const width = Number(localStorage.getItem(DESKTOP_BOARD_WIDTH_KEY));
+    if (Number.isSafeInteger(width) && width >= DESKTOP_MIN_BOARD) return width;
+  } catch {}
+}
+
+function useDesktopDivider(root: { current: HTMLDivElement | null }, narrow: boolean) {
+  const [savedWidth, setSavedWidth] = useState(readDesktopBoardWidth);
+  const [space, setSpace] = useState(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
+  useLayoutEffect(() => {
+    const workspace = root.current;
+    if (!workspace || narrow) return;
+    function measure(width: number) {
+      const height = window.innerHeight;
+      setSpace((previous) =>
+        previous.width === width && previous.height === height
+          ? previous
+          : { width, height },
+      );
+    }
+    const onResize = () => measure(workspace.clientWidth || window.innerWidth);
+    onResize();
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) measure(entry.contentRect.width);
+    });
+    observer.observe(workspace);
+    window.addEventListener("resize", onResize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", onResize);
+    };
+  }, [narrow, root]);
+
+  const max = Math.max(
+    DESKTOP_MIN_BOARD,
+    Math.floor(space.width) - DESKTOP_GUTTER - DESKTOP_MIN_SIDE,
+  );
+  const defaultWidth = Math.min(space.width * .54, Math.max(320, space.height - 188));
+  const value = Math.max(
+    DESKTOP_MIN_BOARD,
+    Math.min(max, savedWidth ?? Math.round(defaultWidth)),
+  );
+  return {
+    max,
+    value,
+    style: {
+      "--desktop-board-width": `${value}px`,
+      "--desktop-board-min": `${DESKTOP_MIN_BOARD}px`,
+      "--desktop-divider-width": `${DESKTOP_GUTTER}px`,
+      "--desktop-divider-range": `${max - DESKTOP_MIN_BOARD}px`,
+    } as CSSProperties,
+    saveWidth(width: number) {
+      setSavedWidth(width);
+      try {
+        localStorage.setItem(DESKTOP_BOARD_WIDTH_KEY, String(width));
+      } catch {}
+    },
+  };
+}
+
 export default function GameWorkspace({
   definitionRules,
   positionKey,
   narrow,
+  resizeDisabled,
   reviewing,
   replaying,
   hasWarnings,
@@ -123,12 +193,14 @@ export default function GameWorkspace({
   definitionRules: Rules;
   positionKey: string;
   narrow: boolean;
+  resizeDisabled: boolean;
   reviewing: boolean;
   replaying: boolean;
   hasWarnings: boolean;
   children: ReactNode;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const divider = useDesktopDivider(root, narrow);
   useLayoutEffect(() => {
     if (narrow || !hasWarnings) return;
     const warning = root.current?.querySelector(".board-warnings")?.getBoundingClientRect();
@@ -141,8 +213,28 @@ export default function GameWorkspace({
 
   return (
     <MoveDefinitions rules={definitionRules} position={positionKey} phoneLayout={narrow}>
-      <div ref={root} className={`workspace-grid${reviewing ? " move-review" : ""}${replaying ? " replay-workspace" : ""}`}>
+      <div
+        ref={root}
+        className={`workspace-grid${reviewing ? " move-review" : ""}${replaying ? " replay-workspace" : ""}`}
+        style={narrow ? undefined : divider.style}
+      >
         {children}
+        {!narrow && (
+          <>
+            <span className="desktop-divider-line" aria-hidden="true" />
+            <input
+              className="desktop-board-divider"
+              type="range"
+              aria-label="Board size"
+              aria-valuetext={`${divider.value} pixels wide`}
+              min={DESKTOP_MIN_BOARD}
+              max={divider.max}
+              value={divider.value}
+              disabled={resizeDisabled || divider.max === DESKTOP_MIN_BOARD}
+              onChange={(event) => divider.saveWidth(event.currentTarget.valueAsNumber)}
+            />
+          </>
+        )}
       </div>
     </MoveDefinitions>
   );
