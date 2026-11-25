@@ -1898,9 +1898,7 @@ label + label {
   display: grid;
   place-items: center;
   pointer-events: none;
-  transition:
-    opacity 230ms ease,
-    transform 230ms cubic-bezier(.2,.7,.24,1);
+  transition: opacity 230ms ease;
 }
 .calculation-indicator svg {
   width: 100%;
@@ -1920,15 +1918,12 @@ label + label {
 }
 .calculation-spinner {
   opacity: 0;
-  transform: translateY(4px) scale(.76);
 }
 .calculation-indicator[data-phase="active"] .calculation-idle-icon {
   opacity: 0;
-  transform: translateY(-4px) scale(.76);
 }
 .calculation-indicator[data-phase="active"] .calculation-spinner {
   opacity: 1;
-  transform: none;
 }
 .calculation-indicator:not([data-phase="idle"]) .calculation-spinner svg {
   animation: rotate 820ms linear infinite;
@@ -1942,9 +1937,6 @@ label + label {
   white-space: nowrap;
 }
 @media (prefers-reduced-motion: reduce) {
-  .calculation-indicator :is(.calculation-idle-icon, .calculation-spinner) {
-    transform: none !important;
-  }
   .calculation-indicator[data-phase] .calculation-spinner svg {
     animation: none !important;
   }
