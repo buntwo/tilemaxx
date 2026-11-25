@@ -1713,7 +1713,7 @@ test("shortlist bingo check keeps the lower-scoring recommendation and respects 
     onBoardOdds,
   });
   onBoardOdds.mockClear();
-  await user.click(await screen.findByRole("button", { name: "Shortlist 2" }));
+  await chooseMoveOption(user, "Shortlist 2");
   await user.click(screen.getByText("Options", { selector: "summary" }));
   const check = screen.getByRole("button", {
     name: "Check bingo after your play",
@@ -1738,15 +1738,16 @@ test("a fresh move search opens All moves even after viewing the Shortlist", asy
     analysisGame: bingoCheckGame,
     replyEnabled: false,
   });
-  const shortlist = () => screen.getByRole("button", { name: /^Shortlist/ });
-  await user.click(shortlist());
-  expect(shortlist().getAttribute("aria-pressed")).toBe("true");
-  await chooseMoveOption(user, "All moves");
-  expect(shortlist().getAttribute("aria-pressed")).toBe("false");
-  await user.click(shortlist());
+  const allMoves = screen.getByRole("button", { name: "All moves" });
+  const shortlist = (await openMoveOptions(user)).getByRole("button", { name: /^Shortlist/ });
+  await chooseMoveOption(user, /^Shortlist/);
+  expect(shortlist.getAttribute("aria-pressed")).toBe("true");
+  await user.click(allMoves);
+  expect(shortlist.getAttribute("aria-pressed")).toBe("false");
+  await chooseMoveOption(user, /^Shortlist/);
   rerun();
-  expect(shortlist().getAttribute("aria-pressed")).toBe("false");
-  expect((await openMoveOptions(user)).getByRole("button", { name: "All moves", pressed: true })).toBeTruthy();
+  expect(shortlist.getAttribute("aria-pressed")).toBe("false");
+  expect(allMoves.getAttribute("aria-pressed")).toBe("true");
   await waitFor(() => expect(rows()).toHaveLength(moves.length));
 });
 

@@ -6,11 +6,13 @@ type Phase = "idle" | "active" | "settling";
 export default function CalculationIndicator({
   active,
   idleIcon = <Sparkles />,
+  action,
   onFindMoves,
   onQuiet,
 }: {
   active: boolean;
   idleIcon?: ReactNode;
+  action?: ReactNode;
   onFindMoves?: () => void;
   onQuiet?: (stoppedAt: number) => void;
 }) {
@@ -45,18 +47,17 @@ export default function CalculationIndicator({
       className="calculation-indicator"
       data-phase={active ? "active" : phase}
     >
-      <span className="calculation-idle-icon" aria-hidden={find ? undefined : true}>
-        {find ? (
-          <button
-            type="button"
-            className="calculation-find-moves"
-            aria-label="Find moves shortcut"
-            title="Find moves"
-            onClick={find}
-          >
-            {idleIcon}
-          </button>
-        ) : idleIcon}
+      {action || (find && (
+        <button
+          type="button"
+          className="calculation-find-moves"
+          aria-label="Find moves shortcut"
+          title="Find moves"
+          onClick={find}
+        />
+      ))}
+      <span className="calculation-idle-icon" aria-hidden="true">
+        {idleIcon}
       </span>
       <span className="calculation-spinner" aria-hidden="true">
         <LoaderCircle />

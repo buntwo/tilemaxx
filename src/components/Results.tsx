@@ -369,6 +369,10 @@ export default function Results({
     pointer = useRef("mouse");
   const [searchOpen, setSearchOpen] = useState(false);
   const searching = searchOpen || !!filter;
+  const [introCollapsed, setIntroCollapsed] = useState(false);
+  const showIntro = !resultSet && !busy && !error;
+  const introId = useId();
+  const introToggle = useRef<HTMLButtonElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const searchButton = useRef<HTMLButtonElement>(null);
   const filterInputId = useId();
@@ -376,11 +380,11 @@ export default function Results({
   const findMovesButton = useRef<HTMLButtonElement>(null);
   const focusFindMoves = useRef(false);
   useEffect(() => {
-    if (focusFindMoves.current && !resultSet && !busy && !error) {
+    if (focusFindMoves.current && showIntro) {
       focusFindMoves.current = false;
-      findMovesButton.current?.focus({ preventScroll: true });
+      (introCollapsed ? introToggle : findMovesButton).current?.focus({ preventScroll: true });
     }
-  }, [resultSet, busy, error]);
+  }, [showIntro, introCollapsed]);
   useEffect(() => {
     if (searchOpen) searchInput.current?.focus({ preventScroll: true });
   }, [searchOpen]);
@@ -885,6 +889,7 @@ export default function Results({
     : shortlistLabel;
   const markedSquares = requiredSquares?.indices.length ?? 0;
   const analyzeLabel = analyzing ? "Close analysis" : "Analyze";
+  const title = endgame && !replyAnalysis.invalid ? "Possible moves - Endgame" : "Possible moves";
   function toggleAnalysis() {
     if (!analyzing)
       setCandidates(
@@ -1026,6 +1031,7 @@ export default function Results({
   return (
     <section
       aria-label="Possible moves"
+      data-intro-collapsed={(showIntro && introCollapsed) || undefined}
       className={`results-panel panel ${!endgame && (analysisGame || rackOdds) ? "with-bingo-odds" : ""}${analysisGame && (replyEnabled || defense) ? " with-reply-column" : ""}${showEndgameSwing ? " with-endgame-estimates" : ""}${(showAdjustedPoints || profile) ? " with-third-score-line" : ""}`}
       style={{
         "--move-row-height": `${moveRowHeight}px`,
@@ -1043,11 +1049,23 @@ export default function Results({
               localCalculation ||
               replyAnalysis.calculating
             }
-            onFindMoves={
-              hasRack && !resultSet && !busy && !error
-                ? () => onSolve()
-                : undefined
-            }
+            idleIcon={showFilters ? <Search /> : undefined}
+            action={showFilters && (
+              <button
+                className="icon-button move-search-toggle"
+                type="button"
+                aria-label="Search possible moves"
+                aria-expanded={searching}
+                aria-controls={filterInputId}
+                title="Search possible moves"
+                ref={searchButton}
+                onClick={() => {
+                  if (searching) closeSearch();
+                  else setSearchOpen(true);
+                }}
+              />
+            )}
+            onFindMoves={hasRack && showIntro ? () => onSolve() : undefined}
             onQuiet={
               onTimingComplete
                 ? (stoppedAt) => {
@@ -1070,27 +1088,20 @@ export default function Results({
             }
           />
           <h2 className={resultSet ? "move-results-heading" : undefined}>
-            {endgame && !replyAnalysis.invalid
-              ? "Possible moves - Endgame"
-              : "Possible moves"}
+            {showIntro ? (
+              <button
+                type="button"
+                className="move-intro-toggle"
+                aria-expanded={!introCollapsed}
+                aria-controls={introId}
+                ref={introToggle}
+                onClick={() => setIntroCollapsed((collapsed) => !collapsed)}
+              >
+                <span>{title}</span>
+                {introCollapsed ? <ChevronDown size={15} aria-hidden="true" /> : <ChevronUp size={15} aria-hidden="true" />}
+              </button>
+            ) : title}
           </h2>
-          {showFilters && (
-            <button
-              className="icon-button move-search-toggle"
-              type="button"
-              aria-label="Search possible moves"
-              aria-expanded={searching}
-              aria-controls={filterInputId}
-              title="Search possible moves"
-              ref={searchButton}
-              onClick={() => {
-                if (searching) closeSearch();
-                else setSearchOpen(true);
-              }}
-            >
-              <Search size={16} aria-hidden="true" />
-            </button>
-          )}
         </div>
         {showFilters && (
           <>
@@ -1111,16 +1122,16 @@ export default function Results({
                 }
               }}
             />
-            {analysisGame && !searching && (
+            {analysisGame && (
               <button
                 type="button"
-                className="icon-button move-shortlist-toggle"
-                aria-label={shortlistLabel}
-                aria-pressed={shortlistActive}
-                title={shortlistTitle}
-                onClick={() => toggleView("shortlist")}
+                className="icon-button move-all-toggle"
+                aria-label="All moves"
+                aria-pressed={view === "all"}
+                title={view === "all" && returnView ? `Return to ${returnViewLabel}` : "All moves"}
+                onClick={() => toggleView("all")}
               >
-                <ListChecks size={16} aria-hidden="true" />
+                <List size={16} aria-hidden="true" />
               </button>
             )}
             {playingStyleControl}
@@ -1175,21 +1186,6 @@ export default function Results({
             </summary>
             <div className="move-list-options-panel">
               {analysisGame && (
-                <button
-                  type="button"
-                  className="move-list-option"
-                  aria-pressed={view === "all"}
-                  title={view === "all" && returnView ? `Return to ${returnViewLabel}` : undefined}
-                  onClick={() => {
-                    toggleView("all");
-                    closeMoveOptions();
-                  }}
-                >
-                  <List size={16} aria-hidden="true" />
-                  All moves
-                </button>
-              )}
-              {analysisGame && searching && (
                 <button
                   type="button"
                   className="move-list-option"
@@ -1306,7 +1302,7 @@ export default function Results({
           </div>
         </div>
       ) : resultSet === null ? (
-        <div className="results-empty">
+        <div className="results-empty" id={introId} hidden={introCollapsed}>
           <EmptyMoveTiles rules={bingoRules.rules} />
           <h3>{solveEndgame && emptyRackEndgame ? "No opponent endgame" : "A good move starts here."}</h3>
           {solveEndgame && emptyRackEndgame ? (

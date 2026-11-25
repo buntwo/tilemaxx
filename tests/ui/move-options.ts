@@ -11,7 +11,7 @@ export async function openMoveOptions(user: ReturnType<typeof userEvent.setup>) 
 
 export async function chooseMoveOption(
   user: ReturnType<typeof userEvent.setup>,
-  name: string,
+  name: string | RegExp,
 ) {
   const options = await openMoveOptions(user);
   await user.click(await options.findByRole("button", { name }));

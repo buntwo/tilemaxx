@@ -132,13 +132,13 @@ export const guideFigures: GuideFigure[] = [
         x: 187,
         y: 39,
         name: "Possible moves",
-        hint: "After Find moves, the header shows the word search, Shortlist, Playing style, counts, and Options.",
+        hint: "Select the header to collapse or expand the idle panel. The star runs Find moves.",
       },
       {
         x: 182,
         y: 75,
         name: "Move filters",
-        hint: "Search and Shortlist are in the results header. All moves and Mark squares are under Options.",
+        hint: "Search and All moves are in the results header. Shortlist and Mark squares are under Options.",
       },
       {
         x: 464,

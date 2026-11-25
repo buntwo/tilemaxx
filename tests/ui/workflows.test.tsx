@@ -350,12 +350,12 @@ test("All moves and Shortlist share the selected playing style as their return v
   expect(tooltip.queryByText("Score breakdown")).toBeNull();
   expect(current().board.some(Boolean)).toBe(false);
 
-  const allMoves = (await openMoveOptions(user)).getByRole("button", { name: "All moves" });
-  const shortlist = screen.getByRole("button", { name: /^Shortlist/ });
+  const allMoves = screen.getByRole("button", { name: "All moves" });
+  const shortlist = (await openMoveOptions(user)).getByRole("button", { name: /^Shortlist/ });
   const suggested = () => screen.getByLabelText("Suggested moves");
   suggested().scrollTop = 12;
   fireEvent.scroll(suggested());
-  await chooseMoveOption(user, "All moves");
+  await user.click(screen.getByRole("button", { name: "All moves" }));
   await waitFor(() => expect(all().length).toBeGreaterThan(1));
   expect(screen.queryByText("U 7")).toBeNull();
   expect(screen.getAllByRole("button", { name: /^Score breakdown for/ }).length).toBeGreaterThan(0);
@@ -363,22 +363,22 @@ test("All moves and Shortlist share the selected playing style as their return v
   expect(suggested().scrollTop).toBe(0);
   expect(localStorage.getItem(`tilemaxx:playing-style:${current().id}`)).toBe("learner");
 
-  await user.click(shortlist);
+  await chooseMoveOption(user, /^Shortlist/);
   expect(shortlist.getAttribute("aria-pressed")).toBe("true");
   expect(suggested().classList.contains("is-shortlist")).toBe(true);
   expect(shortlist.title).toBe("Return to Word-List Learner");
-  await user.click(shortlist);
+  await chooseMoveOption(user, /^Shortlist/);
   expect(allMoves.getAttribute("aria-pressed")).toBe("false");
   await waitFor(() => expect(all()).toHaveLength(1));
   expect(picker).toHaveProperty("value", "learner");
   expect(suggested().scrollTop).toBe(12);
 
-  await user.click(shortlist);
+  await chooseMoveOption(user, /^Shortlist/);
   expect(suggested().classList.contains("is-shortlist")).toBe(true);
-  await chooseMoveOption(user, "All moves");
+  await user.click(screen.getByRole("button", { name: "All moves" }));
   expect(allMoves.getAttribute("aria-pressed")).toBe("true");
   expect(allMoves.title).toBe("Return to Word-List Learner");
-  await chooseMoveOption(user, "All moves");
+  await user.click(screen.getByRole("button", { name: "All moves" }));
   expect(await screen.findByText("#1")).toBeTruthy();
   expect(picker).toHaveProperty("value", "learner");
 });
@@ -424,9 +424,9 @@ test("Resample style changes the draw and keeps the current solve and vocabulary
   expect(firstDraw.query.profileSample).toBe(1);
   expect(solves).toBe(1);
 
-  await chooseMoveOption(user, "All moves");
+  await user.click(screen.getByRole("button", { name: "All moves" }));
   expect(await resample()).toBeNull();
-  await chooseMoveOption(user, "All moves");
+  await user.click(screen.getByRole("button", { name: "All moves" }));
   expect(await screen.findByRole("button", { name: /^ACT, .*playing style rank 1/ })).toBeTruthy();
   expect(requests.at(-1)?.query.profileSample).toBe(1);
 
@@ -578,10 +578,10 @@ test("Bingo Mercenary starts on demand, then follows new move searches", async (
   await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
   expect(cancellations).toBe(1);
   await user.click(button());
-  await chooseMoveOption(user, "All moves");
+  await user.click(screen.getByRole("button", { name: "All moves" }));
   expect(screen.queryByText("1. Simulating replies · 1/8 moves")).toBeNull();
   expect(cancellations).toBe(1);
-  await chooseMoveOption(user, "All moves");
+  await user.click(screen.getByRole("button", { name: "All moves" }));
   expect(await screen.findByText("1. Simulating replies · 1/8 moves")).toBeTruthy();
   expect(runs).toBe(2);
   await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
@@ -753,7 +753,7 @@ test("Analyze keeps one set of move controls while the list scrolls", async () =
     await act(() => {
       fireEvent.scroll(moves);
     });
-    expect(screen.getAllByRole("button", { name: /^Shortlist/ })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "All moves" })).toHaveLength(1);
     expect(screen.getAllByRole("combobox", { name: "Playing style" })).toHaveLength(1);
     expect(screen.getByLabelText("Move analysis")).toBe(analysis);
   }
@@ -1905,8 +1905,14 @@ test.each(["narrow", "wide"])("%s results stream bingo odds after replies finish
   await typeRack(user, "CATS");
   await user.keyboard("{Enter}");
   await screen.findByRole("button", { name: "Sort by points" });
-  const indicator = document.querySelector<HTMLElement>(".calculation-indicator");
+  const search = screen.getByRole("button", { name: "Search possible moves" });
+  const indicator = search.closest<HTMLElement>(".calculation-indicator");
   expect(indicator?.dataset.phase).toBe("active");
+  await user.click(search);
+  expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Filter moves" }));
+  expect(indicator?.dataset.phase).toBe("active");
+  await user.keyboard("{Escape}");
+  expect(document.activeElement).toBe(search);
   expect(screen.queryByRole("combobox", { name: "Sort moves" })).toBeNull();
   const options = await openMoveOptions(user);
   expect(!!options.queryByRole("button", { name: "Check bingo after your play" }))
@@ -5173,11 +5179,14 @@ test("the phone layout keeps settings, the build version, board help and move fi
   const toolbar = within(header);
   const optionsMenu = toolbar.getByText("Options", { selector: "summary" });
   const stylePicker = toolbar.getByRole("combobox", { name: "Playing style" });
-  expect(toolbar.getByRole("button", { name: /^Shortlist/ })).toBeTruthy();
+  const allMoves = toolbar.getByRole("button", { name: "All moves" });
+  expect(allMoves.textContent).toBe("");
   expect(toolbar.getByRole("button", { name: "Close possible moves" })).toBeTruthy();
   expect(optionsMenu.closest("details")?.open).toBe(false);
   const moveMenu = await openMoveOptions(user);
   expect(moveMenu.queryByRole("combobox", { name: "Playing style" })).toBeNull();
+  expect(moveMenu.queryByRole("button", { name: "All moves" })).toBeNull();
+  expect(moveMenu.getByRole("button", { name: /^Shortlist/ })).toBeTruthy();
   expect(moveMenu.getByRole("button", { name: "Analyze" }).closest("details")).toBe(optionsMenu.closest("details"));
   act(() => moveMenu.getByRole("button", { name: "Mark squares" }).focus());
   await user.keyboard("{Escape}");
@@ -5187,7 +5196,7 @@ test("the phone layout keeps settings, the build version, board help and move fi
   await user.click(search);
   const filter = toolbar.getByRole("textbox", { name: "Filter moves" });
   expect(toolbar.getByRole("combobox", { name: "Playing style" })).toBe(stylePicker);
-  expect(header.querySelector(".move-shortlist-toggle")).toBeNull();
+  expect(toolbar.getByRole("button", { name: "All moves" })).toBe(allMoves);
   expect(document.activeElement).toBe(filter);
   await user.type(filter, "CAT");
   expect(main.queryByRole("button", { name: /^ACT, / })).toBeNull();
@@ -5197,7 +5206,7 @@ test("the phone layout keeps settings, the build version, board help and move fi
   await user.keyboard("{Escape}");
   expect(toolbar.queryByRole("textbox", { name: "Filter moves" })).toBeNull();
   expect(document.activeElement).toBe(search);
-  expect(toolbar.getByRole("button", { name: /^Shortlist/ })).toBeTruthy();
+  expect(toolbar.getByRole("button", { name: "All moves" })).toBe(allMoves);
   expect(main.getByRole("button", { name: "Undo" }).closest(".board-review-actions")).toBeTruthy();
   await chooseMoveOption(user, "Mark squares");
   expect(optionsMenu.closest("details")?.open).toBe(false);
@@ -7826,7 +7835,7 @@ test("the empty Possible moves tiles keep their word and colors until the panel 
   }
 });
 
-test.each([false, true])("the header star finds moves once even when Solve endgame is available (phone %s)", async (phone) => {
+test.each([false, true])("the idle header collapses and its star still finds moves (phone %s)", async (phone) => {
   remote.games[0] = { ...playBeforeRefill(), rack: "DSD" };
   const searches: string[] = [];
   let finish: (() => void) | undefined;
@@ -7845,7 +7854,17 @@ test.each([false, true])("the header star finds moves once even when Solve endga
   const panel = within(screen.getByRole("region", { name: "Possible moves" }));
   const star = await panel.findByRole("button", { name: "Find moves shortcut" });
   expect(star.closest("header")).toBeTruthy();
+  const intro = () => panel.getByRole("button", { name: /^Possible moves/ });
+  expect(intro().getAttribute("aria-expanded")).toBe("true");
   expect(panel.getByRole("button", { name: "Solve endgame" })).toBeTruthy();
+  await user.click(intro());
+  expect(intro().getAttribute("aria-expanded")).toBe("false");
+  expect(panel.queryByRole("button", { name: "Find moves" })).toBeNull();
+  expect(panel.queryByRole("button", { name: "Solve endgame" })).toBeNull();
+  expect(searches).toEqual([]);
+  await user.keyboard("{Enter}");
+  expect(panel.getByRole("button", { name: "Find moves" })).toBeTruthy();
+  await user.click(intro());
   if (phone) await user.click(star);
   else {
     star.focus();
@@ -7858,6 +7877,9 @@ test.each([false, true])("the header star finds moves once even when Solve endga
   await act(() => finish?.());
   expect((await panel.findAllByRole("button", { name: /, \d+ points,/ })).length).toBeGreaterThan(0);
   expect(panel.queryByRole("button", { name: "Find moves shortcut" })).toBeNull();
+  await user.click(panel.getByRole("button", { name: "Close possible moves" }));
+  expect(intro().getAttribute("aria-expanded")).toBe("false");
+  expect(document.activeElement).toBe(intro());
 });
 
 test.each([false, true])("after the last draw, Solve endgame previews opponent lines without playing (phone %s)", async (phone) => {
@@ -8205,8 +8227,10 @@ test("an active empty-bag game can solve with two partial racks and no refill hi
 
   await user.click(within(screen.getByRole("region", { name: "Possible moves" }))
     .getByRole("button", { name: "Find moves" }));
-  expect(await screen.findByRole("button", { name: /^Shortlist/ })).toBeTruthy();
-  expect((await openMoveOptions(user)).getByRole("button", { name: "Solve endgame" })).toBe(solveEndgame());
+  expect(await screen.findByRole("button", { name: "All moves" })).toBeTruthy();
+  const moveMenu = await openMoveOptions(user);
+  expect(moveMenu.getByRole("button", { name: /^Shortlist/ })).toBeTruthy();
+  expect(moveMenu.getByRole("button", { name: "Solve endgame" })).toBe(solveEndgame());
 });
 
 
