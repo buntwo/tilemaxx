@@ -6703,64 +6703,66 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .replay-move-strip {
   flex: 0 0 100%;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto 3.5ch minmax(0, 1fr) auto;
+  grid-template-areas: "label player word result";
   align-items: center;
   gap: 0 6px;
-  min-height: 30px;
+  min-height: 32px;
   padding: 3px 8px;
   border-block: 1px solid var(--line);
   background: color-mix(in srgb, var(--surface) 65%, var(--soft));
   color: var(--muted);
   font-size: 12px;
-  line-height: 1.2;
+  line-height: 18px;
 }
 
-.replay-strip-label { color: var(--primary); font-weight: 650; }
+.replay-strip-label { grid-area: label; color: var(--primary); font-weight: 650; }
+.replay-strip-status { grid-column: 2 / -1; grid-row: 1; line-height: 1.2; }
+.replay-move-player { grid-area: player; color: var(--existing-letter); }
 .replay-recorded-word[aria-pressed="true"] { background: var(--soft); }
 .replay-recorded-word {
-  min-height: 23px;
-  padding: 2px 4px;
+  grid-area: word;
+  display: block;
+  justify-self: start;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 3px 4px;
   border-radius: 6px;
-}
-
-.replay-move-word {
-  display: flex;
-  align-items: baseline;
-  min-width: 0;
-  gap: 0 5px;
-}
-.replay-move-word .last-play-word {
-  min-width: 0;
+  text-align: start;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 15px;
-  line-height: 1.15;
+  font-size: 14px;
+  line-height: inherit;
+}
+.replay-recorded-word:has(.bingo-badge) {
+  position: relative;
+  padding-inline-end: 21px;
+}
+.replay-recorded-word .bingo-badge {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 4px;
+  translate: 0 -50%;
 }
 @container (max-width: 220px) {
   .replay-move-strip {
     /* Reserve both lines so a wrapped move cannot move the centered rack. */
-    grid-template-areas: "label player result" "word word word";
-    min-height: 42px;
+    grid-template-areas: "label player . result" "word word word word";
+    grid-template-rows: 18px 24px;
+    row-gap: 1px;
     padding-inline: 5px;
   }
-  .replay-strip-label { grid-area: label; }
-  .replay-move-word { display: contents; }
-  .replay-move-player { grid-area: player; }
-  .replay-move-word .last-play-word { grid-area: word; }
-  .replay-move-result { grid-area: result; }
-  .replay-move-strip > .replay-strip-label + span { grid-column: 2 / -1; }
-}
-.replay-move-player, .replay-move-result {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
 .replay-move-result {
+  grid-area: result;
   display: grid;
-  grid-template-columns: calc(var(--replay-point-digits) * 1ch + 2em) 3ch;
-  align-items: baseline;
+  grid-template-columns: calc(var(--replay-point-digits) * 1ch + 2em) 4ch;
   gap: 4px;
-  text-align: start;
+  text-align: end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .replay-move-result strong { color: var(--value-good); }
 .replay-move-strip[data-player="opponent"] .replay-move-result strong { color: var(--value-bad); }

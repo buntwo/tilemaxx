@@ -40,33 +40,31 @@ function ReplayMoveStrip({
       <span className="replay-strip-label">Replay</span>
       {move ? (
         <>
-          <div className="replay-move-word">
-            <span className="replay-move-player">
-              {move.player === "you" ? "You" : "Opp"}
-            </span>
-            <button
-              className="text-button replay-recorded-word last-play-word"
-              type="button"
-              disabled={!position}
-              aria-label={`Preview recorded move ${move.word}`}
-              aria-pressed={showRecorded}
-              title={details?.notation ?? move.word}
-              onClick={onToggleRecorded}
-            >
-              <MoveWord
-                word={move.word}
-                notation={details?.notation}
-                bingo={replayBingo(frame)}
-              />
-            </button>
-          </div>
+          <span className="replay-move-player">
+            {move.player === "you" ? "You" : "Opp"}
+          </span>
+          <button
+            className="text-button replay-recorded-word last-play-word"
+            type="button"
+            disabled={!position}
+            aria-label={`Preview recorded move ${move.word}`}
+            aria-pressed={showRecorded}
+            title={details?.notation ?? move.word}
+            onClick={onToggleRecorded}
+          >
+            <MoveWord
+              word={move.word}
+              notation={details?.notation}
+              bingo={replayBingo(frame)}
+            />
+          </button>
           <div className="replay-move-result">
             <strong>{move.score} pts</strong>
             {details?.location && <span>{details.location}</span>}
           </div>
         </>
       ) : historical && (
-        <span>
+        <span className="replay-strip-status">
           {board?.every((tile) => !tile)
             ? "Start of game"
             : "Before first recorded move"}
