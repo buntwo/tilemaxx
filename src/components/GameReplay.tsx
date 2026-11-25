@@ -266,7 +266,7 @@ export function ReplayScores({
       <ScoreChart
         moves={chartMoves}
         solo={solo}
-        replay={{ index: frameIndex, scores, seek }}
+        replay={{ index: frameIndex, scores, seek, finalBoard: index > frameIndex }}
       />
       <TrackedMoveHistory
         moves={newestMoves}

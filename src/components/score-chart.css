@@ -80,7 +80,8 @@
 }
 
 .score-chart-line.score-chart-opponent { stroke-dasharray: 4 3; }
-.score-chart-line[data-future] { opacity: .38; stroke-dasharray: 3 4; }
+.score-chart-graph [data-future] { opacity: .38; }
+.score-chart-line[data-future] { stroke-dasharray: 3 4; }
 .score-chart-graph text[data-current] { fill: var(--text); font-weight: 650; }
 
 .score-chart-graph :is(circle, rect) { fill: var(--series-color); }

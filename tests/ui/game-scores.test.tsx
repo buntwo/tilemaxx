@@ -262,6 +262,43 @@ test("seeking on the replay chart keeps it in view when the layout above it chan
   }
 });
 
+test("archives mark every plotted pair and show the cursor when inspecting or replaying a move", () => {
+  const moves = Array.from({ length: 120 }, (_, index) => ({
+    player: index % 2 === 0 ? "you" as const : "opponent" as const,
+    word: "CAT", score: 10, number: index + 1,
+  }));
+  const seek = vi.fn();
+  const atEnd = <ScoreChart moves={moves} replay={{
+    index: 120, scores: { you: 600, opponent: 600 }, finalBoard: true, seek,
+  }} />;
+  const { rerender } = render(atEnd);
+  const plot = screen.getByRole("img", { name: /Running scores/ });
+  const tooltip = () => document.querySelector(".score-chart-tooltip");
+  const cursor = () => plot.querySelector(".score-chart-cursor");
+  const regularMarkers = () => plot.querySelectorAll("g:not(.score-chart-active) > :is(circle, rect)");
+  expect(regularMarkers()).toHaveLength(120);
+  expect(cursor()).toBeNull();
+  expect(tooltip()?.textContent).toContain("Moves 119–120");
+
+  const slider = screen.getByRole("slider", { name: "Replay from move pair" });
+  fireEvent.focus(slider);
+  expect(cursor()).toBeTruthy();
+  expect(regularMarkers()).toHaveLength(120);
+  fireEvent.blur(slider);
+  expect(cursor()).toBeNull();
+
+  rerender(<ScoreChart moves={moves} replay={{ index: 1, scores: { you: 10, opponent: 0 }, seek }} />);
+  expect(cursor()).toBeTruthy();
+  expect(regularMarkers()).toHaveLength(120);
+  expect(plot.querySelectorAll(":is(circle, rect)[data-future]")).toHaveLength(119);
+  expect(plot.querySelectorAll(".score-chart-active :is(circle, rect)")).toHaveLength(1);
+  expect(screen.getByText("Yet to play")).toBeTruthy();
+
+  rerender(atEnd);
+  expect(cursor()).toBeNull();
+  expect(plot.querySelectorAll("[data-future]")).toHaveLength(0);
+});
+
 test.each(["live", "replay"] as const)("the %s score tooltip defines its words on hover", async (view) => {
   const seek = vi.fn();
   const lookup = vi.fn(async () => new Response(JSON.stringify({

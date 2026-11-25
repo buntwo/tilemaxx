@@ -95,6 +95,7 @@ function ScoreMarkers({
   active = false,
   solo,
   waitingFor,
+  future,
 }: {
   pair: ScorePair;
   x: number;
@@ -102,6 +103,7 @@ function ScoreMarkers({
   active?: boolean;
   solo: boolean;
   waitingFor?: Player;
+  future?: Player | "both";
 }) {
   const opponentOutline =
     !pair.plays.opponent || pair.totals.you === pair.totals.opponent;
@@ -114,6 +116,7 @@ function ScoreMarkers({
           cx={x}
           cy={y(pair.totals.you)}
           r={active ? 6 : 3.8}
+          data-future={future === "you" || future === "both" || undefined}
           data-outline={(pair.last > 0 && !pair.plays.you) || undefined}
         />
       )}
@@ -125,6 +128,7 @@ function ScoreMarkers({
           width={square}
           height={square}
           rx={1}
+          data-future={future === "opponent" || future === "both" || undefined}
           data-outline={opponentOutline || undefined}
         />
       )}
@@ -143,6 +147,7 @@ export default function ScoreChart({
     index: number;
     scores: Record<Player, number>;
     seek: (index: number) => void;
+    finalBoard?: boolean;
   };
 }) {
   const chartPlayers = solo ? soloPlayers : players;
@@ -182,24 +187,25 @@ export default function ScoreChart({
   // Keep the score card in place while the pointer travels to its word’s definition.
   const definingChartWord = definitions?.anchor?.closest(".score-chart-tooltip")?.id === tooltipId;
   const activeHover = pointerInPlot || definingChartWord ? hovered : null;
-  const selected = replay
+  const replayTurn = replay?.finalBoard ? undefined : replay;
+  const selected = replayTurn
     ? Math.max(
         0,
-        pairs.findIndex((pair) => pair.last >= replay.index),
+        pairs.findIndex((pair) => pair.last >= replayTurn.index),
       )
     : (activeHover ?? focused ?? pinned);
   const index = Math.min(selected ?? last, last);
   const pair = pairs[index];
   const waitingFor =
-    replay &&
+    replayTurn &&
     chartPlayers.find((player) => {
       const play = pair.plays[player];
-      return play && play.number > replay.index;
+      return play && play.number > replayTurn.index;
     });
-  const displayed = replay
+  const displayed = replayTurn
     ? {
         ...pair,
-        totals: replay.scores,
+        totals: replayTurn.scores,
         plays: waitingFor
           ? { ...pair.plays, [waitingFor]: undefined }
           : pair.plays,
@@ -258,7 +264,7 @@ export default function ScoreChart({
     );
   }
 
-  const scoreTooltip = selected !== null && (
+  const scoreTooltip = (replay || selected !== null) && (
     <div
       id={tooltipId}
       className="score-chart-tooltip"
@@ -270,7 +276,7 @@ export default function ScoreChart({
         {chartPlayers.map((player) => {
           const play = displayed.plays[player];
           const muted = replay && pair.last > 0 && !play;
-          const current = replay && play?.number === replay.index;
+          const current = replayTurn && play?.number === replayTurn.index;
           return (
             <div
               key={player}
@@ -355,7 +361,7 @@ export default function ScoreChart({
               : "Running scores after each pair of tracked moves"
           }
           onPointerMove={(event) => {
-            if (!replay && event.pointerType !== "touch") {
+            if (!replayTurn && event.pointerType !== "touch") {
               setPointerInPlot(true);
               setHovered(pairAt(event.clientX, event.currentTarget));
             }
@@ -386,7 +392,7 @@ export default function ScoreChart({
               x={x(tick)}
               y={chartHeight - 17}
               textAnchor="middle"
-              data-current={(replay && tick === index) || undefined}
+              data-current={(replayTurn && tick === index) || undefined}
             >
               {moveNumbers(pairs[tick])}
             </text>
@@ -398,13 +404,13 @@ export default function ScoreChart({
             const points = pairs.map(
               (point, i) => `${x(i)},${y(point.totals[player])}`,
             );
-            const through = replay
+            const through = replayTurn
               ? index - Number(waitingFor === player)
               : last;
             const className = `score-chart-line score-chart-${player}`;
             return (
               <g key={player}>
-                {replay && through < last && (
+                {replayTurn && through < last && (
                   <polyline
                     className={className}
                     points={points.slice(through).join(" ")}
@@ -418,20 +424,22 @@ export default function ScoreChart({
               </g>
             );
           })}
-          {!replay &&
-            pairs.map(
-              (point, index) =>
-                index > 0 &&
-                (index % markerStep === 0 || index === last) && (
-                  <ScoreMarkers
-                    key={point.last}
-                    pair={point}
-                    solo={solo}
-                    x={x(index)}
-                    y={y}
-                  />
-                ),
-            )}
+          {pairs.map(
+            (point, pointIndex) =>
+              pointIndex > 0 &&
+              (replay || pointIndex % markerStep === 0 || pointIndex === last) && (
+                <ScoreMarkers
+                  key={point.last}
+                  pair={point}
+                  solo={solo}
+                  x={x(pointIndex)}
+                  y={y}
+                  future={replayTurn && (
+                    pointIndex > index ? "both" : pointIndex === index ? waitingFor : undefined
+                  )}
+                />
+              ),
+          )}
           {selected !== null && (
             <g>
               <line
