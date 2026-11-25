@@ -1978,25 +1978,16 @@ label + label {
   gap: 4px;
   font-weight: 800;
 }
-.result-filters {
-  display: flex;
-  gap: 10px;
-  padding: 0 17px 16px;
-}
-.result-view-picker,
 .reply-view-switch,
 .reply-hotspots {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
-.result-view-picker {
-  padding: 0 12px 8px;
-}
 .reply-view-switch {
   margin-bottom: 8px;
 }
-:is(.result-view-picker, .reply-view-switch, .reply-hotspots) button {
+:is(.reply-view-switch, .reply-hotspots) button {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface);
@@ -2006,12 +1997,11 @@ label + label {
   min-height: 32px;
   min-width: 44px;
 }
-:is(.result-view-picker, .reply-view-switch, .reply-hotspots) button[aria-pressed="true"] {
+:is(.reply-view-switch, .reply-hotspots) button[aria-pressed="true"] {
   background: var(--soft);
   color: var(--primary);
   border-color: var(--primary);
 }
-.result-view-picker span { margin-left: 3px; font-variant-numeric: tabular-nums; }
 .reply-heatmap .defense-help { margin: 5px 0; }
 .reply-heat-board .board-wrap { max-width: 390px; margin: auto; }
 .reply-heat-board .board-grid { gap: 2px; }
@@ -2063,26 +2053,8 @@ label + label {
 .reply-hotspot-detail li button[aria-pressed="true"] { background: var(--soft); }
 .reply-hotspot-detail li > small { display: block; margin: 0 5px 5px; }
 @media (pointer: coarse) {
-  :is(.result-view-picker, .reply-view-switch, .reply-hotspots) button,
+  :is(.reply-view-switch, .reply-hotspots) button,
   .reply-hotspot-detail li button { min-height: 44px; }
-}
-.search-input {
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  padding: 0 9px;
-  gap: 7px;
-  flex: 1;
-  min-width: 0;
-  color: var(--muted);
-}
-.search-input input {
-  border: 0;
-  padding: 10px 0;
-  width: 100%;
-  font-size: 10px;
-  background: none;
 }
 .results-empty {
   min-height: 385px;
@@ -2117,52 +2089,6 @@ label + label {
   margin-top: 23px;
 }
 .results-search-actions .button { font-size: 11px; }
-.move-list-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.move-style-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.move-list-controls .result-view-picker {
-  flex-wrap: nowrap;
-  padding: 0;
-}
-.move-list-controls .solve-endgame-action {
-  min-height: 32px;
-  padding: 4px 7px;
-  gap: 4px;
-  font-size: 11px;
-}
-.move-list-controls :is(.result-view-picker button, .move-playing-style) {
-  height: 30px;
-  min-height: 30px;
-}
-.move-playing-style {
-  width: clamp(86px, 24cqi, 116px);
-  min-width: 0;
-  padding: 0 5px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 11px;
-}
-.move-style-resample {
-  flex: none;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid var(--line);
-  background: var(--surface);
-}
-@container (max-width: 380px) {
-  .compact-game .move-list-controls .solve-endgame-action span,
-  .move-list-controls:has(.move-style-resample) .solve-endgame-action span { display: none; }
-}
 .opponent-endgame { --move-row-height: 50px; }
 .opponent-endgame .opponent-endgame-note {
   margin: 0;
@@ -4088,18 +4014,6 @@ label + label {
   .results-title h2 {
     font-size: 15px;
   }
-  .result-filters {
-    padding: 0 14px 14px;
-    flex-wrap: nowrap;
-    gap: 9px;
-  }
-  .search-input input {
-    font-size: 16px;
-    padding: 9px 0;
-  }
-  .search-input input::placeholder {
-    font-size: 12px;
-  }
   .results-empty {
     min-height: 260px;
   }
@@ -5123,7 +5037,6 @@ label + label {
   min-height: 32px;
 }
 .rack-tools summary::-webkit-details-marker,
-.bingo-odds-settings summary::-webkit-details-marker { display: none; }
 .rack-tools-menu {
   position: absolute;
   z-index: 7;
@@ -5412,11 +5325,6 @@ label + label {
   width: 100%;
 }
 
-.analysis-toggle {
-  font-size: 11px;
-  padding: 3px 8px;
-  min-height: 24px;
-}
 .results-exchange-advice {
   min-height: 24px;
   min-width: 0;
@@ -5445,33 +5353,6 @@ label + label {
     color: #fff0cc;
   }
   :root[data-theme="system"] .results-exchange-advice:hover { background: #865525; }
-}
-@container (max-width: 460px) {
-  .has-exchange-advice .result-counts:not(:has(.result-bingo-count)) { display: none; }
-}
-@container (max-width: 400px) {
-  .has-exchange-advice .heading-with-icon { gap: 5px; }
-  .has-exchange-advice .calculation-indicator { --calculation-icon-size: 14px; }
-  .has-exchange-advice .analysis-toggle { gap: 0; }
-  .has-exchange-advice .analysis-toggle span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-}
-@container (max-width: 290px) {
-  .results-title .analysis-toggle { gap: 0; }
-  .results-title .analysis-toggle span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
 }
 @container (max-width: 300px) {
   .has-exchange-advice h2 { font-size: 13px; }
@@ -5698,50 +5579,7 @@ label + label {
   font-size: 9px;
   font-weight: 500;
 }
-.bingo-odds-controls {
-  margin: 0 12px 6px;
-  font-size: 11px;
-}
-.bingo-odds-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 8px;
-}
-.bingo-odds-actions .button {
-  min-height: 30px;
-  padding: 5px 8px;
-  font-size: 11px;
-}
-.bingo-odds-utilities { display: contents; }
-.bingo-odds-settings[open] { width: 100%; }
-.bingo-odds-settings-icon { display: none; }
-.bingo-odds-options { padding: 6px 0; }
-.bingo-odds-controls summary {
-  cursor: pointer;
-  color: var(--primary);
-}
-.bingo-odds-controls p {
-  margin: 4px 0;
-}
-.bingo-odds-controls label {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  font-size: 11px;
-}
-.bingo-odds-controls input[type="number"] {
-  width: 68px;
-  min-height: 30px;
-  padding: 3px 5px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
-}
-.bingo-odds-status {
-  color: var(--text);
-}
+
 
 .score-breakdown { margin-top: 6px; font-size: 12px; }
 .score-breakdown summary { cursor: pointer; color: var(--primary); }
@@ -5811,23 +5649,192 @@ label + label {
   height: 38px;
   padding-block: 9px 5px;
 }
+.results-panel .has-move-results {
+  position: relative;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 3px 8px;
+}
+.move-results-heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.has-move-results .heading-with-icon {
+  position: relative;
+  flex: none;
+}
+.has-move-results .heading-with-icon:has(.move-search-toggle) .calculation-indicator {
+  --calculation-icon-size: 12px;
+  position: absolute;
+  inset: 0 -2px auto auto;
+  z-index: 1;
+  pointer-events: none;
+}
+.has-move-results .heading-with-icon:has(.move-search-toggle) .calculation-idle-icon {
+  display: none;
+}
+.has-move-results .calculation-spinner {
+  border-radius: 50%;
+  background: var(--surface);
+}
+.has-move-results :is(.move-search-toggle, .move-shortlist-toggle) {
+  flex: none;
+  color: var(--primary);
+}
+.has-move-results :is([aria-pressed="true"], [aria-expanded="true"]).icon-button {
+  background: var(--soft);
+}
+.move-word-filter {
+  flex: 1 1 120px;
+  min-width: 0;
+  max-width: 260px;
+  height: 28px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+.move-style-control {
+  display: grid;
+  place-items: center;
+  flex: 0 1 142px;
+  min-width: 48px;
+  height: 28px;
+}
+.move-style-icon { display: none; }
+.move-playing-style {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px;
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+.move-list-options { flex: none; }
+.move-list-options > summary {
+  list-style: none;
+  font-size: 0;
+  cursor: pointer;
+}
+.move-list-options > summary::-webkit-details-marker { display: none; }
+.move-list-options > summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.move-list-options[open] > summary,
+.move-list-options > summary[data-marked] {
+  color: var(--primary);
+  background: var(--soft);
+}
+.move-list-options > summary[data-marked] { box-shadow: inset 0 -2px #bd651b; }
+.results-panel:has(.move-list-options[open]) { overflow: visible; }
+.move-list-options-panel {
+  position: absolute;
+  z-index: 5;
+  inset: 100% 8px auto auto;
+  width: min(310px, calc(100% - 16px));
+  max-height: 48svh;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 6px 16px #0002;
+  font-size: 11px;
+}
+.move-list-option,
+.move-list-options-panel .solve-endgame-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  justify-content: flex-start;
+}
+.move-list-option:not(:disabled):hover,
+.move-list-option[aria-pressed="true"] {
+  background: var(--soft);
+  color: var(--primary);
+}
+.move-list-option-count {
+  margin-inline-start: auto;
+  color: var(--muted);
+}
+.move-list-options-panel p,
+.bingo-odds-messages p { margin: 4px 0; }
+.move-list-options-panel > :is(p, .reply-settings, .button:not(.solve-endgame-action)) {
+  margin-inline: 7px;
+}
+.move-list-options-panel .button:not(.solve-endgame-action) {
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 11px;
+}
+.bingo-odds-messages {
+  margin: 0 12px 6px;
+  font-size: 11px;
+}
+@container (max-width: 410px) {
+  .has-move-results:is([data-searching], .has-exchange-advice) .move-style-control {
+    position: relative;
+    flex: 0 0 30px;
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--primary);
+  }
+  .has-move-results:is([data-searching], .has-exchange-advice) .move-style-icon {
+    display: block;
+  }
+  .has-move-results:is([data-searching], .has-exchange-advice) .move-playing-style {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+  }
+  .has-move-results:is([data-searching], .has-exchange-advice) .move-style-control:has(:focus-visible) {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+  }
+  .has-move-results .results-exchange-advice {
+    flex: 0 0 30px;
+    padding-inline: 0;
+  }
+  .has-move-results .results-exchange-advice span { display: none; }
+}
+@container (max-width: 335px) {
+  .results-panel .has-move-results { gap: 2px; }
+  .has-move-results .count-badge { padding-inline: 4px; }
+  .has-move-results .result-counts { gap: 3px; }
+}
+@container (max-width: 300px) {
+  .has-move-results[data-searching] .result-counts {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+@media (pointer: coarse) {
+  .move-word-filter { font-size: 16px; }
+  .move-list-option,
+  .move-list-options-panel .solve-endgame-action { min-height: 40px; }
+}
 .results-title .results-close {
   flex: none;
   /* Match the 24px header controls while keeping a 32px click target. */
   margin-block: -4px;
 }
 .results-title .result-counts { margin-left: auto; }
-.results-panel .result-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 5px 8px;
-  padding: 0 12px 6px;
-}
-.result-filters .result-view-picker { padding: 0; flex-wrap: nowrap; }
-.result-filters .result-view-picker button { white-space: nowrap; }
-.result-filters .search-input { flex: 1 1 95px; min-width: 0; }
-.result-filters .search-input input { min-width: 0; width: 100%; }
 .result-columns { height: auto; min-height: 32px; padding-block: 2px; }
 .result-column-sort {
   display: inline-flex;
@@ -6468,105 +6475,6 @@ label + label {
 .board-review-play:hover:not(:disabled) > .button {
   background: var(--primary-hover);
 }
-.phone-layout .results-panel :is(.bingo-odds-actions, .result-filters[data-phone-toolbar]) {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: 32px;
-  gap: 4px;
-  align-items: center;
-}
-.phone-layout .result-filters[data-phone-toolbar] {
-  margin: 0 12px 6px;
-  padding: 0;
-}
-.phone-layout :is(.bingo-odds-actions, .result-filters[data-phone-toolbar]) > :is(.move-list-controls, .search-input) {
-  grid-area: 1 / 1;
-  min-width: 0;
-}
-.phone-layout .move-list-controls[hidden] { display: none; }
-.phone-layout .move-list-controls .result-view-picker { min-width: 0; }
-.phone-layout .move-list-controls .result-view-picker button {
-  min-width: 0;
-  padding-inline: 5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.phone-layout .move-list-controls .solve-endgame-action {
-  flex: none;
-  width: 30px;
-  min-height: 30px;
-  padding: 0;
-}
-.phone-layout .move-list-controls .solve-endgame-action span { display: none; }
-.phone-layout .bingo-odds-utilities {
-  grid-area: 1 / 2;
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-.phone-layout .bingo-odds-settings[open] { width: auto; }
-.phone-layout .bingo-odds-settings > summary {
-  display: flex;
-  min-width: 30px;
-  height: 30px;
-  padding-inline: 4px;
-  align-items: center;
-  justify-content: center;
-  list-style: none;
-  color: var(--primary);
-  cursor: pointer;
-}
-.phone-layout .bingo-odds-settings[open] > summary {
-  border-radius: 6px;
-  background: var(--soft);
-}
-.phone-layout .results-panel:has(.bingo-odds-settings[open]) { overflow: visible; }
-.phone-layout .bingo-odds-options {
-  position: absolute;
-  z-index: 5;
-  inset: 100% 0 auto auto;
-  width: min(355px, 100%);
-  max-height: 48svh;
-  overflow: auto;
-  padding: 9px 12px;
-  font-size: 11px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  box-shadow: 0 6px 16px #0002;
-}
-.phone-layout .bingo-odds-options .move-playing-style {
-  flex: 1;
-  height: 32px;
-  min-width: 0;
-  font-size: 16px;
-}
-.phone-layout :is(.bingo-odds-actions, .result-filters[data-phone-toolbar]) > .search-input {
-  height: 32px;
-  padding-inline: 6px;
-  gap: 4px;
-}
-.phone-layout :is(.bingo-odds-actions, .result-filters[data-phone-toolbar]) > .search-input input {
-  padding-block: 0;
-  font-size: 16px;
-}
-@container (max-width: 340px) {
-  .phone-layout .results-panel .results-title { gap: 6px; padding-inline: 8px; }
-  .phone-layout .results-title .heading-with-icon { gap: 5px; }
-  .phone-layout .results-title h2 { font-size: 14px; }
-  .phone-layout .results-title .calculation-indicator { --calculation-icon-size: 14px; }
-  .phone-layout .results-title .count-badge { padding-inline: 5px; }
-  .phone-layout .results-title .analysis-toggle { gap: 4px; padding-inline: 6px; }
-  .phone-layout .bingo-odds-controls { margin-inline: 8px; }
-  .phone-layout .move-list-controls .result-view-picker button {
-    padding-inline: 6px;
-    font-size: 11px;
-  }
-  .phone-layout .bingo-odds-settings > summary { width: 30px; font-size: 0; }
-  .phone-layout .bingo-odds-settings-icon { display: block; }
-}
 @container (max-width: 390px) {
   .move-review .with-reply-column :is(.result-columns, .result-row, .result-slot) {
     --result-grid: [word] minmax(0, 1fr) [points] var(--result-points)
@@ -7049,38 +6957,6 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .compact-game .rack-panel .tile-pool { margin-top: 5px; }
 .compact-game .rack-panel .tile-pool summary { padding-top: 5px; }
 
-.compact-game .bingo-odds-actions {
-  gap: 5px 6px;
-}
-.compact-game .bingo-odds-actions .result-view-picker {
-  padding: 0;
-  flex-wrap: nowrap;
-}
-.compact-game .bingo-odds-actions .result-view-picker button {
-  font-size: 11px;
-  padding-inline: 6px;
-  min-height: 30px;
-  white-space: nowrap;
-}
-.results-panel .move-search-toggle {
-  margin-left: auto;
-  width: 30px;
-  height: 30px;
-  border-left: 1px solid var(--line);
-}
-.results-panel .move-square-toggle {
-  flex: none;
-  width: 30px;
-  height: 30px;
-}
-.move-square-toggle:is([aria-pressed="true"], .has-required-squares) {
-  color: var(--primary);
-  background: var(--soft);
-  box-shadow: inset 0 -2px #bd651b;
-}
-.results-panel .search-input[hidden] { display: none; }
-.bingo-odds-controls > .search-input { margin-top: 5px; }
-.result-filters > .search-input { flex: 1 0 100%; order: 1; }
 .compact-game .result-scroll {
   --desktop-move-list-height: calc(6 * var(--move-row-height));
   height: var(--desktop-move-list-height);
@@ -7090,35 +6966,6 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   max-height: var(--desktop-move-list-height);
 }
 
-.compact-game .bingo-odds-actions {
-  position: relative;
-  padding-right: 88px;
-}
-.compact-game .bingo-odds-actions:has(.move-square-toggle) { padding-right: 123px; }
-.compact-game .bingo-odds-utilities {
-  position: absolute;
-  top: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: 30px;
-}
-.compact-game .bingo-odds-settings[open] { width: auto; }
-.compact-game .bingo-odds-options {
-  position: absolute;
-  z-index: 5;
-  top: 100%;
-  right: 0;
-  width: min(355px, 75cqi);
-  max-height: 48svh;
-  overflow: auto;
-  padding: 9px 12px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  box-shadow: 0 6px 16px #0002;
-}
 .compact-game .results-foot {
   padding: 5px 12px;
 }
@@ -7147,12 +6994,6 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .compact-reply .reply-example { margin-top: 3px; }
 .compact-reply .inline-reply-actions { margin-top: 4px; }
 .compact-reply .reply-refine { margin-top: 0; }
-@container (max-width: 485px) {
-  .compact-game .bingo-odds-actions .result-view-picker button,
-  .compact-game .bingo-odds-actions > .button { padding-inline: 4px; }
-  .compact-game .bingo-odds-actions > .button { font-size: 10px; }
-}
-
 .import-clear-board {
   margin-top: 8px !important;
   margin-inline-start: 20px;

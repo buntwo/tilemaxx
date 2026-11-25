@@ -11,7 +11,6 @@ import {
   CheckCheck,
   CloudOff,
   Copy,
-  Focus,
   Grid2X2,
   History,
   Home,
@@ -267,7 +266,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const moveSidebarFocus = useRef(false);
   const boardPanel = useRef<HTMLElement>(null);
   const gameOptionsButton = useRef<HTMLButtonElement>(null);
-  const squareFilterButton = useRef<HTMLButtonElement>(null);
+  const moveOptionsButton = useRef<HTMLElement>(null);
   const rackPanel = useRef<HTMLElement>(null);
   const rackEntry = useRef<RackEntryHandle>(null);
   const boardEntry = useRef<BoardEntryHandle>(null);
@@ -736,7 +735,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   }
   function finishSquareSelection() {
     squareFilter.setSelecting(false);
-    squareFilterButton.current?.focus({ preventScroll: true });
+    moveOptionsButton.current?.focus({ preventScroll: true });
   }
   function toggleSquareSelection() {
     if (squareFilter.selecting) {
@@ -1595,7 +1594,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               ) : (
                 <Results
                   compact={compactGame}
-                  collapsibleSearch
                   results={solver.results}
                   findMovesRequest={findMovesRequest}
                   playingStyle={playingStyle}
@@ -1633,20 +1631,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   bingoRules={game.template}
                   preview={preview}
                   requiredSquares={squareFilter.requiredSquares}
-                  squareFilterControl={
-                    <button
-                      ref={squareFilterButton}
-                      className={`icon-button move-square-toggle${squareFilter.marks.size ? " has-required-squares" : ""}`}
-                      type="button"
-                      disabled={boardLocked}
-                      aria-label="Filter moves by squares"
-                      aria-pressed={squareFilter.selecting}
-                      title={squareFilter.marks.size ? `Filter moves by squares (${squareFilter.marks.size} selected)` : "Filter moves by squares"}
-                      onClick={toggleSquareSelection}
-                    >
-                      <Focus size={16} aria-hidden="true" />
-                    </button>
-                  }
+                  squareFilter={{
+                    active: squareFilter.selecting,
+                    disabled: boardLocked,
+                    onToggle: toggleSquareSelection,
+                  }}
+                  optionsButtonRef={moveOptionsButton}
                   onPreview={previewMove}
                   phoneLayout={narrowLayout}
                   onPlay={play}

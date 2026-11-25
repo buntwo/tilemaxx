@@ -17,6 +17,7 @@ import {
   type CSSProperties,
   type ReactElement,
   type ReactNode,
+  type Ref,
 } from "react";
 import {
   ChevronDown,
@@ -30,6 +31,11 @@ import {
   Trophy,
   ChartNoAxesCombined,
   Check,
+  Focus,
+  List,
+  ListChecks,
+  SlidersHorizontal,
+  UserRound,
 } from "lucide-react";
 import {
   bingoPoints,
@@ -59,7 +65,7 @@ import MoveAnalysis from "./MoveAnalysis";
 import HighCeilingSetups from "./HighCeilingSetups";
 import EmptyMoveTiles from "./EmptyMoveTiles";
 import MoveWord, { BingoBadge, MoveLetters } from "./MoveWord";
-import BingoOddsControls, { MoveListOptions } from "./BingoOddsControls";
+import BingoOddsControls from "./BingoOddsControls";
 import CalculationIndicator from "./CalculationIndicator";
 import OptimalReplyDetails from "./OptimalReplyDetails";
 import OpponentEndgameResults, {
@@ -216,7 +222,6 @@ export default function Results({
   onResampleStyle,
   navigation,
   compact = false,
-  collapsibleSearch = compact,
   fetchPage,
   fetchShortlist,
   runBingoHunter,
@@ -229,7 +234,8 @@ export default function Results({
   bingoRules,
   preview,
   requiredSquares,
-  squareFilterControl,
+  squareFilter,
+  optionsButtonRef,
   onPreview,
   phoneLayout = false,
   onPlay,
@@ -260,7 +266,6 @@ export default function Results({
   onResampleStyle?: () => void;
   navigation: MoveListNavigation;
   compact?: boolean;
-  collapsibleSearch?: boolean;
   fetchPage: FetchMovePage;
   runBingoHunter?: RunBingoHunter;
   fetchShortlist: (
@@ -279,7 +284,12 @@ export default function Results({
   bingoRules: BingoRules;
   preview: Move | null;
   requiredSquares?: RequiredSquares;
-  squareFilterControl?: ReactElement;
+  squareFilter?: {
+    active: boolean;
+    disabled: boolean;
+    onToggle: () => void;
+  };
+  optionsButtonRef?: Ref<HTMLElement>;
   onPreview: (m: Move | null, analysis?: boolean, player?: Player) => void;
   phoneLayout?: boolean;
   onPlay: (m: Move) => void;
@@ -358,9 +368,11 @@ export default function Results({
     pinnedRow = useRef<HTMLDivElement>(null),
     pointer = useRef("mouse");
   const [searchOpen, setSearchOpen] = useState(false);
+  const searching = searchOpen || !!filter;
   const searchInput = useRef<HTMLInputElement>(null);
   const searchButton = useRef<HTMLButtonElement>(null);
   const filterInputId = useId();
+  const moveOptions = useRef<HTMLDetailsElement>(null);
   const findMovesButton = useRef<HTMLButtonElement>(null);
   const focusFindMoves = useRef(false);
   useEffect(() => {
@@ -370,13 +382,27 @@ export default function Results({
     }
   }, [resultSet, busy, error]);
   useEffect(() => {
-    if (collapsibleSearch && searchOpen)
-      searchInput.current?.focus({ preventScroll: true });
-  }, [collapsibleSearch, searchOpen]);
+    if (searchOpen) searchInput.current?.focus({ preventScroll: true });
+  }, [searchOpen]);
   function closeSearch() {
     setSearchOpen(false);
     setFilter("");
-    searchButton.current?.focus();
+    searchButton.current?.focus({ preventScroll: true });
+  }
+  useEffect(() => {
+    function dismissOutside(event: PointerEvent) {
+      const menu = moveOptions.current;
+      if (menu?.open && event.target instanceof Node && !menu.contains(event.target))
+        menu.open = false;
+    }
+    document.addEventListener("pointerdown", dismissOutside, true);
+    return () => document.removeEventListener("pointerdown", dismissOutside, true);
+  }, []);
+  function closeMoveOptions(restoreFocus = true) {
+    const menu = moveOptions.current;
+    if (!menu?.open) return;
+    menu.open = false;
+    if (restoreFocus) menu.querySelector("summary")?.focus({ preventScroll: true });
   }
   const [analyzing, setAnalyzing] = useState(false);
   const replyMetricId = useId();
@@ -830,7 +856,6 @@ export default function Results({
       </button>
     );
   }
-  const hasBingoControls = !!(analysisGame && onBoardOdds && onCancelBoardOdds);
   const showFilters = !!resultSet && !!(totalMoves || requiredSquares || analysisGame) && !busy && !error;
   const hunterStatus = hunterPending && (
     <span role="status">
@@ -853,26 +878,26 @@ export default function Results({
       ? SIMULATED_STYLE_LABELS[selectedProfile]
       : PLAYER_PROFILE_LABELS[selectedProfile]
     : "All moves";
-  const viewPicker = analysisGame && (
-    <div className="result-view-picker" role="group" aria-label="Move list view">
-      <button
-        type="button"
-        aria-pressed={view === "all"}
-        title={view === "all" && returnView ? `Return to ${returnViewLabel}` : undefined}
-        onClick={() => toggleView("all")}
-      >
-        All moves
-      </button>
-      <button
-        type="button"
-        aria-pressed={view === "shortlist"}
-        title={view === "shortlist" && returnView ? `Return to ${returnViewLabel}` : undefined}
-        onClick={() => toggleView("shortlist")}
-      >
-        Shortlist <span>{requiredSquares ? filteredShortlist.length : shortlist.length}</span>
-      </button>
-    </div>
-  );
+  const shortlistCount = requiredSquares ? filteredShortlist.length : shortlist.length;
+  const shortlistLabel = `Shortlist ${shortlistCount}`;
+  const shortlistTitle = shortlistActive && returnView
+    ? `Return to ${returnViewLabel}`
+    : shortlistLabel;
+  const markedSquares = requiredSquares?.indices.length ?? 0;
+  const analyzeLabel = analyzing ? "Close analysis" : "Analyze";
+  function toggleAnalysis() {
+    if (!analyzing)
+      setCandidates(
+        shortlistActive
+          ? filteredShortlist.slice(0, ANALYSIS_LIMIT)
+          : [preview ?? page.head[0]],
+      );
+    setLocked(null);
+    setInspectedReply(undefined);
+    onPreview(null);
+    setAnalyzing(!analyzing);
+    closeMoveOptions();
+  }
   const solveEndgame = opponentPosition && (
     <button
       className="button secondary solve-endgame-action"
@@ -886,9 +911,28 @@ export default function Results({
       <span>Solve endgame</span>
     </button>
   );
-  const phoneToolbar = phoneLayout && collapsibleSearch;
-  const playingStyleControls = analysisGame && (
-    <div className="move-style-controls">
+  const bingoOddsControls = !busy && !error && resultSet && !!totalMoves &&
+    analysisGame && onBoardOdds && onCancelBoardOdds && (
+      <BingoOddsControls
+        key={`bingo-odds:${analysisKey}`}
+        game={analysisGame}
+        searchId={resultSet.searchId}
+        bagSize={bagSize}
+        minimumBag={replyAnalysis.minimumBag}
+        repliesPending={replyAnalysis.pending}
+        invalid={invalid}
+        moves={resultSet.head}
+        manualMoves={phoneLayout ? undefined : shortlistActive ? filteredShortlist : page.head}
+        rackOddsPending={rackOddsPending}
+        boardOdds={boardOdds}
+        progress={boardOddsProgress}
+        onCheck={onBoardOdds}
+        onCancel={onCancelBoardOdds}
+      />
+    );
+  const playingStyleControl = analysisGame && (
+    <div className="move-style-control">
+      <UserRound className="move-style-icon" size={16} aria-hidden="true" />
       <select
         className="move-playing-style"
         aria-label="Playing style"
@@ -911,76 +955,30 @@ export default function Results({
           <option key={style} value={style}>{SIMULATED_STYLE_LABELS[style]}</option>
         ))}
       </select>
-      {profile && !hunterSelected && totalMoves > 0 && onResampleStyle && (
-        <button
-          type="button"
-          className="icon-button move-style-resample"
-          aria-label="Resample style"
-          title="Resample style"
-          disabled={pagePending}
-          onClick={() => {
-            setSort("playing-style");
-            setScrollPositions((current) => ({
-              ...current,
-              style: { sort: "playing-style", reversed: false, top: 0 },
-            }));
-            setLocked(null);
-            setInspectedReply(undefined);
-            setFollowHistogram(undefined);
-            scoreTooltip.close();
-            onPreview(null);
-            onResampleStyle();
-          }}
-        >
-          <Shuffle size={15} aria-hidden="true" />
-        </button>
-      )}
     </div>
   );
-  const moveListControls = viewPicker && (
-    <div className="move-list-controls" hidden={phoneToolbar && (searchOpen || !!filter)}>
-      {viewPicker}
-      {solveEndgame}
-      {!phoneToolbar && playingStyleControls}
-    </div>
-  );
-  const searchField = (
-    <div
-      className="search-input"
-      hidden={collapsibleSearch && !searchOpen && !filter}
-    >
-      <Search size={16} />
-      <input
-        id={filterInputId}
-        ref={searchInput}
-        aria-label="Filter moves"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        placeholder="Find a word…"
-        onKeyDown={(event) => {
-          if (collapsibleSearch && event.key === "Escape") {
-            event.preventDefault();
-            closeSearch();
-          }
-        }}
-      />
-    </div>
-  );
-  const searchToggle = (
+  const resampleStyle = profile && !hunterSelected && totalMoves > 0 && onResampleStyle && (
     <button
-      className="icon-button move-search-toggle"
       type="button"
-      aria-label="Search possible moves"
-      aria-expanded={searchOpen || !!filter}
-      aria-controls={filterInputId}
-      title="Search possible moves"
-      ref={searchButton}
+      className="move-list-option"
+      disabled={pagePending}
       onClick={() => {
-        if (searchOpen || filter) closeSearch();
-        else setSearchOpen(true);
+        setSort("playing-style");
+        setScrollPositions((current) => ({
+          ...current,
+          style: { sort: "playing-style", reversed: false, top: 0 },
+        }));
+        setLocked(null);
+        setInspectedReply(undefined);
+        setFollowHistogram(undefined);
+        scoreTooltip.close();
+        onPreview(null);
+        onResampleStyle();
+        closeMoveOptions();
       }}
     >
-      <Search size={16} aria-hidden="true" />
+      <Shuffle size={15} aria-hidden="true" />
+      Resample style
     </button>
   );
   if (analysisGame && opponentPosition && opponentSearch) {
@@ -1035,7 +1033,8 @@ export default function Results({
       } as CSSProperties}
     >
       <header
-        className={`results-title possible-moves-title${exchangeAction ? " has-exchange-advice" : ""}`}
+        className={`results-title possible-moves-title${resultSet ? " has-move-results" : ""}${exchangeAction ? " has-exchange-advice" : ""}`}
+        data-searching={(showFilters && searching) || undefined}
       >
         <div className="heading-with-icon">
           <CalculationIndicator
@@ -1070,12 +1069,63 @@ export default function Results({
                 : undefined
             }
           />
-          <h2>
+          <h2 className={resultSet ? "move-results-heading" : undefined}>
             {endgame && !replyAnalysis.invalid
               ? "Possible moves - Endgame"
               : "Possible moves"}
           </h2>
+          {showFilters && (
+            <button
+              className="icon-button move-search-toggle"
+              type="button"
+              aria-label="Search possible moves"
+              aria-expanded={searching}
+              aria-controls={filterInputId}
+              title="Search possible moves"
+              ref={searchButton}
+              onClick={() => {
+                if (searching) closeSearch();
+                else setSearchOpen(true);
+              }}
+            >
+              <Search size={16} aria-hidden="true" />
+            </button>
+          )}
         </div>
+        {showFilters && (
+          <>
+            <input
+              id={filterInputId}
+              className="move-word-filter"
+              ref={searchInput}
+              aria-label="Filter moves"
+              value={filter}
+              hidden={!searching}
+              onChange={(event) => setFilter(event.target.value)}
+              placeholder="Find a word…"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  closeSearch();
+                }
+              }}
+            />
+            {analysisGame && !searching && (
+              <button
+                type="button"
+                className="icon-button move-shortlist-toggle"
+                aria-label={shortlistLabel}
+                aria-pressed={shortlistActive}
+                title={shortlistTitle}
+                onClick={() => toggleView("shortlist")}
+              >
+                <ListChecks size={16} aria-hidden="true" />
+              </button>
+            )}
+            {playingStyleControl}
+          </>
+        )}
         {resultSet && (
           <div className="result-counts">
             {bingoCount > 0 && (
@@ -1097,36 +1147,106 @@ export default function Results({
           </div>
         )}
         {exchangeAction}
-        {analysisGame && !analysisGame.solo && !!totalMoves && !busy && !error && (
-          <button
-            type="button"
-            className="button secondary analysis-toggle"
-            title={analyzing ? "Close analysis" : "Analyze"}
-            aria-expanded={analyzing}
-            disabled={
-              !analyzing &&
-              (waitingForEndgame ||
-                !total ||
-                pagePending ||
-                (!shortlistActive && page.unavailable))
-            }
+        {showFilters && (analysisGame || squareFilter) && (
+          <details
+            className="move-list-options"
+            ref={moveOptions}
             data-move-preview-action
-            onClick={() => {
-              if (!analyzing)
-                setCandidates(
-                  shortlistActive
-                    ? filteredShortlist.slice(0, ANALYSIS_LIMIT)
-                    : [preview ?? page.head[0]],
-                );
-              setLocked(null);
-              setInspectedReply(undefined);
-              onPreview(null);
-              setAnalyzing(!analyzing);
+            onBlur={(event) => {
+              if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget))
+                closeMoveOptions(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape" || !event.currentTarget.open) return;
+              event.preventDefault();
+              event.stopPropagation();
+              closeMoveOptions();
             }}
           >
-            <ChartNoAxesCombined size={15} aria-hidden="true" />
-            <span>{analyzing ? "Close analysis" : "Analyze"}</span>
-          </button>
+            <summary
+              className="icon-button"
+              ref={optionsButtonRef}
+              aria-label="Options"
+              data-marked={squareFilter?.active || markedSquares > 0 || undefined}
+              title={markedSquares ? `Options · ${markedSquares} marked` : "Options"}
+            >
+              <SlidersHorizontal size={16} aria-hidden="true" />
+              Options
+            </summary>
+            <div className="move-list-options-panel">
+              {analysisGame && (
+                <button
+                  type="button"
+                  className="move-list-option"
+                  aria-pressed={view === "all"}
+                  title={view === "all" && returnView ? `Return to ${returnViewLabel}` : undefined}
+                  onClick={() => {
+                    toggleView("all");
+                    closeMoveOptions();
+                  }}
+                >
+                  <List size={16} aria-hidden="true" />
+                  All moves
+                </button>
+              )}
+              {analysisGame && searching && (
+                <button
+                  type="button"
+                  className="move-list-option"
+                  aria-label={shortlistLabel}
+                  aria-pressed={shortlistActive}
+                  title={shortlistTitle}
+                  onClick={() => {
+                    toggleView("shortlist");
+                    closeMoveOptions();
+                  }}
+                >
+                  <ListChecks size={16} aria-hidden="true" />
+                  Shortlist <span className="move-list-option-count">{shortlistCount}</span>
+                </button>
+              )}
+              {analysisGame && !analysisGame.solo && !!totalMoves && (
+                <button
+                  type="button"
+                  className="move-list-option"
+                  aria-expanded={analyzing}
+                  disabled={
+                    !analyzing &&
+                    (waitingForEndgame ||
+                      !total ||
+                      pagePending ||
+                      (!shortlistActive && page.unavailable))
+                  }
+                  onClick={toggleAnalysis}
+                >
+                  <ChartNoAxesCombined size={15} aria-hidden="true" />
+                  {analyzeLabel}
+                </button>
+              )}
+              {squareFilter && (
+                <button
+                  type="button"
+                  className="move-list-option"
+                  disabled={squareFilter.disabled}
+                  aria-pressed={squareFilter.active}
+                  onClick={() => {
+                    closeMoveOptions(false);
+                    squareFilter.onToggle();
+                  }}
+                >
+                  <Focus size={16} aria-hidden="true" />
+                  Mark squares
+                  {markedSquares > 0 && (
+                    <span className="move-list-option-count" aria-hidden="true">{markedSquares}</span>
+                  )}
+                </button>
+              )}
+              {solveEndgame}
+              {resampleStyle}
+              {bingoOddsControls}
+              {bingoOddsControls && replyEnabled && <ReplySettings analysis={replyAnalysis} />}
+            </div>
+          </details>
         )}
         {(resultSet || error) && (
           <button
@@ -1148,57 +1268,12 @@ export default function Results({
           </button>
         )}
       </header>
-      {showFilters && (!collapsibleSearch || !hasBingoControls || !totalMoves) && (
-        <div className="result-filters" data-phone-toolbar={phoneToolbar || undefined}>
-          {moveListControls}
-          {searchField}
-          {phoneToolbar ? (
-            <div className="bingo-odds-utilities">
-              {playingStyleControls && <MoveListOptions>{playingStyleControls}</MoveListOptions>}
-              {squareFilterControl}
-              {searchToggle}
-            </div>
-          ) : <>{squareFilterControl}{collapsibleSearch && searchToggle}</>}
+      {bingoOddsControls && bagSize > 0 && (rackOdds?.error || boardOddsError) && (
+        <div className="bingo-odds-messages">
+          {rackOdds?.error && <p role="status">{rackOdds.error}</p>}
+          {boardOddsError && <p className="error" role="alert">{boardOddsError}</p>}
         </div>
       )}
-      {!busy &&
-        !error &&
-        resultSet &&
-        !!totalMoves &&
-        analysisGame &&
-        onBoardOdds &&
-        onCancelBoardOdds && (
-          <BingoOddsControls
-            key={`bingo-odds:${analysisKey}`}
-            game={analysisGame}
-            searchId={resultSet.searchId}
-            bagSize={replyAnalysis.bagSize}
-            minimumBag={replyAnalysis.minimumBag}
-            repliesPending={replyAnalysis.pending}
-            invalid={replyAnalysis.invalid}
-            moves={resultSet.head}
-            manualMoves={
-              phoneLayout
-                ? undefined
-                : shortlistActive
-                  ? filteredShortlist
-                  : page.head
-            }
-            settings={replyEnabled && <ReplySettings analysis={replyAnalysis} />}
-            toolbarOptions={phoneToolbar && playingStyleControls}
-            inlineSearch={phoneToolbar}
-            toolbarStart={collapsibleSearch && moveListControls}
-            toolbarEnd={collapsibleSearch && <>{squareFilterControl}{searchToggle}</>}
-            searchField={collapsibleSearch && searchField}
-            rackOdds={rackOdds}
-            rackOddsPending={rackOddsPending}
-            boardOdds={boardOdds}
-            progress={boardOddsProgress}
-            error={boardOddsError}
-            onCheck={onBoardOdds}
-            onCancel={onCancelBoardOdds}
-          />
-        )}
       {analyzing && analysisGame && !busy && (
         <MoveAnalysis
           key={`move-analysis:${analysisKey}`}

@@ -132,19 +132,19 @@ export const guideFigures: GuideFigure[] = [
         x: 187,
         y: 39,
         name: "Possible moves",
-        hint: "The results panel reads Possible moves - Endgame when the bag is empty.",
+        hint: "After Find moves, the header shows the word search, Shortlist, Playing style, counts, and Options.",
       },
       {
         x: 182,
         y: 75,
         name: "Move filters",
-        hint: "Switch between All moves and Shortlist, or filter by word or square.",
+        hint: "Search and Shortlist are in the results header. All moves and Mark squares are under Options.",
       },
       {
         x: 464,
         y: 37,
         name: "Analyze",
-        hint: "Open Move analysis to compare candidates.",
+        hint: "Choose Analyze under Options to compare candidates.",
       },
       {
         x: 339,

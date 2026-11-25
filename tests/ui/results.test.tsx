@@ -10,6 +10,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { chooseMoveOption, openMoveOptions } from "./move-options";
 import MoveTimingButton from "../../src/components/MoveTimingButton";
 import OptimalReplyDetails from "../../src/components/OptimalReplyDetails";
 import Results from "../../src/components/Results";
@@ -243,6 +244,11 @@ test("the header omits the bingo count when no moves are bingos", () => {
   expect(screen.queryByRole("img", { name: /bingos?/i })).toBeNull();
 });
 
+async function openMoveSearch(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "Search possible moves" }));
+  return screen.getByRole("textbox", { name: "Filter moves" });
+}
+
 test("the header counts bingos outside the visible page and across placements", async () => {
   const nonBingos = Array.from({ length: 66 }, (_, i) => ({
     ...moves[1],
@@ -259,7 +265,7 @@ test("the header counts bingos outside the visible page and across placements", 
   const badge = screen.getByRole("img", { name: "2 bingos" });
   expect(badge.nextElementSibling?.textContent).toBe("68");
   expect(screen.queryByRole("button", { name: /^CATS,/ })).toBeNull();
-  await user.type(screen.getByRole("textbox", { name: "Filter moves" }), "ZZZ");
+  await user.type(await openMoveSearch(user), "ZZZ");
   await screen.findByRole("heading", { name: "No matching words" });
   expect(screen.getByRole("img", { name: "2 bingos" })).toBe(badge);
 });
@@ -307,7 +313,7 @@ test("a style still counts all legal moves covering the selected squares", async
     profile: undefined, requiredSquares,
   }));
 
-  await user.type(screen.getByRole("textbox", { name: "Filter moves" }), "ZZZ");
+  await user.type(await openMoveSearch(user), "ZZZ");
   await waitFor(() => expect(count.textContent).toBe("0"));
   expect(screen.queryByRole("img", { name: "1 bingo" })).toBeNull();
 });
@@ -323,7 +329,7 @@ test("scrolling and filtering use worker pages and ignore out-of-order results",
   const pending: Array<() => void> = [];
   const fetchPage: FetchMovePage = (_id, query) =>
     new Promise((resolve) => pending.push(() => resolve(index.page(query))));
-  setup(false, { moves: longList, fetchPage });
+  const { user } = setup(false, { moves: longList, fetchPage });
   expect(rows()).toHaveLength(30);
   const panel = screen.getByRole("region", { name: "Possible moves" });
   expect(rows().slice(0, 2).map(displayedRank)).toEqual(["1", "2"]);
@@ -337,7 +343,7 @@ test("scrolling and filtering use worker pages and ignore out-of-order results",
   await act(async () => pending[0]());
   expect(displayedRank(screen.getByRole("button", { name: /^ZEBRA,/ }))).toBe("200");
 
-  const filter = screen.getByRole("textbox", { name: "Filter moves" });
+  const filter = await openMoveSearch(user);
   fireEvent.change(filter, { target: { value: "QUI" } });
   fireEvent.change(filter, { target: { value: "ZEB" } });
   await waitFor(() => expect(pending).toHaveLength(3));
@@ -1321,10 +1327,7 @@ test("column headings sort moves and filters preserve the original results", asy
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/);
   await user.click(screen.getByRole("button", { name: "Sort by rack leave" }));
   expect(rows()[0].getAttribute("aria-label")).toMatch(/^CAT,/);
-  await user.type(
-    screen.getByRole("textbox", { name: "Filter moves" }),
-    "CATS",
-  );
+  await user.type(await openMoveSearch(user), "CATS");
   expect(rows()).toHaveLength(1);
   await user.clear(screen.getByRole("textbox", { name: "Filter moves" }));
   expect(rows()).toHaveLength(3);
@@ -1660,14 +1663,12 @@ test("bingo check follows the displayed sort, reverse order and filter, up to 20
     replyEnabled: false,
     onBoardOdds,
   });
-  const check = () =>
-    screen.getByRole("button", { name: "Check bingo after your play" });
-  await user.click(screen.getByText("Options", { selector: "summary" }));
+  const check = () => chooseMoveOption(user, "Check bingo after your play");
   await selectWordSort(user, "word");
   await waitFor(() =>
     expect(rows()[0].getAttribute("aria-label")).toMatch(/^AT,/),
   );
-  await user.click(check());
+  await check();
   expect(onBoardOdds).toHaveBeenLastCalledWith(
     [moves[2], ...high.slice(0, 19)],
     89,
@@ -1676,15 +1677,12 @@ test("bingo check follows the displayed sort, reverse order and filter, up to 20
   await waitFor(() =>
     expect(rows()[0].getAttribute("aria-label")).toMatch(/^CATS,/),
   );
-  await user.click(check());
+  await check();
   expect(onBoardOdds).toHaveBeenLastCalledWith(high.slice(0, 20), 89);
   await selectWordSort(user, "word");
-  await user.type(
-    screen.getByRole("textbox", { name: "Filter moves" }),
-    "CATS",
-  );
+  await user.type(await openMoveSearch(user), "CATS");
   await waitFor(() => expect(rows()).toHaveLength(21));
-  await user.click(check());
+  await check();
   expect(onBoardOdds).toHaveBeenLastCalledWith(high.slice(0, 20), 89);
 });
 
@@ -1730,11 +1728,8 @@ test("shortlist bingo check keeps the lower-scoring recommendation and respects 
     "bingo after your play ≈25%",
   );
   expect(rows()[1].getAttribute("aria-label")).toContain("Better bingo odds");
-  await user.type(
-    screen.getByRole("textbox", { name: "Filter moves" }),
-    "CATS",
-  );
-  await user.click(check);
+  await user.type(await openMoveSearch(user), "CATS");
+  await chooseMoveOption(user, "Check bingo after your play");
   expect(onBoardOdds).toHaveBeenLastCalledWith([moves[0]], 89);
 });
 
@@ -1744,17 +1739,14 @@ test("a fresh move search opens All moves even after viewing the Shortlist", asy
     replyEnabled: false,
   });
   const shortlist = () => screen.getByRole("button", { name: /^Shortlist/ });
-  const allMoves = () => screen.getByRole("button", { name: "All moves" });
   await user.click(shortlist());
   expect(shortlist().getAttribute("aria-pressed")).toBe("true");
-  await user.click(shortlist());
-  expect(allMoves().getAttribute("aria-pressed")).toBe("true");
-  await user.click(allMoves());
-  expect(allMoves().getAttribute("aria-pressed")).toBe("true");
+  await chooseMoveOption(user, "All moves");
+  expect(shortlist().getAttribute("aria-pressed")).toBe("false");
   await user.click(shortlist());
   rerun();
-  expect(allMoves().getAttribute("aria-pressed")).toBe("true");
   expect(shortlist().getAttribute("aria-pressed")).toBe("false");
+  expect((await openMoveOptions(user)).getByRole("button", { name: "All moves", pressed: true })).toBeTruthy();
   await waitFor(() => expect(rows()).toHaveLength(moves.length));
 });
 
