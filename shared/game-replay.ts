@@ -1,12 +1,21 @@
-import { currentScoreStart, reviewTurns, scorePlacement } from "./game-scoring";
+import {
+  addMoveToPlayerScore,
+  currentScoreStart,
+  emptyScoring,
+  gameScoreTotals,
+  reviewTurns,
+  scorePlacement,
+} from "./game-scoring";
 import {
   emptyBoard,
+  isBingo,
   restoreArchivedGame,
   trackedMoveHistory,
   type Board,
   type BoardTemplate,
   type Game,
   type Player,
+  type PlayerScore,
   type RecoveredReplayTurn,
   type ReplayDraw,
   type TrackedMove,
@@ -29,6 +38,7 @@ export type ReplayFrame = {
   unseenRackUnknown?: boolean;
   bag?: { count: number; estimated: boolean; invalid: boolean };
   scores: Record<Player, number>;
+  stats: Record<Player, PlayerScore>;
 };
 
 function replaySource(game: Game) {
@@ -283,7 +293,8 @@ function recoverReplay(
     { board: first.board, rack: firstRack ?? "" },
     firstTemplate,
   );
-  const zero = { you: 0, opponent: 0 };
+  const { you, opponent } = emptyScoring();
+  const zero = { you, opponent };
   const frames: ReplayFrame[] = [
     {
       board: first?.board,
@@ -292,7 +303,8 @@ function recoverReplay(
       bag: firstPool && replayBag(firstPool, firstRack, firstTemplate, solo),
       unseen: firstPool,
       unseenRackUnknown: firstRack === undefined,
-      scores: zero,
+      scores: gameScoreTotals(zero),
+      stats: zero,
     },
   ];
   const scoreStart = Math.min(
@@ -302,21 +314,26 @@ function recoverReplay(
       turns.map(({ move }) => move),
     ),
   );
-  let scores = zero;
+  let stats = zero;
   const recovery: (RecoveredReplayTurn | null)[] = [];
   for (const turn of turns) {
     const { move, index } = turn;
     const position = positions[index];
     const frameTemplate = boardTemplate(position);
-    if (index === scoreStart) scores = zero;
-    scores = { ...scores, [move.player]: scores[move.player] + move.score };
+    if (index === scoreStart) stats = zero;
+    const bingo = move.bingo ?? (!!position && isBingo(frameTemplate, position.tiles.length));
+    stats = {
+      ...stats,
+      [move.player]: addMoveToPlayerScore(stats[move.player], move.score, bingo),
+    };
     const frame: ReplayFrame = {
       board: position?.board,
       template: frameTemplate,
-      move,
+      move: { ...move, bingo },
       position,
       ...(position && replayPlacement(move.player, position, frameTemplate, solo, ownRacks[index])),
-      scores,
+      scores: gameScoreTotals(stats),
+      stats,
     };
     const savedTurn = savedTurns[index];
     if (move.player === "you") {

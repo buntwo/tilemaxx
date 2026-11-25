@@ -44,6 +44,33 @@ function gameWithMoves(trackedMoves: TrackedMove[]): Game {
   };
 }
 
+test("replay accumulates each player's recorded stats through the selected move and honors a scoring reset", () => {
+  const review = {
+    board: emptyBoard(15),
+    dictionaryId: "test",
+    tiles: Array.from("PLAYERS", (letter, i) => ({ index: 109 + i, letter })),
+  };
+  const game = gameWithMoves([
+    { player: "opponent", word: "TRAINED", score: 75, bingo: true, at: "" },
+    { player: "opponent", word: "AX", score: 0, at: "" },
+    { player: "you", word: "PLAYERS", score: 71, at: "", review },
+    { player: "you", word: "PLAYERS", score: 65, bingo: false, at: "", review },
+  ]);
+  game.scoring = { ...emptyScoring(), historyStart: 2 };
+  const { frames, scoreStart } = gameReplayTimeline(archiveGame(game));
+  const zero = { points: 0, moves: 0, best: 0, bingos: 0 };
+  assert.equal(scoreStart, 2);
+  assert.deepEqual(frames.map(({ stats }) => stats), [
+    { you: zero, opponent: zero },
+    { you: zero, opponent: { points: 75, moves: 1, best: 75, bingos: 1 } },
+    { you: zero, opponent: { points: 75, moves: 2, best: 75, bingos: 1 } },
+    { you: { points: 71, moves: 1, best: 71, bingos: 1 }, opponent: zero },
+    { you: { points: 136, moves: 2, best: 71, bingos: 1 }, opponent: zero },
+  ]);
+  assert.deepEqual(frames.map(({ move }) => move?.bingo), [undefined, true, false, true, false]);
+  assert.equal(game.trackedMoves?.[2].bingo, undefined);
+});
+
 test("replay keeps the archived rack order and highlights the slots played", () => {
   const board = emptyBoard(15);
   const premiums = [...PRESETS[0].premiums];
@@ -672,6 +699,7 @@ test("a replay trial starts with the historical layout, physical rack and scores
     },
     opponentPlayedTiles: "?T",
     scores: { you: 21, opponent: 15 },
+    stats: emptyScoring(),
   };
   const { game: trial } = replayGamePosition(source, frame, { you: 21, opponent: 10 }, 3);
   assert.equal(trial.rack, "?T");

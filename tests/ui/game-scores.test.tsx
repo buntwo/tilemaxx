@@ -1,9 +1,11 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
-import { emptyScoring } from "../../shared/game-scoring";
+import { gameReplayTimeline } from "../../shared/game-replay";
+import { emptyScoring, summarizeGameScore } from "../../shared/game-scoring";
 import { emptyBoard, type Game } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
+import { ReplayScores } from "../../src/components/GameReplay";
 import GameScores from "../../src/components/GameScores";
 import { MoveDefinitions } from "../../src/components/MoveDefinitions";
 import ScoreChart from "../../src/components/ScoreChart";
@@ -100,6 +102,38 @@ test("archived score markers follow the saved final result while the board is be
   show(game);
   expect(screen.getByRole("img", { name: "Opponent won" })).toBeTruthy();
   expect(screen.queryByRole("img", { name: "You won" })).toBeNull();
+});
+
+test("an archive's final stats use the saved finish and replay stats use recorded plays", () => {
+  const game = gameWithScores(100, 85);
+  const scoring = game.scoring!;
+  scoring.you = { points: 100, moves: 2, best: 76, bingos: 1 };
+  scoring.opponent = { points: 85, moves: 2, best: 70, bingos: 1 };
+  scoring.end = { out: "you", rackPoints: 6 };
+  game.archived = true;
+  game.trackedMoves = [
+    { player: "you", word: "AT", score: 24, at: "" },
+    { player: "opponent", word: "ART", score: 15, at: "" },
+  ];
+  const timeline = gameReplayTimeline(game);
+  const seek = vi.fn();
+  const { rerender } = render(
+    <ReplayScores {...timeline} index={3} finalScoring={scoring} finalOutcome={summarizeGameScore(game)?.outcome} seek={seek} />,
+  );
+  const panel = within(screen.getByRole("region", { name: "Game scores" }));
+  expect(panel.getByText("106")).toBeTruthy();
+  expect(panel.getByText("79")).toBeTruthy();
+  expect(panel.getByText("2 moves · Avg 50.0")).toBeTruthy();
+  expect(panel.getByText("Best 76 · 1 bingo")).toBeTruthy();
+  expect(panel.getByText("Best 70 · 1 bingo")).toBeTruthy();
+  expect(panel.getByRole("img", { name: "You won" })).toBeTruthy();
+
+  rerender(<ReplayScores {...timeline} index={1} seek={seek} />);
+  expect(panel.getByText("1 move · Avg 24.0")).toBeTruthy();
+  expect(panel.getByText("Best 24 · 0 bingos")).toBeTruthy();
+  expect(panel.getByText("0 moves · Avg —")).toBeTruthy();
+  expect(panel.queryByRole("img", { name: "You won" })).toBeNull();
+  expect(panel.getByRole("img", { name: "Your turn" })).toBeTruthy();
 });
 
 test("the score chart pairs adjacent plays and carries forward the score for a missing reply", () => {

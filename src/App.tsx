@@ -1686,7 +1686,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 </div>
               )}
               {replay && (
-                <ReplayScores {...replay} index={Math.min(replay.index, replay.recordedCount)} solo={game.solo} />
+                <ReplayScores
+                  {...replay}
+                  solo={game.solo}
+                  finalScoring={!historical ? (savedGame?.archivedState ?? savedGame)?.scoring : undefined}
+                  finalOutcome={!historical ? gameFinish.score?.outcome : undefined}
+                />
               )}
             </div>
             <Activity mode={replay ? "hidden" : "visible"}>

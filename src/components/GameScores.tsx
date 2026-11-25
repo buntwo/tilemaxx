@@ -1,7 +1,7 @@
 import { recordedMoveNotation } from "../../shared/notation";
 import { Fragment, useMemo, useState } from "react";
 import { ChevronDown, Pencil, Play, Plus, Trophy } from "lucide-react";
-import { isBingo, type Game, type Player } from "../../shared/model";
+import { isBingo, type Game, type Player, type PlayerScore } from "../../shared/model";
 import {
   correctTrackedMove,
   currentScoreStart,
@@ -23,7 +23,7 @@ import ScoreBreakdown from "./ScoreBreakdown";
 import ScoreChart from "./ScoreChart";
 import TurnReview from "./TurnReview";
 
-export function ScorePlayerMarker({
+function ScorePlayerMarker({
   player,
   turn,
   winner,
@@ -57,6 +57,46 @@ export function ScorePlayerMarker({
   );
 }
 
+export function ScorePlayers({
+  stats,
+  totals,
+  solo,
+  turn,
+  winner,
+}: {
+  stats: Record<Player, PlayerScore>;
+  totals: Record<Player, number>;
+  solo?: Game["solo"];
+  turn?: Player;
+  winner?: Player;
+}) {
+  const players = solo ? (["you"] as const) : (["you", "opponent"] as const);
+  return (
+    <dl className="score-players" data-solo={solo}>
+      {players.map((player) => {
+        const { points, moves, best, bingos } = stats[player];
+        return (
+          <div key={player} data-player={player}>
+            <dt>{player === "you" ? "You" : "Opponent"}</dt>
+            <dd className="score-total">
+              {totals[player]} <small>pts</small>
+              <ScorePlayerMarker player={player} turn={turn} winner={winner} />
+            </dd>
+            <dd className="score-detail">
+              {moves} {moves === 1 ? "move" : "moves"} · Avg{" "}
+              {moves ? (points / moves).toFixed(1) : "—"}
+            </dd>
+            <dd className="score-detail">
+              Best {moves ? best : "—"} · {bingos}{" "}
+              {bingos === 1 ? "bingo" : "bingos"}
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
 export default function GameScores({
   game,
   onToggle,
@@ -75,7 +115,6 @@ export default function GameScores({
   onChange: (game: Game) => void;
 }) {
   const { solo } = game;
-  const players = solo ? (["you"] as const) : (["you", "opponent"] as const);
   const tracking = tracksScores(game);
   const pending = pendingOpponentTurns(game);
   const multiplePending = pending.length > 1;
@@ -144,32 +183,7 @@ export default function GameScores({
       </div>
       {tracking || manual?.scores ? (
         <>
-          <dl className="score-players" data-solo={solo}>
-            {players.map((player) => {
-              const { points, moves, best, bingos } = scoring[player];
-              return (
-                <div key={player} data-player={player}>
-                  <dt>{player === "you" ? "You" : "Opponent"}</dt>
-                  <dd className="score-total">
-                    {adjusted[player]} <small>pts</small>
-                    <ScorePlayerMarker
-                      player={player}
-                      turn={turn}
-                      winner={winner}
-                    />
-                  </dd>
-                  <dd className="score-detail">
-                    {moves} {moves === 1 ? "move" : "moves"} · Avg{" "}
-                    {moves ? (points / moves).toFixed(1) : "—"}
-                  </dd>
-                  <dd className="score-detail">
-                    Best {moves ? best : "—"} · {bingos}{" "}
-                    {bingos === 1 ? "bingo" : "bingos"}
-                  </dd>
-                </div>
-              );
-            })}
-          </dl>
+          <ScorePlayers stats={scoring} totals={adjusted} solo={solo} turn={turn} winner={winner} />
           {scoring.incomplete && !manual?.scores ? (
             <p className="score-detail">
               Partial scores. Some plays are missing from the saved history.

@@ -2433,6 +2433,7 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   const scorePanel = within(screen.getByRole("region", { name: "Game scores" }));
   expect(replayScore.getAttribute("data-turn")).toBe("opponent");
   expect(scorePanel.getByRole("img", { name: "Opponent’s turn" })).toBeTruthy();
+  expect(scorePanel.getByText("1 move · Avg 4.0")).toBeTruthy();
   expect(strip.getByText("I6")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Unseen tiles, 83 estimated tiles in the bag before the play" })).toBeTruthy();
   const opponentTray = screen.getByRole("group", { name: "Opponent rack" });
@@ -2456,6 +2457,8 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(strip.getByText("10 pts")).toBeTruthy();
   expect(replayScore.getAttribute("data-turn")).toBe("you");
   expect(scorePanel.getByRole("img", { name: "Your turn" })).toBeTruthy();
+  expect(scorePanel.queryByText("1 move · Avg 4.0")).toBeNull();
+  expect(scorePanel.getByText("1 move · Avg 10.0")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Unseen tiles, 86 estimated tiles in the bag before the play" })).toBeTruthy();
   const ownTray = screen.getByRole("group", { name: "Your rack tiles" });
   expect(replayRackLabels(ownTray)).toEqual(["E", "I", "N", "S", "A, played", "C, played", "T, played"]);
@@ -2622,10 +2625,19 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   const controls = within(screen.getByRole("group", { name: "Game replay" }));
   const slider = controls.getByRole("slider", { name: "Replay moves" });
   const trialTiles = () => screen.getByRole("region", { name: "Game board" }).querySelectorAll(".square.trial-tile");
+  const scorePanel = within(screen.getByRole("region", { name: "Game scores" }));
   expect(slider).toHaveProperty("value", "3");
+  expect(scorePanel.getByText("1 move · Avg 10.0")).toBeTruthy();
+  expect(scorePanel.getByText("1 move · Avg 4.0")).toBeTruthy();
   expect(controls.getByRole("button", { name: "Play from start" })).toBeTruthy();
   expect(controls.queryByText("Final board")).toBeNull();
+  fireEvent.change(slider, { target: { value: "0" } });
+  expect(scorePanel.getAllByText("0 moves · Avg —")).toHaveLength(2);
+  expect(scorePanel.getAllByText("Best — · 0 bingos")).toHaveLength(2);
   fireEvent.change(slider, { target: { value: "1" } });
+  expect(scorePanel.getByText("1 move · Avg 10.0")).toBeTruthy();
+  expect(scorePanel.getByText("Best 10 · 0 bingos")).toBeTruthy();
+  expect(scorePanel.getByText("0 moves · Avg —")).toBeTruthy();
   expect(cell("H8: A, start")).toHaveProperty("disabled", false);
   expect(screen.queryByRole("button", { name: /^A1: Q/ })).toBeNull();
   expect(cell("Define")).toBeTruthy();

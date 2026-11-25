@@ -6,18 +6,13 @@ import {
   type CSSProperties,
 } from "react";
 import { ChevronDown, Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { gameScoreTotals, type GameScoreSummary } from "../../shared/game-scoring";
 import type { ReplayFrame } from "../../shared/game-replay";
-import { isBingo, tileScore } from "../../shared/model";
+import { tileScore, type GameScoring } from "../../shared/model";
 import { recordedMoveDetails } from "../../shared/notation";
-import { ScorePlayerMarker } from "./GameScores";
+import { ScorePlayers } from "./GameScores";
 import MoveWord from "./MoveWord";
 import ScoreChart from "./ScoreChart";
-
-function replayBingo({ move, position, template }: ReplayFrame) {
-  return (
-    move?.bingo ?? (!!position && isBingo(template, position.tiles.length))
-  );
-}
 
 function ReplayMoveStrip({
   frame, historical, showRecorded, onToggleRecorded,
@@ -55,7 +50,7 @@ function ReplayMoveStrip({
             <MoveWord
               word={move.word}
               notation={details?.notation}
-              bingo={replayBingo(frame)}
+              bingo={move.bingo}
             />
           </button>
           <div className="replay-move-result">
@@ -209,12 +204,16 @@ export function ReplayScores({
   scoreStart,
   index,
   solo,
+  finalScoring,
+  finalOutcome,
   seek,
 }: {
   frames: readonly ReplayFrame[];
   scoreStart: number;
   index: number;
-  solo?: boolean;
+  solo?: true;
+  finalScoring?: GameScoring;
+  finalOutcome?: GameScoreSummary["outcome"];
   seek: (index: number) => void;
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -222,21 +221,23 @@ export function ReplayScores({
     () =>
       frames.flatMap((frame, number) =>
         frame.move
-          ? [{ ...frame.move, number, bingo: replayBingo(frame) }]
+          ? [{ ...frame.move, number }]
           : [],
       ),
     [frames],
   );
+  const frameIndex = Math.min(index, frames.length - 1);
   // A score reset starts a new chart. Keep the earlier record accessible when
   // replaying it and use the same pairing boundary as the live score chart.
-  const earlier = scoreStart > 0 && index <= scoreStart;
+  const earlier = scoreStart > 0 && frameIndex <= scoreStart;
   const chartMoves = useMemo(
     () => (earlier ? moves.slice(0, scoreStart) : moves.slice(scoreStart)),
     [earlier, moves, scoreStart],
   );
-  const { scores, move } = frames[index];
-  const turn = solo ? undefined : move?.player;
-  const players = solo ? (["you"] as const) : (["you", "opponent"] as const);
+  const { scores, move, stats } = frames[frameIndex];
+  const turn = index === frameIndex && !solo ? move?.player : undefined;
+  const winner = finalOutcome === "win" ? "you" :
+    finalOutcome === "loss" ? "opponent" : undefined;
   return (
     <section
       className="panel score-panel replay-score-panel"
@@ -245,21 +246,17 @@ export function ReplayScores({
       <div className="score-header">
         <h2>Game scores</h2>
       </div>
-      <dl className="score-players" data-solo={solo}>
-        {players.map((player) => (
-          <div key={player} data-player={player}>
-            <dt>{player === "you" ? "You" : "Opponent"}</dt>
-            <dd className="score-total">
-              {scores[player]} <small>pts</small>
-              <ScorePlayerMarker player={player} turn={turn} />
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <ScorePlayers
+        stats={finalScoring ?? stats}
+        totals={finalScoring ? gameScoreTotals(finalScoring) : scores}
+        solo={solo}
+        turn={turn}
+        winner={winner}
+      />
       <ScoreChart
         moves={chartMoves}
         solo={solo}
-        replay={{ index, scores, seek }}
+        replay={{ index: frameIndex, scores, seek }}
       />
       <div className="score-history-section">
         <details

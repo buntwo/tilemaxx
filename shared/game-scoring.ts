@@ -23,6 +23,7 @@ import {
   type ManualGameEnd,
   type Move,
   type Player,
+  type PlayerScore,
   type Premium,
   type TrackedMove,
   type TurnPosition,
@@ -842,21 +843,28 @@ export function pendingOpponentTurns(game: Game): PendingOpponentTurns {
   return splitOpponentTurns(scorePlacement, base, board, template, past, start);
 }
 
+export function addMoveToPlayerScore(
+  previous: PlayerScore,
+  score: number,
+  bingo: boolean,
+): PlayerScore {
+  return {
+    points: previous.points + score,
+    moves: previous.moves + 1,
+    best: Math.max(previous.best, score),
+    bingos: previous.bingos + Number(bingo),
+  };
+}
+
 function addScore(
   scoring: GameScoring,
   player: Player,
   play: ScoredPlay,
 ): GameScoring {
-  const previous = scoring[player];
   return {
     ...scoring,
     pendingBase: undefined,
-    [player]: {
-      points: previous.points + play.score,
-      moves: previous.moves + 1,
-      best: Math.max(previous.best, play.score),
-      bingos: previous.bingos + Number(play.bingo),
-    },
+    [player]: addMoveToPlayerScore(scoring[player], play.score, play.bingo),
   };
 }
 
