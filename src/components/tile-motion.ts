@@ -111,6 +111,7 @@ export function flyTiles(
   sources: ReturnType<typeof rackTileRects>,
   rules: Rules,
   onFinish: () => void,
+  trial = false,
 ) {
   const viewport = window.visualViewport;
   const paths = tiles.map(({ index, letter }, i) => ({
@@ -150,7 +151,7 @@ export function flyTiles(
   document.body.append(layer);
   let cancelled = false;
   let finished = false;
-  const animations = flights.map(({ source, target, end, letter }, i) => {
+  const animations = flights.flatMap(({ source, target, end, letter }, i) => {
     const blank = letter !== letter.toUpperCase();
     const tile = document.createElement("span");
     tile.className = `flying-tile${blank ? " blank" : ""}`;
@@ -185,7 +186,9 @@ export function flyTiles(
     const dy = source.top - end.top;
     const scaleX = source.width / end.width;
     const scaleY = source.height / end.height;
-    const animation = tile.animate(
+    const delay = i * 62;
+    const edge = trial ? "var(--archive-tile-edge)" : blank ? "#9fbccc" : "var(--tile-edge)";
+    const motion = tile.animate(
       [
         { transform: `translate(${dx}px,${dy}px) scale(${scaleX},${scaleY})` },
         {
@@ -194,17 +197,26 @@ export function flyTiles(
         },
         {
           transform: "translate(0,0) scale(1)",
-          boxShadow: `inset 0 -2px ${blank ? "#9fbccc" : "var(--tile-edge)"}, 0 1px 2px #0001`,
+          boxShadow: `inset 0 -2px ${edge}, 0 1px 2px #0001`,
         },
       ],
       {
         duration: 460,
-        delay: i * 62,
+        delay,
         easing: "cubic-bezier(.25,.05,.26,1)",
         fill: "both",
       },
     );
-    return animation;
+    if (!trial) return [motion];
+    // Keep the rack colors during the stagger and switch each tile at takeoff.
+    const color = tile.animate(
+      {
+        backgroundColor: "var(--archive-tile)",
+        color: blank ? "var(--archive-blank-ink)" : "var(--archive-tile-ink)",
+      },
+      { duration: 0, delay, fill: "forwards" },
+    );
+    return [motion, color];
   });
 
   function stop() {

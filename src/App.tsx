@@ -166,6 +166,7 @@ type TileFlight = NonNullable<ReturnType<typeof prepareTileFlight>> & {
   destination: string;
   move: Move;
   reviewing: boolean;
+  trial: boolean;
 };
 
 function currentWorkspace(): Workspace {
@@ -498,6 +499,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         rackTileRects(rack, flight.slots),
         flight.before.template.rules,
         finish,
+        flight.trial,
       );
       if (!stop) finish();
     };
@@ -803,6 +805,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           destination,
           move,
           reviewing: moveReview.showing,
+          trial: historical,
         },
       );
       setPreview(null);
