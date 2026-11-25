@@ -780,7 +780,7 @@ export default function Results({
     : activeProfileReplies?.timing ? [activeProfileReplies.timing] : [];
   if (profileReplySpans.length)
     timingStages.push({ label: "Playing style reply histograms", spans: profileReplySpans });
-  const viewTiming = moveViewTiming(timing, timingStages);
+  const viewTiming = view === "all" ? timing : moveViewTiming(timingStages);
   const scoreTooltip = useMoveScoreTooltip(analysisGame, (move) => {
     const delta = replyDeltas[move.id];
     const adjusted = replyAdjustedPoints(move, delta);

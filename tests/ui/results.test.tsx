@@ -89,18 +89,17 @@ const moves: Move[] = [
   },
 ];
 
-test("page timing excludes gaps and counts overlapping work once", () => {
-  const base = { total: 80, solver: { moves: 50, indexing: 10 }, span: { start: 10, end: 90 } };
-  const view = moveViewTiming(base, [
+test("view timing excludes gaps and counts overlapping work once", () => {
+  const view = moveViewTiming([
     { label: "Rank", spans: [{ start: 60, end: 100 }] },
-    { label: "Analyze", spans: [{ start: 140, end: 170 }, { start: 165, end: 180 }] },
+    { label: "Analyze", spans: [{ start: 90, end: 115 }, { start: 140, end: 170 }, { start: 165, end: 180 }] },
   ]);
-  expect(view?.total).toBe(130);
+  expect(view?.total).toBe(95);
   expect(view?.pageStages).toEqual([
     { label: "Rank", elapsed: 40 },
-    { label: "Analyze", elapsed: 40 },
+    { label: "Analyze", elapsed: 65 },
   ]);
-  expect(moveViewTiming(base, [])).toBe(base);
+  expect(moveViewTiming([])).toBeUndefined();
 });
 
 test("timing bars use total elapsed time for both stages and exact solves", async () => {

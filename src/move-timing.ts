@@ -42,8 +42,6 @@ export type OpponentEndgameTiming = {
 
 export type MoveTiming = {
   total: number;
-  span?: CalculationSpan;
-  pageStages?: { label: string; elapsed: number }[];
   solver: SolverStages;
   replies?: { elapsed: number; endgame: boolean };
   estimates?: number;
@@ -52,12 +50,15 @@ export type MoveTiming = {
 
 export type InitialAnalysisTiming = Pick<MoveTiming, "replies" | "estimates" | "exactLines">;
 
-export function moveViewTiming(base: MoveTiming | undefined, stages: MoveTimingStage[]) {
-  if (!base || !stages.length) return base;
-  const spans = stages.flatMap(({ spans }) => spans);
+export type MoveViewTiming = {
+  total: number;
+  pageStages: { label: string; elapsed: number }[];
+};
+
+export function moveViewTiming(stages: MoveTimingStage[]): MoveViewTiming | undefined {
+  if (!stages.length) return undefined;
   return {
-    ...base,
-    total: base.span ? elapsed([base.span, ...spans]) : base.total + elapsed(spans),
+    total: elapsed(stages.flatMap(({ spans }) => spans)),
     pageStages: stages.map(({ label, spans }) => ({ label, elapsed: elapsed(spans) })),
   };
 }

@@ -580,10 +580,6 @@ export function useSolver(positionKey: string, game: Game | undefined) {
         startedAt: undefined,
         timing: {
           total: stoppedAt - current.startedAt,
-          span: {
-            start: performance.timeOrigin + current.startedAt,
-            end: performance.timeOrigin + stoppedAt,
-          },
           solver: current.stages,
           ...analysis,
         },

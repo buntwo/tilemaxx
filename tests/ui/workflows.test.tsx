@@ -688,6 +688,8 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
   const user = await start();
   await typeRack(user, "RATS");
   await user.keyboard("{Enter}");
+  const timer = () => screen.findByRole("button", { name: /^Calculation timing,/ });
+  const allMovesTime = (await timer()).textContent;
   const select = await screen.findByRole("combobox", { name: "Playing style" });
   expect(Array.from(select.querySelectorAll("option"), (option) => option.textContent)).toEqual([
     "No style", "Casual", "Word-List Learner", "Strong Club Player", "Bingo Mercenary", "Bingo Tactician", "Master",
@@ -706,10 +708,12 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
   expect(tactics.getByText("Bingo lanes after reply").parentElement?.lastChild?.textContent).toBe("2");
 
   const checkTiming = async (label: string) => {
-    await user.click(await screen.findByRole("button", { name: /^Calculation timing,/ }));
+    await user.click(await timer());
     const timing = within(screen.getByRole("dialog", { name: "Calculation timing" }));
     expect(timing.getByText(label)).toBeTruthy();
     expect(timing.getAllByText(/ simulation$/)).toHaveLength(1);
+    expect(timing.queryByText("Board check and legal moves")).toBeNull();
+    expect(timing.queryByText("Reply histograms", { exact: true })).toBeNull();
     await user.click(timing.getByRole("button", { name: "Close dialog" }));
   };
   await checkTiming("Bingo Tactician simulation");
@@ -725,6 +729,7 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
   expect(requests[2].resumeFrom).toBe(requests[0].id);
   expect((await openUtility()).getByText("Bingo Tactician · Rank 1")).toBeTruthy();
   await user.selectOptions(select, "master");
+  expect(screen.queryByRole("button", { name: /^Calculation timing,/ })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Run Master" }));
   const master = await openUtility();
   expect(master.getByText("Master · Rank 1")).toBeTruthy();
@@ -732,6 +737,11 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
   expect(master.getByText("Rack leave difference")).toBeTruthy();
   expect(master.getByText("40 shared tile deals · 30% bingo next turn")).toBeTruthy();
   await checkTiming("Master simulation");
+  const masterTime = (await timer()).textContent;
+  await user.click(screen.getByRole("button", { name: "All moves" }));
+  expect((await timer()).textContent).toBe(allMovesTime);
+  await user.click(screen.getByRole("button", { name: "All moves" }));
+  expect((await timer()).textContent).toBe(masterTime);
 });
 
 test("phone analysis taps preview and select a move without offering Play", async () => {
@@ -1649,11 +1659,16 @@ test("profile replies check only missing ranked moves and keep timing on that vi
   const profileTiming = await openTiming();
   expect(profileTiming.getByText("Playing style ranking").nextElementSibling?.textContent).toBe("42 ms");
   expect(profileTiming.getByText("Playing style reply histograms")).toBeTruthy();
+  expect(profileTiming.queryByText("Board check and legal moves")).toBeNull();
+  expect(profileTiming.queryByText("Reply histograms", { exact: true })).toBeNull();
   await user.click(profileTiming.getByRole("button", { name: "Close dialog" }));
   await chooseMoveOption(user, /^Shortlist/);
   const shortlistTiming = await openTiming();
-  expect(shortlistTiming.getByText("Shortlist ranking")).toBeTruthy();
-  expect(shortlistTiming.queryByText("Playing style reply histograms")).toBeNull();
+  const shortlistTime = shortlistTiming.getByText("Shortlist ranking").nextElementSibling?.textContent;
+  expect(shortlistTiming.getByText("Total elapsed time").nextElementSibling?.textContent).toBe(shortlistTime);
+  expect(shortlistTiming.getAllByRole("term").map((term) => term.textContent)).toEqual([
+    "Total elapsed time", "Shortlist ranking",
+  ]);
   await user.click(shortlistTiming.getByRole("button", { name: "Close dialog" }));
   await chooseMoveOption(user, /^Shortlist/);
   expect((await openTiming()).getByText("Playing style reply histograms")).toBeTruthy();

@@ -1,6 +1,6 @@
 import { moveLocation } from "../../shared/notation";
 import { useState, type CSSProperties } from "react";
-import type { MoveTiming, OpponentEndgameTiming } from "../move-timing";
+import type { MoveTiming, MoveViewTiming, OpponentEndgameTiming } from "../move-timing";
 import Modal from "./Modal";
 
 function duration(ms: number) {
@@ -22,7 +22,6 @@ function moveStages({
   replies,
   estimates,
   exactLines,
-  pageStages,
 }: MoveTiming): [string, number | undefined][] {
   return [
     ["Dictionary loading and indexing", solver.dictionary],
@@ -38,14 +37,13 @@ function moveStages({
     ],
     ["Endgame estimates", estimates],
     ["Exact endgame lines", exactLines?.elapsed],
-    ...(pageStages?.map(({ label, elapsed }): [string, number] => [label, elapsed]) ?? []),
   ];
 }
 
 export default function MoveTimingButton({
   timing,
 }: {
-  timing: MoveTiming | OpponentEndgameTiming;
+  timing: MoveTiming | MoveViewTiming | OpponentEndgameTiming;
 }) {
   const [open, setOpen] = useState(false);
   const { total } = timing;
@@ -61,7 +59,9 @@ export default function MoveTimingButton({
             elapsed,
           ];
         })
-      : moveStages(timing);
+      : "pageStages" in timing
+        ? timing.pageStages.map(({ label, elapsed }) => [label, elapsed])
+        : moveStages(timing);
   const attempts =
     "exactLines" in timing ? timing.exactLines?.attempts : undefined;
   return (
