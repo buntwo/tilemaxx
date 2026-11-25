@@ -159,6 +159,8 @@ export function useMoveResults(
     displayedTotal,
     bingoCount: page?.bingoCount ?? (initialHead ? results?.bingoCount : 0) ?? 0,
     head,
+    profileHead: page?.profileHead,
+    profileTiming: page?.profileTiming,
     start: Math.max(start, slice?.offset ?? 0),
     visible,
     scoreRanks: page?.scoreRanks,

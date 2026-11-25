@@ -36,6 +36,7 @@ import { loadProfileVocabulary } from "./word-frequencies";
 import { rackComposition } from "../shared/rack-entry";
 import { createSoloStyleSearch } from "../shared/solo-styles";
 import type { HunterProgress } from "./parallel-bingo-hunter";
+import { timingNow } from "./move-timing";
 
 let activeHunter: { id: number; searchId: number; abort: AbortController; finished: Promise<unknown> } | undefined;
 const hunterSessions = new Map<SimulatedStyle, { searchId: number; key: string; lastId?: number; session: ReturnType<typeof createBingoHunterSession> | ReturnType<typeof createMasterSession> | ReturnType<typeof soloSession> }>();
@@ -73,6 +74,7 @@ async function prepareProfile(
   query: MoveQuery,
   current: () => boolean,
 ) {
+  const start = timingNow();
   const { profileBagSize: bagSize = 0, profileSeed: playerSeed = 0, profileSample = 0 } = query;
   const { position, lexicon } = result;
   const { template } = position;
@@ -97,7 +99,7 @@ async function prepareProfile(
   });
 
   if (!learnerSlate || learnerSlate.length < 2) {
-    result.setProfile(query, considered ?? []);
+    result.setProfile(query, considered ?? [], { start, end: timingNow() });
     return;
   }
 
@@ -113,7 +115,7 @@ async function prepareProfile(
     }
     step = steps.next();
   }
-  result.setProfile(query, step.value);
+  result.setProfile(query, step.value, { start, end: timingNow() });
 }
 
 async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind: "page" }>) {

@@ -12,6 +12,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { chooseMoveOption, openMoveOptions } from "./move-options";
 import MoveTimingButton from "../../src/components/MoveTimingButton";
+import { moveViewTiming } from "../../src/move-timing";
 import OptimalReplyDetails from "../../src/components/OptimalReplyDetails";
 import Results from "../../src/components/Results";
 import { emptyBoard, type Game, type Move } from "../../shared/model";
@@ -87,6 +88,20 @@ const moves: Move[] = [
     crosses: [],
   },
 ];
+
+test("page timing excludes gaps and counts overlapping work once", () => {
+  const base = { total: 80, solver: { moves: 50, indexing: 10 }, span: { start: 10, end: 90 } };
+  const view = moveViewTiming(base, [
+    { label: "Rank", spans: [{ start: 60, end: 100 }] },
+    { label: "Analyze", spans: [{ start: 140, end: 170 }, { start: 165, end: 180 }] },
+  ]);
+  expect(view?.total).toBe(130);
+  expect(view?.pageStages).toEqual([
+    { label: "Rank", elapsed: 40 },
+    { label: "Analyze", elapsed: 40 },
+  ]);
+  expect(moveViewTiming(base, [])).toBe(base);
+});
 
 test("timing bars use total elapsed time for both stages and exact solves", async () => {
   const timing = {
@@ -248,6 +263,18 @@ async function openMoveSearch(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Search possible moves" }));
   return screen.getByRole("textbox", { name: "Filter moves" });
 }
+
+test("word search reports an invalid pattern and resumes filtering after a correction", async () => {
+  const { user } = setup();
+  const input = await openMoveSearch(user);
+  fireEvent.change(input, { target: { value: "[" } });
+  expect(screen.getByRole("alert").textContent).toMatch(/regular expression/);
+  expect(input.getAttribute("aria-invalid")).toBe("true");
+  fireEvent.change(input, { target: { value: "^c.t$" } });
+  await screen.findByRole("button", { name: /^CAT,/ });
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.queryByRole("button", { name: /^CATS,/ })).toBeNull();
+});
 
 test("the header counts bingos outside the visible page and across placements", async () => {
   const nonBingos = Array.from({ length: 66 }, (_, i) => ({

@@ -19,7 +19,7 @@ import { MOVE_CACHE_LIMIT, profileQueryKey, styleScorelessTurns } from "../share
 import type { ShortlistEntry } from "../shared/move-shortlist";
 import type { HunterOptions, SolverMessage, SolverRequest } from "./solver-messages";
 import type { EndgameSettings } from "../shared/endgame";
-import type { MoveTiming, SolverStages } from "./move-timing";
+import type { InitialAnalysisTiming, MoveTiming, SolverStages } from "./move-timing";
 import type { ReplyCandidate } from "../shared/reply-candidates";
 
 type Snapshot = {
@@ -566,7 +566,7 @@ export function useSolver(positionKey: string, game: Game | undefined) {
   function finishTiming(
     searchId: number,
     stoppedAt: number,
-    analysis: Omit<MoveTiming, "total" | "solver">,
+    analysis: InitialAnalysisTiming,
   ) {
     setSnapshot((current) => {
       if (
@@ -580,6 +580,10 @@ export function useSolver(positionKey: string, game: Game | undefined) {
         startedAt: undefined,
         timing: {
           total: stoppedAt - current.startedAt,
+          span: {
+            start: performance.timeOrigin + current.startedAt,
+            end: performance.timeOrigin + stoppedAt,
+          },
           solver: current.stages,
           ...analysis,
         },
@@ -613,6 +617,7 @@ export function useSolver(positionKey: string, game: Game | undefined) {
       (!resultsClosed && snapshotKey === positionKey ? liveBoardOdds : undefined),
     busy,
     calculating: computing || queriesPending,
+    initialCalculating: computing,
     error,
     rackOddsPending,
     defenseProgress,

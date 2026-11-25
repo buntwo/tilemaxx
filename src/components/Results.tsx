@@ -51,6 +51,7 @@ import {
 } from "../../shared/reply-analysis";
 import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
 import { PLAYER_PROFILES, PLAYER_PROFILE_LABELS, profileWordHash } from "../../shared/player-profiles";
+import { compileMoveWordFilter } from "../../shared/move-word-filter";
 import { endgameAfterRefill } from "../../shared/endgame-refill";
 import { rackLetters } from "../../shared/rack-entry";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
@@ -83,14 +84,23 @@ import PremiumDefense, {
 import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
 import type { useReplyAnalysis } from "../useReplyAnalysis";
 import type { BoardOddsProgress } from "../useSolver";
-import type { MoveTiming } from "../move-timing";
+import {
+  moveViewTiming,
+  timingNow,
+  type InitialAnalysisTiming,
+  type MoveTiming,
+  type MoveTimingStage,
+} from "../move-timing";
 import MoveTimingButton from "./MoveTimingButton";
 import type { ShortlistEntry } from "../../shared/move-shortlist";
 import {
   coversRequiredSquares,
   defaultSortDescending,
   moveComparator,
+  profileQueryKey,
   replyAdjustedPoints,
+  MOVE_CACHE_LIMIT,
+  type CalculationSpan,
   type MoveResults,
   type MoveSort,
   type RequiredSquares,
@@ -227,6 +237,7 @@ export default function Results({
   runBingoHunter,
   busy,
   calculating = false,
+  initialCalculating = calculating,
   timing,
   onTimingComplete,
   error,
@@ -274,10 +285,11 @@ export default function Results({
   ) => Promise<ShortlistEntry[] | undefined>;
   busy: string;
   calculating?: boolean;
+  initialCalculating?: boolean;
   timing?: MoveTiming;
   onTimingComplete?: (
     stoppedAt: number,
-    analysis: Omit<MoveTiming, "total" | "solver">,
+    analysis: InitialAnalysisTiming,
   ) => void;
   error: string;
   size: number;
@@ -313,6 +325,7 @@ export default function Results({
 }) {
   const [filter, setFilter] = useState(""),
     [locked, setLocked] = useState<string | null>(null);
+  const wordFilter = useMemo(() => compileMoveWordFilter(filter), [filter]);
   useEffect(() => setFilter(""), [findMovesRequest]);
   const localCalculation = useGameCalculating();
   const workerLimit = useContext(ComputeWorkerLimit) ?? computeWorkerLimit();
@@ -436,6 +449,29 @@ export default function Results({
   const hunterResult = hunterSelected ? hunter.current?.result : undefined;
   const hunterProgress = hunter.current?.progress;
   const hunterPending = hunter.current?.pending;
+  const profileQuery = {
+    profile,
+    profileBagSize: profile ? bagSize : undefined,
+    profileScorelessTurns: analysisGame?.solo
+      ? undefined : styleScorelessTurns(profile, bagSize, scorelessTurns),
+    profileSeed: hunterSelected ? hunterResult?.id :
+      profile && analysisGame ? profileWordHash(analysisGame.id) : undefined,
+    profileSample: profile && !hunterSelected ? styleSample : undefined,
+  };
+  const profileKey = profile ? profileQueryKey(profileQuery) : undefined;
+  const activeProfileReplies = profileKey ? replyAnalysis.profileReplies?.[profileKey] : undefined;
+  const profileReplyTargets = useMemo(
+    () => new Set(activeProfileReplies?.target.map(({ id }) => id)),
+    [activeProfileReplies?.target],
+  );
+  const profileReplyResults = activeProfileReplies?.results;
+  const replies = useMemo(() => {
+    if (!profileReplyResults) return replyAnalysis.results;
+    const combined = { ...replyAnalysis.results };
+    for (const [id, result] of Object.entries(profileReplyResults))
+      if (result && !combined[id]) combined[id] = result;
+    return combined;
+  }, [profileReplyResults, replyAnalysis.results]);
   const totalMoves = resultSet?.total ?? 0;
   const endgame = !!analysisGame && replyAnalysis.bagSize === 0;
   const rackOdds = endgame ? undefined : calculatedRackOdds;
@@ -459,7 +495,7 @@ export default function Results({
   const histogramSelection = replyInspection?.histogramSelected ? replyInspection.move : undefined;
   const replyMove =
     (analyzing ? null : histogramSelection ?? preview) ?? replyInspection?.move;
-  const replyDetail = replyMove && replyAnalysis.results?.[replyMove.id];
+  const replyDetail = replyMove && replies?.[replyMove.id];
   const requestedHistogram = replyMove &&
     replyAnalysis.detail?.key === `reply-histogram:${replyMove.id}`
       ? replyAnalysis.detail
@@ -471,7 +507,7 @@ export default function Results({
       ? heatmap?.move
       : undefined;
   const originalHeatmap =
-    heatmapMove && replyAnalysis.results?.[heatmapMove.id];
+    heatmapMove && replies?.[heatmapMove.id];
   const heatmapDetail =
     heatmapMove &&
     replyAnalysis.detail?.key === `reply-detail:${heatmapMove.id}`
@@ -484,7 +520,7 @@ export default function Results({
       replyAnalysis.detail?.key === `reply-detail:${move.id}`
         ? replyAnalysis.detail
         : undefined;
-    const result = detail?.result ?? replyAnalysis.results?.[move.id];
+    const result = detail?.result ?? replies?.[move.id];
     if (result?.kind !== "distribution") return;
     setHeatmap({ move, searchId: resultSet.searchId });
     if (!result.heatmap)
@@ -500,11 +536,11 @@ export default function Results({
   const replyDeltas = useMemo(
     () =>
       Object.fromEntries(
-        Object.entries(replyAnalysis.results ?? {}).flatMap(([id, reply]) =>
+        Object.entries(replies ?? {}).flatMap(([id, reply]) =>
           reply?.difference == null ? [] : [[id, reply.difference]],
         ),
       ),
-    [replyAnalysis.results],
+    [replies],
   );
   const showAdjustedPoints = !!analysisGame && replyEnabled && !endgame && !replyAnalysis.invalid;
   const canSortAdjusted =
@@ -515,6 +551,7 @@ export default function Results({
   const [shortlistResult, setShortlistResult] = useState<{
     searchId: number;
     entries: ShortlistEntry[];
+    timing: CalculationSpan;
   }>();
   const [ordering, setOrdering] = useState<{
     searchId?: number;
@@ -525,6 +562,22 @@ export default function Results({
     replyEnabled && !shortlistActive ? replyAnalysis.ranking : undefined;
   const waitingForEndgame = replyEnabled && !profile && replyAnalysis.estimatingEndgame;
   const endgameProgress = replyEnabled ? replyAnalysis.endgameProgress : undefined;
+  const recordInitialTiming = useEffectEvent((stoppedAt: number) => onTimingComplete?.(stoppedAt, {
+    replies: replyAnalysis.repliesElapsed === undefined
+      ? undefined : { elapsed: replyAnalysis.repliesElapsed, endgame },
+    estimates: replyAnalysis.estimatesElapsed,
+    exactLines: endgameProgress?.elapsed === undefined
+      ? undefined : { elapsed: endgameProgress.elapsed, attempts: endgameProgress.attempts },
+  }));
+  const recordingInitialTiming = !!onTimingComplete;
+  const initialWorkPending = initialCalculating || replyAnalysis.calculatingInitial;
+  useEffect(() => {
+    if (!recordingInitialTiming || initialWorkPending) return;
+    const stoppedAt = performance.now();
+    // Board odds can start as soon as the opening reply batch settles.
+    const timer = setTimeout(() => recordInitialTiming(stoppedAt), 140);
+    return () => clearTimeout(timer);
+  }, [initialWorkPending, recordingInitialTiming]);
   const endgameRanked = !!ranking?.checked;
   const showEndgameSwing =
     endgameRanked || (replyEnabled && !shortlistActive && !!replyAnalysis.exactEndgameSpreads);
@@ -583,8 +636,9 @@ export default function Results({
   useEffect(() => {
     if (!canShortlist || searchId === undefined) return;
     let current = true;
+    const start = timingNow();
     const settle = (entries: ShortlistEntry[] = []) => {
-      if (current) setShortlistResult({ searchId, entries });
+      if (current) setShortlistResult({ searchId, entries, timing: { start, end: timingNow() } });
     };
     // Board checks add odds to the selected rows without changing the shortlist.
     void fetchShortlist(searchId, {
@@ -643,7 +697,7 @@ export default function Results({
     .map(({ move }) => move)
     .filter(
       (move) =>
-        move.word.includes(filter.trim().toUpperCase()) &&
+        wordFilter.matches(move.word) &&
         (!requiredSquares || coversRequiredSquares(move, requiredSquares)),
     )
     .sort(
@@ -664,19 +718,13 @@ export default function Results({
     profile && requiredSquares ? resultSet : null,
     { filter, requiredSquares, sort: "score", offset: 0 },
     fetchPage,
-    !busy && !error,
+    !busy && !error && !wordFilter.error,
   );
   const page = useMoveResults(
     resultSet,
     {
       filter,
-      profile,
-      profileBagSize: profile ? bagSize : undefined,
-      profileScorelessTurns: analysisGame?.solo
-        ? undefined : styleScorelessTurns(profile, bagSize, scorelessTurns),
-      profileSeed: hunterSelected ? hunterResult?.id :
-        profile && analysisGame ? profileWordHash(analysisGame.id) : undefined,
-      profileSample: profile && !hunterSelected ? styleSample : undefined,
+      ...profileQuery,
       requiredSquares,
       sort: shortlistActive || sort === "shortlist" ? "score" : sort,
       reversed: !shortlistActive && reversed,
@@ -692,9 +740,47 @@ export default function Results({
       exactEndgameSpreads: sort === "endgame" ? replyAnalysis.exactEndgameSpreads : undefined,
     },
     fetchPage,
-    !busy && !error && !waitingForEndgame && (!hunterSelected || !!hunterResult),
+    !busy && !error && !wordFilter.error && !waitingForEndgame && (!hunterSelected || !!hunterResult),
     searchId !== expandedSearchId ? INITIAL_MOVE_LIMIT : undefined,
   );
+  const { canRequestHistogram, requestProfileReplies } = replyAnalysis;
+  useEffect(() => {
+    const candidates = page.profileHead;
+    if (!profileKey || !candidates?.length || !canRequestHistogram) return;
+    // The parent owns the reply worker and may be replacing it this render.
+    let current = true;
+    queueMicrotask(() => {
+      if (current) requestProfileReplies(profileKey, candidates);
+    });
+    return () => { current = false; };
+  }, [searchId, profileKey, page.profileHead, canRequestHistogram, requestProfileReplies, workerLimit]);
+
+  const profileTimings = useRef(new Map<string, CalculationSpan>());
+  const timingKey = searchId !== undefined && profileKey ? `${searchId}:${profileKey}` : undefined;
+  useEffect(() => {
+    if (!timingKey || !page.profileTiming) return;
+    const cache = profileTimings.current;
+    cache.delete(timingKey);
+    cache.set(timingKey, page.profileTiming);
+    if (cache.size > 2 * MOVE_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
+  }, [timingKey, page.profileTiming]);
+  const timingStages: MoveTimingStage[] = [];
+  const profileRanking = page.profileTiming ?? (timingKey && profileTimings.current.get(timingKey));
+  if (shortlistActive && shortlistResult?.searchId === searchId && shortlistResult)
+    timingStages.push({ label: "Shortlist ranking", spans: [shortlistResult.timing] });
+  if (profileRanking) timingStages.push({ label: "Playing style ranking", spans: [profileRanking] });
+  if (hunterLabel && hunterResult?.runs.length)
+    timingStages.push({ label: `${hunterLabel} simulation`, spans: hunterResult.runs });
+  const profileReplySpans = hunterResult
+    ? hunterResult.runs.flatMap(({ id }) => {
+        const key = profileQueryKey({ ...profileQuery, profileSeed: id });
+        const span = replyAnalysis.profileReplies?.[key]?.timing;
+        return span ? [span] : [];
+      })
+    : activeProfileReplies?.timing ? [activeProfileReplies.timing] : [];
+  if (profileReplySpans.length)
+    timingStages.push({ label: "Playing style reply histograms", spans: profileReplySpans });
+  const viewTiming = moveViewTiming(timing, timingStages);
   const scoreTooltip = useMoveScoreTooltip(analysisGame, (move) => {
     const delta = replyDeltas[move.id];
     const adjusted = replyAdjustedPoints(move, delta);
@@ -740,7 +826,7 @@ export default function Results({
           : current,
     );
   }
-  const showList = !busy && !error && !!resultSet &&
+  const showList = !busy && !error && !wordFilter.error && !!resultSet &&
     !waitingForEndgame && (!hunterSelected || !!hunterResult?.checked) &&
     !(profile && page.error) && (shortlistActive || !page.unavailable) &&
     !pagePending && total > 0;
@@ -1066,26 +1152,6 @@ export default function Results({
               />
             )}
             onFindMoves={hasRack && showIntro ? () => onSolve() : undefined}
-            onQuiet={
-              onTimingComplete
-                ? (stoppedAt) => {
-                    onTimingComplete(stoppedAt, {
-                      replies:
-                        replyAnalysis.repliesElapsed === undefined
-                          ? undefined
-                          : { elapsed: replyAnalysis.repliesElapsed, endgame },
-                      estimates: replyAnalysis.estimatesElapsed,
-                      exactLines:
-                        endgameProgress?.elapsed === undefined
-                          ? undefined
-                          : {
-                              elapsed: endgameProgress.elapsed,
-                              attempts: endgameProgress.attempts,
-                            },
-                    });
-                  }
-                : undefined
-            }
           />
           <h2 className={resultSet ? "move-results-heading" : undefined}>
             {showIntro ? (
@@ -1110,6 +1176,8 @@ export default function Results({
               className="move-word-filter"
               ref={searchInput}
               aria-label="Filter moves"
+              aria-invalid={!!wordFilter.error || undefined}
+              title="Enter text or a regular expression such as ^Q.*T$"
               value={filter}
               hidden={!searching}
               onChange={(event) => setFilter(event.target.value)}
@@ -1327,6 +1395,11 @@ export default function Results({
             </button>
             {solveEndgame}
           </div>
+        </div>
+      ) : wordFilter.error ? (
+        <div className="results-empty">
+          <h3>Invalid search pattern</h3>
+          <p className="error" role="alert">{wordFilter.error}</p>
         </div>
       ) : waitingForEndgame ? (
         <div className="results-empty">
@@ -1570,7 +1643,7 @@ export default function Results({
                   boardChance &&
                   formatOdds(boardChance.chance, boardChance.exact);
                 const risk = analysisGame && defense?.[m.id];
-                const reply = replyAnalysis.results?.[m.id];
+                const reply = replies?.[m.id];
                 const extraReason = replyAnalysis.extraReasons[m.id];
                 const extraLabel = extraReason === "block" ? "Premium block" :
                   extraReason === "leave" ? "Better leave" : undefined;
@@ -1615,7 +1688,9 @@ export default function Results({
                 const replyPending =
                   (targetIds.has(m.id) &&
                     replyAnalysis.pending &&
-                    !(m.id in (replyAnalysis.results ?? {}))) ||
+                    !(m.id in (replies ?? {}))) ||
+                  (!!activeProfileReplies && !activeProfileReplies.done &&
+                    profileReplyTargets.has(m.id) && !(m.id in activeProfileReplies.results)) ||
                   (!!replyAnalysis.detail?.pending &&
                     replyAnalysis.detail.key === `reply-histogram:${m.id}`);
                 const checkHistogram = !analyzing && replyEnabled && replyAnalysis.canRequestHistogram;
@@ -1956,6 +2031,11 @@ export default function Results({
             Replies {replyAnalysis.target.filter(({ id }) => id in (replyAnalysis.results ?? {})).length}/
             {replyAnalysis.target.length}
           </span>
+        ) : activeProfileReplies && !activeProfileReplies.done ? (
+          <span role="status" title="Checking replies to playing style suggestions">
+            Replies {activeProfileReplies.target.filter(({ id }) => id in activeProfileReplies.results).length}/
+            {activeProfileReplies.target.length}
+          </span>
         ) : !endgame && boardOddsProgress ? (
           <span role="status" title="Checking bingo odds after your play">
             Bingo {boardOddsProgress.checked}/{boardOddsProgress.total}
@@ -1965,7 +2045,7 @@ export default function Results({
         ) : defenseProgress ? (
           <span title="Checking premium replies">Risk {defenseProgress}</span>
         ) : (
-          timing && <MoveTimingButton timing={timing} />
+          viewTiming && <MoveTimingButton timing={viewTiming} />
         )}
       </footer>
       {analysisGame && replyMove && (replyLine || replyDetail || requestedHistogram) && (

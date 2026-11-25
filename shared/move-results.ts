@@ -8,8 +8,10 @@ import type { PlayerProfile, ProfileUtility, RankedProfileMove } from "./player-
 import type { MasterUtility } from "./master-evaluation";
 import type { RankedSoloMove, SoloStyleUtility } from "./solo-styles";
 import type { HunterUtility, RankedHunterMove } from "./bingo-hunter";
+import { compileMoveWordFilter } from "./move-word-filter";
 
 export type MoveStyle = PlayerProfile | SimulatedStyle;
+export type CalculationSpan = { start: number; end: number };
 
 export const MOVE_HEAD_SIZE = 30;
 export const MOVE_PAGE_SIZE = 64;
@@ -101,6 +103,8 @@ export interface MovePage {
   head: Move[];
   rows: Move[];
   scoreRanks: Record<string, number>;
+  profileHead?: Move[];
+  profileTiming?: CalculationSpan;
   styleChoice?: { move?: Move };
   utilities?: Record<string, MoveUtility>;
   endgame?: Record<string, EndgameEstimate>;
@@ -243,6 +247,7 @@ export class MoveResultIndex {
     moves: readonly Move[];
     ranked: readonly RankedMove[];
     ranks: Map<string, number>;
+    timing?: CalculationSpan;
   };
 
   private hunterOrders = new Map<SimulatedStyle, NonNullable<MoveResultIndex["profileOrder"]>>();
@@ -290,12 +295,13 @@ export class MoveResultIndex {
     return order?.key === profileQueryKey(query);
   }
 
-  setProfile(query: ProfileQuery, ranked: readonly RankedMove[]) {
+  setProfile(query: ProfileQuery, ranked: readonly RankedMove[], timing?: CalculationSpan) {
     const order = {
       key: profileQueryKey(query),
       moves: ranked.map(({ move }) => move),
       ranked,
       ranks: new Map(ranked.map(({ move }, index) => [move.id, index + 1])),
+      timing,
     };
     if (isSimulatedStyle(query.profile)) this.hunterOrders.set(query.profile, order);
     else this.profileOrder = order;
@@ -328,7 +334,7 @@ export class MoveResultIndex {
     endgameId,
     ...order
   }: MoveQuery): MovePage {
-    const word = filter.trim().toUpperCase();
+    const word = filter.trim();
     const estimates =
       this.endgame?.id === endgameId ? this.endgame?.estimates : undefined;
     const profileOrder = isSimulatedStyle(profile) ? this.hunterOrders.get(profile) : this.profileOrder;
@@ -339,11 +345,12 @@ export class MoveResultIndex {
     const source = profile ? ranked?.moves ?? [] : this.moves;
     const key = JSON.stringify([word, profileKey, requiredSquares, order, endgameId]);
     if (this.ordered?.key !== key) {
+      const { matches: matchesWord } = compileMoveWordFilter(word);
       const matches =
         word || requiredSquares?.indices.length
           ? source.filter(
               (move) =>
-                move.word.includes(word) &&
+                matchesWord(move.word) &&
                 (!requiredSquares ||
                   coversRequiredSquares(move, requiredSquares)),
             )
@@ -375,6 +382,8 @@ export class MoveResultIndex {
       total: moves.length,
       bingoCount,
       head: moves.slice(0, MOVE_HEAD_SIZE),
+      profileHead: ranked?.moves.slice(0, MOVE_HEAD_SIZE),
+      profileTiming: ranked?.timing,
       rows,
       scoreRanks: Object.fromEntries(
         rows.map(({ id }) => [id, this.scoreRanks.get(id)!]),

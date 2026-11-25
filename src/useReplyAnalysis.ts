@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   REPLY_LIMIT,
   type ReplyDetailOptions,
@@ -15,11 +15,25 @@ import {
 } from "../shared/endgame";
 import type { Game, Move } from "../shared/model";
 import type { ReplyCandidate } from "../shared/reply-candidates";
-import { MOVE_CACHE_LIMIT, type EndgameRanking } from "../shared/move-results";
+import { MOVE_CACHE_LIMIT, type CalculationSpan, type EndgameRanking } from "../shared/move-results";
 import { unseenTiles } from "../shared/tile-pool";
 import type { RankEndgame } from "./useSolver";
 import { useEndgameLines } from "./useEndgameLines";
 import { computeWorkerLimit } from "./compute-workers";
+import { timingNow } from "./move-timing";
+
+type ProfileReplies = {
+  target: Move[];
+  results: Record<string, ReplyResult | undefined>;
+  done: boolean;
+  timing?: CalculationSpan;
+  error?: string;
+};
+
+function sameReplyTargets(batch: ProfileReplies | undefined, candidates: Move[]) {
+  return batch?.target.length === candidates.length &&
+    batch.target.every(({ id }, index) => candidates[index].id === id);
+}
 
 type Summary = {
   moveList: Move[];
@@ -30,6 +44,7 @@ type Summary = {
   error?: string;
   limit?: ReplySearchLimit;
   skippedLimits?: Record<string, ReplySearchLimit>;
+  profiles?: Record<string, ProfileReplies>;
 };
 
 type Detail = {
@@ -66,6 +81,10 @@ export function useReplyAnalysis(
   }>();
   const [skippedEstimate, setSkippedEstimate] = useState<string>();
   const worker = useRef<Worker | null>(null);
+  const profileRequests = useRef<(key: string, candidates: Move[]) => void>(undefined);
+  const requestProfileReplies = useCallback((key: string, candidates: Move[]) => {
+    profileRequests.current?.(key, candidates);
+  }, []);
   const activeDetail = useRef<{ id: number; key: string; moveId: string } | undefined>(
     undefined,
   );
@@ -213,10 +232,70 @@ export function useReplyAnalysis(
     }
     let previous = cache.current.get(moveList);
     if (previous?.runKey !== runKey) previous = undefined;
+    let basePending = false;
+    let queuedProfile: { key: string; candidates: Move[] } | undefined;
+    let runningProfile: { key: string; id: number; start: number } | undefined;
+    function publishProfile(key: string, batch: ProfileReplies) {
+      if (!previous) return;
+      const profiles = { ...previous.profiles, [key]: batch };
+      // Keep a bounded set of completed rankings and their histograms.
+      previous = { ...previous, profiles: Object.fromEntries(
+        Object.entries(profiles).slice(-2 * MOVE_CACHE_LIMIT),
+      ) };
+      publish(previous);
+    }
+    function startProfile() {
+      if (basePending || runningProfile || !queuedProfile || !previous?.done) return;
+      const { key, candidates } = queuedProfile;
+      queuedProfile = undefined;
+      const saved = previous.profiles?.[key];
+      if (saved?.done && sameReplyTargets(saved, candidates)) return;
+      const available: ProfileReplies["results"] = {};
+      for (const batch of Object.values(previous.profiles ?? {}))
+        for (const moveId in batch.results)
+          if (batch.results[moveId]) available[moveId] = batch.results[moveId];
+      for (const moveId in previous.results)
+        if (previous.results[moveId]) available[moveId] = previous.results[moveId];
+      const results = Object.fromEntries(candidates.flatMap(({ id }) =>
+        id in available ? [[id, available[id]]] : [],
+      ));
+      const remaining = candidates.filter(({ id }) => !(id in results));
+      publishProfile(key, { target: candidates, results, done: !remaining.length });
+      if (!remaining.length) return;
+      const id = ++requestId.current;
+      runningProfile = { key, id, start: timingNow() };
+      active.postMessage({ ...request, id, candidates: remaining });
+    }
+    profileRequests.current = (key, candidates) => {
+      if (!position.bagSize) return;
+      const target = candidates.slice(0, REPLY_LIMIT);
+      const saved = previous?.profiles?.[key];
+      if ((saved?.done || runningProfile?.key === key) && sameReplyTargets(saved, target)) return;
+      queuedProfile = { key, candidates: target };
+      startProfile();
+    };
     active.onmessage = (event: MessageEvent<ReplyWorkerMessage>) => {
       if (worker.current !== active) return;
       const message = event.data;
       if (message.kind === "reply-summary") {
+        if (runningProfile?.id === message.id) {
+          const { key, start } = runningProfile;
+          const batch = previous?.profiles?.[key];
+          if (!batch) return;
+          const done = !!message.done;
+          if (done) runningProfile = undefined;
+          publishProfile(key, {
+            ...batch,
+            results: message.moveId
+              ? { ...batch.results, [message.moveId]: message.result }
+              : batch.results,
+            done,
+            timing: done ? { start, end: timingNow() } : undefined,
+            error: message.error ?? (done && message.limit ? "Profile reply analysis reached a limit." : undefined),
+          });
+          if (done) startProfile();
+          return;
+        }
         if (message.id !== id) return;
         const results = previous?.results ?? {};
         previous = {
@@ -233,8 +312,13 @@ export function useReplyAnalysis(
             message.moveId && message.limit
               ? { ...previous?.skippedLimits, [message.moveId]: message.limit }
               : previous?.skippedLimits,
+          profiles: previous?.profiles,
         };
         publish(previous);
+        if (message.done) {
+          basePending = false;
+          startProfile();
+        }
       } else if (message.id === activeDetail.current?.id) {
         const { key, moveId } = activeDetail.current;
         const { racksChecked } = message;
@@ -286,21 +370,31 @@ export function useReplyAnalysis(
       if (worker.current !== active) return;
       active.terminate();
       worker.current = null;
+      profileRequests.current = undefined;
       const error = "Reply analysis stopped unexpectedly.";
-      setSummary((current) => ({
-        moveList,
-        runKey,
-        results: current?.results ?? {},
-        done: true,
-        elapsed: performance.now() - started,
-        error,
-        skippedLimits: current?.skippedLimits,
-      }));
+      const profile = runningProfile && previous?.profiles?.[runningProfile.key];
+      if (profile && runningProfile) {
+        publishProfile(runningProfile.key, {
+          ...profile, done: true, error, timing: { start: runningProfile.start, end: timingNow() },
+        });
+        runningProfile = undefined;
+      } else if (basePending) {
+        publish({
+          moveList,
+          runKey,
+          results: previous?.results ?? {},
+          done: true,
+          elapsed: performance.now() - started,
+          error,
+          skippedLimits: previous?.skippedLimits,
+          profiles: previous?.profiles,
+        });
+      }
       setDetail((current) =>
         current?.pending ? { ...current, pending: false, error } : current,
       );
     };
-    const request: ReplyRequest = {
+    const request: Extract<ReplyRequest, { kind: "reply-summary" }> = {
       ...position,
       dictionaryId,
       id,
@@ -311,6 +405,7 @@ export function useReplyAnalysis(
     };
     const remaining = target.filter(({ id }) => !(id in (previous?.results ?? {})));
     if (!previous?.done || previous.error || previous.limit || remaining.length) {
+      basePending = true;
       if (previous?.done && remaining.length) {
         previous = { ...previous, done: false, elapsed: undefined };
         publish(previous);
@@ -318,7 +413,15 @@ export function useReplyAnalysis(
       active.postMessage({ ...request, candidates: remaining });
     }
     return () => {
-      if (worker.current === active) worker.current = null;
+      if (runningProfile && previous?.profiles) {
+        const profiles = { ...previous.profiles };
+        delete profiles[runningProfile.key];
+        cache.current.set(moveList, { ...previous, profiles });
+      }
+      if (worker.current === active) {
+        worker.current = null;
+        profileRequests.current = undefined;
+      }
       active.terminate();
       activeDetail.current = undefined;
     };
@@ -374,11 +477,14 @@ export function useReplyAnalysis(
     : currentDetail;
   const calculatingEndgameLines =
     !!endgameMoves && !!dictionaryId && (endgameProgress?.pending ?? true);
+  const calculatingInitial = pending || estimatingEndgame || calculatingEndgameLines;
 
   return {
     enabled,
     calculating:
-      pending || estimatingEndgame || calculatingEndgameLines || !!detailResult?.pending,
+      calculatingInitial || !!detailResult?.pending ||
+      Object.values(current?.profiles ?? {}).some((batch) => !batch.done),
+    calculatingInitial,
     bagSize,
     minimumBag,
     unseen: pool?.total ?? 0,
@@ -425,6 +531,8 @@ export function useReplyAnalysis(
     extraReasons,
     canRequestHistogram: enabled && !!reference && bagSize > 0 && !invalid && !planning,
     results: current?.results,
+    profileReplies: current?.profiles,
+    requestProfileReplies,
     pending,
     error: current?.error,
     limit: current?.limit,

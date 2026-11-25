@@ -3,12 +3,14 @@ import { SIMULATED_STYLES, SIMULATED_STYLE_LABELS, type SimulatedStyle } from ".
 import type { HunterProgress, HunterSummary } from "./parallel-bingo-hunter";
 import type { HunterOptions } from "./solver-messages";
 import type { RunBingoHunter } from "./useSolver";
+import type { CalculationSpan } from "../shared/move-results";
+import { timingNow } from "./move-timing";
 
 type HuntState = {
   key: string;
   pending?: true;
   progress?: HunterProgress;
-  result?: HunterSummary & { id: number };
+  result?: HunterSummary & { id: number; runs: (CalculationSpan & { id: number })[] };
   error?: string;
 };
 
@@ -47,6 +49,7 @@ export function useBingoHunter(
     active.current = controller;
     lastStarted.current.set(style, { gameId, searchId, findMovesRequest });
     const previous = resumeFrom === undefined ? undefined : current?.result;
+    const start = timingNow();
     const settings = { style, bagSize, scorelessTurns, opponentHasFinalTurn, workerLimit, resumeFrom };
     const setState = (state: HuntState) => setStates((states) => ({ ...states, [style]: state }));
     const error = `${SIMULATED_STYLE_LABELS[style]} could not finish. Try again.`;
@@ -58,7 +61,11 @@ export function useBingoHunter(
       (response) => {
         if (controller.signal.aborted) return;
         setState(response?.summary
-          ? { key, result: { ...response.summary, id: response.id } }
+          ? { key, result: {
+              ...response.summary,
+              id: response.id,
+              runs: [...(previous?.runs ?? []), { id: response.id, start, end: timingNow() }],
+            } }
           : { key, result: previous, error: response?.error ?? error });
       },
       () => {

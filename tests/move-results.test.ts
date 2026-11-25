@@ -5,6 +5,19 @@ import { emptyBoard, type Move } from "../shared/model";
 import { MoveResultIndex, MOVE_PAGE_SIZE } from "../shared/move-results";
 import { PRESETS } from "../shared/presets";
 import { solve } from "../shared/solver";
+import { compileMoveWordFilter } from "../shared/move-word-filter";
+
+test("word searches support anchored and delimited regex while keeping plain substring matching", () => {
+  const moves = solve(new Lexicon(["AT", "CAT", "CATS", "CAST", "ACT", "SAT"]), emptyBoard(15), "CATS", PRESETS[0]);
+  const index = new MoveResultIndex(moves, PRESETS[0]);
+  const page = (filter: string) => index.page({ filter, sort: "score", offset: 0 });
+  assert.deepEqual(new Set(page("^c[a-z]t$").rows.map(({ word }) => word)), new Set(["CAT"]));
+  assert.deepEqual(new Set(page("/^(AT|SAT)$/").rows.map(({ word }) => word)), new Set(["AT", "SAT"]));
+  assert.ok(page("at").rows.some(({ word }) => word === "CATS"));
+  assert.equal(page("[").total, 0);
+  assert.ok(compileMoveWordFilter("[").error);
+  assert.ok(compileMoveWordFilter("(A)\\1").error);
+});
 
 test("the worker index keeps all placements while sending bounded windows", () => {
   const lexicon = new Lexicon(["AT", "CAT", "CATS", "CAST", "ACT", "SAT"]);

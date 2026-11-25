@@ -645,7 +645,19 @@ test("Bingo Mercenary starts on demand, then follows new move searches", async (
 test("Bingo Tactician keeps its utility breakdown and continuation separate from Bingo Mercenary", async () => {
   const requests: Extract<SolverRequest, { kind: "bingo-hunter" }>[] = [];
   class HunterWorker extends SolverWorker {
-    postMessage(request: SolverRequest) {
+    postMessage(request: SolverRequest | ReplyRequest) {
+      if (request.kind === "reply-summary") {
+        queueMicrotask(() => this.onmessage?.({ data: { kind: request.kind, id: request.id, done: true } }));
+        return;
+      }
+      if (request.kind === "board-odds") {
+        queueMicrotask(() => this.onmessage?.({ data: {
+          kind: request.kind, id: request.id,
+          odds: { byMove: {}, checked: 0, total: request.candidates.length, bagSize: request.bagSize },
+        } }));
+        return;
+      }
+      if (request.kind === "reply-detail" || request.kind === "reply-histogram" || request.kind === "reply-line") return;
       if (request.kind !== "bingo-hunter") return super.postMessage(request);
       requests.push(request);
       const style = request.style!;
@@ -693,6 +705,15 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
   expect(tactics.getByText("24 × 0.75 = 18")).toBeTruthy();
   expect(tactics.getByText("Bingo lanes after reply").parentElement?.lastChild?.textContent).toBe("2");
 
+  const checkTiming = async (label: string) => {
+    await user.click(await screen.findByRole("button", { name: /^Calculation timing,/ }));
+    const timing = within(screen.getByRole("dialog", { name: "Calculation timing" }));
+    expect(timing.getByText(label)).toBeTruthy();
+    expect(timing.getAllByText(/ simulation$/)).toHaveLength(1);
+    await user.click(timing.getByRole("button", { name: "Close dialog" }));
+  };
+  await checkTiming("Bingo Tactician simulation");
+
   await user.selectOptions(select, "bingo-hunter");
   await user.click(screen.getByRole("button", { name: "Run Bingo Mercenary" }));
   const mercenary = await openUtility();
@@ -710,6 +731,7 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
   expect(master.getByText("Expected follow-up")).toBeTruthy();
   expect(master.getByText("Rack leave difference")).toBeTruthy();
   expect(master.getByText("40 shared tile deals · 30% bingo next turn")).toBeTruthy();
+  await checkTiming("Master simulation");
 });
 
 test("phone analysis taps preview and select a move without offering Play", async () => {
@@ -1544,6 +1566,98 @@ test("Super Lexulous can be created under the Lexulous platform", async () => {
   expect(created.template.rackSize).toBe(8);
   expect(Object.values(created.template.tileCounts!).reduce((a, b) => a + b, 0)).toBe(178);
   expect(screen.getAllByRole("button", { name: /^Rack tile \d:/ })).toHaveLength(8);
+});
+
+test("profile replies check only missing ranked moves and keep timing on that view", async () => {
+  type ReplySummary = Extract<ReplyRequest, { kind: "reply-summary" }>;
+  const batches: { worker: SolverWorker; request: ReplySummary }[] = [];
+  let expected: string[] = [];
+  const distribution: ReplyDistribution = {
+    kind: "distribution",
+    count: 24, outscored: 0, mean: 20, difference: 0, exact: false,
+    buckets: [0, 24, 0, 0, 0], discordant: [0, 0, 0, 0, 0],
+    reference: { mean: 20, buckets: [0, 24, 0, 0, 0] },
+  };
+  class RankedReplyWorker extends SolverWorker {
+    postMessage(request: SolverRequest | ReplyRequest) {
+      if (request.kind === "reply-summary") {
+        batches.push({ worker: this, request });
+        return;
+      }
+      if (request.kind === "board-odds") {
+        queueMicrotask(() => this.onmessage?.({ data: {
+          id: request.id, kind: request.kind,
+          odds: { byMove: {}, checked: 0, total: request.candidates.length, bagSize: request.bagSize },
+        } }));
+        return;
+      }
+      if (request.kind === "reply-detail" || request.kind === "reply-line" || request.kind === "reply-histogram")
+        return;
+      if (request.kind === "page" && request.query.profile) {
+        const index = this.results.get(request.searchId);
+        if (index && !index.hasProfile(request.query)) {
+          const ranked = [...index.moves.slice(-11), ...index.moves.slice(0, -11)];
+          const rawIds = new Set(index.moves.slice(0, REPLY_LIMIT).map(({ id }) => id));
+          expected = ranked.slice(0, REPLY_LIMIT).filter(({ id }) => !rawIds.has(id)).map(({ id }) => id);
+          const end = performance.timeOrigin + performance.now();
+          index.setProfile(request.query, ranked.map((move) => ({ move, utility: {
+            total: move.score, points: move.score, premium: 0, visibility: 1, appeal: 1, leave: 0, goingOut: 0,
+          } })), { start: end - 42, end });
+        }
+      }
+      super.postMessage(request);
+    }
+  }
+  const finish = ({ worker, request }: typeof batches[number]) => act(() => {
+    for (const { id: moveId } of request.candidates) {
+      worker.onmessage?.({ data: { id: request.id, kind: request.kind, moveId, result: distribution } });
+    }
+    worker.onmessage?.({ data: { id: request.id, kind: request.kind, done: true } });
+  });
+
+  vi.stubGlobal("Worker", RankedReplyWorker);
+  const user = await start();
+  await typeRack(user, "CATSRE");
+  await user.keyboard("{Enter}");
+  await waitFor(() => expect(batches).toHaveLength(1));
+  finish(batches[0]);
+  const timer = () => screen.findByRole("button", { name: /^Calculation timing,/ });
+  const baseTime = (await timer()).textContent;
+  const allMoves = screen.getByRole("button", { name: "All moves" });
+  const style = screen.getByRole("combobox", { name: "Playing style" });
+  await user.click(screen.getByRole("button", { name: "Search possible moves" }));
+  const input = screen.getByRole("textbox", { name: "Filter moves" });
+  fireEvent.change(input, { target: { value: "^CAT$" } });
+  await user.selectOptions(style, "learner");
+  await waitFor(() => expect(batches).toHaveLength(2));
+  const [opening, profile] = batches;
+  expect(expected.length).toBeGreaterThan(0);
+  expect(profile.request.candidates.map(({ id }) => id)).toEqual(expected);
+  expect(profile.request.candidates.some(({ word }) => word !== "CAT")).toBe(true);
+  expect(profile.worker).toBe(opening.worker);
+  expect(profile.request.workerLimit).toBe(opening.request.workerLimit);
+  expect(profile.request.reference.id).toBe(opening.request.reference.id);
+
+  await user.click(allMoves);
+  expect((await timer()).textContent).toBe(baseTime);
+  finish(profile);
+  await user.click(allMoves);
+  const openTiming = async () => {
+    await user.click(await timer());
+    return within(screen.getByRole("dialog", { name: "Calculation timing" }));
+  };
+  const profileTiming = await openTiming();
+  expect(profileTiming.getByText("Playing style ranking").nextElementSibling?.textContent).toBe("42 ms");
+  expect(profileTiming.getByText("Playing style reply histograms")).toBeTruthy();
+  await user.click(profileTiming.getByRole("button", { name: "Close dialog" }));
+  await chooseMoveOption(user, /^Shortlist/);
+  const shortlistTiming = await openTiming();
+  expect(shortlistTiming.getByText("Shortlist ranking")).toBeTruthy();
+  expect(shortlistTiming.queryByText("Playing style reply histograms")).toBeNull();
+  await user.click(shortlistTiming.getByRole("button", { name: "Close dialog" }));
+  await chooseMoveOption(user, /^Shortlist/);
+  expect((await openTiming()).getByText("Playing style reply histograms")).toBeTruthy();
+  expect(batches).toHaveLength(2);
 });
 
 test("calculation timing waits for reply histograms and stays fixed for follow-up requests", async () => {

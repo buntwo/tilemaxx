@@ -22,6 +22,7 @@ function moveStages({
   replies,
   estimates,
   exactLines,
+  pageStages,
 }: MoveTiming): [string, number | undefined][] {
   return [
     ["Dictionary loading and indexing", solver.dictionary],
@@ -37,6 +38,7 @@ function moveStages({
     ],
     ["Endgame estimates", estimates],
     ["Exact endgame lines", exactLines?.elapsed],
+    ...(pageStages?.map(({ label, elapsed }): [string, number] => [label, elapsed]) ?? []),
   ];
 }
 
@@ -112,7 +114,7 @@ export default function MoveTimingButton({
           <p className="small muted">
             {"batches" in timing
               ? "Options are grouped by when their checks finish. Total includes setup and worker handoffs."
-              : "Total includes setup and worker handoffs. Some stages run in parallel."}
+              : "Total includes setup and worker handoffs. Parallel work counts once, and time between runs is excluded."}
           </p>
         </Modal>
       )}

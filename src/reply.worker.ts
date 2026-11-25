@@ -123,13 +123,16 @@ async function runHistograms(
     ...position
   } = request;
   if (!candidates.length) return;
-  const samples = sampleReplyRacks(position, REPLY_SAMPLES);
+  const cached = sampledBaseline?.referenceId === reference.id ? sampledBaseline : undefined;
+  const samples = cached?.samples ?? sampleReplyRacks(position, REPLY_SAMPLES);
   type HistogramResult = Extract<CandidateResult, { kind: "histogram" | "limit" }>;
-  let baseline: Histogram | undefined;
+  let baseline = cached?.board;
   const ready = new Map<string, HistogramResult>();
   const publishReference = candidates.some(({ id }) => id === reference.id);
+  if (baseline && publishReference)
+    publish({ id, kind, moveId: reference.id, result: compareReplyBoards(baseline, baseline, samples) });
   const moves = [
-    reference,
+    ...(baseline ? [] : [reference]),
     ...candidates.filter(({ id }) => id !== reference.id),
   ];
   await runCandidateJobs(

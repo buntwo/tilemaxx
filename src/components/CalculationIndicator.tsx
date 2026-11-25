@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { LoaderCircle, Sparkles } from "lucide-react";
 
 type Phase = "idle" | "active" | "settling";
@@ -8,17 +8,13 @@ export default function CalculationIndicator({
   idleIcon = <Sparkles />,
   action,
   onFindMoves,
-  onQuiet,
 }: {
   active: boolean;
   idleIcon?: ReactNode;
   action?: ReactNode;
   onFindMoves?: () => void;
-  onQuiet?: (stoppedAt: number) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
-  const recording = !!onQuiet;
-  const finish = useEffectEvent((stoppedAt: number) => onQuiet?.(stoppedAt));
   useEffect(() => {
     if (active) {
       setPhase("active");
@@ -26,9 +22,7 @@ export default function CalculationIndicator({
     }
     // Hold through worker handoffs, then keep spinning during the exit.
     if (phase === "active") {
-      const stoppedAt = performance.now();
       const timer = setTimeout(() => {
-        finish(stoppedAt);
         setPhase("settling");
       }, 140);
       return () => clearTimeout(timer);
@@ -37,8 +31,7 @@ export default function CalculationIndicator({
       const timer = setTimeout(() => setPhase("idle"), 230);
       return () => clearTimeout(timer);
     }
-    if (recording) finish(performance.now());
-  }, [active, phase, recording]);
+  }, [active, phase]);
 
   const find = !active && phase === "idle" ? onFindMoves : undefined;
 

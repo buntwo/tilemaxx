@@ -43,3 +43,7 @@ Scrabble and Words With Friends names belong to their respective owners. Tilemax
 ## HEIF import
 
 [libheif-js](https://github.com/catdad-experiments/libheif-js) 1.23.5 supplies the local HEIF decoder (LGPL-3.0). Its unmodified WebAssembly build loads only for conversion; no image is sent to a conversion service. Upstream source and build scripts are available in that repository. Package and decoder license notices are copied to `public/ocr/`. `tests/fixtures/board.heic` was generated from our original `board.png` fixture using macOS `sips`.
+
+## Word search
+
+The word filter uses RE2JS for regular expression matching under the MIT license. [Source](https://github.com/le0pard/re2js) · [License and copyright notice](public/licenses/RE2JS-LICENSE.txt).

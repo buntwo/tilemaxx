@@ -1620,6 +1620,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   runBingoHunter={solver.runBingoHunter}
                   busy={busy}
                   calculating={solver.calculating || styleExchange.pending}
+                  initialCalculating={solver.initialCalculating}
                   timing={solver.timing}
                   onTimingComplete={
                     solver.startedAt !== undefined && searchId !== undefined
