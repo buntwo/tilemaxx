@@ -5231,29 +5231,25 @@ label + label {
   border-radius: 5px;
   font-size: 12px;
 }
-.tile-pool-grid,
-.tile-count-fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
-  gap: 5px;
-}
 .tile-pool-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   list-style: none;
   padding: 0;
   margin: 0;
-}
-.tile-pool-grid.remaining {
-  grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
 }
 .tile-pool-tile {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  min-width: 40px;
   gap: 3px;
   border: 1px solid transparent;
-  border-radius: 5px;
-  padding: 6px;
+  border-radius: 4px;
+  padding: 3px 4px;
   font-size: 13px;
+  line-height: 1.2;
 }
 .tile-pool-tile span {
   font-size: 10px;
@@ -5307,6 +5303,8 @@ label + label {
   font-weight: 650;
 }
 .tile-count-fields {
+  display: grid;
+  gap: 5px;
   margin-top: 10px;
   grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
 }

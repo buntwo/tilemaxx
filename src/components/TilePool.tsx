@@ -111,10 +111,7 @@ export default function TilePool({
               <span className="count-mid">3–5</span>
               <span className="count-high">6+</span>
             </div>
-            <ul
-              className={`tile-pool-grid ${filter === "remaining" ? "remaining" : ""}`}
-              aria-label="Unseen tile counts"
-            >
+            <ul className="tile-pool-grid" aria-label="Unseen tile counts">
               {visible.map(({ symbol, count, kind, excess: extra }) => (
                 <li
                   key={symbol}
