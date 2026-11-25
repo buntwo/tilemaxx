@@ -12,7 +12,7 @@ import {
   type TrackedMove,
   type TurnPosition,
 } from "./model";
-import { rackComposition, rackLetters, rackSlotsForLetters, rackSlotsForMove, sortedRackSlots } from "./rack-entry";
+import { rackComposition, rackLetters, rackSlotsForLetters, rackSlotsForMove, reorderRack, sortedRackSlots } from "./rack-entry";
 import { endgameOpponentRack, unseenTiles } from "./tile-pool";
 
 export type ReplayFrame = {
@@ -363,26 +363,56 @@ export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreSt
   return { frames, scoreStart };
 }
 
-/** A disposable game at the beginning of the selected turn, from its player's perspective. */
+export type ReplayRackLayout = {
+  playedSlots: number[];
+  unknownSlots: number[];
+  incomplete: boolean;
+};
+
+/** A disposable game and rack layout at the start of the selected turn. */
 export function replayGamePosition(
   source: Game,
   frame: ReplayFrame,
   scores: Record<Player, number>,
   index: number,
-): Game {
-  const rack = frame.rack ?? frame.opponentPlayedTiles ??
-    (frame.move?.player === "you"
-      ? frame.position?.tiles.map(({ letter }) => letter === letter.toUpperCase() ? letter : "?").join("")
-      : undefined) ?? "";
+) {
+  const recordedRack = frame.rack;
+  const placement = frame.position;
+  const recordedSlots = frame.playedSlots ?? (
+    recordedRack !== undefined && placement
+      ? rackSlotsForMove({ board: placement.board, rack: recordedRack }, placement.tiles)
+      : undefined
+  );
+  // A recorded placement establishes the played letters even when a rack
+  // snapshot is missing or does not contain all of those letters.
+  const useSnapshot = recordedRack !== undefined &&
+    (!placement?.tiles.length || !!recordedSlots);
+  const rack = useSnapshot ? recordedRack : frame.opponentPlayedTiles ??
+    placement?.tiles.map(({ letter }) => letter === letter.toUpperCase() ? letter : "?").join("") ?? "";
   const opponent = frame.move?.player === "opponent";
   const slots = sortedRackSlots(rack);
-  const used = new Set(frame.playedSlots ?? (frame.rack === undefined ? slots : []));
-  const order = [...slots.filter((slot) => !used.has(slot)), ...slots.filter((slot) => used.has(slot))];
-  const remap = (marks: number[] | undefined) =>
-    marks?.map((slot) => order.indexOf(slot)).filter((slot) => slot >= 0);
+  const used = new Set(useSnapshot ? recordedSlots : slots);
+  const leave = slots.filter((slot) => !used.has(slot));
+  const played = slots.filter((slot) => used.has(slot));
+  const unknownCount = frame.bag && frame.bag.count > 0
+    ? Math.max(0, frame.template.rackSize - slots.length)
+    : 0;
+  // Empty slots keep unknown letters out of the working rack and solver.
+  const order = [...leave, ...Array<number>(unknownCount).fill(-1), ...played];
+  const rackLayout: ReplayRackLayout = {
+    unknownSlots: Array.from({ length: unknownCount }, (_, index) => leave.length + index),
+    playedSlots: played.map((_, index) => leave.length + unknownCount + index),
+    incomplete: !useSnapshot || unknownCount > 0,
+  };
+  const orderedRack = reorderRack({
+    rack,
+    excludedRackSlots: useSnapshot && !opponent ? placement?.excludedRackSlots : undefined,
+    requiredRackSlots: useSnapshot && !opponent ? placement?.requiredRackSlots : undefined,
+  }, order);
   const score = (points: number) => ({ points, best: 0, moves: 0, bingos: 0 });
-  return {
+  const game: Game = {
     ...source,
+    ...orderedRack,
     id: `${source.id}:replay:${index}`,
     archived: false,
     archivedBoard: undefined,
@@ -392,9 +422,6 @@ export function replayGamePosition(
     board: frame.board ?? emptyBoard(frame.template.size),
     template: frame.template,
     dictionaryId: frame.position?.dictionaryId ?? source.dictionaryId,
-    rack: order.map((slot) => rack[slot]).join(""),
-    excludedRackSlots: !opponent ? remap(frame.position?.excludedRackSlots) : undefined,
-    requiredRackSlots: !opponent ? remap(frame.position?.requiredRackSlots) : undefined,
     past: [],
     future: [],
     trackedMoves: [],
@@ -404,4 +431,5 @@ export function replayGamePosition(
       opponent: score(scores[opponent ? "you" : "opponent"]),
     },
   };
+  return { game, rackLayout };
 }

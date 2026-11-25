@@ -2273,9 +2273,9 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(scorePanel.getByRole("img", { name: "Opponent’s turn" })).toBeTruthy();
   expect(strip.getByText("I6")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Unseen tiles, 83 estimated tiles in the bag before the play" })).toBeTruthy();
-  const opponentTray = screen.getByRole("group", { name: "Opponent tiles played" });
-  expect(replayRackLabels(opponentTray).slice(0, 2)).toEqual(["A, played", "R, played"]);
-  expect(opponentTray.querySelectorAll(".rack-tile.empty")).toHaveLength(5);
+  const opponentTray = screen.getByRole("group", { name: "Opponent rack" });
+  expect(replayRackLabels(opponentTray)).toEqual(["unknown", "unknown", "unknown", "unknown", "unknown", "A, played", "R, played"]);
+  expect(opponentTray.querySelectorAll(".rack-face.unknown")).toHaveLength(5);
   expect(screen.queryByRole("group", { name: "Tiles drawn" })).toBeNull();
   const chart = screen.getByRole("figure", { name: "Score by move" });
   const cursor = () => chart.querySelector(".score-chart-cursor")?.getAttribute("x1");
@@ -2349,9 +2349,11 @@ test("replay always highlights opponent placements and exposes tile counts when 
   await user.click(options.getByRole("button", { name: "Replay game" }));
   const controls = within(screen.getByRole("group", { name: "Game replay" }));
   expect(within(controls.getByRole("status")).getByText("aR(T)")).toBeTruthy();
-  const partial = screen.getByRole("group", { name: "Opponent tiles played" });
-  expect(replayRackLabels(partial).slice(0, 2)).toEqual(["blank, played", "R, played"]);
-  expect(partial.querySelectorAll(".rack-tile.empty")).toHaveLength(5);
+  const partial = screen.getByRole("group", { name: "Opponent rack" });
+  expect(replayRackLabels(partial)).toEqual(["unknown", "unknown", "unknown", "unknown", "unknown", "blank, played", "R, played"]);
+  expect(partial.querySelectorAll(".rack-face.unknown")).toHaveLength(5);
+  expect(partial.querySelector(".rack-face.unknown")?.textContent).toBe("?");
+  expect(partial.querySelector(".rack-face.blank")?.textContent).toBe("0");
   expect(partial.querySelectorAll(".move-preview")).toHaveLength(2);
   const bag = screen.getByRole("button", { name: /Unseen tiles, .*check tile counts/ });
   expect(bag.hasAttribute("data-overdrawn")).toBe(true);
@@ -2364,10 +2366,33 @@ test("replay always highlights opponent placements and exposes tile counts when 
   const own = screen.getByRole("group", { name: "Your rack tiles" });
   expect(screen.queryByText("Your rack wasn’t recorded. These counts include any tiles it held.")).toBeNull();
   expect(replayRackLabels(own))
-    .toEqual(["S", "A, played", "C, played", "T, played", "empty", "empty", "empty"]);
+    .toEqual(["S", "unknown", "unknown", "unknown", "A, played", "C, played", "T, played"]);
   expect(screen.queryByRole("group", { name: /Opponent.*(rack|tiles)/ })).toBeNull();
   await user.click(controls.getByRole("button", { name: "Next move" }));
-  expect(screen.getByRole("group", { name: "Opponent tiles played" })).toBeTruthy();
+  expect(screen.getByRole("group", { name: "Opponent rack" })).toBeTruthy();
+});
+
+test("replay highlights only the used copies when both rack groups contain duplicates", async () => {
+  const initial = { ...game(), rack: "AA??RST" };
+  const candidate = solve(new Lexicon(["AT"]), initial.board, initial.rack, initial.template)
+    .find((move) => move.direction === "across" && move.tiles[0].index === 112)!;
+  remote.games[0] = {
+    ...playTrackedMove(initial, {
+      ...candidate,
+      score: 2,
+      tiles: [{ index: 112, letter: "A" }, { index: 113, letter: "t" }],
+      blanks: 1,
+      leave: "?ARST",
+    }),
+    revision: 1,
+  };
+  const user = await start();
+  await waitFor(() => expect(current().trackedMoves).toHaveLength(1));
+  const options = await openGameOptions(user);
+  await user.click(options.getByRole("button", { name: "Replay game" }));
+  const tray = screen.getByRole("group", { name: "Your rack tiles" });
+  expect(replayRackLabels(tray)).toEqual(["blank", "A", "R", "S", "T", "blank, played", "A, played"]);
+  expect(tray.querySelector("[data-used-group-start]")?.getAttribute("data-rack-slot")).toBe("5");
 });
 
 test("replay keeps a recorded score visible when the board cannot be recovered", async () => {

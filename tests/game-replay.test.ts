@@ -22,6 +22,7 @@ import {
   type TrackedMove,
 } from "../shared/model";
 import { PRESETS } from "../shared/presets";
+import { splitRack } from "../shared/rack-entry";
 import { getTileCounts, TILE_SYMBOLS } from "../shared/tile-pool";
 import { gameSchema } from "../server/validation";
 
@@ -672,7 +673,7 @@ test("a replay trial starts with the historical layout, physical rack and scores
     opponentPlayedTiles: "?T",
     scores: { you: 21, opponent: 15 },
   };
-  const trial = replayGamePosition(source, frame, { you: 21, opponent: 10 }, 3);
+  const { game: trial } = replayGamePosition(source, frame, { you: 21, opponent: 10 }, 3);
   assert.equal(trial.rack, "?T");
   assert.equal(trial.scoring?.you.points, 10);
   assert.equal(trial.scoring?.opponent.points, 21);
@@ -685,11 +686,59 @@ test("a replay trial starts with the historical layout, physical rack and scores
   assert.equal(source.archived, true);
   assert.equal(source.rack, "ZYXWVUT");
 
-  const own = replayGamePosition(source, {
+  const { game: own } = replayGamePosition(source, {
     ...frame, move: { ...move, player: "you" }, rack: "ZC.AT", playedSlots: [1, 3, 4],
     position: { ...frame.position, requiredRackSlots: [3], excludedRackSlots: [0] },
   }, { you: 21, opponent: 10 }, 3);
   assert.equal(own.rack, "ZACT");
   assert.deepEqual(own.requiredRackSlots, [1]);
   assert.deepEqual(own.excludedRackSlots, [0]);
+});
+
+test("replay preserves the used copies of duplicate letters and blanks after sorting", () => {
+  const board = emptyBoard(15);
+  const move: TrackedMove = {
+    player: "you", word: "AT", score: 2, at: "",
+    review: {
+      board, rack: "AA??RST", dictionaryId: "test",
+      tiles: [{ index: 111, letter: "A" }, { index: 112, letter: "t" }],
+    },
+  };
+  const source = gameWithMoves([move]);
+  const frame = gameReplayTimeline(source).frames[1];
+  const { game, rackLayout } = replayGamePosition(source, frame, { you: 0, opponent: 0 }, 1);
+  assert.equal(game.rack, "?ARST?A");
+  assert.deepEqual(frame.playedSlots, [0, 2]);
+  assert.deepEqual(rackLayout.playedSlots, [5, 6]);
+  assert.deepEqual(rackLayout.unknownSlots, []);
+});
+
+test("replay reserves unknown leave slots without supplying blanks to the solver", () => {
+  const board = emptyBoard(15);
+  const move: TrackedMove = {
+    player: "you", word: "CAT", score: 10, at: "",
+    review: {
+      board, rack: "STCA", dictionaryId: "test", requiredRackSlots: [0],
+      tiles: [{ index: 111, letter: "C" }, { index: 112, letter: "A" }, { index: 113, letter: "T" }],
+    },
+  };
+  const source = gameWithMoves([move]);
+  const frame = gameReplayTimeline(source).frames[1];
+  const scores = { you: 0, opponent: 0 };
+  const { game, rackLayout } = replayGamePosition(source, frame, scores, 1);
+  assert.equal(game.rack, "S...ACT");
+  assert.deepEqual(splitRack(game), { available: "SACT", held: "" });
+  assert.deepEqual(game.requiredRackSlots, [0]);
+  assert.deepEqual(rackLayout.unknownSlots, [1, 2, 3]);
+  assert.deepEqual(rackLayout.playedSlots, [4, 5, 6]);
+  assert.equal(rackLayout.incomplete, true);
+
+  const zero = replayGamePosition(source, { ...frame, bag: { count: 0, estimated: true, invalid: false } }, scores, 1);
+  assert.equal(zero.game.rack, "SACT");
+  assert.deepEqual(zero.rackLayout.unknownSlots, []);
+  assert.deepEqual(zero.rackLayout.playedSlots, [1, 2, 3]);
+
+  const mismatched = replayGamePosition(source, { ...frame, rack: "ZST" }, scores, 1);
+  assert.equal(mismatched.game.rack, "....ACT");
+  assert.deepEqual(mismatched.rackLayout.playedSlots, [4, 5, 6]);
 });

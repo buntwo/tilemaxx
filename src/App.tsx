@@ -1392,7 +1392,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   <div className="last-play-lane">
                     <div className="last-play-row">
                       <span>{trial ? `Trial from move ${replay.index || 1}` : `Before move ${replay.index || 1}`}</span>
-                      {!trial && replay.frame.board && replay.frame.rack === undefined && (
+                      {replay.frame.board && replay.rackLayout?.incomplete && (
                         <span className="replay-rack-incomplete">Rack incomplete</span>
                       )}
                       {trial && (
@@ -1564,6 +1564,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   flyingRack={activeFlight}
                   replayFrame={historical && (!trial || boardUnavailable) ? replay?.frame : undefined}
                   recordedPreview={!!recordedPreview}
+                  replayRackLayout={replay?.rackLayout}
                   drawShelf={replayDrawShelf}
                 />
               </section>}

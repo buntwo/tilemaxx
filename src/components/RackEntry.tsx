@@ -1,4 +1,4 @@
-import type { ReplayFrame } from "../../shared/game-replay";
+import type { ReplayFrame, ReplayRackLayout } from "../../shared/game-replay";
 import { ReplayDrawShelf } from "./GameReplay";
 import {
   useCallback,
@@ -72,6 +72,7 @@ export default function RackEntry({
   flyingRack,
   replayFrame,
   recordedPreview,
+  replayRackLayout,
   drawShelf,
 }: {
   ref?: Ref<RackEntryHandle>;
@@ -93,6 +94,7 @@ export default function RackEntry({
   flyingRack?: { before: Game; slots: number[] };
   replayFrame?: ReplayFrame;
   recordedPreview?: boolean;
+  replayRackLayout?: ReplayRackLayout;
   drawShelf?: boolean;
 }) {
   const [cursor, setCursor] = useState(game.rack.length);
@@ -446,8 +448,9 @@ export default function RackEntry({
     setAcceptedAdvice({ key, detail: exchangeAdviceDetail(exchangeAdvice) });
     setSimulation({ key });
   }
-  const previewSlots =
-    preview && !flyingRack ? rackSlotsForMove(game, preview.tiles) : null;
+  const previewSlots = preview && !flyingRack
+    ? recordedPreview ? replayRackLayout?.playedSlots : rackSlotsForMove(game, preview.tiles)
+    : null;
   const previousTileKey = phoneLayout ? "ArrowUp" : "ArrowLeft";
   const nextTileKey = phoneLayout ? "ArrowDown" : "ArrowRight";
   const cycleMarkKey = phoneLayout ? "ArrowRight" : "ArrowDown";
@@ -457,7 +460,7 @@ export default function RackEntry({
       ref={rack}
       className="rack-tiles"
       role="group"
-      aria-label={recordedOpponent ? replayFrame.rack === undefined ? "Opponent tiles played" : "Opponent rack" : "Your rack tiles"}
+      aria-label={recordedOpponent ? "Opponent rack" : "Your rack tiles"}
       onClick={
         onReviewEdit
           ? (event) => {
@@ -474,6 +477,8 @@ export default function RackEntry({
             : flyingRack.before.rack[i]
           : game.rack[i];
         const tile = letter === "." ? "" : letter;
+        const unknown = !tile && !flyingRack && replayRackLayout?.unknownSlots.includes(i);
+        const tileLabel = unknown ? "unknown" : tile === "?" ? "blank" : tile || "empty";
         const excluded = (
           flyingRack?.before.excludedRackSlots ?? excludedSlots
         ).includes(i);
@@ -494,8 +499,8 @@ export default function RackEntry({
             data-rack-slot={i}
             data-used-group-start={recordedPreview && previewed && i > 0 && !previewSlots?.includes(i - 1) || undefined}
             data-rack-reorderable={canReorder && tile ? "" : undefined}
-            className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${required ? "required-tile" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""} ${previewed ? "move-preview" : ""}`}
-            aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${required ? ", required for this move" : ""}${exchanging ? ", marked for exchange" : ""}${previewed ? ", used by preview" : ""}${onReviewEdit ? ", edit rack" : ""}`}
+            className={`rack-tile ${!tile && !unknown ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${required ? "required-tile" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""} ${previewed ? "move-preview" : ""}`}
+            aria-label={`Rack tile ${i + 1}: ${tileLabel}${excluded ? ", held out of solver" : ""}${required ? ", required for this move" : ""}${exchanging ? ", marked for exchange" : ""}${previewed ? ", used by preview" : ""}${onReviewEdit ? ", edit rack" : ""}`}
             aria-pressed={
               onReviewEdit
                 ? undefined
@@ -589,9 +594,9 @@ export default function RackEntry({
           >
             <span className="rack-slot">
               <span
-                className={`rack-face${tile === "?" ? " blank" : ""}${!tile ? " empty" : ""}`}
+                className={`rack-face${unknown ? " unknown" : tile === "?" ? " blank" : !tile ? " empty" : ""}`}
               >
-                {tile === "?" ? "" : tile || "·"}
+                {unknown ? "?" : tile === "?" ? "" : tile || "·"}
                 {tile && <small>{tileScore(tile, game.template.rules)}</small>}
               </span>
               <span className="rack-slot-window" aria-hidden="true" />

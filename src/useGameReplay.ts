@@ -35,11 +35,12 @@ export function useGameReplay(game: Game | undefined, shortcutsEnabled: boolean)
   const frame = timeline?.frames[Math.min(index, recordedCount)];
   const trial = historical ? current?.trial : undefined;
   const playing = !!current?.playing;
-  const position = useMemo(() => {
+  const setup = useMemo(() => {
     if (!historical || !frame || !timeline || !current?.source) return;
     const before = index === timeline.scoreStart + 1 ? undefined : timeline.frames[index - 1];
     return replayGamePosition(current.source, frame, before?.scores ?? { you: 0, opponent: 0 }, index);
   }, [historical, frame, timeline, index, current?.source]);
+  const position = setup?.game;
 
   useEffect(() => {
     if (session && (session.source.id !== game?.id || session.source.archived !== game.archived))
@@ -164,6 +165,7 @@ export function useGameReplay(game: Game | undefined, shortcutsEnabled: boolean)
     active: current && timeline && frame && {
       ...timeline,
       frame,
+      rackLayout: trial ? undefined : setup?.rackLayout,
       index,
       last,
       recordedCount,
