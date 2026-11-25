@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { encode } from "@msgpack/msgpack";
 import {
-  casualKnows, packFamiliarity, packProfileVocabulary, profileDictionaryRevision, profileVocabularyUrl,
+  packFamiliarity, packProfileVocabulary, profileDictionaryRevision, profileVocabularyUrl,
 } from "../shared/profile-vocabulary";
 import {
   decodeWordFrequencies,
@@ -28,8 +28,8 @@ test("English Casual lazily loads the shared vocabulary independently of wordfre
   await assert.rejects(loadProfileVocabulary("scrabble", dictionary, "casual"), /does not match/);
   const [frequencies, words] = await loadProfileVocabulary("scrabble", dictionary, "casual");
   assert.equal(frequencies.size, 0);
-  assert.equal(casualKnows(words?.get("CAT")), true);
-  assert.equal(casualKnows(words?.get("BAT")), false);
+  assert.equal(words?.get("CAT"), 9_000);
+  assert.equal(words?.get("BAT"), 8_999);
   assert.equal((await loadProfileVocabulary("crossplay", dictionary, "casual"))[1], words);
   assert.deepEqual(paths, [vocabularyUrl, vocabularyUrl]);
 });

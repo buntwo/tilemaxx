@@ -21,7 +21,11 @@ import {
   sampleProfilePlacements,
 } from "./player-profile-sampling";
 import { profileLeaveValue } from "./rack-leave";
-import { casualKnows, learnerWordProbability, type EnglishProfileVocabulary } from "./profile-vocabulary";
+import {
+  casualWordProbability,
+  learnerWordProbability,
+  type EnglishProfileVocabulary,
+} from "./profile-vocabulary";
 import { choose, getTileCounts, unseenTiles } from "./tile-pool";
 import {
   createWordDifficulty,
@@ -53,10 +57,10 @@ const presets = {
     premium: 3,
     cross: 1.5,
     leave: 0.27,
-    premiumLane: 0,
+    premiumLane: 1,
     endRack: 0.35,
     finish: 3,
-    finalists: 1,
+    finalists: 3,
   },
   learner: {
     focus: 0.38,
@@ -206,9 +210,8 @@ export function createPlayerProfiles(
   function wordData(word: string, profile: PlayerProfile) {
     const spelling = word.toUpperCase();
     const useCasualVocabulary = english && profile === "casual";
-    if (useCasualVocabulary && !(englishVocabulary
-      ? casualKnows(englishVocabulary.get(spelling))
-      : casualWords?.has(spelling))) return undefined;
+    if (useCasualVocabulary && !englishVocabulary && !casualWords?.has(spelling))
+      return undefined;
     let wordInfo = wordCache.get(spelling);
     if (!wordInfo) {
       wordInfo = {
@@ -219,12 +222,16 @@ export function createPlayerProfiles(
     }
     const cached = wordInfo.data[profile];
     if (cached) return cached;
-    if (useCasualVocabulary)
+    if (useCasualVocabulary) {
+      const chance = englishVocabulary
+        ? casualWordProbability(englishVocabulary.get(spelling))
+        : 1;
       return (wordInfo.data.casual = {
         hash: wordInfo.hash,
-        knowledge: scale,
+        knowledge: chance * scale,
         recall: 1,
       });
+    }
     if (english && profile === "learner" && englishVocabulary)
       return (wordInfo.data.learner = {
         hash: wordInfo.hash,

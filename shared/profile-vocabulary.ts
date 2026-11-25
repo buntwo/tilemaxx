@@ -76,13 +76,19 @@ export function decodeProfileVocabulary(
   return vocabulary;
 }
 
-function scoreOf(entry: number | undefined) {
-  return (entry ?? missingFamiliarity) & scoreMask;
+function familiarityProbability(
+  entry: number | undefined,
+  cutoff: number,
+  halfLife: number,
+) {
+  const score = (entry ?? missingFamiliarity) & scoreMask;
+  return score === missingFamiliarity
+    ? 0
+    : 2 ** (Math.min(0, score - cutoff) / halfLife);
 }
 
-export function casualKnows(entry: number | undefined) {
-  const score = scoreOf(entry);
-  return score >= 9_000 && score !== missingFamiliarity;
+export function casualWordProbability(entry: number | undefined) {
+  return familiarityProbability(entry, 9_000, 250);
 }
 
 export function learnerWordProbability(
@@ -92,9 +98,7 @@ export function learnerWordProbability(
   if (favorites.has(spelling)) return 1;
   const studied = !!((entry ?? 0) & studyFlag);
   if (studied && spelling.length === 2) return 1;
-  const score = scoreOf(entry);
-  const familiarity =
-    score === missingFamiliarity ? 0 : 2 ** (Math.min(0, score - 8_000) / 500);
+  const familiarity = familiarityProbability(entry, 8_000, 500);
   return studied && spelling.length === 3
     ? 0.5 + 0.5 * familiarity
     : familiarity;

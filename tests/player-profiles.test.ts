@@ -113,23 +113,32 @@ test("Casual accepts only listed main words and crosses across vocabulary seeds"
   }
 });
 
-test("Casual scores filter moves from the active game lexicon", () => {
+test("Casual rolls once per game spelling for both main words and crosses", () => {
   const template = PRESETS[0];
   const lexicon = new Lexicon(["BAT", "CAT"]);
   const board = emptyBoard(template.size);
   const rack = "ABCATN?";
   const vocabulary = new Map([
-    ["BAT", packFamiliarity(8_999)], ["CAT", packFamiliarity(9_000)], ["CATNAP", packFamiliarity(9_900)],
+    ["BAT", packFamiliarity(8_500)], ["CAT", packFamiliarity(9_000)], ["CATNAP", packFamiliarity(9_900)],
   ]);
   const choose = createPlayerProfiles(
     lexicon, template, new Map(), { coverage: 4, appeal: 0 }, undefined, vocabulary,
   );
   const moves = solve(lexicon, board, rack, template);
-  assert.ok(moves.some((move) => move.word === "BAT"));
-  assert.equal(
-    choose(moves, "casual", { board, rack, bagSize: 70, seed: 0, playerSeed: 0 }).move?.word,
-    "CAT",
-  );
+  const bat = moves.find((move) => move.word === "BAT")!;
+  const cat = moves.find((move) => move.word === "CAT")!;
+  assert.ok(bat && cat);
+  assert.ok(moves.every((move) => move.word !== "CATNAP"));
+  const catWithBat = { ...cat, crosses: ["BAT"] };
+  let known = 0;
+  for (let playerSeed = 0; playerSeed < 256; playerSeed++) {
+    const position = { board, rack, bagSize: 70, seed: 0, playerSeed };
+    const knowsBat = !!choose([bat], "casual", position).move;
+    assert.equal(!!choose([catWithBat], "casual", { ...position, seed: 67 }).move, knowsBat);
+    assert.equal(choose([cat], "casual", position).move, cat);
+    if (knowsBat) known++;
+  }
+  assert.ok(known > 40 && known < 88, `BAT was known in ${known} of 256 games`);
 });
 
 test("vertical fluency rises with experience for the same known word", () => {
@@ -486,7 +495,7 @@ test("fast picking agrees with full ranked results on a two-blank rack", () => {
   }
 });
 
-test("only the stronger profiles account for new lanes, with Strong imposing the larger cost", () => {
+test("Casual and Learner use the same lane penalty, with Strong imposing a larger cost", () => {
   const template = PRESETS.find(({ id }) => id === "lexulous")!;
   const board = emptyBoard(template.size);
   board[18] = "H";
@@ -521,7 +530,7 @@ test("only the stronger profiles account for new lanes, with Strong imposing the
   );
   assert.deepEqual(
     penalties.map((value) => value?.toFixed(2)),
-    [undefined, "-1.15", "-3.44"],
+    ["-1.15", "-1.15", "-3.44"],
   );
   const strong = choose(moves, "strong", position);
   assert.equal(strong.beforeDefense?.id, opening.id);

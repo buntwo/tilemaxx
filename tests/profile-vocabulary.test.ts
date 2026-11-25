@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  casualKnows,
+  casualWordProbability,
   decodeProfileVocabulary,
   learnerWordProbability,
   packFamiliarity,
@@ -24,12 +24,17 @@ test("English Learner halves every five points and keeps its short-word study ru
   assert.equal(chance("TUI", undefined, true), 0.5);
   assert.equal(chance("QOPH"), 1);
   assert.equal(chance("EWW", 9_522), 1);
-  for (const word of ["QI", "EWW", "LONGER", "SINGERS"]) {
-    assert.ok(casualKnows(packFamiliarity(9_000)));
-    assert.equal(chance(word, 9_000), 1);
-  }
-  assert.equal(casualKnows(undefined), false);
-  assert.equal(casualKnows(packFamiliarity(8_999, true)), false);
+});
+
+test("English Casual uses a 90 cutoff and a 2.5-point half-life without study boosts", () => {
+  const chance = (score?: number, studied?: boolean) =>
+    casualWordProbability(packFamiliarity(score, studied));
+  assert.equal(chance(9_000), 1);
+  assert.equal(chance(8_750), 0.5);
+  assert.equal(chance(8_500, true), 0.25);
+  assert.equal(chance(8_000), 0.0625);
+  assert.equal(chance(7_500), 0.015625);
+  assert.equal(chance(undefined, true), 0);
 });
 
 test("packed vocabulary requires the same spellings in the same order", () => {

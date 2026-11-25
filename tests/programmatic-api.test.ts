@@ -9,7 +9,7 @@ import { createStore } from "../server/store";
 import type { Game } from "../shared/model";
 import { parseWords } from "../shared/lexicon";
 import {
-  casualKnows, decodeProfileVocabulary, learnerWordProbability,
+  casualWordProbability, decodeProfileVocabulary, learnerWordProbability,
   profileDictionaryRevision, profileVocabularyUrl,
 } from "../shared/profile-vocabulary";
 
@@ -87,8 +87,8 @@ test("packed vocabulary is compressed, checks dictionary content, and revalidate
   const firstTag = original.headers.get("etag")!;
   assert.ok(firstTag);
   const originalScores = decodeProfileVocabulary(new Uint8Array(await original.arrayBuffer()), words);
-  assert.equal(casualKnows(originalScores.get("ABASE")), false);
-  assert.equal(casualKnows(originalScores.get("EWW")), true);
+  assert.ok(casualWordProbability(originalScores.get("ABASE")) < 0.02);
+  assert.equal(casualWordProbability(originalScores.get("EWW")), 1);
   assert.equal(learnerWordProbability("EWW", originalScores.get("EWW")), 1);
   assert.equal(learnerWordProbability("QIS", originalScores.get("QIS")), 1);
   assert.ok(learnerWordProbability("TUI", originalScores.get("TUI")) < 0.01);
@@ -130,7 +130,7 @@ test("server-side Casual and Learner share the game dictionary but use different
   async function words(style: "casual" | "learner") {
     const result = await endpoint("/analysis", {
       position: { gameId: edited.id, revision: edited.revision },
-      operation: { kind: "moves", style },
+      operation: { kind: "moves", style, seed: 55 },
     });
     const payload = await result.json();
     assert.equal(result.status, 200, JSON.stringify(payload));
