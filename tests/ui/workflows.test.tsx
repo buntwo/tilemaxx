@@ -2490,9 +2490,10 @@ test("replay always highlights opponent placements and exposes tile counts when 
   expect(screen.getByText("Your rack wasn’t recorded. These counts include any tiles it held.")).toBeTruthy();
   const breakdown = screen.getByRole("list", { name: "Unseen tile counts" });
   expect(within(breakdown).getByRole("listitem", { name: "Blank: 1 extra" })).toBeTruthy();
-  expect(partial.closest(".rack-entry")?.querySelector(".rack-owner-label")?.textContent).toBe("Opponent");
+  expect(partial.closest(".rack-entry")?.querySelector(".rack-owner-label")).toBeNull();
   await user.click(controls.getByRole("button", { name: "Previous move" }));
   const own = screen.getByRole("group", { name: "Your rack tiles" });
+  expect(own.closest(".rack-entry")?.querySelector(".rack-owner-label")).toBeNull();
   expect(screen.queryByText("Your rack wasn’t recorded. These counts include any tiles it held.")).toBeNull();
   expect(replayRackLabels(own))
     .toEqual(["S", "A, played", "C, played", "T, played", "unknown", "unknown", "unknown"]);

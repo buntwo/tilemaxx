@@ -823,9 +823,9 @@ export default function RackEntry({
     >
       {phoneLayout && rackTools}
       <div className="rack-lane rack-player-lane">
-        {(opponentRack || replayFrame?.move) && (
+        {opponentRack && (
           <small className="rack-owner-label" aria-hidden="true">
-            {recordedOpponent ? "Opponent" : "You"}
+            You
           </small>
         )}
         {playerTiles}
