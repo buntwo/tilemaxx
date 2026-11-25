@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
+import { resolve } from "node:path";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import { solve } from "../shared/solver";
 import { analyzeMoves, placeTiles } from "../shared/move-analysis";
@@ -7,10 +8,10 @@ import { PRESETS } from "../shared/presets";
 import { emptyBoard } from "../shared/model";
 import { getTileCounts } from "../shared/tile-pool";
 import { createPlayerProfiles } from "../shared/player-profiles";
+import { createProfileVocabularySource } from "../server/profile-vocabulary";
+import { decodeProfileVocabulary } from "../shared/profile-vocabulary";
 import {
-  decodeEnglishCasualVocabulary,
   decodeWordFrequencies,
-  englishCasualVocabularyUrl,
   wordFrequencyLanguage,
   wordFrequencyUrl,
 } from "../shared/word-familiarity";
@@ -19,7 +20,8 @@ const source = existsSync("data/dictionaries/WOW24.txt")
   ? "data/dictionaries/WOW24.txt"
   : "public/dictionaries/wordnik.txt";
 const start = performance.now();
-const dict = new Lexicon(parseWords(readFileSync(source, "utf8")));
+const words = parseWords(readFileSync(source, "utf8"));
+const dict = new Lexicon(words);
 console.log(
   `${source} · ${dict.count.toLocaleString()} words · ${Math.round(performance.now() - start)} ms to index`,
 );
@@ -80,10 +82,16 @@ const frequencies = decodeWordFrequencies(
   gunzipSync(readFileSync(`public${wordFrequencyUrl(language)}`)),
   language,
 );
-const casualWords = decodeEnglishCasualVocabulary(
-  gunzipSync(readFileSync(`public${englishCasualVocabularyUrl}`)).toString("utf8"),
-);
-const profiles = createPlayerProfiles(dict, template, frequencies, undefined, casualWords);
+const installed = (name: string) => {
+  const path = resolve("data", "dictionaries", `${name}.txt`);
+  return existsSync(path) ? path : undefined;
+};
+const vocabulary = createProfileVocabularySource(process.cwd(), () => ({
+  wow: installed("WOW24"),
+  csw: installed("CSW24"),
+}));
+const englishVocabulary = decodeProfileVocabulary((await vocabulary(resolve(source))).bytes, words);
+const profiles = createPlayerProfiles(dict, template, frequencies, undefined, undefined, englishVocabulary);
 const { result, ms } = medianMs(
   () =>
     analyzeMoves(

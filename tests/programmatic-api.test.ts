@@ -7,6 +7,11 @@ import { join } from "node:path";
 import { createApp } from "../server/app";
 import { createStore } from "../server/store";
 import type { Game } from "../shared/model";
+import { parseWords } from "../shared/lexicon";
+import {
+  casualKnows, decodeProfileVocabulary, learnerWordProbability,
+  profileDictionaryRevision, profileVocabularyUrl,
+} from "../shared/profile-vocabulary";
 
 const credentials = {
   token: "a".repeat(64),
@@ -64,6 +69,75 @@ test("programmatic access is disabled until configured", async (t) => {
   const { url, endpoint } = await fixture(t, false);
   assert.equal((await endpoint("/state/index")).status, 404);
   assert.equal((await fetch(url + "/api/state/index")).status, 200);
+});
+
+test("packed vocabulary is compressed, checks dictionary content, and revalidates study rules", async (t) => {
+  const { url, auth, store } = await fixture(t);
+  const listing = "TUI\nEWW\nABASE\nQIS\n";
+  const list = store.importDictionary("CSW24", listing);
+  const words = parseWords(listing);
+  const revision = profileDictionaryRevision(words);
+  const path = profileVocabularyUrl(list.id, revision);
+  const load = (etag?: string) => fetch(url + path, {
+    headers: { Authorization: auth.basic, ...(etag && { "If-None-Match": etag }) },
+  });
+  const original = await load();
+  assert.equal(original.status, 200);
+  assert.equal(original.headers.get("content-encoding"), "gzip");
+  const firstTag = original.headers.get("etag")!;
+  assert.ok(firstTag);
+  const originalScores = decodeProfileVocabulary(new Uint8Array(await original.arrayBuffer()), words);
+  assert.equal(casualKnows(originalScores.get("ABASE")), false);
+  assert.equal(casualKnows(originalScores.get("EWW")), true);
+  assert.equal(learnerWordProbability("EWW", originalScores.get("EWW")), 1);
+  assert.equal(learnerWordProbability("QIS", originalScores.get("QIS")), 1);
+  assert.ok(learnerWordProbability("TUI", originalScores.get("TUI")) < 0.01);
+  assert.equal((await load(firstTag)).status, 304);
+
+  store.importDictionary("WOW24", "TUI\n");
+  const refreshed = await load(firstTag);
+  assert.equal(refreshed.status, 200);
+  const secondTag = refreshed.headers.get("etag")!;
+  assert.notEqual(secondTag, firstTag);
+  const updated = decodeProfileVocabulary(new Uint8Array(await refreshed.arrayBuffer()), words);
+  assert.ok(learnerWordProbability("TUI", updated.get("TUI")) > 0.5);
+  assert.equal((await load(secondTag)).status, 304);
+  const mismatch = await fetch(url + profileVocabularyUrl(list.id, profileDictionaryRevision(["CAT", "DOG"])), {
+    headers: { Authorization: auth.basic },
+  });
+  assert.equal(mismatch.status, 409);
+});
+
+test("server-side Casual and Learner share the game dictionary but use different knowledge rules", async (t) => {
+  const { store, endpoint } = await fixture(t);
+  const profile = store.createProfile("Vocabulary test");
+  const list = store.importDictionary("Vocabulary test", "AT\nQAT\n");
+  const created = await endpoint("/games/new", {
+    profileId: profile.id,
+    templateId: "scrabble",
+    dictionaryId: list.id,
+    name: "Vocabulary test",
+    solo: true,
+  });
+  const game: Game = await created.json();
+  assert.equal(created.status, 201, JSON.stringify(game));
+  const updated = await endpoint(`/games/${game.id}/actions`, {
+    revision: game.revision,
+    command: { action: "rack", rack: "QAT" },
+  });
+  assert.equal(updated.status, 200);
+  const edited: Game = await updated.json();
+  async function words(style: "casual" | "learner") {
+    const result = await endpoint("/analysis", {
+      position: { gameId: edited.id, revision: edited.revision },
+      operation: { kind: "moves", style },
+    });
+    const payload = await result.json();
+    assert.equal(result.status, 200, JSON.stringify(payload));
+    return new Set<string>(payload.rows.map((row: { word: string }) => row.word));
+  }
+  assert.deepEqual(await words("casual"), new Set(["AT"]));
+  assert.deepEqual(await words("learner"), new Set(["AT", "QAT"]));
 });
 
 test("bearer and browser credentials protect both API surfaces", async (t) => {

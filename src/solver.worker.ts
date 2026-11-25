@@ -44,6 +44,7 @@ type SolveRequest = Extract<SolverRequest, { kind: "solve" }>;
 type SolverResult = MoveResultIndex & {
   position: SolveRequest;
   lexicon: Lexicon;
+  words: readonly string[];
   odds?: ReturnType<RackBingoIndex["calculate"]>;
 };
 type ProfileJob = { key: string; ready: Promise<void> };
@@ -58,7 +59,7 @@ let models: {
 let activeSolve: { id: number; abort: AbortController } | undefined;
 let activeEndgame: { id: number; abort: AbortController } | undefined;
 let dictionary:
-  | { id: string; lexicon: Lexicon; bingo: RackBingoIndex }
+  | { id: string; lexicon: Lexicon; bingo: RackBingoIndex; words: readonly string[] }
   | undefined;
 
 const post = (message: SolverMessage) => self.postMessage(message);
@@ -80,14 +81,14 @@ async function prepareProfile(
   const { template } = position;
   const needsCasualFrequencies = profile === "casual"
     && lateProfileFamiliarityWeight(bagSize, template.rackSize) > 0;
-  const [frequencies, casualWords] = await loadProfileVocabulary(
-    template.rules, profile, needsCasualFrequencies,
+  const [frequencies, vocabulary] = await loadProfileVocabulary(
+    template.rules, { id: position.dictionaryId, words: result.words }, profile, needsCasualFrequencies,
   );
   if (!current()) return;
 
-  const templateKey = JSON.stringify([template, profile === "casual", needsCasualFrequencies]);
+  const templateKey = JSON.stringify([template, profile, needsCasualFrequencies]);
   if (models?.lexicon !== lexicon || models.templateKey !== templateKey) {
-    models = { lexicon, templateKey, choose: createPlayerProfiles(lexicon, template, frequencies, undefined, casualWords) };
+    models = { lexicon, templateKey, choose: createPlayerProfiles(lexicon, template, frequencies, undefined, undefined, vocabulary) };
   }
   const positionKey = `${position.board.join(".")}:${rackComposition(position.rack)}`;
   const seed = profileWordHash(profileSample ? `${positionKey}:${profileSample}` : positionKey);
@@ -364,6 +365,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       const words = parseWords(text);
       dictionary = index = {
         id: dictionaryId,
+        words,
         lexicon: new Lexicon(words),
         bingo: new RackBingoIndex(words),
       };
@@ -391,7 +393,7 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     );
     const movesElapsed = performance.now() - start;
     const indexingStart = performance.now();
-    const result = Object.assign(new MoveResultIndex(moves, template), { position: request, lexicon });
+    const result = Object.assign(new MoveResultIndex(moves, template), { position: request, lexicon, words: index.words });
     const exchangePlays = request.solo || warnings.length
       ? undefined
       : exchangeAdvicePlays(request, template, moves);

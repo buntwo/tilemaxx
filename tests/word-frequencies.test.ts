@@ -3,44 +3,35 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { encode } from "@msgpack/msgpack";
 import {
-  decodeEnglishCasualVocabulary,
+  casualKnows, packFamiliarity, packProfileVocabulary, profileDictionaryRevision, profileVocabularyUrl,
+} from "../shared/profile-vocabulary";
+import {
   decodeWordFrequencies,
-  englishCasualVocabularyUrl,
   wordFrequencyLanguage,
   wordFrequencyUrl,
 } from "../shared/word-familiarity";
 import { loadProfileVocabulary, loadWordFrequencies } from "../src/word-frequencies";
 
-test("English Casual loads the Linguabase vocabulary independently of wordfreq", async (context) => {
+const dictionary = { id: "test-english", words: ["BAT", "CAT"] };
+const vocabularyUrl = profileVocabularyUrl(dictionary.id, profileDictionaryRevision(dictionary.words));
+
+test("English Casual lazily loads the shared vocabulary independently of wordfreq", async (context) => {
   const paths: string[] = [];
   context.mock.method(globalThis, "fetch", async (url: string) => {
     paths.push(url);
     return paths.length === 1
       ? new Response("<!DOCTYPE html><h1>Unavailable</h1>")
-      : new Response(readFileSync(`public${url}`));
+      : new Response(packProfileVocabulary(dictionary.words, word =>
+          packFamiliarity(word === "CAT" ? 9_000 : 8_999),
+        ).slice().buffer);
   });
-  await assert.rejects(loadProfileVocabulary("scrabble", "casual"), /Casual word list/);
-  const [frequencies, words] = await loadProfileVocabulary("scrabble", "casual");
+  await assert.rejects(loadProfileVocabulary("scrabble", dictionary, "casual"), /does not match/);
+  const [frequencies, words] = await loadProfileVocabulary("scrabble", dictionary, "casual");
   assert.equal(frequencies.size, 0);
-  assert.ok(words?.has("SINKABLE"));
-  assert.ok(words?.has("BEDSPRING"));
-  assert.ok(words?.has("SINGERS"));
-  assert.ok(words?.has("BEARPAW"));
-  assert.equal(words?.has("DELPHINIUM"), false);
-  assert.equal(words?.has("QOPH"), false);
-  assert.equal((await loadProfileVocabulary("crossplay", "casual"))[1], words);
-  assert.deepEqual(paths, [englishCasualVocabularyUrl, englishCasualVocabularyUrl]);
-});
-
-test("English Casual includes 90 and rejects invalid familiarity rows", () => {
-  const header = "word,familiarity_score\n";
-  const words = decodeEnglishCasualVocabulary(
-    header + "BAT,89.9999\r\nCAT,90\r\nRAT,100\r\n",
-  );
-  assert.deepEqual([...words], ["CAT", "RAT"]);
-  for (const row of ["CAT,100.001", "CAT,-1", "CAT,no score", "CAT,0.95,extra"]) {
-    assert.throws(() => decodeEnglishCasualVocabulary(header + row), /Casual word list/);
-  }
+  assert.equal(casualKnows(words?.get("CAT")), true);
+  assert.equal(casualKnows(words?.get("BAT")), false);
+  assert.equal((await loadProfileVocabulary("crossplay", dictionary, "casual"))[1], words);
+  assert.deepEqual(paths, [vocabularyUrl, vocabularyUrl]);
 });
 
 test("accent folding merges tile spellings at their highest frequency", () => {
@@ -77,9 +68,11 @@ test("familiarity uses the saved ruleset and caches each language independently"
   const retry = loadWordFrequencies("lexulous-it");
   assert.equal(loadWordFrequencies("lexulous-it"), retry);
   assert.equal((await english).get("SPATULA"), 2.86);
-  const [lateFrequencies, casualWords] = await loadProfileVocabulary("scrabble", "casual", true);
+  const [lateFrequencies, casualWords] = await loadProfileVocabulary("scrabble", dictionary, "casual", true);
   assert.equal(lateFrequencies, await english);
-  assert.ok(casualWords?.has("SINKABLE"));
+  assert.equal((await loadProfileVocabulary("scrabble", dictionary, "learner"))[1], casualWords);
+  assert.equal((await loadProfileVocabulary("scrabble", dictionary, "strong"))[1], undefined);
+  assert.equal((await loadProfileVocabulary("scrabble-fr", dictionary, "learner"))[1], undefined);
   assert.equal((await french).get("FENETRE"), 4.52);
   assert.equal((await retry).get("MANGIARE"), 5.01);
   assert.deepEqual(paths, [

@@ -15,6 +15,8 @@ import { createDebugRouter } from "./debug";
 import { apiAuthentication, type ApiCredentials } from "./api-auth";
 import { createProgrammaticRouter } from "./programmatic";
 import { ApiError } from "./api-error";
+import { profileVocabularySource, type ProfileVocabularySource } from "./profile-vocabulary";
+import { profileVocabularyVersion } from "../shared/profile-vocabulary";
 
 const definitionQuery = z.object({
   language: z.enum(["en", "fr"]),
@@ -43,7 +45,10 @@ const checkOrigin: express.RequestHandler = (req, res, next) => {
   next();
 };
 
-function createDataRouter(store: ReturnType<typeof createStore>) {
+function createDataRouter(
+  store: ReturnType<typeof createStore>,
+  vocabulary: ProfileVocabularySource,
+) {
   const router = express.Router();
   router.use(express.json({ limit: "16mb" }));
   router.get("/definitions", async (req, res) => {
@@ -269,6 +274,26 @@ function createDataRouter(store: ReturnType<typeof createStore>) {
     }
     res.type("text/plain").send(text);
   });
+  router.get("/dictionaries/:id/vocabulary/:version/:revision", async (req, res) => {
+    const { id, version, revision } = req.params;
+    const file = store.dictionaryFile(id);
+    if (!file || version !== String(profileVocabularyVersion))
+      throw new ApiError(404, "Familiarity table not found.");
+    if (!/^[0-9a-f]{16}$/.test(revision))
+      throw new ApiError(400, "Invalid word list revision.");
+    const data = await vocabulary(file);
+    if (revision !== data.revision)
+      throw new ApiError(409, "This word list changed. Reopen the game to refresh it.");
+    res.set("ETag", data.etag).set("Cache-Control", "private, no-cache");
+    res.vary("Accept-Encoding");
+    if (req.get("If-None-Match") === data.etag) {
+      res.status(304).end();
+      return;
+    }
+    const gzip = req.acceptsEncodings("gzip", "identity") === "gzip";
+    if (gzip) res.set("Content-Encoding", "gzip");
+    res.type("application/octet-stream").send(gzip ? data.compressed : Buffer.from(data.bytes));
+  });
   router.post("/dictionaries", (req, res) => {
     const { name, text } = z
       .object({ name: nameSchema, text: z.string().max(12_000_000).min(1) })
@@ -308,7 +333,8 @@ export function createApp(
 ) {
   const app = express();
   const auth = apiAuthentication(credentials);
-  const data = createDataRouter(store);
+  const vocabulary = profileVocabularySource(root, store);
+  const data = createDataRouter(store, vocabulary);
   app.disable("x-powered-by");
   app.use(compression());
   app.use("/api", (_req, res, next) => {
@@ -317,7 +343,7 @@ export function createApp(
     next();
   });
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
-  app.use("/api/v1", auth.bearer, checkOrigin, createProgrammaticRouter(store, root), data, apiNotFound);
+  app.use("/api/v1", auth.bearer, checkOrigin, createProgrammaticRouter(store, root, vocabulary), data, apiNotFound);
   app.use(auth.web);
   app.use("/api/debug", createDebugRouter(store));
   app.use("/api", checkOrigin, data, apiNotFound);

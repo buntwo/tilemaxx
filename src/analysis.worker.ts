@@ -14,7 +14,7 @@ import type {
   EndgamePrecomputeRequest,
 } from "./useEndgameLines";
 
-let dictionary: { id: string; lexicon: Lexicon } | undefined;
+let dictionary: { id: string; lexicon: Lexicon; words: string[] } | undefined;
 let endgames:
   | { key: string; pool: ReturnType<typeof createEndgamePrecompute> }
   | undefined;
@@ -26,9 +26,9 @@ async function words(url: string) {
 async function loadDictionary(id: string) {
   if (dictionary?.id !== id) {
     const list = await words(`/api/dictionaries/${encodeURIComponent(id)}`);
-    dictionary = { id, lexicon: new Lexicon(list) };
+    dictionary = { id, lexicon: new Lexicon(list), words: list };
   }
-  return dictionary.lexicon;
+  return dictionary;
 }
 
 async function precomputeEndgames(request: EndgamePrecomputeRequest) {
@@ -38,7 +38,7 @@ async function precomputeEndgames(request: EndgamePrecomputeRequest) {
     const key = JSON.stringify([dictionaryId, position]);
     if (kind === "precompute-endgames") {
       endgames?.pool.close();
-      const lexicon = await loadDictionary(dictionaryId);
+      const { lexicon } = await loadDictionary(dictionaryId);
       endgames = {
         key,
         pool: createEndgamePrecompute(lexicon, position, moves, workerLimit),
@@ -97,7 +97,7 @@ self.onmessage = async (
         self.postMessage(message);
       try {
         const { dictionaryId, workerLimit, kind: _, ...position } = request;
-        const lexicon = await loadDictionary(dictionaryId);
+        const { lexicon } = await loadDictionary(dictionaryId);
         const result = await parallelOpponentEndgame(
           lexicon,
           position,
@@ -117,11 +117,10 @@ self.onmessage = async (
     return;
   }
   try {
-    const [lexicon, [frequencies, casualWords]] = await Promise.all([
-      loadDictionary(request.dictionaryId),
-      loadProfileVocabulary(request.template.rules),
-    ]);
-    const profiles = createPlayerProfiles(lexicon, request.template, frequencies, undefined, casualWords);
+    const dictionary = await loadDictionary(request.dictionaryId);
+    const { lexicon } = dictionary;
+    const [frequencies, vocabulary] = await loadProfileVocabulary(request.template.rules, dictionary);
+    const profiles = createPlayerProfiles(lexicon, request.template, frequencies, undefined, undefined, vocabulary);
     const result = analyzeMoves(lexicon, request, profiles, (progress) => {
       self.postMessage({ progress });
     });

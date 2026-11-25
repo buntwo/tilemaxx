@@ -18,6 +18,7 @@ COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/dist-server ./dist-server
 COPY --from=build /app/public/dictionaries ./public/dictionaries
+COPY --from=build /app/server/assets ./server/assets
 RUN mkdir -p /app/data/dictionaries && chown -R node:node /app/data
 USER node
 EXPOSE 4173

@@ -19,6 +19,7 @@ export type Computation =
       position: z.infer<typeof boardPosition>;
       operation: z.infer<typeof analysisRequest>["operation"];
       game?: Game;
+      profileVocabulary?: Uint8Array;
       root: string;
     }
   | { kind: "word-check"; dictionary: Dictionary; words: string[] }

@@ -8,6 +8,10 @@ Bundled `public/dictionaries/wordnik.txt` is the 2021-07-29 word list from https
 
 The playing styles use the unmodified English, French, and Italian frequency assets from Robyn Speer's [wordfreq 3.1.1](https://pypi.org/project/wordfreq/3.1.1/). The data is distributed under CC BY-SA 4.0. See the [license and source attributions](public/dictionaries/WORDFREQ-NOTICE.md). The [MessagePack decoder](https://github.com/msgpack/msgpack-javascript) is ISC licensed.
 
+## Linguabase
+
+The shared familiarity table for English Casual and Learner uses the full [Linguabase vocabulary](https://www.linguabase.org/download.html), published under CC0 1.0. See the [normalization and data notice](public/dictionaries/LINGUABASE-NOTICE.md).
+
 ## Moby Words II
 
 The bundled public-domain Moby Words II frequency list by Grady Ward (`freq.txt`) comes from [Moby Words II](https://github.com/fordsfords/moby_words_2).

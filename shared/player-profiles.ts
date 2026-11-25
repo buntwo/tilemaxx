@@ -21,6 +21,7 @@ import {
   sampleProfilePlacements,
 } from "./player-profile-sampling";
 import { profileLeaveValue } from "./rack-leave";
+import { casualKnows, learnerWordProbability, type EnglishProfileVocabulary } from "./profile-vocabulary";
 import { choose, getTileCounts, unseenTiles } from "./tile-pool";
 import {
   createWordDifficulty,
@@ -163,6 +164,7 @@ export function createPlayerProfiles(
   frequencies: ReadonlyMap<string, number>,
   sampling: ProfileSampling = defaultSampling,
   casualWords?: ReadonlySet<string>,
+  englishVocabulary?: EnglishProfileVocabulary,
 ) {
   const difficulty = createWordDifficulty(lexicon, frequencies);
   const english = wordFrequencyLanguage(template.rules) === "en";
@@ -204,7 +206,9 @@ export function createPlayerProfiles(
   function wordData(word: string, profile: PlayerProfile) {
     const spelling = word.toUpperCase();
     const useCasualVocabulary = english && profile === "casual";
-    if (useCasualVocabulary && !casualWords?.has(spelling)) return undefined;
+    if (useCasualVocabulary && !(englishVocabulary
+      ? casualKnows(englishVocabulary.get(spelling))
+      : casualWords?.has(spelling))) return undefined;
     let wordInfo = wordCache.get(spelling);
     if (!wordInfo) {
       wordInfo = {
@@ -219,6 +223,12 @@ export function createPlayerProfiles(
       return (wordInfo.data.casual = {
         hash: wordInfo.hash,
         knowledge: scale,
+        recall: 1,
+      });
+    if (english && profile === "learner" && englishVocabulary)
+      return (wordInfo.data.learner = {
+        hash: wordInfo.hash,
+        knowledge: learnerWordProbability(spelling, englishVocabulary.get(spelling)) * scale,
         recall: 1,
       });
     const preset = presets[profile];
@@ -297,7 +307,7 @@ export function createPlayerProfiles(
   ): ProfileDecision => {
     if (!moves.length)
       return { bingoFound: false, considered: options.all ? [] : undefined };
-    if (profile === "casual" && english && !casualWords)
+    if (profile === "casual" && english && !casualWords && !englishVocabulary)
       throw new Error("The Casual word list could not be loaded.");
     const preset = presets[profile];
     const { bagSize, board, seed, playerSeed, rack, solo, scorelessTurns } =

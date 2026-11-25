@@ -1,19 +1,18 @@
 import type { Rules } from "../shared/model";
 import type { PlayerProfile } from "../shared/player-profiles";
+import type { ProfileDictionary } from "../shared/profile-vocabulary";
 import {
-  decodeEnglishCasualVocabulary,
   decodeWordFrequencies,
-  englishCasualVocabularyUrl,
   wordFrequencyLanguage,
   wordFrequencyUrl,
   type WordFrequencyLanguage,
 } from "../shared/word-familiarity";
+import { loadDictionaryVocabulary } from "./profile-vocabulary-cache";
 
 const frequencies = new Map<
   WordFrequencyLanguage,
   Promise<ReadonlyMap<string, number>>
 >();
-let casualVocabulary: Promise<ReadonlySet<string>> | undefined;
 
 async function loadCompressedAsset(url: string, message: string) {
   const response = await fetch(url);
@@ -42,18 +41,9 @@ export function loadWordFrequencies(rules: Rules) {
   return pending;
 }
 
-function loadEnglishCasualVocabulary() {
-  const message = "The Casual word list could not be loaded.";
-  return (casualVocabulary ??= loadCompressedAsset(englishCasualVocabularyUrl, message)
-    .then((data) => decodeEnglishCasualVocabulary(new TextDecoder().decode(data)))
-    .catch((error) => {
-      casualVocabulary = undefined;
-      throw error;
-    }));
-}
-
 export function loadProfileVocabulary(
   rules: Rules,
+  dictionary: ProfileDictionary,
   profile?: PlayerProfile,
   needsCasualFrequencies = false,
 ) {
@@ -61,6 +51,6 @@ export function loadProfileVocabulary(
   return Promise.all([
     english && profile === "casual" && !needsCasualFrequencies
       ? new Map<string, number>() : loadWordFrequencies(rules),
-    english && (!profile || profile === "casual") ? loadEnglishCasualVocabulary() : undefined,
+    english && profile !== "strong" ? loadDictionaryVocabulary(dictionary) : undefined,
   ]);
 }

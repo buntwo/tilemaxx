@@ -4,7 +4,6 @@ import { createHash } from "node:crypto";
 const assets = [
   "/index.html",
   "/favicon.svg",
-  "/dictionaries/linguabase-casual.csv.gz",
   ...["en", "fr", "it"].map((language) => `/dictionaries/wordfreq-${language}-3.1.1.msgpack.gz`),
   ...(await readdir("dist/assets")).sort().map((name) => `/assets/${name}`),
 ];

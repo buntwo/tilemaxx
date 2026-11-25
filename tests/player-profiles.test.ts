@@ -21,10 +21,10 @@ import { PRESETS, templateForLanguage } from "../shared/presets";
 import { solve } from "../shared/solver";
 import {
   createWordDifficulty,
-  decodeEnglishCasualVocabulary,
   decodeWordFrequencies,
   wordFrequencyUrl,
 } from "../shared/word-familiarity";
+import { packFamiliarity } from "../shared/profile-vocabulary";
 
 test("the upstream English asset decodes exact Zipf values and keeps inflections separate", () => {
   const frequencies = decodeWordFrequencies(
@@ -118,11 +118,11 @@ test("Casual scores filter moves from the active game lexicon", () => {
   const lexicon = new Lexicon(["BAT", "CAT"]);
   const board = emptyBoard(template.size);
   const rack = "ABCATN?";
-  const vocabulary = decodeEnglishCasualVocabulary(
-    "word,familiarity_score\nBAT,89.9999\nCAT,90\nCATNAP,99\n",
-  );
+  const vocabulary = new Map([
+    ["BAT", packFamiliarity(8_999)], ["CAT", packFamiliarity(9_000)], ["CATNAP", packFamiliarity(9_900)],
+  ]);
   const choose = createPlayerProfiles(
-    lexicon, template, new Map(), { coverage: 4, appeal: 0 }, vocabulary,
+    lexicon, template, new Map(), { coverage: 4, appeal: 0 }, undefined, vocabulary,
   );
   const moves = solve(lexicon, board, rack, template);
   assert.ok(moves.some((move) => move.word === "BAT"));

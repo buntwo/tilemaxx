@@ -17,6 +17,8 @@ import {
   wordCheck,
 } from "./api-analysis-request";
 import type { createStore } from "./store";
+import type { ProfileVocabularySource } from "./profile-vocabulary";
+import { gameWordLanguage } from "../shared/model";
 import {
   gameSchema,
   screenshotExampleSchema,
@@ -37,6 +39,7 @@ const schemas = {
 export function createProgrammaticRouter(
   store: ReturnType<typeof createStore>,
   root: string,
+  vocabulary: ProfileVocabularySource,
 ) {
   const router = Router();
   const compute = createComputationRunner();
@@ -50,6 +53,15 @@ export function createProgrammaticRouter(
     const cancel = () => controller.abort();
     res.once("close", cancel);
     try {
+      if (input.kind === "analysis" && "file" in input.dictionary &&
+          gameWordLanguage(input.position.template.rules) === "en") {
+        const operation = input.operation;
+        const style = operation.kind === "moves" ? operation.style
+          : operation.kind === "compare" ? operation.opponent
+          : undefined;
+        if (style === "casual" || style === "learner")
+          input = { ...input, profileVocabulary: (await vocabulary(input.dictionary.file)).bytes };
+      }
       const result = await compute(input, controller.signal);
       if (!controller.signal.aborted) res.json(result);
     } catch (error) {

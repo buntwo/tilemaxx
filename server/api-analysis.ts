@@ -69,12 +69,11 @@ import {
 import { unseenTiles } from "../shared/tile-pool";
 import { reviewGame, reviewTurn, reviewTurns } from "../shared/turn-review";
 import {
-  decodeEnglishCasualVocabulary,
   decodeWordFrequencies,
-  englishCasualVocabularyUrl,
   wordFrequencyLanguage,
   wordFrequencyUrl,
 } from "../shared/word-familiarity";
+import { decodeProfileVocabulary, type EnglishProfileVocabulary } from "../shared/profile-vocabulary";
 import type { Computation } from "./api-computation";
 import { ApiError } from "./api-error";
 
@@ -86,6 +85,7 @@ function profiles(
   template: Request["position"]["template"],
   profile: PlayerProfile,
   bagSize = 0,
+  vocabulary?: EnglishProfileVocabulary,
 ) {
   const language = wordFrequencyLanguage(template.rules);
   const read = (path: string) =>
@@ -94,13 +94,11 @@ function profiles(
   const frequencies = casual && !lateProfileFamiliarityWeight(bagSize, template.rackSize)
     ? new Map<string, number>()
     : decodeWordFrequencies(read(wordFrequencyUrl(language)), language);
-  const vocabulary = casual
-    ? decodeEnglishCasualVocabulary(read(englishCasualVocabularyUrl).toString("utf8"))
-    : undefined;
   return createPlayerProfiles(
     lexicon,
     template,
     frequencies,
+    undefined,
     undefined,
     vocabulary,
   );
@@ -216,9 +214,10 @@ function gameReview(
 export async function analyzePosition(
   lexicon: Lexicon,
   words: string[],
-  { position, operation, root, game }: Request,
+  { position, operation, root, game, profileVocabulary }: Request,
 ) {
   const { template, board, solo } = position;
+  const vocabulary = profileVocabulary && decodeProfileVocabulary(profileVocabulary, words);
   const pool = unseenTiles(position, template);
   if (operation.kind === "position") {
     const { square } = operation;
@@ -354,7 +353,7 @@ export async function analyzePosition(
     let styleSummary;
     if (style && !isSimulatedStyle(style)) {
       const positionKey = `${board.join(".")}:${rackComposition(position.rack)}`;
-      const ranking = profiles(root, lexicon, template, style, bagSize)(
+      const ranking = profiles(root, lexicon, template, style, bagSize, vocabulary)(
         moves,
         style,
         {
@@ -561,7 +560,7 @@ export async function analyzePosition(
         endgameBudgetMultiplier: operation.endgameBudgetMultiplier,
       },
       operation.opponent &&
-        profiles(root, lexicon, template, operation.opponent),
+        profiles(root, lexicon, template, operation.opponent, 0, vocabulary),
     );
   }
 

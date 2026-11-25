@@ -4,44 +4,53 @@ export interface WordListStorage {
   put(url: string, text: string): Promise<void>;
 }
 
-function database(): Promise<IDBDatabase> {
+function database(databaseName: string, storeName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("tilemaxx-word-lists", 1);
-    request.onupgradeneeded = () => request.result.createObjectStore("words");
+    const request = indexedDB.open(databaseName, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(storeName);
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error("Word-list storage is busy."));
     request.onsuccess = () => resolve(request.result);
   });
 }
 
-const storage: WordListStorage = {
-  async get(url) {
-    const db = await database();
-    try {
-      return await new Promise<string | undefined>((resolve, reject) => {
-        const request = db.transaction("words").objectStore("words").get(url);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-    } finally {
-      db.close();
-    }
-  },
-  async put(url, text) {
-    const db = await database();
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const transaction = db.transaction("words", "readwrite");
-        transaction.objectStore("words").put(text, url);
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = transaction.onabort = () =>
-          reject(transaction.error);
-      });
-    } finally {
-      db.close();
-    }
-  },
-};
+function persistentStore<T>(databaseName: string, storeName: string): {
+  get(key: string): Promise<T | undefined>;
+  put(key: string, value: T): Promise<void>;
+} {
+  return {
+    async get(key) {
+      const db = await database(databaseName, storeName);
+      try {
+        return await new Promise<T | undefined>((resolve, reject) => {
+          const request = db.transaction(storeName).objectStore(storeName).get(key);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+      } finally {
+        db.close();
+      }
+    },
+    async put(key, value) {
+      const db = await database(databaseName, storeName);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const transaction = db.transaction(storeName, "readwrite");
+          transaction.objectStore(storeName).put(value, key);
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = transaction.onabort = () =>
+            reject(transaction.error);
+        });
+      } finally {
+        db.close();
+      }
+    },
+  };
+}
+
+const storage: WordListStorage = persistentStore<string>("tilemaxx-word-lists", "words");
+export type CachedVocabulary = { key: string; etag?: string; bytes: ArrayBuffer };
+export const vocabularyStorage = persistentStore<CachedVocabulary>("tilemaxx-profile-vocabulary", "scores");
 
 export const dictionaryUrl = (id: string) =>
   `/api/dictionaries/${encodeURIComponent(id)}`;

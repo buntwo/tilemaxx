@@ -1,0 +1,101 @@
+export const profileVocabularyVersion = 1;
+export const missingFamiliarity = 0x3fff;
+
+const scoreMask = 0x3fff;
+const studyFlag = 0x4000;
+const headerSize = 20;
+const magic = "TMV1";
+const favorites = new Set(
+  (
+    "AAL AAS ADZ AIS AJI AZO CINQ CWM CWMS EAU EAUX HAJ JEE JEU JIN JOW JUS KEX OES OXO " +
+    "PHT PYX QADI QAID QAT QATS QIS QOPH QUA RAJ RAX SUQ SUQS ULU VOX XIS ZAS ZAX ZEK ZOA"
+  ).split(" "),
+);
+
+export type EnglishProfileVocabulary = ReadonlyMap<string, number>;
+export type ProfileDictionary = { id: string; words: readonly string[] };
+
+/** Fingerprint canonical spellings and their order, including on plain HTTP LANs. */
+export function profileDictionaryRevision(words: readonly string[]) {
+  let first = 0x811c9dc5;
+  let second = 0x9747b28c;
+  for (const word of words) {
+    for (let i = 0; i < word.length; i++) {
+      const code = word.charCodeAt(i);
+      first = Math.imul(first ^ code, 0x01000193);
+      second = Math.imul(second ^ code, 0x5bd1e995);
+    }
+    first = Math.imul(first ^ 10, 0x01000193);
+    second = Math.imul(second ^ 10, 0x5bd1e995);
+  }
+  return (
+    (first >>> 0).toString(16).padStart(8, "0") +
+    (second >>> 0).toString(16).padStart(8, "0")
+  );
+}
+
+export const profileVocabularyUrl = (id: string, revision: string) =>
+  `/api/dictionaries/${encodeURIComponent(id)}/vocabulary/${profileVocabularyVersion}/${revision}`;
+
+/** The dictionary words are stored separately. Each entry uses one 16-bit lane. */
+export function packProfileVocabulary(
+  words: readonly string[],
+  entry: (word: string) => number,
+): Uint8Array {
+  const bytes = new Uint8Array(headerSize + words.length * 2);
+  bytes.set(new TextEncoder().encode(magic + profileDictionaryRevision(words)));
+  const data = new DataView(bytes.buffer);
+  for (let i = 0; i < words.length; i++)
+    data.setUint16(headerSize + i * 2, entry(words[i]), true);
+  return bytes;
+}
+
+export const packFamiliarity = (score: number | undefined, studied = false) =>
+  (score ?? missingFamiliarity) | (studied ? studyFlag : 0);
+
+export function decodeProfileVocabulary(
+  bytes: Uint8Array,
+  words: readonly string[],
+): EnglishProfileVocabulary {
+  const invalid = "The familiarity table does not match this word list.";
+  if (
+    bytes.byteLength !== headerSize + words.length * 2 ||
+    new TextDecoder().decode(bytes.subarray(0, headerSize)) !==
+      magic + profileDictionaryRevision(words)
+  )
+    throw new Error(invalid);
+  const data = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const vocabulary = new Map<string, number>();
+  for (let i = 0; i < words.length; i++) {
+    const value = data.getUint16(headerSize + i * 2, true);
+    const score = value & scoreMask;
+    if (value & 0x8000 || (score > 10_000 && score !== missingFamiliarity))
+      throw new Error(invalid);
+    if (value !== missingFamiliarity) vocabulary.set(words[i], value);
+  }
+  return vocabulary;
+}
+
+function scoreOf(entry: number | undefined) {
+  return (entry ?? missingFamiliarity) & scoreMask;
+}
+
+export function casualKnows(entry: number | undefined) {
+  const score = scoreOf(entry);
+  return score >= 9_000 && score !== missingFamiliarity;
+}
+
+export function learnerWordProbability(
+  spelling: string,
+  entry: number | undefined,
+) {
+  if (favorites.has(spelling)) return 1;
+  const studied = !!((entry ?? 0) & studyFlag);
+  if (studied && spelling.length === 2) return 1;
+  const score = scoreOf(entry);
+  const familiarity =
+    score === missingFamiliarity ? 0 : 2 ** (Math.min(0, score - 8_000) / 500);
+  return studied && spelling.length === 3
+    ? 0.5 + 0.5 * familiarity
+    : familiarity;
+}
