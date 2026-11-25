@@ -2636,7 +2636,7 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   expect(current().revision).toBe(archivedRevision);
   expect(current().board).toEqual(archivedBoard);
 
-  await user.click(cell("Jump to move 2"));
+  await user.click(controls.getByRole("button", { name: "Next move" }));
   expect(controls.getByRole("button", { name: "Preview recorded move ART" }).getAttribute("aria-pressed")).toBe("true");
   expect(cell("I6: A").classList.contains("ghost")).toBe(true);
   await user.click(cell("A1: TW"));

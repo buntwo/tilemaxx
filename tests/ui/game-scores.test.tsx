@@ -187,11 +187,7 @@ test.each(["live", "replay"] as const)("the %s score tooltip defines its words o
     );
     fireEvent.pointerOut(word, { relatedTarget: definition });
     expect(container.querySelector(".score-chart-tooltip")?.contains(word)).toBe(true);
-    if (view === "replay") {
-      expect(screen.queryByRole("button", { name: "Jump to move 2" })).toBeNull();
-      fireEvent.click(screen.getByRole("button", { name: "Jump to move 1" }));
-      expect(seek).toHaveBeenCalledWith(1);
-    }
+    expect(screen.queryByRole("button", { name: /Jump to move/ })).toBeNull();
   } finally {
     vi.useRealTimers();
   }
@@ -253,6 +249,7 @@ test.each(["you", "opponent"] as const)(
     expect(pair).not.toBe(first);
     expect(screen.getByText("Moves 2–3")).toBeTruthy();
     expect(screen.getByText("Yet to play")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Jump to move/ })).toBeNull();
     rerender(showChart(3, 22, 20));
     expect(cursor()).toBe(pair);
     expect(screen.queryByText("Yet to play")).toBeNull();

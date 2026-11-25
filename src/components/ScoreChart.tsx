@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { ArrowRight } from "lucide-react";
 import type { Player, TrackedMove } from "../../shared/model";
 import { DefinitionWord, useMoveDefinitionContext } from "./MoveDefinitions";
 import { BingoBadge } from "./MoveWord";
@@ -259,7 +258,6 @@ export default function ScoreChart({
           const play = displayed.plays[player];
           const muted = replay && pair.last > 0 && !play;
           const current = replay && play?.number === replay.index;
-          const destination = replay && pair.plays[player]?.number;
           return (
             <div
               key={player}
@@ -288,17 +286,6 @@ export default function ScoreChart({
                   <span className="score-chart-note">
                     {waitingFor === player ? "Yet to play" : "No recorded play"}
                   </span>
-                ) : null}
-                {replay && destination && destination !== replay.index ? (
-                  <button
-                    type="button"
-                    className="text-button score-chart-turn-jump"
-                    aria-label={`Jump to move ${destination}`}
-                    title={`Jump to move ${destination}`}
-                    onClick={() => replay.seek(destination)}
-                  >
-                    <ArrowRight size={13} aria-hidden="true" />
-                  </button>
                 ) : null}
               </dd>
             </div>
