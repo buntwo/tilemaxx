@@ -5645,11 +5645,8 @@ label + label {
 }
 .results-panel .possible-moves-title {
   height: 38px;
-  padding-block: 9px 5px;
-  padding-inline-start: 6px;
-}
-.results-panel[data-intro-collapsed] .possible-moves-title {
-  padding-block: 9px;
+  padding-block: 3px;
+  padding-inline-start: 3px;
 }
 .possible-moves-title:has(.move-intro-toggle) { position: relative; }
 .possible-moves-title .heading-with-icon { gap: 2px; }
@@ -5690,7 +5687,6 @@ label + label {
   position: relative;
   justify-content: flex-start;
   gap: 4px;
-  padding-block: 3px;
   padding-inline-end: 8px;
 }
 .move-results-heading {

@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { emptyScoring } from "../../shared/game-scoring";
 import { emptyBoard, type Game } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
 import GameScores from "../../src/components/GameScores";
+import { MoveDefinitions } from "../../src/components/MoveDefinitions";
 import ScoreChart from "../../src/components/ScoreChart";
 
 function gameWithScores(you: number, opponent: number): Game {
@@ -145,6 +146,55 @@ test("the score chart pairs adjacent plays and carries forward the score for a m
   );
   expect(plays()).toEqual(["PLANTED+80 pts", "RATION+67 pts"]);
   expect(tooltip.querySelectorAll('.score-chart-play [aria-label="Bingo"]')).toHaveLength(1);
+});
+
+test.each(["live", "replay"] as const)("the %s score tooltip defines its words on hover", async (view) => {
+  const seek = vi.fn();
+  const lookup = vi.fn(async () => new Response(JSON.stringify({
+    available: true,
+    entries: [[{ spelling: "cat", glosses: ["A small domesticated feline."] }]],
+  })));
+  vi.stubGlobal("fetch", lookup);
+  vi.useFakeTimers();
+  try {
+    const { container } = render(
+      <MoveDefinitions rules={PRESETS[0].rules} position="score chart" phoneLayout={false}>
+        <ScoreChart
+          moves={[
+            { player: "you", word: "CAT", score: 10, number: 1 },
+            { player: "opponent", word: "DOG", score: 12, number: 2 },
+          ]}
+          replay={view === "replay" ? { index: 2, scores: { you: 10, opponent: 12 }, seek } : undefined}
+        />
+      </MoveDefinitions>,
+    );
+    const graph = screen.getByRole("img", { name: /Running scores/ });
+    if (view === "live") fireEvent.pointerMove(graph);
+    const word = screen.getByText("CAT");
+    expect(word.closest("button")).toBeNull();
+    fireEvent.click(word);
+    expect(seek).not.toHaveBeenCalled();
+    const moveToWord = new Event("pointerout", { bubbles: true });
+    Object.assign(moveToWord, { pointerType: "mouse", buttons: 0, relatedTarget: word });
+    fireEvent(graph, moveToWord);
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    const definition = screen.getByRole("tooltip");
+    expect(within(definition).getByText("A small domesticated feline.")).toBeTruthy();
+    expect(word.getAttribute("aria-describedby")).toBe(definition.id);
+    expect(lookup).toHaveBeenCalledWith(
+      "/api/definitions?language=en&word=CAT",
+      expect.objectContaining({ method: "GET" }),
+    );
+    fireEvent.pointerOut(word, { relatedTarget: definition });
+    expect(container.querySelector(".score-chart-tooltip")?.contains(word)).toBe(true);
+    if (view === "replay") {
+      expect(screen.queryByRole("button", { name: "Jump to move 2" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Jump to move 1" }));
+      expect(seek).toHaveBeenCalledWith(1);
+    }
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("consecutive plays by one player stay distinct in an older archived history", () => {

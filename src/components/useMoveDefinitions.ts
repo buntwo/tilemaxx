@@ -23,6 +23,7 @@ export function useMoveDefinitions(
     available,
     mouse,
     touch,
+    anchor: definitions.anchor,
     popup: definitions.popup,
     ownsContextMenu: hold.ownsContextMenu,
     descriptionId(id: string) {

@@ -6,7 +6,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { ArrowRight } from "lucide-react";
 import type { Player, TrackedMove } from "../../shared/model";
+import { DefinitionWord, useMoveDefinitionContext } from "./MoveDefinitions";
 import { BingoBadge } from "./MoveWord";
 import "./score-chart.css";
 
@@ -146,10 +148,13 @@ export default function ScoreChart({
 }) {
   const chartPlayers = solo ? soloPlayers : players;
   const heading = useId();
+  const tooltipId = `${heading}-tooltip`;
   const svg = useRef<SVGSVGElement>(null);
   const tooltip = useRef<HTMLDivElement>(null);
+  const definitions = useMoveDefinitionContext();
   const [width, setWidth] = useState(500);
   const [hovered, setHovered] = useState<number | null>(null);
+  const [pointerInPlot, setPointerInPlot] = useState(false);
   const [focused, setFocused] = useState<number | null>(null);
   const [pinned, setPinned] = useState<number | null>(null);
   const pairs = useMemo(() => pairMoves(moves, solo), [moves, solo]);
@@ -174,12 +179,15 @@ export default function ScoreChart({
   );
   const markerStep = Math.max(1, Math.ceil((10 * last) / (right - left)));
 
+  // Keep the score card in place while the pointer travels to its word’s definition.
+  const definingChartWord = definitions?.anchor?.closest(".score-chart-tooltip")?.id === tooltipId;
+  const activeHover = pointerInPlot || definingChartWord ? hovered : null;
   const selected = replay
     ? Math.max(
         0,
         pairs.findIndex((pair) => pair.last >= replay.index),
       )
-    : (hovered ?? focused ?? pinned);
+    : (activeHover ?? focused ?? pinned);
   const index = Math.min(selected ?? last, last);
   const pair = pairs[index];
   const waitingFor =
@@ -240,6 +248,7 @@ export default function ScoreChart({
 
   const scoreTooltip = selected !== null && (
     <div
+      id={tooltipId}
       className="score-chart-tooltip"
       ref={tooltip}
       aria-hidden={replay ? undefined : true}
@@ -251,17 +260,6 @@ export default function ScoreChart({
           const muted = replay && pair.last > 0 && !play;
           const current = replay && play?.number === replay.index;
           const destination = replay && pair.plays[player]?.number;
-          const playLabel = play ? (
-            <>
-              {play.bingo && <BingoBadge />}
-              <span className={play.bingo ? "bingo-move-word" : undefined}>{play.word}</span>
-              <span className="score-chart-points">+{number.format(play.score)} pts</span>
-            </>
-          ) : muted ? (
-            <span className="score-chart-note">
-              {waitingFor === player ? "Yet to play" : "No recorded play"}
-            </span>
-          ) : null;
           return (
             <div
               key={player}
@@ -276,16 +274,32 @@ export default function ScoreChart({
                 {number.format(displayed.totals[player])}
               </dd>
               <dd className={play || muted ? "score-chart-play" : undefined}>
-                {destination && replay ? (
+                {play ? (
+                  <>
+                    {play.bingo && <BingoBadge />}
+                    <DefinitionWord
+                      key={play.number}
+                      word={play.word}
+                      className={play.bingo ? "bingo-move-word" : undefined}
+                    />
+                    <span className="score-chart-points">+{number.format(play.score)} pts</span>
+                  </>
+                ) : muted ? (
+                  <span className="score-chart-note">
+                    {waitingFor === player ? "Yet to play" : "No recorded play"}
+                  </span>
+                ) : null}
+                {replay && destination && destination !== replay.index ? (
                   <button
                     type="button"
                     className="text-button score-chart-turn-jump"
                     aria-label={`Jump to move ${destination}`}
+                    title={`Jump to move ${destination}`}
                     onClick={() => replay.seek(destination)}
                   >
-                    {playLabel}
+                    <ArrowRight size={13} aria-hidden="true" />
                   </button>
-                ) : playLabel}
+                ) : null}
               </dd>
             </div>
           );
@@ -313,6 +327,13 @@ export default function ScoreChart({
       </figcaption>
       <div
         className="score-chart-plot"
+        onPointerEnter={() => {
+          if (definingChartWord) setPointerInPlot(true);
+        }}
+        onPointerLeave={() => {
+          setPointerInPlot(false);
+          if (!definingChartWord) setHovered(null);
+        }}
         style={
           {
             "--score-axis-inset": `${left}px`,
@@ -334,10 +355,11 @@ export default function ScoreChart({
               : "Running scores after each pair of tracked moves"
           }
           onPointerMove={(event) => {
-            if (!replay && event.pointerType !== "touch")
+            if (!replay && event.pointerType !== "touch") {
+              setPointerInPlot(true);
               setHovered(pairAt(event.clientX, event.currentTarget));
+            }
           }}
-          onPointerLeave={() => setHovered(null)}
           onClick={(event) => {
             const next = pairAt(event.clientX, event.currentTarget);
             if (replay) replay.seek(pairs[next].last);
