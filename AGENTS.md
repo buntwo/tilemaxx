@@ -30,11 +30,12 @@
 
 - Never commit identifiable details about our setup. Keep actual hostnames, IP addresses, account names, local paths, signing-key labels, and credentials in local configuration. Use placeholders in documentation, tests, screenshots, and logs.
 - Bump the Tilemaxx patch version by one in `version.json` before staging each commit. Bump major or minor only when the user explicitly asks, and set the patch to `1` for either bump. Keep `package.json` and `package-lock.json` stable for app version bumps so Docker can reuse installed dependencies.
-- Sign Tilemaxx commits with your configured Git signing key. Run Git non-interactively and never allocate a PTY for commit or push commands. Diagnose signing failures before retrying.
+- Use Keylet for Tilemaxx commit signing and GitHub authentication, overriding the global Secretive default. Use the running Keylet agent and its configured signing and GitHub keys. Discover the socket with `keylet doctor --json` and use `keylet-ssh-sign` as Git's SSH signing program.
+- Run Git non-interactively and never allocate a PTY for commit or push commands. Diagnose Keylet or signing failures before retrying.
 - After verifying and committing Tilemaxx changes, push them to GitHub's `origin/main` with a fast-forward push. The NAS pulls updates from that branch.
 - Regenerate the illustrated UI guide screenshots and their callout positions only when preparing a new GitHub release.
 - Tilemaxx is self-hosted on a trusted local network. The manual NAS updater fast-forwards the checkout. The scheduled DSM updater follows upstream rewrites. Both rebuild with Docker Compose. Keep `compose.yaml` local and preserve the bind-mounted `data/` directory across updates. See [README.md](README.md) for setup and recovery.
-- Never connect to another machine with SSH or execute commands on another machine unless the user has given explicit prior approval for that specific remote access. Deployment or validation requirements do not imply SSH approval.
+- Use Keylet over SSH for authorized Git operations on the configured GitHub `origin`. Any other SSH access or remote command execution, including on the NAS, requires explicit prior approval. Deployment or validation requirements do not imply SSH approval.
 - Keep imported word lists and saved games in the ignored `data/` directory. Do not put them in Git, the Docker build context, or a public deployment.
 
 ## Updating the README
