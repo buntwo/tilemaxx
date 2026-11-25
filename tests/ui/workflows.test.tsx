@@ -2465,6 +2465,7 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   await screen.findByRole("button", { name: "A1: Q, edited after archiving" });
   const controls = within(screen.getByRole("group", { name: "Game replay" }));
   const slider = controls.getByRole("slider", { name: "Replay moves" });
+  const trialTiles = () => screen.getByRole("region", { name: "Game board" }).querySelectorAll(".square.trial-tile");
   expect(slider).toHaveProperty("value", "3");
   expect(controls.getByRole("button", { name: "Play from start" })).toBeTruthy();
   expect(controls.queryByText("Final board")).toBeNull();
@@ -2484,14 +2485,18 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   await user.click((await screen.findAllByRole("button", { name: /^CATS, / }))[0]);
   await screen.findByText("Trial from move 1");
+  expect(trialTiles()).toHaveLength(4);
   const trialOptions = await openGameOptions(user);
   await user.click(trialOptions.getByRole("button", { name: "Close dialog" }));
   expect(screen.getByText("Trial from move 1")).toBeTruthy();
   expect(cell("Undo")).toHaveProperty("disabled", false);
   await user.click(cell("Undo"));
+  expect(trialTiles()).toHaveLength(0);
   expect(cell("Redo")).toHaveProperty("disabled", false);
   await user.click(cell("Redo"));
+  expect(trialTiles()).toHaveLength(4);
   await user.click(cell("Back to move 1"));
+  expect(trialTiles()).toHaveLength(0);
   expect(cell("H8: A, start").classList.contains("ghost")).toBe(true);
   expect(cell("Undo")).toHaveProperty("disabled", true);
   await act(() => store.flush());
@@ -2501,6 +2506,12 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   await user.click(cell("Jump to move 2"));
   expect(controls.getByRole("button", { name: "Preview recorded move ART" }).getAttribute("aria-pressed")).toBe("true");
   expect(cell("I6: A").classList.contains("ghost")).toBe(true);
+  await user.click(cell("A1: TW"));
+  await user.keyboard("Z");
+  expect(cell("A1: Z, trial tile")).toBeTruthy();
+  expect(cell("H8: A, start").classList.contains("trial-tile")).toBe(false);
+  await user.click(cell("Back to move 2"));
+  expect(trialTiles()).toHaveLength(0);
   const opponentTray = screen.getByRole("group", { name: "Opponent rack" });
   expect(replayRackLabels(opponentTray))
     .toEqual(["Y", "Z", "A, played", "R, played", "empty", "empty", "empty"]);

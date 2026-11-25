@@ -27,6 +27,7 @@ export default function Board({
   template,
   board,
   archivedBoard,
+  trialTiles,
   draftTiles,
   missingRackTiles,
   preview,
@@ -55,6 +56,7 @@ export default function Board({
   template: BoardTemplate;
   board: BoardState;
   archivedBoard?: BoardState;
+  trialTiles?: ReadonlySet<number>;
   draftTiles?: ReadonlySet<number>;
   missingRackTiles?: ReadonlyMap<number, string>;
   preview?: Pick<Move, "tiles"> | null;
@@ -161,6 +163,7 @@ export default function Board({
             {Array.from({ length: n }, (_, c) => {
               const i = r * n + c,
                 tile = board[i] || placed.get(i) || "",
+                trial = trialTiles?.has(i),
                 draft = draftTiles?.has(i),
                 missing = missingRackTiles?.get(i),
                 ghost = !board[i] && placed.has(i),
@@ -180,8 +183,8 @@ export default function Board({
                   data-definition-open={definedSquare === i || undefined}
                   disabled={disabled || (defining && !board[i])}
                   tabIndex={compact && !overlay ? -1 : undefined}
-                  className={`square ${bonus.toLowerCase()} ${tile ? "occupied" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}${wordTiles.has(i) ? " word-hover" : ""}${marked ? " move-filter-square" : ""}`}
-                  aria-label={`${coordinate(i, n)}${tile ? `: ${tile.toUpperCase()}${tile === tile.toLowerCase() ? " blank" : ""}` : bonus ? `: ${bonus}` : ": empty"}${i === template.start ? ", start" : ""}${archiveEdit ? ", edited after archiving" : ""}${overlay ? `, ${overlay.label}` : ""}${marked && !selectingSquares ? ", required for move filter" : ""}${missing ? `, missing ${missing} from rack` : draft ? ", draft tile" : ""}`}
+                  className={`square ${bonus.toLowerCase()} ${tile ? "occupied" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${trial ? "trial-tile" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}${wordTiles.has(i) ? " word-hover" : ""}${marked ? " move-filter-square" : ""}`}
+                  aria-label={`${coordinate(i, n)}${tile ? `: ${tile.toUpperCase()}${tile === tile.toLowerCase() ? " blank" : ""}` : bonus ? `: ${bonus}` : ": empty"}${i === template.start ? ", start" : ""}${archiveEdit ? ", edited after archiving" : ""}${trial ? ", trial tile" : ""}${overlay ? `, ${overlay.label}` : ""}${marked && !selectingSquares ? ", required for move filter" : ""}${missing ? `, missing ${missing} from rack` : draft ? ", draft tile" : ""}`}
                   aria-pressed={
                     cellOverlay
                       ? overlay

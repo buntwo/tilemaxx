@@ -74,6 +74,7 @@ export default function BoardEntry({
   hideHelp,
   readOnly,
   displayBoard,
+  trialBase,
   preview,
   previewPlayer,
   definePreview,
@@ -94,6 +95,7 @@ export default function BoardEntry({
   hideHelp?: boolean;
   readOnly?: boolean;
   displayBoard?: BoardState;
+  trialBase?: BoardState;
   preview: Pick<Move, "tiles"> | null;
   previewPlayer?: Player;
   definePreview?: boolean;
@@ -123,6 +125,10 @@ export default function BoardEntry({
     future: [],
   }));
   const board = displayBoard ?? game.board;
+  const trialTiles = useMemo(
+    () => trialBase && new Set(board.flatMap((tile, index) => tile && !trialBase[index] ? [index] : [])),
+    [board, trialBase],
+  );
   const draft = ownPlay
     ? prepareOwnPlay(game, draftHistory.current.board, draftHistory.current.direction)
     : undefined;
@@ -188,6 +194,7 @@ export default function BoardEntry({
         phoneLayout={phoneLayout}
         readOnly={readOnly}
         archivedBoard={game.archived ? game.archivedBoard : undefined}
+        trialTiles={trialTiles}
         template={game.template}
         preview={ownPlay ? null : preview}
         previewPlayer={previewPlayer}
@@ -280,6 +287,7 @@ export function BoardInput({
   ref,
   board,
   archivedBoard,
+  trialTiles,
   template,
   preview,
   previewPlayer,
@@ -309,6 +317,7 @@ export function BoardInput({
   ref?: Ref<BoardInputHandle>;
   board: BoardState;
   archivedBoard?: BoardState;
+  trialTiles?: ReadonlySet<number>;
   template: BoardTemplate;
   preview?: Pick<Move, "tiles"> | null;
   previewPlayer?: Player;
@@ -712,6 +721,7 @@ export function BoardInput({
         template={template}
         board={ownPlay?.board ?? (defining ? definitionBoard : board)}
         archivedBoard={archivedBoard}
+        trialTiles={trialTiles}
         draftTiles={ownPlay?.tiles}
         missingRackTiles={ownPlay?.missing}
         preview={preview}

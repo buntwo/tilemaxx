@@ -1435,6 +1435,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   definePreview={historical}
                   readOnly={boardLocked}
                   displayBoard={activeFlight?.before.board}
+                  trialBase={trial ? replay?.frame.board : undefined}
                   onChange={updateAfterTurn}
                   overlay={
                     boardUnavailable ? (
