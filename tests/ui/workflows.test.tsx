@@ -2262,7 +2262,9 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(cell("Define")).toBeTruthy();
   expect(screen.getByRole("group", { name: "Replay score" }).textContent).toContain("10–4");
   const strip = within(controls.getByRole("status"));
-  expect(strip.getByText("2 Opp")).toBeTruthy();
+  expect(strip.getByText("Opp")).toBeTruthy();
+  expect(strip.queryByText("2 Opp")).toBeNull();
+  expect(controls.getByText("2 / 2")).toBeTruthy();
   expect(strip.getByText("AR(T)")).toBeTruthy();
   expect(strip.getByText("4 pts")).toBeTruthy();
   const replayScore = screen.getByRole("group", { name: "Replay score" });
@@ -2284,7 +2286,9 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(document.activeElement).not.toBe(slider);
   expect(cell("I6: empty")).toHaveProperty("disabled", false);
   expect(screen.getByRole("group", { name: "Replay score" }).textContent).toContain("10–0");
-  expect(strip.getByText("1 You")).toBeTruthy();
+  expect(strip.getByText("You")).toBeTruthy();
+  expect(strip.queryByText("1 You")).toBeNull();
+  expect(controls.getByText("1 / 2")).toBeTruthy();
   expect(strip.getByText("CAT")).toBeTruthy();
   expect(strip.getByText("8G")).toBeTruthy();
   expect(strip.getByText("10 pts")).toBeTruthy();

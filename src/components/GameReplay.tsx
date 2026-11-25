@@ -20,10 +20,9 @@ function replayBingo({ move, position, template }: ReplayFrame) {
 }
 
 function ReplayMoveStrip({
-  frame, index, historical, showRecorded, onToggleRecorded,
+  frame, historical, showRecorded, onToggleRecorded,
 }: {
   frame: ReplayFrame;
-  index: number;
   historical: boolean;
   showRecorded: boolean;
   onToggleRecorded: () => void;
@@ -43,7 +42,7 @@ function ReplayMoveStrip({
         <>
           <div className="replay-move-word">
             <span className="replay-move-player">
-              {index} {move.player === "you" ? "You" : "Opp"}
+              {move.player === "you" ? "You" : "Opp"}
             </span>
             <button
               className="text-button replay-recorded-word last-play-word"
@@ -135,7 +134,51 @@ export function ReplayControls({
       aria-keyshortcuts="ArrowLeft ArrowRight Space"
       tabIndex={-1}
     >
-      <ReplayMoveStrip {...{ frame, index, historical, showRecorded, onToggleRecorded }} />
+      <ReplayMoveStrip {...{ frame, historical, showRecorded, onToggleRecorded }} />
+      <div className="board-replay-actions">
+        <div className="board-replay-transport">
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="Previous move"
+            title="Previous move"
+            disabled={index === 0}
+            onClick={() => seek(index - 1)}
+          >
+            <SkipBack size={16} aria-hidden="true" />
+          </button>
+          <button
+            className="icon-button board-replay-play"
+            type="button"
+            aria-label={playLabel}
+            title={playLabel}
+            onClick={togglePlay}
+          >
+            {playing ? (
+              <Pause size={16} aria-hidden="true" />
+            ) : (
+              <Play size={16} aria-hidden="true" />
+            )}
+          </button>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="Next move"
+            title="Next move"
+            disabled={index === last}
+            onClick={() => seek(index + 1)}
+          >
+            <SkipForward size={16} aria-hidden="true" />
+          </button>
+        </div>
+        {historical && !archived && <button
+          className="text-button board-replay-done"
+          type="button"
+          onClick={close}
+        >
+          Back to live
+        </button>}
+      </div>
       <div className="board-replay-track">
         <input
           type="range"
@@ -151,52 +194,14 @@ export function ReplayControls({
           }
           onChange={(event) => seek(event.currentTarget.valueAsNumber)}
         />
-        <span className="board-replay-count" aria-hidden="true">
-          {Math.min(index, recordedCount)} / {recordedCount}
+        <span
+          className="board-replay-count"
+          data-count-width={`${recordedCount} / ${recordedCount}`}
+          aria-hidden="true"
+        >
+          <span>{Math.min(index, recordedCount)} / {recordedCount}</span>
         </span>
       </div>
-      <div className="board-replay-transport">
-        <button
-          className="icon-button"
-          type="button"
-          aria-label="Previous move"
-          title="Previous move"
-          disabled={index === 0}
-          onClick={() => seek(index - 1)}
-        >
-          <SkipBack size={16} aria-hidden="true" />
-        </button>
-        <button
-          className="icon-button board-replay-play"
-          type="button"
-          aria-label={playLabel}
-          title={playLabel}
-          onClick={togglePlay}
-        >
-          {playing ? (
-            <Pause size={16} aria-hidden="true" />
-          ) : (
-            <Play size={16} aria-hidden="true" />
-          )}
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label="Next move"
-          title="Next move"
-          disabled={index === last}
-          onClick={() => seek(index + 1)}
-        >
-          <SkipForward size={16} aria-hidden="true" />
-        </button>
-      </div>
-      {historical && !archived && <button
-        className="text-button board-replay-done"
-        type="button"
-        onClick={close}
-      >
-        Back to live
-      </button>}
     </div>
   );
 }

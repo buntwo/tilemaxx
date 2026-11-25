@@ -6740,9 +6740,8 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 }
 .board-replay-controls {
   --replay-hit: 26px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-areas: "move move move" "transport scrub done";
+  display: flex;
+  flex-wrap: wrap;
   border-top: 1px solid var(--line);
   align-items: center;
   padding-bottom: 3px;
@@ -6750,7 +6749,7 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 }
 .phone-layout .board-replay-controls { --replay-hit: 30px; }
 .replay-move-strip {
-  grid-area: move;
+  flex: 0 0 100%;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -6810,7 +6809,9 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .replay-move-result strong { color: var(--value-good); }
 .replay-move-strip[data-player="opponent"] .replay-move-result strong { color: var(--value-bad); }
 .board-replay-track {
-  grid-area: scrub;
+  /* Wrap using the preferred slider width and the largest move count. */
+  flex: 1 0 auto;
+  max-inline-size: 100%;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -6839,8 +6840,8 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .phone-layout .replay-score-history-move { min-height: 44px; }
 .board-replay-slider {
   appearance: none;
-  flex: 1;
-  width: 100%;
+  flex: 1 1 auto;
+  width: 96px;
   height: 26px;
   min-width: 0;
   min-height: 0;
@@ -6880,17 +6881,26 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   background: var(--primary);
 }
 .board-replay-count {
+  display: grid;
+  justify-items: end;
   color: var(--muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.board-replay-transport {
-  grid-area: transport;
-  justify-self: start;
-  margin-inline-start: 4px;
-  display: flex;
+.board-replay-count::before,
+.board-replay-count > span { grid-area: 1 / 1; }
+.board-replay-count::before {
+  content: attr(data-count-width);
+  visibility: hidden;
 }
+.board-replay-actions {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-inline-start: 4px;
+}
+.board-replay-transport { display: flex; }
 .board-replay-controls :is(.icon-button, .board-replay-done) {
   height: var(--replay-hit);
   min-height: var(--replay-hit);
@@ -6899,16 +6909,10 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .board-replay-controls .icon-button { width: var(--replay-hit); }
 .board-replay-play { background: var(--soft); color: var(--primary); }
 .board-replay-done {
-  grid-area: done;
-  justify-self: end;
-  white-space: nowrap;
-  margin-inline-end: 3px;
+  min-width: 0;
   padding-inline: 4px;
   font-size: 12px;
-}
-@container (max-width: 255px) {
-  .board-replay-controls:has(> .board-replay-done) .board-replay-track { grid-column: 1 / -1; grid-row: 3; }
-  .board-replay-done { grid-row: 2; }
+  line-height: 1.1;
 }
 .rack-entry[data-recorded-preview] {
   --preview-tile-light: 55%;
@@ -6976,7 +6980,7 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 }
 .phone-board-column .rack-entry[data-draw-shelf] {
   --replay-tile-gap: var(--phone-tile-gap);
-  --phone-rack-tile-max: calc((var(--phone-rack-width) - var(--phone-draw-label-space)) / 2 - var(--phone-rack-tray-side-space));
+  --phone-rack-tile-max: calc(var(--phone-rack-width) / 2 - var(--phone-rack-tray-side-space));
 }
 .phone-board-column .rack-player-lane:has(> .replay-draw-space) {
   position: relative;
@@ -6984,7 +6988,7 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .phone-board-column .rack-player-lane > .replay-draw-space {
   position: absolute;
   inset-block-start: 0;
-  inset-inline-start: calc(var(--phone-rack-tray-width) + var(--phone-draw-label-space));
+  inset-inline-start: calc(var(--phone-rack-tray-width) - 1px);
 }
 .phone-board-column .rack-player-lane:has(.rack-owner-label) > .replay-draw-space {
   inset-block-start: var(--phone-rack-label-height);
@@ -6999,12 +7003,13 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   margin-block-start: calc(var(--draw-start) * (var(--draw-tile-size) + var(--replay-tile-gap)));
   padding: var(--phone-rack-tray-padding) var(--phone-rack-tray-side-padding);
   border-block-start: 1px solid #684029;
+  border-inline-start: 0;
+  padding-inline-start: calc(var(--phone-rack-tray-side-padding) + 1px);
   border-radius: 0 7px 7px 0;
 }
 .phone-board-column .replay-draw-label {
-  right: calc(100% + 1px);
-  writing-mode: vertical-rl;
-  transform: translateY(-50%) rotate(180deg);
+  inset: auto auto calc(100% + 3px) 50%;
+  transform: translateX(-50%);
 }
 .phone-board-column .replay-draw-tiles {
   grid-auto-flow: row;
