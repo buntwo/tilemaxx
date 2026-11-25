@@ -351,6 +351,7 @@ test("All moves and Shortlist share the selected playing style as their return v
   expect(current().board.some(Boolean)).toBe(false);
 
   const allMoves = screen.getByRole("button", { name: "All moves" });
+  expect(allMoves.textContent).toBe("All moves");
   const shortlist = (await openMoveOptions(user)).getByRole("button", { name: /^Shortlist/ });
   const suggested = () => screen.getByLabelText("Suggested moves");
   suggested().scrollTop = 12;
@@ -5182,6 +5183,7 @@ test("the phone layout keeps settings, the build version, board help and move fi
   const stylePicker = toolbar.getByRole("combobox", { name: "Playing style" });
   const allMoves = toolbar.getByRole("button", { name: "All moves" });
   expect(allMoves.textContent).toBe("");
+  expect(allMoves.querySelector(".lucide-list")).toBeTruthy();
   expect(toolbar.getByRole("button", { name: "Close possible moves" })).toBeTruthy();
   expect(optionsMenu.closest("details")?.open).toBe(false);
   const moveMenu = await openMoveOptions(user);

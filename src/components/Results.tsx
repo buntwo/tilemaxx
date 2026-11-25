@@ -1125,13 +1125,13 @@ export default function Results({
             {analysisGame && (
               <button
                 type="button"
-                className="icon-button move-all-toggle"
+                className={`icon-button move-all-toggle${phoneLayout ? "" : " move-all-toggle-text"}`}
                 aria-label="All moves"
                 aria-pressed={view === "all"}
                 title={view === "all" && returnView ? `Return to ${returnViewLabel}` : "All moves"}
                 onClick={() => toggleView("all")}
               >
-                <List size={16} aria-hidden="true" />
+                {phoneLayout ? <List size={16} aria-hidden="true" /> : "All moves"}
               </button>
             )}
             {playingStyleControl}

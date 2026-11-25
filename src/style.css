@@ -5646,8 +5646,13 @@ label + label {
 .results-panel .possible-moves-title {
   height: 38px;
   padding-block: 9px 5px;
+  padding-inline-start: 6px;
+}
+.results-panel[data-intro-collapsed] .possible-moves-title {
+  padding-block: 9px;
 }
 .possible-moves-title:has(.move-intro-toggle) { position: relative; }
+.possible-moves-title .heading-with-icon { gap: 2px; }
 .possible-moves-title:has(.move-intro-toggle) .heading-with-icon {
   flex: 1;
 }
@@ -5685,7 +5690,8 @@ label + label {
   position: relative;
   justify-content: flex-start;
   gap: 4px;
-  padding: 3px 8px;
+  padding-block: 3px;
+  padding-inline-end: 8px;
 }
 .move-results-heading {
   position: absolute;
@@ -5698,14 +5704,18 @@ label + label {
   position: relative;
   flex: none;
 }
-.calculation-indicator:has(.move-search-toggle) {
-  width: 32px;
-  height: 32px;
+.possible-moves-title .calculation-indicator {
+  --move-heading-icon-slot: 32px;
+  width: var(--move-heading-icon-slot);
+  height: var(--move-heading-icon-slot);
 }
-.calculation-indicator:has(.move-search-toggle) :is(.calculation-idle-icon, .calculation-spinner) {
-  inset: 8px;
+.possible-moves-title .calculation-indicator:has(.move-search-toggle) {
+  --calculation-icon-size: 16px;
 }
-.calculation-indicator .move-search-toggle {
+.possible-moves-title :is(.calculation-idle-icon, .calculation-spinner) {
+  inset: calc((var(--move-heading-icon-slot) - var(--calculation-icon-size)) / 2);
+}
+.possible-moves-title :is(.calculation-find-moves, .move-search-toggle) {
   position: absolute;
   inset: 0;
 }
@@ -5716,6 +5726,12 @@ label + label {
 }
 .has-move-results .icon-button:is(.move-search-toggle[aria-expanded="true"], .move-all-toggle[aria-pressed="true"]) {
   background: var(--soft);
+}
+.move-all-toggle-text {
+  width: auto;
+  padding-inline: 6px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 .move-word-filter {
   flex: 1 1 120px;
