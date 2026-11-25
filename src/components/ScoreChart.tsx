@@ -156,6 +156,7 @@ export default function ScoreChart({
   const [pointerInPlot, setPointerInPlot] = useState(false);
   const [focused, setFocused] = useState<number | null>(null);
   const [pinned, setPinned] = useState<number | null>(null);
+  const [seekAnchor, setSeekAnchor] = useState<{ top: number }>();
   const pairs = useMemo(() => pairMoves(moves, solo), [moves, solo]);
   const last = pairs.length - 1;
   const final = pairs[last].totals;
@@ -234,6 +235,18 @@ export default function ScoreChart({
     element.style.left = `${Math.max(left, Math.min(width - offsetWidth, tipLeft))}px`;
     element.style.top = `${Math.max(0, Math.min(plotBottom - offsetHeight, tipTop))}px`;
   }, [selected, pair, width, left, selectedX, upper, lower, replay]);
+
+  useLayoutEffect(() => {
+    if (!seekAnchor || !svg.current) return;
+    const shift = svg.current.getBoundingClientRect().top - seekAnchor.top;
+    if (Math.abs(shift) >= 1) window.scrollBy({ top: shift, behavior: "instant" });
+  }, [seekAnchor]);
+
+  function seekReplay(pairIndex: number) {
+    // Seeking can resize the board or move results above the chart.
+    if (svg.current) setSeekAnchor({ top: svg.current.getBoundingClientRect().top });
+    replay?.seek(pairs[pairIndex].last);
+  }
 
   function pairAt(clientX: number, element: SVGSVGElement) {
     const bounds = element.getBoundingClientRect();
@@ -349,7 +362,7 @@ export default function ScoreChart({
           }}
           onClick={(event) => {
             const next = pairAt(event.clientX, event.currentTarget);
-            if (replay) replay.seek(pairs[next].last);
+            if (replay) seekReplay(next);
             else setPinned((current) => (current === next ? null : next));
           }}
         >
@@ -460,7 +473,7 @@ export default function ScoreChart({
           onChange={(event) => {
             const next = event.currentTarget.valueAsNumber;
             if (replay) {
-              replay.seek(pairs[next].last);
+              seekReplay(next);
               return;
             }
             setHovered(null);

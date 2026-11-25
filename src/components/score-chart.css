@@ -125,11 +125,13 @@
   margin: 7px 0 0;
 }
 .score-chart-tooltip dl > div { display: contents; }
-.score-chart-tooltip dt { color: var(--existing-letter); }
+.score-chart-tooltip dt {
+  padding-inline-end: 22px;
+  color: var(--existing-letter);
+}
 .score-chart-tooltip dd { margin: 0; }
 
 .score-chart-total {
-  padding-inline-start: 20px;
   text-align: right;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
@@ -174,7 +176,7 @@
 
 .score-chart-replay-tooltip { padding-bottom: 6px; }
 .score-chart-replay-tooltip .score-chart-tooltip {
-  --replay-tip-width: min(216px, 100%);
+  --replay-tip-width: min(230px, 100%);
   position: relative;
   left: clamp(0px, calc(var(--score-cursor-x) - var(--replay-tip-width) / 2), calc(100% - var(--replay-tip-width)));
   width: var(--replay-tip-width);
@@ -183,7 +185,6 @@
   background: var(--soft);
 }
 .score-chart-replay-tooltip .score-chart-tooltip dl { margin-top: 5px; }
-.score-chart-replay-tooltip .score-chart-total { padding-inline-start: 8px; }
 .score-chart-tooltip [data-unplayed] > :is(dt, dd) { color: var(--muted); font-weight: 400; }
 .score-chart-tooltip [data-unplayed] .score-chart-swatch { --series-color: var(--muted); }
 .score-chart-tooltip [data-current] .score-chart-play { color: var(--primary); }

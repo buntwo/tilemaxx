@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { useState } from "react";
 import { expect, test, vi } from "vitest";
 import { emptyScoring } from "../../shared/game-scoring";
 import { emptyBoard, type Game } from "../../shared/model";
@@ -146,6 +147,44 @@ test("the score chart pairs adjacent plays and carries forward the score for a m
   );
   expect(plays()).toEqual(["PLANTED+80 pts", "RATION+67 pts"]);
   expect(tooltip.querySelectorAll('.score-chart-play [aria-label="Bingo"]')).toHaveLength(1);
+});
+
+test("seeking on the replay chart keeps it in view when the layout above it changes", () => {
+  const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => {});
+  let graphTop = 280;
+  function ReplayChart() {
+    const [index, setIndex] = useState(2);
+    return <ScoreChart
+      moves={[
+        { player: "you", word: "CAT", score: 10, number: 1 },
+        { player: "opponent", word: "DOG", score: 12, number: 2 },
+      ]}
+      replay={{
+        index,
+        scores: index ? { you: 10, opponent: 12 } : { you: 0, opponent: 0 },
+        seek(next) {
+          if (next === 0) graphTop -= 110;
+          setIndex(next);
+        },
+      }}
+    />;
+  }
+
+  try {
+    render(<ReplayChart />);
+    const graph = screen.getByRole("img", { name: /Running scores/ });
+    vi.spyOn(graph, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, graphTop, 500, 206));
+    const slider = screen.getByRole("slider", { name: "Replay from move pair" });
+    fireEvent.click(graph, { clientX: 31 });
+    expect(slider).toHaveProperty("value", "0");
+    expect(scrollBy).toHaveBeenCalledExactlyOnceWith({ top: -110, behavior: "instant" });
+
+    fireEvent.change(slider, { target: { value: "1" } });
+    expect(slider).toHaveProperty("value", "1");
+    expect(scrollBy).toHaveBeenCalledTimes(1);
+  } finally {
+    scrollBy.mockRestore();
+  }
 });
 
 test.each(["live", "replay"] as const)("the %s score tooltip defines its words on hover", async (view) => {
