@@ -293,11 +293,11 @@ test("compare mode selects moves without playing and switches model without reru
     await screen.findAllByRole("article", { name: /^Analysis for/ }),
   ).toHaveLength(2);
   expect(screen.getByText("40+ threat removed")).toBeTruthy();
-  await user.selectOptions(
-    screen.getByRole("combobox", { name: "Opponent model" }),
-    "casual",
-  );
-  await user.selectOptions(screen.getByRole("combobox", { name: "Opponent model" }), "learner");
+  const opponentModel = screen.getByRole("combobox", { name: "Opponent model" });
+  expect(within(opponentModel).getByRole("option", { name: "Learner" })).toHaveProperty("value", "learner");
+  expect(within(opponentModel).getByRole("option", { name: "Strong" })).toHaveProperty("value", "strong");
+  await user.selectOptions(opponentModel, "casual");
+  await user.selectOptions(opponentModel, "learner");
   expect(runs).toBe(1);
   expect(current().rack).toBe("CATS");
   await user.click(rackTile(1));
@@ -338,7 +338,7 @@ test("All moves and Shortlist share the selected playing style as their return v
   await user.click(screen.getByRole("button", { name: /^Style breakdown for/ }));
   const tooltip = within(screen.getByRole("tooltip"));
   expect(tooltip.getByText("Style breakdown")).toBeTruthy();
-  expect(tooltip.getByText("Word-List Learner · Rank 1")).toBeTruthy();
+  expect(tooltip.getByText("Learner · Rank 1")).toBeTruthy();
   expect(tooltip.getByText("Weighted points")).toBeTruthy();
   expect(tooltip.getByText("Visibility weight")).toBeTruthy();
   expect(tooltip.getByText("Appeal multiplier")).toBeTruthy();
@@ -367,7 +367,7 @@ test("All moves and Shortlist share the selected playing style as their return v
   await chooseMoveOption(user, /^Shortlist/);
   expect(shortlist.getAttribute("aria-pressed")).toBe("true");
   expect(suggested().classList.contains("is-shortlist")).toBe(true);
-  expect(shortlist.title).toBe("Return to Word-List Learner");
+  expect(shortlist.title).toBe("Return to Learner");
   await chooseMoveOption(user, /^Shortlist/);
   expect(allMoves.getAttribute("aria-pressed")).toBe("false");
   await waitFor(() => expect(all()).toHaveLength(1));
@@ -378,7 +378,7 @@ test("All moves and Shortlist share the selected playing style as their return v
   expect(suggested().classList.contains("is-shortlist")).toBe(true);
   await user.click(screen.getByRole("button", { name: "All moves" }));
   expect(allMoves.getAttribute("aria-pressed")).toBe("true");
-  expect(allMoves.title).toBe("Return to Word-List Learner");
+  expect(allMoves.title).toBe("Return to Learner");
   await user.click(screen.getByRole("button", { name: "All moves" }));
   expect(allMoves.getAttribute("aria-pressed")).toBe("false");
   expect(await screen.findByText("#1")).toBeTruthy();
@@ -696,7 +696,7 @@ test("Bingo styles run manually while Master starts on selection and reuses its 
   const allMovesTime = (await timer()).textContent;
   const select = await screen.findByRole("combobox", { name: "Playing style" });
   expect(Array.from(select.querySelectorAll("option"), (option) => option.textContent)).toEqual([
-    "No style", "Casual", "Word-List Learner", "Strong Club Player", "Bingo Mercenary", "Bingo Tactician", "Master",
+    "No style", "Casual", "Learner", "Strong", "Bingo Mercenary", "Bingo Tactician", "Master",
   ]);
   await user.selectOptions(select, "tactician");
   expect(requests).toHaveLength(0);
@@ -4356,7 +4356,7 @@ test("solo games show their playing styles and load each sampled utility breakdo
   await user.keyboard("{Enter}");
   const picker = await screen.findByRole("combobox", { name: "Playing style" });
   expect(within(picker).getAllByRole("option").map((option) => option.textContent)).toEqual([
-    "No style", "Casual", "Word-List Learner", "Strong Club Player", "Greedy Bingo", "Score Lookahead", "Bingo & Triple Words",
+    "No style", "Casual", "Learner", "Strong", "Greedy Bingo", "Score Lookahead", "Bingo & Triple Words",
   ]);
   await user.selectOptions(picker, "greedy-bingo");
   await user.click(screen.getByRole("button", { name: "Run Greedy Bingo" }));

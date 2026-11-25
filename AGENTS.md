@@ -18,8 +18,8 @@
 
 ## Playing-style models
 
-- Keep Casual, Word-List Learner, and Strong Club Player simple. Search compact areas, then sample noticed moves by visibility and appeal. Tune shared parameters first and use special cases sparingly.
-- Casual uses static evaluation of the generated moves. Word-List Learner may use bounded lookahead on a small shortlist when ranking suggestions. Use the static Learner for modeled replies and follow-ups so simulations stay bounded. Strong may use bounded extra computation after cheap screening, on a shortlist of at most five candidates.
+- Keep Casual, Learner, and Strong simple. Search compact areas, then sample noticed moves by visibility and appeal. Tune shared parameters first and use special cases sparingly.
+- Casual uses static evaluation of the generated moves. Learner may use bounded lookahead on a small shortlist when ranking suggestions. Use the static Learner for modeled replies and follow-ups so simulations stay bounded. Strong may use bounded extra computation after cheap screening, on a shortlist of at most five candidates.
 - After changing a profile, run paired self-play with shared bag shuffles and swapped opening seats. Report all three head-to-head matchups with wins, losses, ties, and final spread. Include mean and median points per placement, points per turn, available, spotted, and played bingos, passes with legal moves, exchanges, top-score choice rate, representative decisions, and separate move generation and profile timings. Keep top raw score and sampled reply-adjusted points as separate baselines.
 
 ## Development research

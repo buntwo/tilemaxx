@@ -33,8 +33,8 @@ export const PLAYER_PROFILES = ["casual", "learner", "strong"] as const;
 export type PlayerProfile = (typeof PLAYER_PROFILES)[number];
 export const PLAYER_PROFILE_LABELS: Record<PlayerProfile, string> = {
   casual: "Casual",
-  learner: "Word-List Learner",
-  strong: "Strong Club Player",
+  learner: "Learner",
+  strong: "Strong",
 };
 
 const presets = {

@@ -149,7 +149,7 @@ the search for move-specific analysis of the same position.
 Analysis that needs bag information accepts `bagSize`, `scorelessTurns`,
 and `opponentHasFinalTurn`. It defaults to a full opponent rack when enough
 unseen tiles are available. The styles accepted by `moves` include the browser's
-Casual, Word-List Learner, Strong Club Player, Bingo Mercenary, Bingo Tactician,
+Casual, Learner, Strong, Bingo Mercenary, Bingo Tactician,
 Master and solo styles. Bounded simulations can return provisional results.
 Repeat with a larger supported budget for a longer search. Pagination reruns
 the search, so provisional rankings may differ between requests.

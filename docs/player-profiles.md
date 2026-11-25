@@ -1,12 +1,12 @@
 # Playing styles
 
-Choose a style in **Playing style** in Possible moves to see placements sampled from the moves a **Casual**, **Word-List Learner**, or **Strong Club Player** might notice. Analyze uses the same move-spotting models for opponent replies. The game's selected dictionary determines which moves are legal. The saved game rules select English, French, or Italian wordfreq data. French and Italian spellings fold accents and ligatures to match board tiles.
+Choose **Casual**, **Learner**, or **Strong** in the **Playing style** menu in Possible moves to see placements sampled from the moves that profile might notice. Analyze uses the same move-spotting models for opponent replies. The game's selected dictionary determines which moves are legal. The saved game rules select English, French, or Italian wordfreq data. French and Italian spellings fold accents and ligatures to match board tiles.
 
 In English games, **Casual** can use a spelling when more than 75% of respondents in the English Word Prevalence Norms said they knew it. The main word and every cross word formed need their own qualifying entries. The same list applies to every board and resample. [English Word Prevalence Norms](https://doi.org/10.3758/s13428-018-1077-9) · [Data attribution](../public/dictionaries/EWPN-NOTICE.md)
 
 ## Solo playing styles
 
-In solo games, **Casual**, **Word-List Learner**, and **Strong Club Player**
+In solo games, **Casual**, **Learner**, and **Strong**
 sample the plays the model spots using points, word familiarity, and rack
 leave. The solo versions evaluate your own board and rack.
 
@@ -75,4 +75,4 @@ The lane adjustment uses the largest increase in two-premium risk. Strong weight
 
 ## Exchange suggestions
 
-When a style chooses to exchange, **Swap** in Possible moves marks those tiles and opens **Simulate exchange**. Casual and Word-List Learner use rack quality to compare swaps with the style’s first sampled play. If Casual’s first swap would discard every copy of a useful duplicate, it also considers a smaller swap that keeps one copy. Strong uses the same heuristic and checks close calls against 16 shared draws and modeled opponent replies, with an estimate in the panel when the full comparison favors swapping. If the comparison hits a search limit, it uses the heuristic. Held tiles stay on the rack. **No style** uses the general exchange suggestion.
+When a style chooses to exchange, **Swap** in Possible moves marks those tiles and opens **Simulate exchange**. Casual and Learner use rack quality to compare swaps with the style’s first sampled play. If Casual’s first swap would discard every copy of a useful duplicate, it also considers a smaller swap that keeps one copy. Strong uses the same heuristic and checks close calls against 16 shared draws and modeled opponent replies, with an estimate in the panel when the full comparison favors swapping. If the comparison hits a search limit, it uses the heuristic. Held tiles stay on the rack. **No style** uses the general exchange suggestion.
