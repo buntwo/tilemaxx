@@ -4714,16 +4714,16 @@ label + label {
   grid-template-columns: minmax(42px, 1fr) minmax(0, var(--rack-tray-width)) minmax(42px, 1fr);
   grid-template-areas: "shuffle tiles bag";
   align-items: center;
-  column-gap: 0;
+  column-gap: 8px;
 }
 .rack-player-lane:has(> .rack-shuffle):has(> .rack-owner-label) {
   grid-template-areas:
-    "owner tiles bag"
+    "owner . ."
     "shuffle tiles bag";
   grid-template-rows: min-content 1fr;
   row-gap: 2px;
 }
-.rack-player-lane:has(> .rack-shuffle) > .rack-tiles {
+.rack-entry .rack-player-lane:has(> .rack-shuffle) > .rack-tiles {
   grid-area: tiles;
   width: 100%;
   margin-block: 0;
@@ -6875,7 +6875,7 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   grid-template-areas: "shuffle tiles bag" ". draw .";
 }
 .app-shell:not(.phone-layout) .rack-player-lane:has(> .replay-draw-space):has(> .rack-owner-label) {
-  grid-template-areas: "owner tiles bag" "shuffle tiles bag" ". draw .";
+  grid-template-areas: "owner . ." "shuffle tiles bag" ". draw .";
 }
 .replay-draw-space {
   grid-area: draw;
