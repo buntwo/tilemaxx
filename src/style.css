@@ -6692,7 +6692,8 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   flex-wrap: wrap;
   border-top: 1px solid var(--line);
   align-items: center;
-  padding-bottom: 3px;
+  row-gap: 3px;
+  padding-block-end: 3px;
   container-type: inline-size;
 }
 .phone-layout .board-replay-controls { --replay-hit: 30px; }
@@ -6796,7 +6797,7 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   appearance: none;
   flex: 1 1 auto;
   width: 96px;
-  height: 26px;
+  height: var(--replay-hit);
   min-width: 0;
   min-height: 0;
   margin: 0;
