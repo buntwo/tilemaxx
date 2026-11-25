@@ -21,6 +21,7 @@ export type ReplayFrame = {
   playedSlots?: number[];
   opponentPlayedTiles?: string;
   unseen?: ReturnType<typeof unseenTiles>;
+  unseenRackUnknown?: boolean;
   bag?: { count: number; estimated: boolean; invalid: boolean };
   scores: Record<Player, number>;
 };
@@ -38,7 +39,7 @@ function replayBag(
   ownRack: string | undefined,
   template: BoardTemplate,
   solo: boolean,
-): ReplayFrame["bag"] {
+): NonNullable<ReplayFrame["bag"]> {
   const assumedRackTiles =
     (solo ? 0 : template.rackSize) + (ownRack === undefined ? template.rackSize : 0);
   return {
@@ -60,9 +61,14 @@ function exactOpponentRack(
   if (playedSlots) return { rack, playedSlots };
 }
 
-function matchesBoardAfter(position: TurnPosition, after: Board) {
+function boardAfter(position: TurnPosition) {
   const board = position.board.slice();
   for (const { index, letter } of position.tiles) board[index] = letter;
+  return board;
+}
+
+function matchesBoardAfter(position: TurnPosition, after: Board) {
+  const board = boardAfter(position);
   return board.length === after.length && board.every((tile, index) => tile === after[index]);
 }
 
@@ -72,16 +78,24 @@ function replayPlacement(
   template: BoardTemplate,
   solo: boolean,
   inferredObserverRack: string | undefined,
-): Pick<ReplayFrame, "rack" | "playedSlots" | "opponentPlayedTiles" | "bag" | "unseen"> {
+): Pick<ReplayFrame, "rack" | "playedSlots" | "opponentPlayedTiles" | "bag" | "unseen" | "unseenRackUnknown"> {
   const { board, tiles } = position;
   const ownRack = player === "you" ? position.rack : position.observerRack ?? inferredObserverRack;
   const pool = unseenTiles({ board, rack: ownRack ?? "" }, template);
-  const bag = replayBag(pool, ownRack, template, solo);
-  const unseen = ownRack === undefined ? undefined : pool;
+  // The bag estimate is from before the play. The breakdown also checks the
+  // visible placements, so an overdraw on this move is shown immediately.
+  const unseenRackUnknown = ownRack === undefined;
+  const unseen = player === "opponent" || unseenRackUnknown
+    ? unseenTiles({ board: boardAfter(position), rack: ownRack ?? "" }, template)
+    : pool;
+  const bag = {
+    ...replayBag(pool, ownRack, template, solo),
+    invalid: unseen.excess.length > 0,
+  };
+  const details = { bag, unseen, unseenRackUnknown };
   if (player === "you") {
     return {
-      bag,
-      unseen,
+      ...details,
       rack: ownRack,
       playedSlots: ownRack === undefined
         ? undefined
@@ -91,9 +105,10 @@ function replayPlacement(
   const opponentPlayedTiles = tiles.length <= template.rackSize
     ? tiles.map(({ letter }) => letter === letter.toUpperCase() ? letter : "?").join("")
     : undefined;
-  const details = { bag, unseen, opponentPlayedTiles };
-  if (solo || ownRack === undefined) return details;
-  return { ...details, ...exactOpponentRack(board, tiles, template, pool) };
+  const exact = solo || unseenRackUnknown
+    ? undefined
+    : exactOpponentRack(board, tiles, template, pool);
+  return { ...details, opponentPlayedTiles, ...exact };
 }
 
 export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreStart: number } {
@@ -168,7 +183,8 @@ export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreSt
       template: firstTemplate,
       rack: firstRack,
       bag: firstPool && replayBag(firstPool, firstRack, firstTemplate, solo),
-      unseen: firstRack === undefined ? undefined : firstPool,
+      unseen: firstPool,
+      unseenRackUnknown: firstRack === undefined,
       scores: zero,
     },
   ];

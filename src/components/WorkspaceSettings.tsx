@@ -9,7 +9,6 @@ const defaults = {
   pulseMovePreviews: true,
   animatePlayedTiles: true,
   skipPlayedTiles: true,
-  showReplayOpponentTiles: false,
   autoUpdate: true,
   limitComputeWorkers: false,
   computeWorkerCap: 1,
@@ -32,12 +31,6 @@ const sections = [
     ],
   },
   {
-    title: "Replay",
-    options: [
-      ["showReplayOpponentTiles", "Show opponent’s played tiles"],
-    ],
-  },
-  {
     title: "Updates",
     options: [
       ["autoUpdate", "Automatically reload when an update is available"],
@@ -53,7 +46,6 @@ function readPreferences(): Preferences {
       pulseMovePreviews: saved?.pulseMovePreviews !== false,
       animatePlayedTiles: saved?.animatePlayedTiles !== false,
       skipPlayedTiles: saved?.skipPlayedTiles !== false,
-      showReplayOpponentTiles: saved?.showReplayOpponentTiles === true,
       autoUpdate: saved?.autoUpdate !== false,
       limitComputeWorkers: (saved?.limitComputeWorkers ?? saved?.singleComputeWorker) === true,
       computeWorkerCap: isWorkerCount(saved?.computeWorkerCap)

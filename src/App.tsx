@@ -1481,7 +1481,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 {replay && (
                   <ReplayRack
                     frame={replay.frame}
-                    showOpponentTiles={preferences.showReplayOpponentTiles}
                     solo={game.solo}
                     phone={narrowLayout}
                     detailsTarget={detailsTarget}

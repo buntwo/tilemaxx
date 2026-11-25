@@ -22,7 +22,7 @@ import {
   type TrackedMove,
 } from "../shared/model";
 import { PRESETS } from "../shared/presets";
-import { TILE_SYMBOLS } from "../shared/tile-pool";
+import { getTileCounts, TILE_SYMBOLS } from "../shared/tile-pool";
 import { gameSchema } from "../server/validation";
 
 function gameWithMoves(trackedMoves: TrackedMove[]): Game {
@@ -130,6 +130,29 @@ test("replay only shows an opponent rack established by the historical tile pool
     assert.equal(frame.rack, undefined);
     assert.equal(frame.playedSlots, undefined);
   }
+});
+
+test("replay exposes a board-based tile pool and flags overdrawn placements without a saved rack", () => {
+  const board = emptyBoard(15);
+  board[112] = "A";
+  const move: TrackedMove = {
+    player: "opponent", word: "AAT", score: 3, at: "",
+    review: {
+      board, dictionaryId: "test",
+      tiles: [{ index: 111, letter: "A" }, { index: 113, letter: "T" }],
+    },
+  };
+  const game = {
+    ...gameWithMoves([move]),
+    template: { ...PRESETS[0], tileCounts: { ...getTileCounts(PRESETS[0]), A: 1 } },
+  };
+  const [before, after] = gameReplayTimeline(game).frames;
+  assert.ok(before.unseenRackUnknown);
+  assert.ok(after.unseenRackUnknown);
+  assert.equal(before.bag?.count, after.bag?.count);
+  assert.equal(before.bag?.invalid, false);
+  assert.equal(after.bag?.invalid, true);
+  assert.deepEqual(after.unseen?.excess.map(({ symbol, excess }) => [symbol, excess]), [["A", 1]]);
 });
 
 test("replay recovers an exact endgame rack across contiguous older opponent turns", () => {

@@ -52,7 +52,7 @@ export function ReplayBoard({ frame }: { frame: ReplayFrame }) {
   );
 }
 
-function ReplayMoveStrip({ frame }: { frame: ReplayFrame }) {
+function ReplayMoveStrip({ frame, index }: { frame: ReplayFrame; index: number }) {
   const { board, move, position, template } = frame;
   const details = move && recordedMoveDetails(move, position, template.size);
   return (
@@ -66,7 +66,7 @@ function ReplayMoveStrip({ frame }: { frame: ReplayFrame }) {
         <>
           <div className="replay-move-word">
             <span className="replay-move-player">
-              {move.player === "you" ? "You" : "Opp"}
+              {index} {move.player === "you" ? "You" : "Opp"}
             </span>
             <strong className="last-play-word">
               <MoveWord
@@ -139,7 +139,7 @@ export function ReplayControls({
       aria-keyshortcuts="ArrowLeft ArrowRight Space"
       tabIndex={-1}
     >
-      <ReplayMoveStrip frame={frame} />
+      <ReplayMoveStrip frame={frame} index={index} />
       <div className="board-replay-track">
         <input
           type="range"
@@ -300,27 +300,25 @@ export function ReplayScores({
 
 export function ReplayRack({
   frame,
-  showOpponentTiles,
   solo,
   phone,
   detailsTarget,
 }: {
   frame: ReplayFrame;
-  showOpponentTiles: boolean;
   solo?: boolean;
   phone: boolean;
   detailsTarget: HTMLDivElement | null;
 }) {
-  const { bag, move, playedSlots, template, unseen } = frame;
+  const { bag, move, playedSlots, template, unseen, unseenRackUnknown } = frame;
   const tilePoolId = useId();
   const [poolOpen, setPoolOpen] = useState(false);
   const opponent = move?.player === "opponent";
-  const partial = opponent && frame.rack === undefined && showOpponentTiles
+  const partial = opponent && frame.rack === undefined
     ? frame.opponentPlayedTiles
     : undefined;
   const rack = frame.rack ?? partial;
   const slots = sortedRackSlots((rack ?? "").slice(0, template.rackSize));
-  const used = slots.filter((slot) => playedSlots?.includes(slot));
+  const used = partial ? slots : slots.filter((slot) => playedSlots?.includes(slot));
   const leave = slots.filter((slot) => !used.includes(slot));
   const empty = Array<undefined>(template.rackSize - slots.length).fill(undefined);
   const order = [...leave, ...used, ...empty];
@@ -333,6 +331,7 @@ export function ReplayRack({
     <TilePool
       pool={unseen}
       solo={solo}
+      rackUnknown={unseenRackUnknown}
       id={tilePoolId}
       open={poolOpen}
       hideWhenClosed={phone}

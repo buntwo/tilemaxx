@@ -5,6 +5,7 @@ import type { unseenTiles } from "../../shared/tile-pool";
 export default function TilePool({
   pool,
   solo,
+  rackUnknown,
   id,
   open,
   hideWhenClosed = false,
@@ -12,6 +13,7 @@ export default function TilePool({
 }: {
   pool: ReturnType<typeof unseenTiles>;
   solo?: boolean;
+  rackUnknown?: boolean;
   id: string;
   open: boolean;
   hideWhenClosed?: boolean;
@@ -85,9 +87,11 @@ export default function TilePool({
       </summary>
       <div className="tile-pool-content" id={id}>
         <div className="tile-pool-controls">
-          <p>{solo
-            ? "Unseen tiles are the tiles remaining in the bag."
-            : "Includes tiles in the bag and on other players’ racks."}</p>
+          <p>{rackUnknown
+            ? "Your rack wasn’t recorded. These counts include any tiles it held."
+            : solo
+              ? "Unseen tiles are the tiles remaining in the bag."
+              : "Includes tiles in the bag and on other players’ racks."}</p>
           <select
             aria-label="Filter unseen tiles"
             value={filter}

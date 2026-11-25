@@ -43,7 +43,7 @@ import type { PracticeRequest } from "../../src/practice.worker";
 import type { WordListCheckRequest } from "../../src/word-list-checker.worker";
 import type { EndgamePrecomputeRequest } from "../../src/useEndgameLines";
 import { simulateExchange } from "../../shared/exchange";
-import { TILE_SYMBOLS } from "../../shared/tile-pool";
+import { getTileCounts, TILE_SYMBOLS } from "../../shared/tile-pool";
 import {
   parallelOpponentEndgame,
   type OpponentEndgameRequest,
@@ -2253,6 +2253,7 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   expect(screen.getByRole("group", { name: "Replay score" }).textContent).toContain("10–4");
   const strip = within(controls.getByRole("status"));
+  expect(strip.getByText("2 Opp")).toBeTruthy();
   expect(strip.getByText("AR(T)")).toBeTruthy();
   expect(strip.getByText("4 pts")).toBeTruthy();
   const replayScore = screen.getByRole("group", { name: "Replay score" });
@@ -2261,9 +2262,10 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(scorePanel.getByRole("img", { name: "Opponent’s turn" })).toBeTruthy();
   expect(strip.getByText("I6")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Unseen tiles, 83 estimated tiles in the bag before the play" })).toBeTruthy();
-  const opponentTray = screen.getByRole("group", { name: "Opponent rack unavailable" });
-  expect(within(opponentTray).queryAllByRole("img")).toHaveLength(0);
-  expect(opponentTray.querySelectorAll(".rack-tile.empty")).toHaveLength(7);
+  const opponentTray = screen.getByRole("group", { name: "Opponent tiles played" });
+  expect(within(opponentTray).getAllByRole("img").map((tile) => tile.getAttribute("aria-label")))
+    .toEqual(["A, played", "R, played"]);
+  expect(opponentTray.querySelectorAll(".rack-tile.empty")).toHaveLength(5);
   const chart = screen.getByRole("figure", { name: "Score by move" });
   const cursor = () => chart.querySelector(".score-chart-cursor")?.getAttribute("x1");
   const pairPosition = cursor();
@@ -2273,6 +2275,7 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(document.activeElement).not.toBe(slider);
   expect(cell("I6: empty")).toHaveProperty("disabled", true);
   expect(screen.getByRole("group", { name: "Replay score" }).textContent).toContain("10–0");
+  expect(strip.getByText("1 You")).toBeTruthy();
   expect(strip.getByText("CAT")).toBeTruthy();
   expect(strip.getByText("8G")).toBeTruthy();
   expect(strip.getByText("10 pts")).toBeTruthy();
@@ -2310,19 +2313,16 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(current()).toEqual(original);
 });
 
-test("the replay setting shows played opponent tiles only on their turn", async () => {
-  remote.games[0] = replayFixture(true, "CTSA");
+test("replay always highlights opponent placements and exposes tile counts when the rack is unknown", async () => {
+  const saved = replayFixture(true, "CTSA");
+  delete saved.trackedMoves![1].review!.observerRack;
+  remote.games[0] = {
+    ...saved,
+    template: { ...saved.template, tileCounts: { ...getTileCounts(saved.template), "?": 0 } },
+  };
+  localStorage.setItem("tilemaxx:workspace-preferences", JSON.stringify({ showReplayOpponentTiles: false }));
   const user = await start(1200);
   await waitFor(() => expect(current().trackedMoves).toHaveLength(2));
-  await user.click(cell("Settings"));
-  const setting = within(screen.getByRole("dialog", { name: "Settings" })).getByRole(
-    "checkbox",
-    { name: "Show opponent’s played tiles" },
-  );
-  expect(setting).toHaveProperty("checked", false);
-  await user.click(setting);
-  await user.keyboard("{Escape}");
-  expect(JSON.parse(localStorage.getItem("tilemaxx:workspace-preferences")!).showReplayOpponentTiles).toBe(true);
 
   const options = await openGameOptions(user);
   await user.click(options.getByRole("button", { name: "Replay game" }));
@@ -2330,12 +2330,20 @@ test("the replay setting shows played opponent tiles only on their turn", async 
   expect(within(controls.getByRole("status")).getByText("aR(T)")).toBeTruthy();
   const partial = screen.getByRole("group", { name: "Opponent tiles played" });
   expect(within(partial).getAllByRole("img").map((tile) => tile.getAttribute("aria-label")))
-    .toEqual(["Blank", "R"]);
+    .toEqual(["Blank, played", "R, played"]);
   expect(partial.querySelectorAll(".rack-tile.empty")).toHaveLength(5);
-  expect(partial.querySelector(".move-preview")).toBeNull();
+  expect(partial.querySelectorAll(".move-preview")).toHaveLength(2);
+  const bag = screen.getByRole("button", { name: /Unseen tiles, .*check tile counts/ });
+  expect(bag.hasAttribute("data-overdrawn")).toBe(true);
+  await user.click(bag);
+  expect(screen.getByText("Your rack wasn’t recorded. These counts include any tiles it held.")).toBeTruthy();
+  const breakdown = screen.getByRole("list", { name: "Unseen tile counts" });
+  expect(within(breakdown).getByRole("listitem", { name: "Blank: 1 extra" })).toBeTruthy();
   expect(partial.closest(".replay-rack")?.querySelector(".replay-rack-label")?.textContent).toBe("Opponent");
   await user.click(controls.getByRole("button", { name: "Previous move" }));
   const own = screen.getByRole("group", { name: "Your rack" });
+  expect(screen.getByRole("list", { name: "Unseen tile counts" })).toBeTruthy();
+  expect(screen.queryByText("Your rack wasn’t recorded. These counts include any tiles it held.")).toBeNull();
   expect(Array.from(own.querySelectorAll(".rack-tile"), (tile) => tile.getAttribute("aria-label")))
     .toEqual(["S", "A, played", "C, played", "T, played", null, null, null]);
   expect(screen.queryByRole("group", { name: /Opponent.*(rack|tiles)/ })).toBeNull();

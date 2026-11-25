@@ -4579,7 +4579,7 @@ label + label {
   color: #260c0b;
 }
 .square.occupied.ghost.blank,
-.rack-tile.move-preview .rack-face.blank {
+.rack-tile.move-preview .rack-face.blank:not(.replay-rack[data-player="you"] *) {
   --preview-dark: #648fb8;
   --preview-tint: #b3d2ed;
   --preview-edge: #355e83;
@@ -6763,14 +6763,16 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 @container (max-width: 220px) {
   .replay-move-strip { padding-inline: 5px; }
 }
-.replay-move-player, .replay-move-result { white-space: nowrap; }
+.replay-move-player, .replay-move-result {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 .replay-move-result {
   display: grid;
   grid-template-columns: calc(var(--replay-point-digits) * 1ch + 2em) 3ch;
   align-items: baseline;
   gap: 4px;
   text-align: start;
-  font-variant-numeric: tabular-nums;
 }
 .replay-move-result strong { color: var(--value-good); }
 .replay-move-strip[data-player="opponent"] .replay-move-result strong { color: var(--value-bad); }
@@ -6877,11 +6879,12 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   line-height: 1.15;
   text-align: center;
 }
-.replay-rack .rack-tile { cursor: default; }
-.replay-rack[data-player="opponent"] {
-  --preview-tile-light: 70%;
+.replay-rack {
+  --preview-tile-light: 55%;
   --preview-tile-scale: 1;
 }
+.replay-rack .rack-tile { cursor: default; }
+.replay-rack[data-player="opponent"] { --preview-tile-light: 70%; }
 .replay-rack .rack-tile[data-used-group-start] { margin-inline-start: 4px; }
 .compact-game .replay-rack-row {
   display: grid;
