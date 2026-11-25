@@ -4,6 +4,7 @@ import {
   useId,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -55,7 +56,7 @@ type BoardInputHandle = Pick<BoardEntryHandle, "toggleCoordinateOverlay"> & {
 };
 
 type Draft = { board: BoardState; direction: Direction };
-type DraftHistory = { current: Draft; past: Draft[]; future: Draft[] };
+export type DraftHistory = { current: Draft; past: Draft[]; future: Draft[] };
 type OwnPlayInput = {
   base: BoardState;
   board: BoardState;
@@ -75,10 +76,12 @@ export default function BoardEntry({
   displayBoard,
   preview,
   previewPlayer,
+  definePreview,
   onChange,
   onSelect,
   onSolve,
   ownPlay,
+  storedDraft,
   moveFilter,
   historyControls,
   statusAction,
@@ -91,8 +94,9 @@ export default function BoardEntry({
   hideHelp?: boolean;
   readOnly?: boolean;
   displayBoard?: BoardState;
-  preview: Move | null;
+  preview: Pick<Move, "tiles"> | null;
   previewPlayer?: Player;
+  definePreview?: boolean;
   onChange: (game: Game) => void;
   onSelect: () => void;
   onSolve?: () => void;
@@ -102,6 +106,7 @@ export default function BoardEntry({
     onCancel: () => void;
     onFixRack: () => void;
   };
+  storedDraft?: { current: DraftHistory | undefined };
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
   statusAction?: ReactNode;
@@ -112,7 +117,7 @@ export default function BoardEntry({
   const recordAnyway = useRef<HTMLButtonElement>(null);
   const rackConfirmationId = useId();
   const [confirmingRack, setConfirmingRack] = useState(false);
-  const [draftHistory, setDraftHistory] = useState<DraftHistory>(() => ({
+  const [draftHistory, setDraftHistory] = useState<DraftHistory>(() => storedDraft?.current ?? ({
     current: { board: game.board, direction: "across" },
     past: [],
     future: [],
@@ -128,6 +133,9 @@ export default function BoardEntry({
   const displayMove = checkingRack ? placement : move;
   const enteringOwnPlay = !!ownPlay;
 
+  useLayoutEffect(() => {
+    if (storedDraft && enteringOwnPlay) storedDraft.current = draftHistory;
+  }, [draftHistory, enteringOwnPlay, storedDraft]);
   useEffect(() => setConfirmingRack(false), [draftHistory.current, game.rack]);
 
   useLayoutEffect(() => {
@@ -183,6 +191,7 @@ export default function BoardEntry({
         template={game.template}
         preview={ownPlay ? null : preview}
         previewPlayer={previewPlayer}
+        definePreview={definePreview}
         wordScores={displayBoard ? undefined : wordScores}
         definitionLanguage={displayBoard ? undefined : definitionLanguageForRules(game.template.rules)}
         onSelect={onSelect}
@@ -274,6 +283,7 @@ export function BoardInput({
   template,
   preview,
   previewPlayer,
+  definePreview,
   onChange,
   onSelect,
   onSolve,
@@ -300,8 +310,9 @@ export function BoardInput({
   board: BoardState;
   archivedBoard?: BoardState;
   template: BoardTemplate;
-  preview?: Move | null;
+  preview?: Pick<Move, "tiles"> | null;
   previewPlayer?: Player;
+  definePreview?: boolean;
   onChange: (board: BoardState, kind: EditKind, direction: Direction) => void;
   onSelect?: () => void;
   onSolve?: () => void;
@@ -385,9 +396,15 @@ export function BoardInput({
   const toggleMark = readOnly ? undefined : moveFilter?.onToggle;
   const locating = coordinateQuery !== null && !readOnly && !toggleMark;
   const lookupLanguage = readOnly || toggleMark || locating ? undefined : definitionLanguage;
-  const definitions = useDefinitionTooltip(lookupLanguage, board);
-  const canDefine = !!lookupLanguage && board.some(Boolean);
-  useLayoutEffect(() => setDefining(false), [board, phoneLayout, lookupLanguage]);
+  const definitionBoard = useMemo(() => {
+    if (!definePreview || !preview) return board;
+    const shown = board.slice();
+    for (const { index, letter } of preview.tiles) shown[index] = letter;
+    return shown;
+  }, [board, preview, definePreview]);
+  const definitions = useDefinitionTooltip(lookupLanguage, definitionBoard);
+  const canDefine = !!lookupLanguage && definitionBoard.some(Boolean);
+  useLayoutEffect(() => setDefining(false), [definitionBoard, phoneLayout, lookupLanguage]);
   useLayoutEffect(() => {
     if (locating && !defining && document.activeElement !== input.current) focus();
   }, [locating, defining]);
@@ -670,7 +687,7 @@ export function BoardInput({
   }
 
   function openDefinition(anchor: HTMLButtonElement, index: number) {
-    const words = boardWordsThrough(board, n, index);
+    const words = boardWordsThrough(definitionBoard, n, index);
     if (!words.length) return false;
     if (defining && phoneLayout) {
       definitions.openSheet(anchor, words, `Words at ${coordinate(index, n)}`);
@@ -693,7 +710,7 @@ export function BoardInput({
     >
       <Board
         template={template}
-        board={ownPlay?.board ?? board}
+        board={ownPlay?.board ?? (defining ? definitionBoard : board)}
         archivedBoard={archivedBoard}
         draftTiles={ownPlay?.tiles}
         missingRackTiles={ownPlay?.missing}

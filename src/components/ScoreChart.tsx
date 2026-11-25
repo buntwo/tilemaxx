@@ -250,6 +250,18 @@ export default function ScoreChart({
           const play = displayed.plays[player];
           const muted = replay && pair.last > 0 && !play;
           const current = replay && play?.number === replay.index;
+          const destination = replay && pair.plays[player]?.number;
+          const playLabel = play ? (
+            <>
+              {play.bingo && <BingoBadge />}
+              <span className={play.bingo ? "bingo-move-word" : undefined}>{play.word}</span>
+              <span className="score-chart-points">+{number.format(play.score)} pts</span>
+            </>
+          ) : muted ? (
+            <span className="score-chart-note">
+              {waitingFor === player ? "Yet to play" : "No recorded play"}
+            </span>
+          ) : null;
           return (
             <div
               key={player}
@@ -264,24 +276,16 @@ export default function ScoreChart({
                 {number.format(displayed.totals[player])}
               </dd>
               <dd className={play || muted ? "score-chart-play" : undefined}>
-                {play && (
-                  <>
-                    {play.bingo && <BingoBadge />}
-                    <span
-                      className={play.bingo ? "bingo-move-word" : undefined}
-                    >
-                      {play.word}
-                    </span>
-                    <span className="score-chart-points">
-                      +{number.format(play.score)} pts
-                    </span>
-                  </>
-                )}
-                {muted && (
-                  <span className="score-chart-note">
-                    {waitingFor === player ? "Yet to play" : "No recorded play"}
-                  </span>
-                )}
+                {destination && replay ? (
+                  <button
+                    type="button"
+                    className="text-button score-chart-turn-jump"
+                    aria-label={`Jump to move ${destination}`}
+                    onClick={() => replay.seek(destination)}
+                  >
+                    {playLabel}
+                  </button>
+                ) : playLabel}
               </dd>
             </div>
           );

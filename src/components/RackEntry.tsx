@@ -1,3 +1,5 @@
+import type { ReplayFrame } from "../../shared/game-replay";
+import { ReplayDrawShelf } from "./GameReplay";
 import {
   useCallback,
   useEffect,
@@ -68,6 +70,9 @@ export default function RackEntry({
   opponentRack,
   preview,
   flyingRack,
+  replayFrame,
+  recordedPreview,
+  drawShelf,
 }: {
   ref?: Ref<RackEntryHandle>;
   game: Game;
@@ -84,8 +89,11 @@ export default function RackEntry({
   tileCountsInvalid: boolean;
   exchangeScorelessTurns: number;
   opponentRack: string;
-  preview?: Move | null;
+  preview?: Pick<Move, "tiles"> | null;
   flyingRack?: { before: Game; slots: number[] };
+  replayFrame?: ReplayFrame;
+  recordedPreview?: boolean;
+  drawShelf?: boolean;
 }) {
   const [cursor, setCursor] = useState(game.rack.length);
   const [focused, setFocused] = useState(false);
@@ -115,7 +123,14 @@ export default function RackEntry({
   const exchangeMode = mode === "exchange";
   const reviewing = !!onReviewEdit;
   const bagLabel = `${bagCount}${bagConfirmed ? "" : " estimated"} ${bagCount === 1 ? "tile" : "tiles"} in the bag`;
-  const bagStatus = tileCountsInvalid ? `${bagLabel}, check tile counts` : bagLabel;
+  const recordedBag = replayFrame?.bag;
+  const bagUnavailable = !!replayFrame && !recordedBag;
+  const bagEstimate = recordedBag
+    ? `${recordedBag.count}${recordedBag.estimated ? " estimated" : ""} ${recordedBag.count === 1 ? "tile" : "tiles"} in the bag before the play`
+    : bagLabel;
+  const bagInvalid = recordedBag?.invalid ?? tileCountsInvalid;
+  const bagStatus = bagInvalid ? `${bagEstimate}, check tile counts` : bagEstimate;
+  const recordedOpponent = replayFrame?.move?.player === "opponent";
   const tools = useRef<HTMLDetailsElement>(null);
   const openExchange = useRef<{ reveal: boolean }>(null);
   const exchangeButton = useRef<HTMLButtonElement>(null);
@@ -442,7 +457,7 @@ export default function RackEntry({
       ref={rack}
       className="rack-tiles"
       role="group"
-      aria-label="Your rack tiles"
+      aria-label={recordedOpponent ? replayFrame.rack === undefined ? "Opponent tiles played" : "Opponent rack" : "Your rack tiles"}
       onClick={
         onReviewEdit
           ? (event) => {
@@ -477,6 +492,7 @@ export default function RackEntry({
             type="button"
             key={i}
             data-rack-slot={i}
+            data-used-group-start={recordedPreview && previewed && i > 0 && !previewSlots?.includes(i - 1) || undefined}
             data-rack-reorderable={canReorder && tile ? "" : undefined}
             className={`rack-tile ${!tile ? "empty" : ""} ${tile === "?" ? "blank" : ""} ${excluded ? "excluded" : ""} ${required ? "required-tile" : ""} ${exchanging ? "exchange-mark" : ""} ${active ? "selected" : ""} ${previewed ? "move-preview" : ""}`}
             aria-label={`Rack tile ${i + 1}: ${tile === "?" ? "blank" : tile || "empty"}${excluded ? ", held out of solver" : ""}${required ? ", required for this move" : ""}${exchanging ? ", marked for exchange" : ""}${previewed ? ", used by preview" : ""}${onReviewEdit ? ", edit rack" : ""}`}
@@ -684,12 +700,12 @@ export default function RackEntry({
   );
   const bagButton = (
     <RackBag
-      count={bagCount}
-      label={bagStatus}
-      invalid={tileCountsInvalid}
-      controls={tilePoolId}
-      expanded={tilePoolOpen}
-      onClick={() => {
+      count={bagUnavailable ? "?" : recordedBag?.count ?? bagCount}
+      label={bagUnavailable ? "Bag count unavailable" : bagStatus}
+      invalid={!bagUnavailable && bagInvalid}
+      controls={bagUnavailable ? undefined : tilePoolId}
+      expanded={bagUnavailable ? undefined : tilePoolOpen}
+      onClick={bagUnavailable ? undefined : () => {
         onReviewEdit?.();
         setTilePoolOpen((open) => !open);
       }}
@@ -776,19 +792,23 @@ export default function RackEntry({
           }
         />
       )}
-      <TilePool
-        pool={unseenTiles(game, game.template)}
+      {!bagUnavailable && <TilePool
+        pool={replayFrame?.unseen ?? unseenTiles(game, game.template)}
+        rackUnknown={replayFrame?.unseenRackUnknown}
         solo={game.solo}
         id={tilePoolId}
         open={tilePoolOpen}
         hideWhenClosed={phoneLayout}
         onOpenChange={setTilePoolOpen}
-      />
+      />}
     </>
   );
   return (
     <div
       className="rack-entry"
+      data-recorded-preview={recordedPreview || undefined}
+      data-replay-opponent={recordedOpponent || undefined}
+      data-draw-shelf={drawShelf || undefined}
       style={
         {
           "--rack-size": capacity,
@@ -798,12 +818,19 @@ export default function RackEntry({
     >
       {phoneLayout && rackTools}
       <div className="rack-lane rack-player-lane">
-        {opponentRack && (
+        {(opponentRack || replayFrame?.move) && (
           <small className="rack-owner-label" aria-hidden="true">
-            You
+            {recordedOpponent ? "Opponent" : "You"}
           </small>
         )}
         {playerTiles}
+        {drawShelf && (
+          <ReplayDrawShelf
+            draw={recordedPreview ? replayFrame?.draw : undefined}
+            rules={game.template.rules}
+            start={previewSlots?.length ? Math.min(...previewSlots) : 0}
+          />
+        )}
         {!phoneLayout && !reviewing && (
           <>
             <button

@@ -1,22 +1,16 @@
 import {
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
 } from "react";
-import { createPortal } from "react-dom";
 import { ChevronDown, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import type { ReplayFrame } from "../../shared/game-replay";
-import { emptyBoard, isBingo, tileScore } from "../../shared/model";
+import { isBingo, tileScore } from "../../shared/model";
 import { recordedMoveDetails } from "../../shared/notation";
-import { sortedRackSlots } from "../../shared/rack-entry";
-import Board from "./Board";
 import { ScorePlayerMarker } from "./GameScores";
 import MoveWord from "./MoveWord";
-import RackBag from "./RackBag";
-import TilePool from "./TilePool";
 import ScoreChart from "./ScoreChart";
 
 function replayBingo({ move, position, template }: ReplayFrame) {
@@ -25,35 +19,17 @@ function replayBingo({ move, position, template }: ReplayFrame) {
   );
 }
 
-export function ReplayBoard({ frame }: { frame: ReplayFrame }) {
-  const { board, template, position, move } = frame;
-  return (
-    <>
-      <div className="last-play-lane">
-        <div className="last-play-row"><span>Replay</span></div>
-      </div>
-      <div className="board-entry">
-        <Board
-          template={template}
-          board={board ?? emptyBoard(template.size)}
-          preview={position}
-          previewPlayer={move?.player}
-          disabled
-          overlay={
-            board ? undefined : (
-              <div className="replay-board-unavailable">
-                <span>Board unavailable for this position</span>
-              </div>
-            )
-          }
-        />
-      </div>
-    </>
-  );
-}
-
-function ReplayMoveStrip({ frame, index }: { frame: ReplayFrame; index: number }) {
-  const { board, move, position, template } = frame;
+function ReplayMoveStrip({
+  frame, index, historical, showRecorded, onToggleRecorded,
+}: {
+  frame: ReplayFrame;
+  index: number;
+  historical: boolean;
+  showRecorded: boolean;
+  onToggleRecorded: () => void;
+}) {
+  const { board, position, template } = frame;
+  const move = historical ? frame.move : undefined;
   const details = move && recordedMoveDetails(move, position, template.size);
   return (
     <div
@@ -62,19 +38,28 @@ function ReplayMoveStrip({ frame, index }: { frame: ReplayFrame; index: number }
       role="status"
       aria-atomic="true"
     >
+      <span className="replay-strip-label">Replay</span>
       {move ? (
         <>
           <div className="replay-move-word">
             <span className="replay-move-player">
               {index} {move.player === "you" ? "You" : "Opp"}
             </span>
-            <strong className="last-play-word" title={details?.notation ?? move.word}>
+            <button
+              className="text-button replay-recorded-word last-play-word"
+              type="button"
+              disabled={!position}
+              aria-label={`Preview recorded move ${move.word}`}
+              aria-pressed={showRecorded}
+              title={details?.notation ?? move.word}
+              onClick={onToggleRecorded}
+            >
               <MoveWord
                 word={move.word}
                 notation={details?.notation}
                 bingo={replayBingo(frame)}
               />
-            </strong>
+            </button>
           </div>
           <div className="replay-move-result">
             <strong>{move.score} pts</strong>
@@ -83,7 +68,7 @@ function ReplayMoveStrip({ frame, index }: { frame: ReplayFrame; index: number }
         </>
       ) : (
         <span>
-          {board?.every((tile) => !tile)
+          {!historical ? "Final board" : board?.every((tile) => !tile)
             ? "Start of game"
             : "Before first recorded move"}
         </span>
@@ -97,6 +82,11 @@ export function ReplayControls({
   frames,
   index,
   last,
+  recordedCount,
+  archived,
+  historical,
+  showRecorded,
+  onToggleRecorded,
   playing,
   seek,
   togglePlay,
@@ -106,6 +96,11 @@ export function ReplayControls({
   frames: readonly ReplayFrame[];
   index: number;
   last: number;
+  recordedCount: number;
+  archived: boolean;
+  historical: boolean;
+  showRecorded: boolean;
+  onToggleRecorded: () => void;
   playing: boolean;
   seek: (index: number) => void;
   togglePlay: () => void;
@@ -117,18 +112,19 @@ export function ReplayControls({
     [frames],
   );
   useEffect(() => {
+    if (archived) return;
     controls.current?.focus({ preventScroll: true });
     controls.current?.scrollIntoView?.({ block: "nearest" });
-  }, []);
+  }, [archived]);
   const playLabel = playing
     ? "Pause replay"
     : index === last
       ? "Play from start"
       : "Play replay";
   const value =
-    index === 0
+    !historical ? "Final board" : index === 0
       ? "Before the first recorded move"
-      : `Move ${index} of ${last}, ${frame.move?.player === "you" ? "you" : "opponent"}, ${frame.move?.word}, ${frame.move?.score} points`;
+      : `Move ${index} of ${recordedCount}, ${frame.move?.player === "you" ? "you" : "opponent"}, ${frame.move?.word}, ${frame.move?.score} points`;
   return (
     <div
       ref={controls}
@@ -139,7 +135,7 @@ export function ReplayControls({
       aria-keyshortcuts="ArrowLeft ArrowRight Space"
       tabIndex={-1}
     >
-      <ReplayMoveStrip frame={frame} index={index} />
+      <ReplayMoveStrip {...{ frame, index, historical, showRecorded, onToggleRecorded }} />
       <div className="board-replay-track">
         <input
           type="range"
@@ -156,7 +152,7 @@ export function ReplayControls({
           onChange={(event) => seek(event.currentTarget.valueAsNumber)}
         />
         <span className="board-replay-count" aria-hidden="true">
-          {index} / {last}
+          {Math.min(index, recordedCount)} / {recordedCount}
         </span>
       </div>
       <div className="board-replay-transport">
@@ -194,13 +190,13 @@ export function ReplayControls({
           <SkipForward size={16} aria-hidden="true" />
         </button>
       </div>
-      <button
+      {historical && <button
         className="text-button board-replay-done"
         type="button"
         onClick={close}
       >
-        Done
-      </button>
+        {archived ? "Final board" : "Back to live"}
+      </button>}
     </div>
   );
 }
@@ -301,24 +297,18 @@ export function ReplayScores({
 function ReplayTile({
   tile,
   rules,
-  played = false,
-  start = false,
   unknown = false,
 }: {
   tile?: string;
   rules: ReplayFrame["template"]["rules"];
-  played?: boolean;
-  start?: boolean;
   unknown?: boolean;
 }) {
   const label = unknown ? "Drawn letter unknown" : tile === "?" ? "Blank" : tile;
   return (
     <span
-      className={`rack-tile${!label ? " empty" : ""}${played ? " move-preview" : ""}`}
-      data-used-group-start={start || undefined}
+      className="rack-tile"
       role="img"
-      aria-hidden={!label || undefined}
-      aria-label={played ? `${label}, played` : label}
+      aria-label={label}
     >
       <span className="rack-slot">
         <span className={`rack-face${unknown ? " unknown" : tile === "?" ? " blank" : !tile ? " empty" : ""}`}>
@@ -330,118 +320,36 @@ function ReplayTile({
   );
 }
 
-export function ReplayRack({
-  frame,
-  drawShelf,
-  solo,
-  phone,
-  detailsTarget,
+export function ReplayDrawShelf({
+  draw,
+  rules,
+  start,
 }: {
-  frame: ReplayFrame;
-  drawShelf: boolean;
-  solo?: boolean;
-  phone: boolean;
-  detailsTarget: HTMLDivElement | null;
+  draw?: ReplayFrame["draw"];
+  rules: ReplayFrame["template"]["rules"];
+  start: number;
 }) {
-  const { bag, draw, move, playedSlots, template, unseen, unseenRackUnknown } = frame;
-  const tilePoolId = useId();
-  const [poolOpen, setPoolOpen] = useState(false);
-  const opponent = move?.player === "opponent";
-  const partial = opponent && frame.rack === undefined
-    ? frame.opponentPlayedTiles
-    : undefined;
-  const rack = frame.rack ?? partial;
-  const slots = sortedRackSlots((rack ?? "").slice(0, template.rackSize));
-  const used = partial ? slots : slots.filter((slot) => playedSlots?.includes(slot));
-  const leave = slots.filter((slot) => !used.includes(slot));
-  const empty = Array<undefined>(template.rackSize - slots.length).fill(undefined);
-  const order = [...leave, ...used, ...empty];
-  const usedEnd = leave.length + used.length;
-  const label = opponent ? "Opponent rack" : "Your rack";
-  const bagLabel = bag
-    ? `${bag.count}${bag.estimated ? " estimated" : ""} ${bag.count === 1 ? "tile" : "tiles"} in the bag before the play${bag.invalid ? ", check tile counts" : ""}`
-    : "Bag count unavailable";
-  const details = unseen && (
-    <TilePool
-      pool={unseen}
-      solo={solo}
-      rackUnknown={unseenRackUnknown}
-      id={tilePoolId}
-      open={poolOpen}
-      hideWhenClosed={phone}
-      onOpenChange={setPoolOpen}
-    />
-  );
   return (
-    <div
-      className="rack-entry replay-rack"
-      data-player={move?.player}
-      data-draw-shelf={drawShelf || undefined}
-      style={{ "--rack-size": template.rackSize } as CSSProperties}
-    >
-      <div className="replay-rack-label" aria-hidden="true">
-        {opponent ? "Opponent" : "You"}
-      </div>
-      <div className="replay-rack-row">
-        <div
-          className="rack-tiles"
-          role="group"
-          aria-label={
-            partial ? "Opponent tiles played" :
-            rack === undefined ? `${label} unavailable` : label
-          }
-        >
-          {order.map((slot, i) => {
-            const played = i >= leave.length && i < usedEnd;
-            return (
-              <ReplayTile
-                key={i}
-                tile={slot === undefined ? undefined : rack?.[slot]}
-                rules={template.rules}
-                played={played}
-                start={played && i === leave.length && i > 0}
-              />
-            );
-          })}
-        </div>
-        <RackBag
-          count={bag?.count ?? "?"}
-          label={bagLabel}
-          invalid={bag?.invalid}
-          controls={unseen ? tilePoolId : undefined}
-          expanded={unseen ? poolOpen : undefined}
-          onClick={unseen ? () => setPoolOpen((open) => !open) : undefined}
-        />
-        {drawShelf && (
-          <div className="replay-draw-space">
-            <div className="replay-draw-lane">
-              {draw && (
-                <div
-                  className="replay-draw-shelf"
-                  role="group"
-                  aria-label={draw.count === undefined ? "Draw unknown" : "Tiles drawn"}
-                  style={{ "--draw-start": leave.length } as CSSProperties}
-                >
-                  <span className="replay-draw-label" aria-hidden="true">
-                    {draw.count === undefined ? "Draw" : "Drew"}
-                  </span>
-                  <div className="replay-draw-tiles">
-                    {Array.from({ length: draw.count ?? 1 }, (_, i) => (
-                      <ReplayTile
-                        key={i}
-                        tile={draw.tiles[i]}
-                        rules={template.rules}
-                        unknown={!draw.tiles[i]}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+    <div className="replay-draw-space">
+      <div className="replay-draw-lane">
+        {draw && (
+          <div
+            className="replay-draw-shelf"
+            role="group"
+            aria-label={draw.count === undefined ? "Draw unknown" : "Tiles drawn"}
+            style={{ "--draw-start": start } as CSSProperties}
+          >
+            <span className="replay-draw-label" aria-hidden="true">
+              {draw.count === undefined ? "Draw" : "Drew"}
+            </span>
+            <div className="replay-draw-tiles">
+              {Array.from({ length: draw.count ?? 1 }, (_, i) => (
+                <ReplayTile key={i} tile={draw.tiles[i]} rules={rules} unknown={!draw.tiles[i]} />
+              ))}
             </div>
           </div>
         )}
       </div>
-      {phone ? detailsTarget && createPortal(details, detailsTarget) : details}
     </div>
   );
 }

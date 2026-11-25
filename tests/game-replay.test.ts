@@ -5,7 +5,7 @@ import {
   compactArchivedHistory,
 } from "../shared/archive-history";
 import { summarizeGame } from "../shared/game-index";
-import { gameReplayTimeline, hasRecordedMoves } from "../shared/game-replay";
+import { gameReplayTimeline, hasRecordedMoves, replayGamePosition } from "../shared/game-replay";
 import {
   boardWordsAt,
   emptyScoring,
@@ -655,4 +655,41 @@ test("pruning edits does not credit a removed and replaced word to an old move",
   const archived = gameSchema.parse(archiveForReview(replaced));
   assert.deepEqual(boardWordsAt(archived, 112), original);
   assert.equal(gameReplayTimeline(archived).frames[1].position?.rack, "CAT");
+});
+
+test("a replay trial starts with the historical layout, physical rack and scores", () => {
+  const board = emptyBoard(15);
+  board[112] = "A";
+  const source = archiveGame(gameWithMoves([]));
+  const move: TrackedMove = { player: "opponent", word: "CAT", score: 5, at: "" };
+  const frame = {
+    board,
+    template: { ...source.template, bingo: 40 },
+    move,
+    position: {
+      board, dictionaryId: "historical", tiles: [{ index: 111, letter: "c" }, { index: 113, letter: "T" }],
+    },
+    opponentPlayedTiles: "?T",
+    scores: { you: 21, opponent: 15 },
+  };
+  const trial = replayGamePosition(source, frame, { you: 21, opponent: 10 }, 3);
+  assert.equal(trial.rack, "?T");
+  assert.equal(trial.scoring?.you.points, 10);
+  assert.equal(trial.scoring?.opponent.points, 21);
+  assert.equal(trial.dictionaryId, "historical");
+  assert.equal(trial.template.bingo, 40);
+  assert.deepEqual(trial.board, board);
+  assert.deepEqual(trial.past, []);
+  assert.deepEqual(trial.future, []);
+  assert.equal(trial.archivedState, undefined);
+  assert.equal(source.archived, true);
+  assert.equal(source.rack, "ZYXWVUT");
+
+  const own = replayGamePosition(source, {
+    ...frame, move: { ...move, player: "you" }, rack: "ZC.AT", playedSlots: [1, 3, 4],
+    position: { ...frame.position, requiredRackSlots: [3], excludedRackSlots: [0] },
+  }, { you: 21, opponent: 10 }, 3);
+  assert.equal(own.rack, "ZACT");
+  assert.deepEqual(own.requiredRackSlots, [1]);
+  assert.deepEqual(own.excludedRackSlots, [0]);
 });

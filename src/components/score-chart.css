@@ -188,3 +188,18 @@
 .score-chart-tooltip [data-unplayed] .score-chart-swatch { --series-color: var(--muted); }
 .score-chart-tooltip [data-current] .score-chart-play { color: var(--primary); }
 .score-chart-note { color: var(--muted); font-weight: 400; }
+
+.score-chart-tooltip .score-chart-turn-jump {
+  display: inline-flex;
+  align-items: center;
+  justify-content: start;
+  gap: 4px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  color: inherit;
+  text-align: start;
+  pointer-events: auto;
+}
+.score-chart-turn-jump:hover { text-decoration: underline; }
+.phone-layout .score-chart-turn-jump { min-height: 26px; }

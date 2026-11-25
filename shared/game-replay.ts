@@ -1,5 +1,6 @@
 import { currentScoreStart, reviewTurns, scorePlacement } from "./game-scoring";
 import {
+  emptyBoard,
   restoreArchivedGame,
   trackedMoveHistory,
   type Board,
@@ -11,7 +12,7 @@ import {
   type TrackedMove,
   type TurnPosition,
 } from "./model";
-import { rackComposition, rackLetters, rackSlotsForLetters, rackSlotsForMove } from "./rack-entry";
+import { rackComposition, rackLetters, rackSlotsForLetters, rackSlotsForMove, sortedRackSlots } from "./rack-entry";
 import { endgameOpponentRack, unseenTiles } from "./tile-pool";
 
 export type ReplayFrame = {
@@ -360,4 +361,47 @@ export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreSt
     snapshot?.replayRecovery,
   );
   return { frames, scoreStart };
+}
+
+/** A disposable game at the beginning of the selected turn, from its player's perspective. */
+export function replayGamePosition(
+  source: Game,
+  frame: ReplayFrame,
+  scores: Record<Player, number>,
+  index: number,
+): Game {
+  const rack = frame.rack ?? frame.opponentPlayedTiles ??
+    (frame.move?.player === "you"
+      ? frame.position?.tiles.map(({ letter }) => letter === letter.toUpperCase() ? letter : "?").join("")
+      : undefined) ?? "";
+  const opponent = frame.move?.player === "opponent";
+  const slots = sortedRackSlots(rack);
+  const used = new Set(frame.playedSlots ?? (frame.rack === undefined ? slots : []));
+  const order = [...slots.filter((slot) => !used.has(slot)), ...slots.filter((slot) => used.has(slot))];
+  const remap = (marks: number[] | undefined) =>
+    marks?.map((slot) => order.indexOf(slot)).filter((slot) => slot >= 0);
+  const score = (points: number) => ({ points, best: 0, moves: 0, bingos: 0 });
+  return {
+    ...source,
+    id: `${source.id}:replay:${index}`,
+    archived: false,
+    archivedBoard: undefined,
+    archivedState: undefined,
+    savedBoardWordScores: undefined,
+    originalPremiums: undefined,
+    board: frame.board ?? emptyBoard(frame.template.size),
+    template: frame.template,
+    dictionaryId: frame.position?.dictionaryId ?? source.dictionaryId,
+    rack: order.map((slot) => rack[slot]).join(""),
+    excludedRackSlots: !opponent ? remap(frame.position?.excludedRackSlots) : undefined,
+    requiredRackSlots: !opponent ? remap(frame.position?.requiredRackSlots) : undefined,
+    past: [],
+    future: [],
+    trackedMoves: [],
+    trackScores: true,
+    scoring: {
+      you: score(scores[opponent ? "opponent" : "you"]),
+      opponent: score(scores[opponent ? "you" : "opponent"]),
+    },
+  };
 }

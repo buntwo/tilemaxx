@@ -2235,6 +2235,12 @@ test.each([false, true])("game options export the open game offline (archived=%s
   if (archived) expect(gameSnapshot.archivedState?.rack).toBe(base.rack);
 });
 
+function replayRackLabels(tray: HTMLElement) {
+  return Array.from(tray.querySelectorAll(".rack-tile"), (tile) =>
+    tile.getAttribute("aria-label")?.replace(/^Rack tile \d+: /, "").replace(", used by preview", ", played"),
+  );
+}
+
 test("live replay opens at the latest recorded move and keeps an in-progress play on exit", async () => {
   remote.games[0] = replayFixture();
   const user = await start();
@@ -2251,8 +2257,9 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   const slider = controls.getByRole("slider", { name: "Replay moves" });
   expect(slider).toHaveProperty("value", "2");
   expect(document.activeElement).toBe(slider.closest(".board-replay-controls"));
-  expect(screen.queryByRole("textbox", { name: "Type on board" })).toBeNull();
-  expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  expect(screen.getByRole("textbox", { name: "Type on board" })).toHaveProperty("disabled", false);
+  expect(cell("Undo")).toHaveProperty("disabled", true);
+  expect(cell("Define")).toBeTruthy();
   expect(screen.getByRole("group", { name: "Replay score" }).textContent).toContain("10–4");
   const strip = within(controls.getByRole("status"));
   expect(strip.getByText("2 Opp")).toBeTruthy();
@@ -2265,8 +2272,7 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(strip.getByText("I6")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Unseen tiles, 83 estimated tiles in the bag before the play" })).toBeTruthy();
   const opponentTray = screen.getByRole("group", { name: "Opponent tiles played" });
-  expect(within(opponentTray).getAllByRole("img").map((tile) => tile.getAttribute("aria-label")))
-    .toEqual(["A, played", "R, played"]);
+  expect(replayRackLabels(opponentTray).slice(0, 2)).toEqual(["A, played", "R, played"]);
   expect(opponentTray.querySelectorAll(".rack-tile.empty")).toHaveLength(5);
   expect(screen.queryByRole("group", { name: "Tiles drawn" })).toBeNull();
   const chart = screen.getByRole("figure", { name: "Score by move" });
@@ -2276,7 +2282,7 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   await user.keyboard("{ArrowLeft}");
   expect(slider).toHaveProperty("value", "1");
   expect(document.activeElement).not.toBe(slider);
-  expect(cell("I6: empty")).toHaveProperty("disabled", true);
+  expect(cell("I6: empty")).toHaveProperty("disabled", false);
   expect(screen.getByRole("group", { name: "Replay score" }).textContent).toContain("10–0");
   expect(strip.getByText("1 You")).toBeTruthy();
   expect(strip.getByText("CAT")).toBeTruthy();
@@ -2285,15 +2291,14 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(replayScore.getAttribute("data-turn")).toBe("you");
   expect(scorePanel.getByRole("img", { name: "Your turn" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Unseen tiles, 86 estimated tiles in the bag before the play" })).toBeTruthy();
-  const ownTray = screen.getByRole("group", { name: "Your rack" });
-  expect(within(ownTray).getAllByRole("img").map((tile) => tile.getAttribute("aria-label")))
-    .toEqual(["E", "I", "N", "S", "A, played", "C, played", "T, played"]);
+  const ownTray = screen.getByRole("group", { name: "Your rack tiles" });
+  expect(replayRackLabels(ownTray)).toEqual(["E", "I", "N", "S", "A, played", "C, played", "T, played"]);
   expect(ownTray.querySelectorAll(".move-preview")).toHaveLength(3);
   const drawShelf = screen.getByRole("group", { name: "Tiles drawn" });
   expect(within(drawShelf).getAllByRole("img").map((tile) => tile.getAttribute("aria-label")))
     .toEqual(["A", "O", "U"]);
   expect(drawShelf.style.getPropertyValue("--draw-start")).toBe("4");
-  expect(within(ownTray).getByRole("img", { name: "A, played" }).hasAttribute("data-used-group-start")).toBe(true);
+  expect(ownTray.querySelector("[data-used-group-start]")?.getAttribute("aria-label")).toContain("A, used by preview");
   const bag = screen.getByRole("button", { name: /^Unseen tiles, 86 estimated/ });
   await user.click(bag);
   expect(bag.getAttribute("aria-expanded")).toBe("true");
@@ -2311,7 +2316,7 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(within(chart).queryByText("Yet to play")).toBeNull();
   fireEvent.change(slider, { target: { value: "0" } });
   expect(screen.getByText("Start of game")).toBeTruthy();
-  expect(screen.getByRole("group", { name: "Your rack" }).querySelector(".move-preview")).toBeNull();
+  expect(screen.getByRole("group", { name: "Your rack tiles" }).querySelector(".move-preview")).toBeNull();
   expect(screen.queryByRole("group", { name: "Tiles drawn" })).toBeNull();
   expect(controls.getByRole("button", { name: "Previous move" })).toHaveProperty("disabled", true);
   await user.keyboard("{Escape}");
@@ -2319,6 +2324,10 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(document.activeElement).toBe(cell("Game options"));
   expect(cell("J8: S, draft tile")).toBeTruthy();
   expect(current()).toEqual(original);
+  const replayShortcut = cell("Replay game");
+  await user.click(replayShortcut);
+  await user.click(cell("Back to live"));
+  expect(document.activeElement).toBe(replayShortcut);
 });
 
 test("replay always highlights opponent placements and exposes tile counts when the rack is unknown", async () => {
@@ -2337,8 +2346,7 @@ test("replay always highlights opponent placements and exposes tile counts when 
   const controls = within(screen.getByRole("group", { name: "Game replay" }));
   expect(within(controls.getByRole("status")).getByText("aR(T)")).toBeTruthy();
   const partial = screen.getByRole("group", { name: "Opponent tiles played" });
-  expect(within(partial).getAllByRole("img").map((tile) => tile.getAttribute("aria-label")))
-    .toEqual(["Blank, played", "R, played"]);
+  expect(replayRackLabels(partial).slice(0, 2)).toEqual(["blank, played", "R, played"]);
   expect(partial.querySelectorAll(".rack-tile.empty")).toHaveLength(5);
   expect(partial.querySelectorAll(".move-preview")).toHaveLength(2);
   const bag = screen.getByRole("button", { name: /Unseen tiles, .*check tile counts/ });
@@ -2347,16 +2355,35 @@ test("replay always highlights opponent placements and exposes tile counts when 
   expect(screen.getByText("Your rack wasn’t recorded. These counts include any tiles it held.")).toBeTruthy();
   const breakdown = screen.getByRole("list", { name: "Unseen tile counts" });
   expect(within(breakdown).getByRole("listitem", { name: "Blank: 1 extra" })).toBeTruthy();
-  expect(partial.closest(".replay-rack")?.querySelector(".replay-rack-label")?.textContent).toBe("Opponent");
+  expect(partial.closest(".rack-entry")?.querySelector(".rack-owner-label")?.textContent).toBe("Opponent");
   await user.click(controls.getByRole("button", { name: "Previous move" }));
-  const own = screen.getByRole("group", { name: "Your rack" });
-  expect(screen.getByRole("list", { name: "Unseen tile counts" })).toBeTruthy();
+  const own = screen.getByRole("group", { name: "Your rack tiles" });
   expect(screen.queryByText("Your rack wasn’t recorded. These counts include any tiles it held.")).toBeNull();
-  expect(Array.from(own.querySelectorAll(".rack-tile"), (tile) => tile.getAttribute("aria-label")))
-    .toEqual(["S", "A, played", "C, played", "T, played", null, null, null]);
+  expect(replayRackLabels(own))
+    .toEqual(["S", "A, played", "C, played", "T, played", "empty", "empty", "empty"]);
   expect(screen.queryByRole("group", { name: /Opponent.*(rack|tiles)/ })).toBeNull();
   await user.click(controls.getByRole("button", { name: "Next move" }));
   expect(screen.getByRole("group", { name: "Opponent tiles played" })).toBeTruthy();
+});
+
+test("replay keeps a recorded score visible when the board cannot be recovered", async () => {
+  remote.games[0] = {
+    ...game(),
+    rack: "CAT",
+    revision: 1,
+    trackedMoves: [{ player: "you", word: "CAT", score: 10, at: "" }],
+  };
+  const user = await start(1200);
+  await waitFor(() => expect(current().trackedMoves).toHaveLength(1));
+  const options = await openGameOptions(user);
+  await user.click(options.getByRole("button", { name: "Replay game" }));
+
+  expect(screen.getByText("Board unavailable for this move")).toBeTruthy();
+  expect(cell("Preview recorded move CAT")).toHaveProperty("disabled", true);
+  expect(screen.getByRole("textbox", { name: "Type on board" })).toHaveProperty("disabled", true);
+  expect(screen.getByRole("group", { name: "Replay score" }).textContent).toContain("10–0");
+  expect(cell("Find moves")).toHaveProperty("disabled", true);
+  expect(cell("Bag count unavailable")).toHaveProperty("disabled", true);
 });
 
 test("archiving drops undo history, keeps replay and endgame racks, and allows later edits", async () => {
@@ -2395,31 +2422,47 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   await user.click(cell("A1: TW"));
   await user.keyboard("Q");
   await screen.findByRole("button", { name: "A1: Q, edited after archiving" });
-  const shortcut = cell("Replay game");
-  expect(shortcut.closest(".score-history-section")?.querySelector("details")?.open).toBe(false);
-  await user.click(shortcut);
   const controls = within(screen.getByRole("group", { name: "Game replay" }));
   const slider = controls.getByRole("slider", { name: "Replay moves" });
-  expect(slider).toHaveProperty("value", "0");
-  expect(controls.getByRole("button", { name: "Play replay" })).toBeTruthy();
-  await user.click(controls.getByRole("button", { name: "Next move" }));
-  expect(cell("H8: A, start")).toHaveProperty("disabled", true);
+  expect(slider).toHaveProperty("value", "3");
+  expect(controls.getByRole("button", { name: "Play from start" })).toBeTruthy();
+  fireEvent.change(slider, { target: { value: "1" } });
+  expect(cell("H8: DW, start")).toHaveProperty("disabled", false);
   expect(screen.queryByRole("button", { name: /^A1: Q/ })).toBeNull();
+  expect(cell("Define")).toBeTruthy();
+  await user.click(controls.getByRole("button", { name: "Preview recorded move CAT" }));
   expect(screen.getByRole("button", { name: "Unseen tiles, 0 estimated tiles in the bag before the play" })).toBeTruthy();
   expect(screen.queryByRole("group", { name: /Draw unknown|Tiles drawn/ })).toBeNull();
-  await user.click(controls.getByRole("button", { name: "Next move" }));
+
+  await act(() => store.flush());
+  const archivedBoard = current().board;
+  const archivedRevision = current().revision;
+  await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
+  await user.click((await screen.findAllByRole("button", { name: /^CATS, / }))[0]);
+  await screen.findByText("Trial from move 1");
+  expect(cell("Undo")).toHaveProperty("disabled", false);
+  await user.click(cell("Undo"));
+  expect(cell("Redo")).toHaveProperty("disabled", false);
+  await user.click(cell("Redo"));
+  await user.click(cell("Back to move 1"));
+  expect(cell("H8: DW, start")).toBeTruthy();
+  expect(cell("Undo")).toHaveProperty("disabled", true);
+  await act(() => store.flush());
+  expect(current().revision).toBe(archivedRevision);
+  expect(current().board).toEqual(archivedBoard);
+
+  await user.click(cell("Jump to move 2"));
+  await user.click(controls.getByRole("button", { name: "Preview recorded move ART" }));
   const opponentTray = screen.getByRole("group", { name: "Opponent rack" });
-  expect(screen.getByRole("button", { name: "Unseen tiles, 0 estimated tiles in the bag before the play" })).toBeTruthy();
-  expect(Array.from(opponentTray.querySelectorAll(".rack-tile"), (tile) => tile.getAttribute("aria-label")))
-    .toEqual(["Y", "Z", "A, played", "R, played", null, null, null]);
+  expect(replayRackLabels(opponentTray))
+    .toEqual(["Y", "Z", "A, played", "R, played", "empty", "empty", "empty"]);
   expect(opponentTray.querySelectorAll(".move-preview")).toHaveLength(2);
-  expect(within(opponentTray).getByRole("img", { name: "A, played" }).hasAttribute("data-used-group-start")).toBe(true);
   const bag = screen.getByRole("button", { name: /^Unseen tiles, 0 estimated/ });
   await user.click(bag);
   expect(screen.getByRole("list", { name: "Unseen tile counts" }).closest(".phone-rack-details")).toBeTruthy();
-  await user.click(controls.getByRole("button", { name: "Done" }));
+  await user.click(controls.getByRole("button", { name: "Final board" }));
   expect(cell("A1: Q, edited after archiving")).toHaveProperty("disabled", false);
-  expect(document.activeElement).toBe(shortcut);
+  expect(slider).toHaveProperty("value", "3");
 });
 
 test("entering your play infers a blank and records the move without searching", async () => {
@@ -6426,7 +6469,7 @@ test("the desktop divider retains its width when switching between play and repl
   expect(divider.value).toBe(divider.max);
   act(() => resizeShell(1200));
   expect(divider.value).toBe("510");
-  await user.click(cell("Done"));
+  await user.click(cell("Back to live"));
   expect(workspace.classList.contains("replay-workspace")).toBe(false);
   expect(divider.value).toBe("510");
 });
