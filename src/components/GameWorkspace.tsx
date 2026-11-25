@@ -20,6 +20,7 @@ export function useMoveReview(
 // Use the original key so saved divider positions carry over.
 const DIVIDER_POSITION_KEY = "tilewise:phone-rack-width";
 const RACK_WIDTH = 44;
+const RACK_WITH_DRAW_WIDTH = 68;
 const DIVIDER_GAP = 12;
 const MIN_BOARD_WIDTH = 144;
 
@@ -38,12 +39,14 @@ function readBoardInset() {
 
 export function GameBoardColumn({
   phone,
+  drawShelf,
   resizeDisabled,
   board,
   warnings,
   rack,
 }: {
   phone: boolean;
+  drawShelf: boolean;
   resizeDisabled: boolean;
   board: ReactNode;
   warnings: ReactNode;
@@ -67,17 +70,19 @@ export function GameBoardColumn({
     return () => observer.disconnect();
   }, [phone]);
 
-  const boardInset = Math.min(savedInset, maxInset);
-  const boardReduction = boardInset - RACK_WIDTH;
+  const rackWidth = drawShelf ? RACK_WITH_DRAW_WIDTH : RACK_WIDTH;
+  const dividerMax = Math.max(rackWidth, maxInset);
+  const boardInset = Math.max(rackWidth, Math.min(savedInset, dividerMax));
+  const boardReduction = boardInset - rackWidth;
   return (
     <div
       ref={column}
       className={phone ? "board-column phone-board-column" : "board-column"}
       style={phone ? {
-        "--phone-rack-width": RACK_WIDTH + "px",
+        "--phone-rack-width": rackWidth + "px",
         "--phone-rack-gap": DIVIDER_GAP + "px",
         "--phone-board-reduction": boardReduction + "px",
-        "--phone-divider-range": `${maxInset - RACK_WIDTH}px`,
+        "--phone-divider-range": `${dividerMax - rackWidth}px`,
       } as CSSProperties : undefined}
     >
       {board}
@@ -87,8 +92,8 @@ export function GameBoardColumn({
           type="range"
           aria-label="Board size"
           aria-valuetext={boardReduction ? `${boardReduction} pixels narrower` : "Widest board"}
-          min={RACK_WIDTH}
-          max={maxInset}
+          min={rackWidth}
+          max={dividerMax}
           value={boardInset}
           disabled={resizeDisabled}
           onChange={(event) => {

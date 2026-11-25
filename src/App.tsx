@@ -377,6 +377,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     !dialog && !(sidebarOverlay && sidebarDrawerOpen),
   );
   const replay = gameReplay.active;
+  const replayDrawShelf = replay?.frames.some(({ draw }) => draw !== undefined) ?? false;
   const canReplayGame = gameReplay.available && !boardLocked && !activeFlight;
   const [ownPlay, setOwnPlay] = useState<{ gameId: string; board: string }>();
   const canEnterOwnPlay = !!game && workspace === "games" &&
@@ -1335,6 +1336,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           >
             <GameBoardColumn
               phone={narrowLayout}
+              drawShelf={replayDrawShelf}
               resizeDisabled={!!activeFlight}
               warnings={!replay && boardWarnings}
               board={<section
@@ -1481,6 +1483,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 {replay && (
                   <ReplayRack
                     frame={replay.frame}
+                    drawShelf={replayDrawShelf}
                     solo={game.solo}
                     phone={narrowLayout}
                     detailsTarget={detailsTarget}

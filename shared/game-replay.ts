@@ -9,7 +9,7 @@ import {
   type TrackedMove,
   type TurnPosition,
 } from "./model";
-import { rackLetters, rackSlotsForMove } from "./rack-entry";
+import { rackComposition, rackLetters, rackSlotsForLetters, rackSlotsForMove } from "./rack-entry";
 import { endgameOpponentRack, unseenTiles } from "./tile-pool";
 
 export type ReplayFrame = {
@@ -19,6 +19,7 @@ export type ReplayFrame = {
   position?: TurnPosition;
   rack?: string;
   playedSlots?: number[];
+  draw?: { tiles: string; count?: number };
   opponentPlayedTiles?: string;
   unseen?: ReturnType<typeof unseenTiles>;
   unseenRackUnknown?: boolean;
@@ -70,6 +71,34 @@ function boardAfter(position: TurnPosition) {
 function matchesBoardAfter(position: TurnPosition, after: Board) {
   const board = boardAfter(position);
   return board.length === after.length && board.every((tile, index) => tile === after[index]);
+}
+
+function replayDraw(
+  { position, rack, playedSlots, unseen, template, bag }: ReplayFrame,
+  next: Pick<ReplayFrame, "board" | "rack">,
+): ReplayFrame["draw"] {
+  if (!position || !rack || !playedSlots?.length || unseen?.total === 0)
+    return;
+
+  // The opponent's rack may be short, so the two-player bag estimate is
+  // only a lower bound. Use it for a full refill, or an exact solo count.
+  const played = playedSlots.length;
+  const count = bag && !bag.invalid
+    ? bag.count >= played ? played : !bag.estimated ? bag.count : undefined
+    : undefined;
+  if (count === 0) return;
+  const unknown = { tiles: "", count };
+  if (next.rack === undefined || !next.board || !matchesBoardAfter(position, next.board))
+    return unknown;
+  const after = rackLetters(next.rack);
+  const leave = [...rack].filter((tile, slot) => tile !== "." && !playedSlots.includes(slot));
+  const kept = rackSlotsForLetters({ rack: after }, leave);
+  if (!kept || after.length > template.rackSize || unseenTiles({ board: next.board, rack: after }, template).excess.length)
+    return unknown;
+  const tiles = rackComposition([...after].filter((_, slot) => !kept.includes(slot)).join(""));
+  if (tiles.length > (count ?? played)) return unknown;
+  if (!tiles && count === undefined) return;
+  return { tiles, count: count ?? tiles.length };
 }
 
 function replayPlacement(
@@ -202,14 +231,28 @@ export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreSt
     const frameTemplate = boardTemplate(position);
     if (index === scoreStart) scores = zero;
     scores = { ...scores, [move.player]: scores[move.player] + move.score };
-    frames.push({
+    const frame: ReplayFrame = {
       board: position?.board,
       template: frameTemplate,
       move,
       position,
       ...(position && replayPlacement(move.player, position, frameTemplate, solo, inferredRacks[index])),
       scores,
-    });
+    };
+    if (move.player === "you") {
+      const next = positions[index + 1];
+      if (index + 1 < turns.length) {
+        frame.draw = replayDraw(frame, {
+          board: next?.board,
+          rack: turns[index + 1].move.player === "you" ? next?.rack : next?.observerRack,
+        });
+      } else if (!source.archived || game.archivedState) {
+        frame.draw = replayDraw(frame, source);
+      } else {
+        frame.draw = replayDraw(frame, {});
+      }
+    }
+    frames.push(frame);
   }
   return { frames, scoreStart };
 }

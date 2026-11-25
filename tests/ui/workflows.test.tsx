@@ -2266,6 +2266,7 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(within(opponentTray).getAllByRole("img").map((tile) => tile.getAttribute("aria-label")))
     .toEqual(["A, played", "R, played"]);
   expect(opponentTray.querySelectorAll(".rack-tile.empty")).toHaveLength(5);
+  expect(screen.queryByRole("group", { name: "Tiles drawn" })).toBeNull();
   const chart = screen.getByRole("figure", { name: "Score by move" });
   const cursor = () => chart.querySelector(".score-chart-cursor")?.getAttribute("x1");
   const pairPosition = cursor();
@@ -2286,6 +2287,10 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   expect(within(ownTray).getAllByRole("img").map((tile) => tile.getAttribute("aria-label")))
     .toEqual(["E", "I", "N", "S", "A, played", "C, played", "T, played"]);
   expect(ownTray.querySelectorAll(".move-preview")).toHaveLength(3);
+  const drawShelf = screen.getByRole("group", { name: "Tiles drawn" });
+  expect(within(drawShelf).getAllByRole("img").map((tile) => tile.getAttribute("aria-label")))
+    .toEqual(["A", "O", "U"]);
+  expect(drawShelf.style.getPropertyValue("--draw-start")).toBe("4");
   expect(within(ownTray).getByRole("img", { name: "A, played" }).hasAttribute("data-used-group-start")).toBe(true);
   const bag = screen.getByRole("button", { name: /^Unseen tiles, 86 estimated/ });
   await user.click(bag);
@@ -2305,6 +2310,7 @@ test("live replay opens at the latest recorded move and keeps an in-progress pla
   fireEvent.change(slider, { target: { value: "0" } });
   expect(screen.getByText("Start of game")).toBeTruthy();
   expect(screen.getByRole("group", { name: "Your rack" }).querySelector(".move-preview")).toBeNull();
+  expect(screen.queryByRole("group", { name: "Tiles drawn" })).toBeNull();
   expect(controls.getByRole("button", { name: "Previous move" })).toHaveProperty("disabled", true);
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("group", { name: "Game replay" })).toBeNull();

@@ -132,6 +132,68 @@ test("replay only shows an opponent rack established by the historical tile pool
   }
 });
 
+test("replay infers a refill from the next matching rack, preserving duplicates and blanks", () => {
+  const board = emptyBoard(15);
+  const tiles = [{ index: 111, letter: "C" }, { index: 112, letter: "A" }, { index: 113, letter: "T" }];
+  const after = board.slice();
+  for (const { index, letter } of tiles) after[index] = letter;
+  const played: TrackedMove = {
+    player: "you", word: "CAT", score: 10, at: "",
+    review: { board, tiles, rack: "CATEEIN", dictionaryId: "test" },
+  };
+  const next: TrackedMove = {
+    player: "opponent", word: "CATS", score: 6, at: "",
+    review: { board: after, tiles: [{ index: 114, letter: "S" }], observerRack: "INE?OEE", dictionaryId: "test" },
+  };
+  const game = gameWithMoves([played, next]);
+  const [opening, own, opponent] = gameReplayTimeline(game).frames;
+  assert.equal(opening.draw, undefined);
+  assert.deepEqual(own.draw, { tiles: "?EO", count: 3 });
+  assert.equal(opponent.draw, undefined);
+
+  for (const review of [
+    { ...next.review!, observerRack: undefined },
+    { ...next.review!, observerRack: "IAE?OUV" },
+    { ...next.review!, observerRack: "INE?ZEE", board: after.map((tile, i) => i === 0 ? "Z" : tile) },
+    { ...next.review!, observerRack: "INEZZEE" },
+  ]) {
+    const [, frame] = gameReplayTimeline({ ...game, trackedMoves: [played, { ...next, review }] }).frames;
+    assert.deepEqual(frame.draw, { tiles: "", count: 3 });
+  }
+
+  const refillInProgress = { ...game, trackedMoves: [played], board: after, rack: "EEIO.N" };
+  assert.deepEqual(gameReplayTimeline(refillInProgress).frames[1].draw, { tiles: "O", count: 3 });
+  const archived = archiveForReview({ ...refillInProgress, rack: next.review!.observerRack! });
+  assert.deepEqual(gameReplayTimeline({ ...archived, rack: "O" }).frames[1].draw, { tiles: "?EO", count: 3 });
+});
+
+test("replay shows a short solo refill and skips the shelf when the bag is empty", () => {
+  const board = emptyBoard(15);
+  const move: TrackedMove = {
+    player: "you", word: "AT", score: 4, at: "",
+    review: {
+      board, rack: "ATE", dictionaryId: "test",
+      tiles: [{ index: 112, letter: "A" }, { index: 113, letter: "T" }],
+    },
+  };
+  const after = board.slice();
+  after[112] = "A";
+  after[113] = "T";
+  for (const tiles of ["AET", "AETS"]) {
+    const game: Game = {
+      ...gameWithMoves([move]),
+      solo: true,
+      board: after,
+      rack: "E" + (tiles.includes("S") ? "S" : ""),
+      template: {
+        ...PRESETS[0],
+        tileCounts: Object.fromEntries(TILE_SYMBOLS.map((tile) => [tile, Number(tiles.includes(tile))])),
+      },
+    };
+    assert.deepEqual(gameReplayTimeline(game).frames[1].draw, tiles.includes("S") ? { tiles: "S", count: 1 } : undefined);
+  }
+});
+
 test("replay exposes a board-based tile pool and flags overdrawn placements without a saved rack", () => {
   const board = emptyBoard(15);
   board[112] = "A";

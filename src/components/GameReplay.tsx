@@ -68,7 +68,7 @@ function ReplayMoveStrip({ frame, index }: { frame: ReplayFrame; index: number }
             <span className="replay-move-player">
               {index} {move.player === "you" ? "You" : "Opp"}
             </span>
-            <strong className="last-play-word">
+            <strong className="last-play-word" title={details?.notation ?? move.word}>
               <MoveWord
                 word={move.word}
                 notation={details?.notation}
@@ -298,18 +298,52 @@ export function ReplayScores({
   );
 }
 
+function ReplayTile({
+  tile,
+  rules,
+  played = false,
+  start = false,
+  unknown = false,
+}: {
+  tile?: string;
+  rules: ReplayFrame["template"]["rules"];
+  played?: boolean;
+  start?: boolean;
+  unknown?: boolean;
+}) {
+  const label = unknown ? "Drawn letter unknown" : tile === "?" ? "Blank" : tile;
+  return (
+    <span
+      className={`rack-tile${!label ? " empty" : ""}${played ? " move-preview" : ""}`}
+      data-used-group-start={start || undefined}
+      role="img"
+      aria-hidden={!label || undefined}
+      aria-label={played ? `${label}, played` : label}
+    >
+      <span className="rack-slot">
+        <span className={`rack-face${unknown ? " unknown" : tile === "?" ? " blank" : !tile ? " empty" : ""}`}>
+          {unknown ? "?" : tile === "?" ? "" : tile || "·"}
+          {tile && <small>{tileScore(tile, rules)}</small>}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 export function ReplayRack({
   frame,
+  drawShelf,
   solo,
   phone,
   detailsTarget,
 }: {
   frame: ReplayFrame;
+  drawShelf: boolean;
   solo?: boolean;
   phone: boolean;
   detailsTarget: HTMLDivElement | null;
 }) {
-  const { bag, move, playedSlots, template, unseen, unseenRackUnknown } = frame;
+  const { bag, draw, move, playedSlots, template, unseen, unseenRackUnknown } = frame;
   const tilePoolId = useId();
   const [poolOpen, setPoolOpen] = useState(false);
   const opponent = move?.player === "opponent";
@@ -342,6 +376,7 @@ export function ReplayRack({
     <div
       className="rack-entry replay-rack"
       data-player={move?.player}
+      data-draw-shelf={drawShelf || undefined}
       style={{ "--rack-size": template.rackSize } as CSSProperties}
     >
       <div className="replay-rack-label" aria-hidden="true">
@@ -357,27 +392,15 @@ export function ReplayRack({
           }
         >
           {order.map((slot, i) => {
-            const tile = slot === undefined ? undefined : rack?.[slot];
             const played = i >= leave.length && i < usedEnd;
-            const tileLabel = tile === "?" ? "Blank" : tile;
             return (
-              <span
+              <ReplayTile
                 key={i}
-                className={`rack-tile${tile ? "" : " empty"}${played ? " move-preview" : ""}`}
-                data-used-group-start={played && i === leave.length && i > 0 || undefined}
-                role="img"
-                aria-hidden={!tile || undefined}
-                aria-label={played ? `${tileLabel}, played` : tileLabel}
-              >
-                <span className="rack-slot">
-                  <span
-                    className={`rack-face${tile === "?" ? " blank" : !tile ? " empty" : ""}`}
-                  >
-                    {tile === "?" ? "" : tile || "·"}
-                    {tile && <small>{tileScore(tile, template.rules)}</small>}
-                  </span>
-                </span>
-              </span>
+                tile={slot === undefined ? undefined : rack?.[slot]}
+                rules={template.rules}
+                played={played}
+                start={played && i === leave.length && i > 0}
+              />
             );
           })}
         </div>
@@ -389,6 +412,34 @@ export function ReplayRack({
           expanded={unseen ? poolOpen : undefined}
           onClick={unseen ? () => setPoolOpen((open) => !open) : undefined}
         />
+        {drawShelf && (
+          <div className="replay-draw-space">
+            <div className="replay-draw-lane">
+              {draw && (
+                <div
+                  className="replay-draw-shelf"
+                  role="group"
+                  aria-label={draw.count === undefined ? "Draw unknown" : "Tiles drawn"}
+                  style={{ "--draw-start": leave.length } as CSSProperties}
+                >
+                  <span className="replay-draw-label" aria-hidden="true">
+                    {draw.count === undefined ? "Draw" : "Drew"}
+                  </span>
+                  <div className="replay-draw-tiles">
+                    {Array.from({ length: draw.count ?? 1 }, (_, i) => (
+                      <ReplayTile
+                        key={i}
+                        tile={draw.tiles[i]}
+                        rules={template.rules}
+                        unknown={!draw.tiles[i]}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       {phone ? detailsTarget && createPortal(details, detailsTarget) : details}
     </div>
