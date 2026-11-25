@@ -5,7 +5,24 @@ import { gameWordLanguage } from "./model";
 export type WordFrequencyLanguage = "en" | "fr" | "it";
 
 export const wordFrequencyLanguage = gameWordLanguage;
-export const englishCasualVocabularyUrl = "/dictionaries/ewpn-2019-over-75.txt.gz";
+export const englishCasualVocabularyUrl = "/dictionaries/linguabase-casual.csv.gz";
+export const englishCasualMinimumFamiliarity = 90;
+
+export function decodeEnglishCasualVocabulary(csv: string): ReadonlySet<string> {
+  const message = "The Casual word list could not be loaded.";
+  const rows = csv.trimEnd().split(/\r?\n/);
+  if (rows[0] !== "word,familiarity_score" || rows.length < 2)
+    throw new Error(message);
+  const words = new Set<string>();
+  for (let index = 1; index < rows.length; index++) {
+    const row = /^([A-Z]{2,25}),(\d{1,3}(?:\.\d+)?)$/.exec(rows[index]);
+    if (!row) throw new Error(message);
+    const score = Number(row[2]);
+    if (score > 100) throw new Error(message);
+    if (score >= englishCasualMinimumFamiliarity) words.add(row[1]);
+  }
+  return words;
+}
 
 export function wordFrequencyUrl(language: WordFrequencyLanguage) {
   return `/dictionaries/wordfreq-${language}-3.1.1.msgpack.gz`;

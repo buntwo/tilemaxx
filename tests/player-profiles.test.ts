@@ -21,6 +21,7 @@ import { PRESETS, templateForLanguage } from "../shared/presets";
 import { solve } from "../shared/solver";
 import {
   createWordDifficulty,
+  decodeEnglishCasualVocabulary,
   decodeWordFrequencies,
   wordFrequencyUrl,
 } from "../shared/word-familiarity";
@@ -110,6 +111,25 @@ test("Casual accepts only listed main words and crosses across vocabulary seeds"
     assert.equal(decision(hook, seed, seed).move, undefined);
     assert.equal(decision(extension, seed, seed).move, undefined);
   }
+});
+
+test("Casual scores filter moves from the active game lexicon", () => {
+  const template = PRESETS[0];
+  const lexicon = new Lexicon(["BAT", "CAT"]);
+  const board = emptyBoard(template.size);
+  const rack = "ABCATN?";
+  const vocabulary = decodeEnglishCasualVocabulary(
+    "word,familiarity_score\nBAT,89.9999\nCAT,90\nCATNAP,99\n",
+  );
+  const choose = createPlayerProfiles(
+    lexicon, template, new Map(), { coverage: 4, appeal: 0 }, vocabulary,
+  );
+  const moves = solve(lexicon, board, rack, template);
+  assert.ok(moves.some((move) => move.word === "BAT"));
+  assert.equal(
+    choose(moves, "casual", { board, rack, bagSize: 70, seed: 0, playerSeed: 0 }).move?.word,
+    "CAT",
+  );
 });
 
 test("vertical fluency rises with experience for the same known word", () => {

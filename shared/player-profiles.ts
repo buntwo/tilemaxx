@@ -203,8 +203,8 @@ export function createPlayerProfiles(
   >();
   function wordData(word: string, profile: PlayerProfile) {
     const spelling = word.toUpperCase();
-    const usePrevalence = english && profile === "casual";
-    if (usePrevalence && !casualWords?.has(spelling)) return undefined;
+    const useCasualVocabulary = english && profile === "casual";
+    if (useCasualVocabulary && !casualWords?.has(spelling)) return undefined;
     let wordInfo = wordCache.get(spelling);
     if (!wordInfo) {
       wordInfo = {
@@ -215,7 +215,7 @@ export function createPlayerProfiles(
     }
     const cached = wordInfo.data[profile];
     if (cached) return cached;
-    if (usePrevalence)
+    if (useCasualVocabulary)
       return (wordInfo.data.casual = {
         hash: wordInfo.hash,
         knowledge: scale,

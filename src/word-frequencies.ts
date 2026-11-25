@@ -1,6 +1,7 @@
 import type { Rules } from "../shared/model";
 import type { PlayerProfile } from "../shared/player-profiles";
 import {
+  decodeEnglishCasualVocabulary,
   decodeWordFrequencies,
   englishCasualVocabularyUrl,
   wordFrequencyLanguage,
@@ -44,11 +45,7 @@ export function loadWordFrequencies(rules: Rules) {
 function loadEnglishCasualVocabulary() {
   const message = "The Casual word list could not be loaded.";
   return (casualVocabulary ??= loadCompressedAsset(englishCasualVocabularyUrl, message)
-    .then((data) => {
-      const words = new TextDecoder().decode(data).trimEnd().split("\n");
-      if (!words.every((word) => /^[A-Z]{2,25}$/.test(word))) throw new Error(message);
-      return new Set(words);
-    })
+    .then((data) => decodeEnglishCasualVocabulary(new TextDecoder().decode(data)))
     .catch((error) => {
       casualVocabulary = undefined;
       throw error;

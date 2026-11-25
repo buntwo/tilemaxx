@@ -69,6 +69,7 @@ import {
 import { unseenTiles } from "../shared/tile-pool";
 import { reviewGame, reviewTurn, reviewTurns } from "../shared/turn-review";
 import {
+  decodeEnglishCasualVocabulary,
   decodeWordFrequencies,
   englishCasualVocabularyUrl,
   wordFrequencyLanguage,
@@ -94,9 +95,7 @@ function profiles(
     ? new Map<string, number>()
     : decodeWordFrequencies(read(wordFrequencyUrl(language)), language);
   const vocabulary = casual
-    ? new Set(
-        read(englishCasualVocabularyUrl).toString("utf8").trimEnd().split("\n"),
-      )
+    ? decodeEnglishCasualVocabulary(read(englishCasualVocabularyUrl).toString("utf8"))
     : undefined;
   return createPlayerProfiles(
     lexicon,
