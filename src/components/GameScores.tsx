@@ -156,7 +156,7 @@ export default function GameScores({
     });
     setError("");
   }
-  const moves = useMemo(() => scoreHistoryMoves(turns, game.template), [turns, game.template]);
+  const moves = useMemo(() => scoreHistoryMoves(turns, game), [turns, game]);
   const newestMoves = useMemo(() => [...moves].reverse(), [moves]);
   const chartMoves = moves.slice(currentScoreStart(game, history));
   return (

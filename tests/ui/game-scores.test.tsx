@@ -118,7 +118,7 @@ test("an archive's final stats use the saved finish and replay stats use recorde
   const timeline = gameReplayTimeline(game);
   const seek = vi.fn();
   const { rerender } = render(
-    <ReplayScores {...timeline} dictionaryId={game.dictionaryId} index={3} finalScoring={scoring} finalOutcome={summarizeGameScore(game)?.outcome} seek={seek} />,
+    <ReplayScores {...timeline} sourceGame={game} index={3} finalScoring={scoring} finalOutcome={summarizeGameScore(game)?.outcome} seek={seek} />,
   );
   const panel = within(screen.getByRole("region", { name: "Game scores" }));
   expect(panel.getByText("106")).toBeTruthy();
@@ -128,7 +128,7 @@ test("an archive's final stats use the saved finish and replay stats use recorde
   expect(panel.getByText("Best 70 · 1 bingo")).toBeTruthy();
   expect(panel.getByRole("img", { name: "You won" })).toBeTruthy();
 
-  rerender(<ReplayScores {...timeline} dictionaryId={game.dictionaryId} index={1} seek={seek} />);
+  rerender(<ReplayScores {...timeline} sourceGame={game} index={1} seek={seek} />);
   expect(panel.getByText("1 move · Avg 24.0")).toBeTruthy();
   expect(panel.getByText("Best 24 · 0 bingos")).toBeTruthy();
   expect(panel.getByText("0 moves · Avg —")).toBeTruthy();
@@ -392,7 +392,7 @@ test("the score chart starts over after a scoring reset and keeps the saved move
     onCorrection={vi.fn()} onChange={vi.fn()} />);
   expect(screen.queryByRole("figure", { name: "Score by move" })).toBeNull();
 
-  rerender(<ReplayScores {...gameReplayTimeline(game)} dictionaryId={game.dictionaryId} index={2} seek={vi.fn()} />);
+  rerender(<ReplayScores {...gameReplayTimeline(game)} sourceGame={game} index={2} seek={vi.fn()} />);
   const details = screen.getByText("Tracked move history").closest("details")!;
   details.open = true;
   fireEvent(details, new Event("toggle"));

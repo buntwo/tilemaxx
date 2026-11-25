@@ -8,11 +8,12 @@ import { endgameOpponentRack, unseenTiles } from "./tile-pool";
 export type MoveStrengthTurn = Pick<TrackedMove, "player" | "word" | "score"> & {
   number: number;
   position: TurnPosition;
+  rackOut?: boolean;
 };
 export type MoveStrength = { best: number; percent: number };
 export type MoveStrengthResult = Partial<Record<number, MoveStrength>>;
 
-function knownRack({ player, position }: MoveStrengthTurn, template: BoardTemplate) {
+function knownRack({ player, position, rackOut }: MoveStrengthTurn, template: BoardTemplate) {
   const { board, observerRack } = position;
   const exactOpponent = player === "opponent" && observerRack !== undefined
     ? endgameOpponentRack(unseenTiles({ board, rack: observerRack }, template), template.rackSize)
@@ -20,7 +21,8 @@ function knownRack({ player, position }: MoveStrengthTurn, template: BoardTempla
   const rack = rackLetters(position.rack ?? exactOpponent ?? "");
   if (!rack || rack.length > template.rackSize) return;
   const unseen = unseenTiles({ board, rack }, template);
-  if (unseen.excess.length || (player === "you" && rack.length < template.rackSize && unseen.total)) return;
+  if (unseen.excess.length ||
+      (player === "you" && rack.length < template.rackSize && unseen.total && !rackOut)) return;
   return rackSlotsForMove({ board, rack }, position.tiles) ? rack : undefined;
 }
 

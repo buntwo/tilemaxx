@@ -66,9 +66,9 @@ export default function TrackedMoveHistory({
     kind: "move-strength",
     dictionaryId,
     template,
-    turns: moves.flatMap(({ number, player, word, score, position }) =>
+    turns: moves.flatMap(({ number, player, word, score, position, rackOut }) =>
       position && (position.rack || position.observerRack !== undefined)
-        ? [{ number, player, word, score, position }]
+        ? [{ number, player, word, score, position, rackOut }]
         : [],
     ),
   }), [dictionaryId, moves, template]);

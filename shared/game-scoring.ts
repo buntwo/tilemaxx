@@ -377,12 +377,23 @@ export function reviewTurns(game: Game) {
 
 export function scoreHistoryMoves(
   turns: readonly { move: TrackedMove; position?: TurnPosition; index: number }[],
-  template: BoardTemplate,
+  game: Game,
 ) {
+  const { template } = game;
+  const final = game.archived ? restoreArchivedGame(game) : game;
+  const end = final.scoring?.end;
+  const last = turns.at(-1);
+  // A recorded rack-out establishes a complete short rack only for the play
+  // that emptied it and produced the saved final board.
+  const ownRackOut = end && "out" in end && end.out === "you" &&
+    !rackLetters(final.rack) && last?.move.player === "you" &&
+    last.position && emptiedRack(last.position) &&
+    placementMatchesBoard(last.position, final.board);
   const totals = { you: 0, opponent: 0 };
   return turns.map(({ move, position, index }) => ({
     ...move,
     position,
+    rackOut: !!ownRackOut && index === last?.index,
     notation: recordedMoveNotation(move, position, template.size),
     bingo: move.bingo ?? (!!position && isBingo(template, position.tiles.length)),
     number: index + 1,
@@ -1196,17 +1207,20 @@ function recoverFinishedPosition(game: Game): Game {
   if (!end) return game;
   const position = last.review ?? reviewTurns(game).at(-1)?.position;
   if (!position?.tiles.length) return game;
+  if (!placementMatchesBoard(position, game.board)) return game;
+  if (last.player === "you" && !emptiedRack(position)) return game;
+  return { ...game, scoring: { ...scoring, end } };
+}
+
+function placementMatchesBoard(position: TurnPosition, board: Board) {
   const after = [...position.board];
   for (const { index, letter } of position.tiles) after[index] = letter;
-  if (!game.board.every((tile, index) => tile === after[index])) return game;
-  if (
-    last.player === "you" &&
-    (!position.rack ||
-      rackLetters(position.rack).length !== position.tiles.length ||
-      !rackSlotsForMove({ ...position, rack: position.rack }, position.tiles))
-  )
-    return game;
-  return { ...game, scoring: { ...scoring, end } };
+  return board.length === after.length && board.every((tile, index) => tile === after[index]);
+}
+
+function emptiedRack({ rack, tiles, ...position }: TurnPosition) {
+  return !!rack && tiles.length > 0 && rackLetters(rack).length === tiles.length &&
+    !!rackSlotsForMove({ ...position, rack }, tiles);
 }
 
 export function backfillGameResult(game: Game): Game {

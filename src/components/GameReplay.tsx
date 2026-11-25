@@ -7,7 +7,7 @@ import {
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { gameScoreTotals, scoreHistoryMoves, type GameScoreSummary } from "../../shared/game-scoring";
 import type { ReplayFrame } from "../../shared/game-replay";
-import { tileScore, type GameScoring } from "../../shared/model";
+import { tileScore, type Game, type GameScoring } from "../../shared/model";
 import { recordedMoveDetails } from "../../shared/notation";
 import { ScorePlayers } from "./GameScores";
 import MoveWord from "./MoveWord";
@@ -203,7 +203,7 @@ export function ReplayScores({
   frames,
   scoreStart,
   index,
-  dictionaryId,
+  sourceGame,
   solo,
   finalScoring,
   finalOutcome,
@@ -212,7 +212,7 @@ export function ReplayScores({
   frames: readonly ReplayFrame[];
   scoreStart: number;
   index: number;
-  dictionaryId: string;
+  sourceGame: Game;
   solo?: true;
   finalScoring?: GameScoring;
   finalOutcome?: GameScoreSummary["outcome"];
@@ -231,9 +231,9 @@ export function ReplayScores({
           index: number - 1,
         }] : [],
       ),
-      frames[0].template,
+      sourceGame,
     ),
-    [frames],
+    [frames, sourceGame],
   );
   const newestMoves = useMemo(() => [...moves].reverse(), [moves]);
   const frameIndex = Math.min(index, frames.length - 1);
@@ -271,7 +271,7 @@ export function ReplayScores({
       <TrackedMoveHistory
         moves={newestMoves}
         template={frames[0].template}
-        dictionaryId={dictionaryId}
+        dictionaryId={sourceGame.dictionaryId}
         solo={solo}
         replayIndex={index}
         onSelect={seek}
