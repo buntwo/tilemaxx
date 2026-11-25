@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { join, basename } from "node:path";
 import { randomUUID } from "node:crypto";
-import { compactArchivedHistory } from "../shared/archive-history";
+import { compactArchivedHistory, saveArchiveReplay } from "../shared/archive-history";
 import type { DefinitionLanguage } from "../shared/definitions";
 import {
   createDefinitionFrequencyLookup,
@@ -52,11 +52,11 @@ const removingSuffix = ".tilemaxx-removing";
 function prepareNewArchive(game: Game): Game {
   if (!game.archived) return game;
   const snapshot = game.archivedBoard && game.archivedState;
-  if (!snapshot) return compactArchivedHistory(archiveGame(game));
+  const frozen = saveArchiveReplay(correctSuperLexulousCenter(snapshot ? game : archiveGame(game)));
   // An offline client may have edited the archived board before the first sync.
-  return snapshot.past.length || snapshot.future.length
-    ? compactArchivedHistory(game)
-    : game;
+  return !snapshot || snapshot.past.length || snapshot.future.length
+    ? compactArchivedHistory(frozen)
+    : frozen;
 }
 
 function cleanRemovedDictionary(path: string) {

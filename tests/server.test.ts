@@ -389,6 +389,33 @@ test("durable games, profiles, templates, dictionary import and stale-update rej
   }
 });
 
+test("the store persists recovered refill evidence on both archival paths", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilewise-archive-recovery-test-"));
+  const store = createStore(dir, process.cwd());
+  try {
+    const [initial] = store.state().games;
+    const ready = { ...initial, rack: "CATEINS" };
+    const move = solve(new Lexicon(["CAT"]), ready.board, ready.rack, ready.template)[0];
+    const played = { ...playTrackedMove(ready, move), rack: "EINSAOU" };
+    const first = store.saveGame(played)!;
+    const archived = store.saveGame(archiveGame(first))!;
+    const another = store.createGame(played);
+    const result = store.archiveAndStartNewGame(another.id, another.revision, "2026-01-01");
+    assert.equal(result.status, "created");
+    if (result.status !== "created") return;
+    for (const id of [archived.id, result.archived.id]) {
+      const saved = store.getGame(id)!;
+      assert.deepEqual(saved.archivedState?.past, []);
+      assert.deepEqual(saved.archivedState?.trackedMoves, played.trackedMoves);
+      assert.deepEqual(saved.archivedState?.replayRecovery?.[0]?.draw, { tiles: "AOU", count: 3 });
+      assert.equal(gameReplayTimeline(saved).frames[1].afterRack, "AEINOSU");
+    }
+  } finally {
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("archive and start saves the original and creates one fresh game in one transaction", async () => {
   const dir = mkdtempSync(join(tmpdir(), "tilewise-archive-test-"));
   const store = createStore(dir, process.cwd());

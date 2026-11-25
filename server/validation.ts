@@ -209,6 +209,17 @@ const gameProgress = z.object({
   future: z.array(historySchema).max(100),
   savedBoardWordScores,
 });
+const replayRecovery = z.array(z.object({
+  move: z.string().min(1).max(512),
+  correctionAfter: z.literal(true).optional(),
+  position: review,
+  observerRack: rack.optional(),
+  afterRack: rack.optional(),
+  draw: z.object({
+    tiles: z.string().regex(/^[A-Z?]{1,10}$/),
+    count: z.number().int().min(1).max(10).optional(),
+  }).optional(),
+}).nullable()).optional();
 export const gameSchema = gameProgress
   .extend({
     id: z.string().max(100),
@@ -228,7 +239,7 @@ export const gameSchema = gameProgress
     archived: z.boolean(),
     archivedBoard: z.array(cell).max(625).optional(),
     archivedState: gameProgress
-      .extend({ premiums: premiums.optional() })
+      .extend({ premiums: premiums.optional(), replayRecovery })
       .optional(),
   })
   .refine((g) => {
@@ -287,6 +298,16 @@ export const gameSchema = gameProgress
           !!g.archivedBoard &&
           (!g.archivedState.premiums ||
             g.archivedState.premiums.length === size) &&
-          validProgress(g.archivedState)))
+          validProgress(g.archivedState) &&
+          (g.archivedState.replayRecovery?.every((turn) =>
+            !turn ||
+            (validReview(turn.position) &&
+              validRack(turn.observerRack ?? "") &&
+              validRack(turn.afterRack ?? "") &&
+              (!turn.draw ||
+                (validRack(turn.draw.tiles) &&
+                  (turn.draw.count === undefined ||
+                    (turn.draw.count >= turn.draw.tiles.length && turn.draw.count <= g.template.rackSize))))),
+          ) ?? true)))
     );
   }, "Invalid position dimensions");

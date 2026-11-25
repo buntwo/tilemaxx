@@ -5,6 +5,7 @@ import {
   isImportedPosition,
   reviewTurns,
 } from "./game-scoring";
+import { captureArchiveReplay } from "./game-replay";
 import {
   archiveGame,
   restoreArchivedGame,
@@ -81,11 +82,7 @@ export function compactArchivedHistory(game: Game): Game {
   if (!game.archived) return game;
   const current = removeUndoHistory(game);
   const snapshot = game.archivedState;
-  if (
-    !snapshot ||
-    !game.archivedBoard ||
-    (!snapshot.past.length && !snapshot.future.length)
-  )
+  if (!snapshot || !game.archivedBoard || (!snapshot.past.length && !snapshot.future.length))
     return current;
 
   // An edited archive and its original finish can have different move logs.
@@ -106,5 +103,14 @@ export function compactArchivedHistory(game: Game): Game {
 }
 
 export function archiveForReview(game: Game): Game {
-  return compactArchivedHistory(archiveGame(game));
+  return compactArchivedHistory(saveArchiveReplay(archiveGame(game)));
+}
+
+export function saveArchiveReplay(game: Game): Game {
+  const snapshot = game.archivedState;
+  if (!game.archived || !game.archivedBoard || !snapshot || snapshot.replayRecovery) return game;
+  const replayRecovery = captureArchiveReplay(restoreArchivedGame(game));
+  return replayRecovery
+    ? { ...game, archivedState: { ...snapshot, replayRecovery } }
+    : game;
 }

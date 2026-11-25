@@ -1,4 +1,4 @@
-import { currentScoreStart, reviewTurns } from "./game-scoring";
+import { currentScoreStart, reviewTurns, scorePlacement } from "./game-scoring";
 import {
   restoreArchivedGame,
   trackedMoveHistory,
@@ -6,6 +6,8 @@ import {
   type BoardTemplate,
   type Game,
   type Player,
+  type RecoveredReplayTurn,
+  type ReplayDraw,
   type TrackedMove,
   type TurnPosition,
 } from "./model";
@@ -19,7 +21,8 @@ export type ReplayFrame = {
   position?: TurnPosition;
   rack?: string;
   playedSlots?: number[];
-  draw?: { tiles: string; count?: number };
+  afterRack?: string;
+  draw?: ReplayDraw;
   opponentPlayedTiles?: string;
   unseen?: ReturnType<typeof unseenTiles>;
   unseenRackUnknown?: boolean;
@@ -73,31 +76,78 @@ function matchesBoardAfter(position: TurnPosition, after: Board) {
   return board.length === after.length && board.every((tile, index) => tile === after[index]);
 }
 
-function replayDraw(
-  { position, rack, playedSlots, template, bag }: ReplayFrame,
-  next: Pick<ReplayFrame, "board" | "rack">,
-): ReplayFrame["draw"] {
-  if (!position || !rack || !playedSlots?.length || bag?.count === 0)
-    return;
+function recordedMoveKey({ player, word, score, at }: TrackedMove) {
+  return JSON.stringify([player, word, score, at]);
+}
 
-  // Use the positive two-player estimate to establish a full refill.
-  // Solo replays can also establish how many tiles are left for a short draw.
-  const played = playedSlots.length;
-  const count = bag && !bag.invalid
-    ? bag.count >= played ? played : !bag.estimated ? bag.count : undefined
+function recoverPlacement(
+  move: TrackedMove,
+  before: Board,
+  after: Board,
+  template: BoardTemplate,
+  dictionaryId: string,
+): TurnPosition | undefined {
+  if (before.length !== after.length ||
+      before.some((tile, index) => tile !== "" && tile !== after[index]))
+    return;
+  const tiles = after.flatMap((letter, index) =>
+    letter && !before[index] ? [{ index, letter }] : [],
+  );
+  if (!tiles.length || tiles.length > template.rackSize) return;
+  const directions = new Set<NonNullable<TurnPosition["direction"]>>();
+  for (const direction of ["across", "down"] as const) {
+    if (direction === "across" && tiles.some(({ index }) =>
+      Math.floor(index / template.size) !== Math.floor(tiles[0].index / template.size)))
+      continue;
+    const result = scorePlacement(before, after, template, direction);
+    if (result?.word === move.word && result.score === move.score &&
+        (move.bingo === undefined || result.bingo === move.bingo))
+      directions.add(result.words[0].direction);
+  }
+  if (!directions.size) return;
+  return {
+    board: before,
+    tiles,
+    dictionaryId,
+    premiums: template.premiums,
+    direction: directions.size === 1 ? directions.values().next().value : undefined,
+  };
+}
+
+function replayRefill(
+  { position, rack, playedSlots, template, bag, unseen }: ReplayFrame,
+  next: Pick<ReplayFrame, "board" | "rack">,
+  saved?: RecoveredReplayTurn | null,
+): Pick<ReplayFrame, "afterRack" | "draw"> {
+  if (!position || rack === undefined || !playedSlots?.length) return {};
+  const afterBoard = boardAfter(position);
+  const matching = next.rack !== undefined && next.board && matchesBoardAfter(position, next.board)
+    ? rackLetters(next.rack)
     : undefined;
-  const unknown = { tiles: "", count };
-  if (next.rack === undefined || !next.board || !matchesBoardAfter(position, next.board))
-    return unknown;
-  const after = rackLetters(next.rack);
-  const leave = [...rack].filter((tile, slot) => tile !== "." && !playedSlots.includes(slot));
+  const leave = rackComposition([...rack].filter((_, slot) => !playedSlots.includes(slot)).join(""));
+  if (bag?.count === 0) {
+    return !bag.invalid && (unseen?.total === 0 || !bag.estimated || (matching !== undefined && rackComposition(matching) === leave))
+      ? { afterRack: leave }
+      : {};
+  }
+
+  const count = bag && !bag.invalid ? Math.min(playedSlots.length, bag.count) : undefined;
+  const unknown = { draw: { tiles: "", count } };
+  // Recheck saved refill evidence against the original placement and bag.
+  const after = matching ?? saved?.afterRack ??
+    (saved?.draw?.tiles ? leave + saved.draw.tiles : undefined);
+  if (after === undefined) return unknown;
   const kept = rackSlotsForLetters({ rack: after }, leave);
-  if (!kept || after.length > template.rackSize || unseenTiles({ board: next.board, rack: after }, template).excess.length)
+  if (!kept || bag?.invalid || after.length > template.rackSize ||
+      unseenTiles({ board: afterBoard, rack: after }, template).excess.length)
     return unknown;
   const tiles = rackComposition([...after].filter((_, slot) => !kept.includes(slot)).join(""));
-  if (tiles.length > (count ?? played)) return unknown;
-  if (!tiles && count === undefined) return;
-  return { tiles, count: count ?? tiles.length };
+  if (tiles.length > (count ?? playedSlots.length)) return unknown;
+  if (!tiles && count === undefined) return {};
+  return {
+    draw: { tiles, count: count ?? tiles.length },
+    ...(tiles.length === count && { afterRack: rackComposition(after) }),
+  };
 }
 
 function replayPlacement(
@@ -139,10 +189,13 @@ function replayPlacement(
   return { ...details, opponentPlayedTiles, ...exact };
 }
 
-export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreStart: number } {
-  const source = replaySource(game);
+function recoverReplay(
+  source: Game,
+  useFinal: boolean,
+  saved: readonly (RecoveredReplayTurn | null)[] = [],
+): { frames: ReplayFrame[]; scoreStart: number; recovery: (RecoveredReplayTurn | null)[] } {
   const turns = reviewTurns(source);
-  if (!turns.length) return { frames: [], scoreStart: 0 };
+  if (!turns.length) return { frames: [], scoreStart: 0, recovery: [] };
   const { template } = source;
   const size = template.size ** 2;
   function savedPosition(position: TurnPosition | undefined) {
@@ -166,40 +219,65 @@ export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreSt
       ? { ...template, premiums: position.premiums }
       : template;
   }
-  const positions = turns.map(({ position }) => savedPosition(position));
+  const savedTurns = turns.map(({ move, index }) =>
+    saved[index]?.move === recordedMoveKey(move) ? saved[index] : undefined,
+  );
+  const corrections = source.past.filter(({ label }) =>
+    label === "Confirmed board correction" || label === "Imported screenshot",
+  );
+  const correctionAfter = turns.map(({ move, index }) => {
+    const nextAt = turns[index + 1]?.move.at;
+    return !!savedTurns[index]?.correctionAfter || corrections.some(({ at }) =>
+      at > move.at && (nextAt === undefined || at < nextAt),
+    );
+  });
+  const anchors = turns.map(({ position, index }) =>
+    savedPosition(position) ?? savedPosition(savedTurns[index]?.position),
+  );
+  const positions = anchors.map((position, index) => {
+    if (position || index === 0) return position;
+    if (correctionAfter[index - 1] || correctionAfter[index]) return;
+    const previous = anchors[index - 1];
+    const next = anchors[index + 1];
+    const after = next?.board ??
+      (useFinal && index === anchors.length - 1 && !source.scoring?.pendingBase ? source.board : undefined);
+    if (!previous || !after) return;
+    const beforeTemplate = boardTemplate(previous);
+    const afterTemplate = boardTemplate(next);
+    if (beforeTemplate.premiums.some((premium, cell) => premium !== afterTemplate.premiums[cell]))
+      return;
+    return recoverPlacement(
+      turns[index].move, boardAfter(previous), after, beforeTemplate, source.dictionaryId,
+    );
+  });
   const solo = !!source.solo;
-  const inferredRacks: (string | undefined)[] = [];
-  if (!solo) {
-    // Consecutive opponent plays leave our rack unchanged once the bag is
-    // empty. A later saved rack is evidence only across matching boards.
-    let laterBoard = source.board;
-    let laterRack = !source.archived || game.archivedState ? source.rack : undefined;
-    for (let i = turns.length - 1; i >= 0; i--) {
-      const position = positions[i];
-      const opponent = turns[i].move.player === "opponent";
-      let own = opponent ? position?.observerRack : position?.rack;
-      if (
-        opponent &&
-        position &&
-        own === undefined &&
-        laterRack &&
-        rackLetters(laterRack) &&
-        matchesBoardAfter(position, laterBoard)
-      ) {
+  const ownRacks: (string | undefined)[] = [];
+  let laterBoard = source.board;
+  let laterRack = useFinal ? source.rack : undefined;
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const position = positions[i];
+    const opponent = turns[i].move.player === "opponent";
+    let own = opponent ? position?.observerRack : position?.rack;
+    if (!solo && opponent && position && own === undefined && !correctionAfter[i]) {
+      // The opponent's endgame placements must fit the exact remaining pool.
+      // Across matching boards, our rack could not refill during their turn.
+      const candidate = (laterRack !== undefined && matchesBoardAfter(position, laterBoard)
+        ? laterRack
+        : savedTurns[i]?.observerRack);
+      if (candidate && rackLetters(candidate) && candidate.length <= template.rackSize) {
         const atTurn = boardTemplate(position);
-        const pool = unseenTiles({ board: position.board, rack: laterRack }, atTurn);
+        const pool = unseenTiles({ board: position.board, rack: candidate }, atTurn);
         if (exactOpponentRack(position.board, position.tiles, atTurn, pool))
-          inferredRacks[i] = own = laterRack;
+          own = candidate;
       }
-      laterBoard = position?.board ?? [];
-      laterRack = own;
     }
+    ownRacks[i] = own;
+    laterBoard = position?.board ?? [];
+    laterRack = own;
   }
   const first = positions[0];
   const firstTemplate = boardTemplate(first);
-  const firstRack = turns[0].move.player === "you"
-    ? first?.rack
-    : first?.observerRack ?? inferredRacks[0];
+  const firstRack = ownRacks[0];
   const firstPool = first && unseenTiles(
     { board: first.board, rack: firstRack ?? "" },
     firstTemplate,
@@ -224,6 +302,7 @@ export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreSt
     ),
   );
   let scores = zero;
+  const recovery: (RecoveredReplayTurn | null)[] = [];
   for (const turn of turns) {
     const { move, index } = turn;
     const position = positions[index];
@@ -235,23 +314,50 @@ export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreSt
       template: frameTemplate,
       move,
       position,
-      ...(position && replayPlacement(move.player, position, frameTemplate, solo, inferredRacks[index])),
+      ...(position && replayPlacement(move.player, position, frameTemplate, solo, ownRacks[index])),
       scores,
     };
+    const savedTurn = savedTurns[index];
     if (move.player === "you") {
-      const next = positions[index + 1];
-      if (index + 1 < turns.length) {
-        frame.draw = replayDraw(frame, {
-          board: next?.board,
-          rack: turns[index + 1].move.player === "you" ? next?.rack : next?.observerRack,
-        });
-      } else if (!source.archived || game.archivedState) {
-        frame.draw = replayDraw(frame, source);
-      } else {
-        frame.draw = replayDraw(frame, {});
-      }
+      const next = correctionAfter[index] ? {} :
+        index + 1 < turns.length
+          ? { board: positions[index + 1]?.board, rack: ownRacks[index + 1] }
+          : useFinal ? source : {};
+      Object.assign(frame, replayRefill(frame, next, correctionAfter[index] ? undefined : savedTurn));
+    } else if (ownRacks[index] !== undefined) {
+      frame.afterRack = rackComposition(ownRacks[index]!);
     }
+    const recoveredPosition = position && !savedPosition(move.review) ? position : undefined;
+    const observerRack = move.player === "opponent" && position?.observerRack === undefined
+      ? ownRacks[index] : undefined;
+    const draw = frame.draw?.tiles ? frame.draw : undefined;
+    recovery.push(correctionAfter[index] || recoveredPosition || observerRack !== undefined || frame.afterRack !== undefined || draw
+      ? {
+          move: recordedMoveKey(move),
+          correctionAfter: correctionAfter[index] ? true : undefined,
+          position: recoveredPosition,
+          observerRack,
+          afterRack: frame.afterRack,
+          draw,
+        }
+      : null);
     frames.push(frame);
   }
+  return { frames, scoreStart, recovery };
+}
+
+export function captureArchiveReplay(game: Game) {
+  const { recovery } = recoverReplay(game, true);
+  if (recovery.some((turn) => turn !== null)) return recovery;
+}
+
+export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreStart: number } {
+  const source = replaySource(game);
+  const snapshot = game.archivedBoard && game.archivedState;
+  const { frames, scoreStart } = recoverReplay(
+    source,
+    !source.archived || !!snapshot,
+    snapshot?.replayRecovery,
+  );
   return { frames, scoreStart };
 }

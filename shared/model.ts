@@ -72,6 +72,16 @@ export interface TurnPosition {
   tiles: Placement[];
   direction?: Move["direction"];
 }
+export type ReplayDraw = { tiles: string; count?: number };
+export type RecoveredReplayTurn = {
+  // Bind recovered facts to the corresponding entry in the frozen move log.
+  move: string;
+  correctionAfter?: true;
+  position?: TurnPosition;
+  observerRack?: string;
+  afterRack?: string;
+  draw?: ReplayDraw;
+};
 export interface PlayerScore {
   points: number;
   moves: number;
@@ -165,7 +175,7 @@ export type ArchiveState = Pick<
   | "past"
   | "future"
   | "savedBoardWordScores"
-> & { premiums?: Premium[] };
+> & { premiums?: Premium[]; replayRecovery?: (RecoveredReplayTurn | null)[] };
 
 export function archiveGame(game: Game): Game {
   const {

@@ -217,6 +217,141 @@ test("replay omits the draw when the two-player bag shows zero and the next rack
   assert.equal(frame.draw, undefined);
 });
 
+test("a short final refill uses the recovered observer rack in old and new archives", () => {
+  const opening = emptyBoard(15);
+  opening[112] = "O";
+  const played = opening.slice();
+  played[111] = "Z";
+  played[113] = "O";
+  const opponentPlayed = played.slice();
+  opponentPlayed[97] = "D";
+  const ownRack = "ZONAAEE";
+  const nextRack = "AE.AENO";
+  const physical = [...opening, ...ownRack, ..."DALEPST", "O"];
+  const moves: TrackedMove[] = [
+    {
+      player: "you", word: "ZOO", score: 12, at: "1",
+      review: { board: opening, rack: ownRack, dictionaryId: "test",
+        tiles: [{ index: 111, letter: "Z" }, { index: 113, letter: "O" }] },
+    },
+    {
+      player: "opponent", word: "DO", score: 3, at: "2",
+      review: { board: played, dictionaryId: "test", tiles: [{ index: 97, letter: "D" }] },
+    },
+    {
+      player: "you", word: "DON", score: 4, at: "3",
+      review: { board: opponentPlayed, rack: nextRack, dictionaryId: "test",
+        tiles: [{ index: 127, letter: "N" }] },
+    },
+  ];
+  const game = {
+    ...gameWithMoves(moves),
+    board: opponentPlayed.map((tile, index) => index === 127 ? "N" : tile),
+    rack: "AAEEO",
+    template: {
+      ...PRESETS[0],
+      tileCounts: Object.fromEntries(TILE_SYMBOLS.map((tile) => [
+        tile, physical.filter((symbol) => symbol === tile).length,
+      ])),
+    },
+  };
+  const archived = archiveForReview(game);
+  const serialized = gameSchema.parse(JSON.parse(JSON.stringify(archived)));
+  for (const candidate of [game, archiveGame(game), serialized]) {
+    const [, own, opponent] = gameReplayTimeline(candidate).frames;
+    assert.equal(own.rack, ownRack);
+    assert.equal(own.bag?.count, 1);
+    assert.deepEqual(own.draw, { tiles: "O", count: 1 });
+    assert.equal(own.afterRack, "AAEENO");
+    assert.equal(opponent.rack, "ADELPST");
+    assert.equal(opponent.position?.observerRack, undefined);
+  }
+  assert.deepEqual(serialized.archivedState?.trackedMoves, moves);
+  const recovery = serialized.archivedState?.replayRecovery;
+  assert.deepEqual(recovery?.[0]?.draw, { tiles: "O", count: 1 });
+  assert.equal(recovery?.[0]?.afterRack, "AAEENO");
+  assert.equal(recovery?.[1]?.observerRack, nextRack);
+  assert.equal(compactArchivedHistory(archived), archived);
+
+  const savedOnly = structuredClone(serialized);
+  delete savedOnly.archivedState!.trackedMoves![2].review!.rack;
+  savedOnly.archivedState!.replayRecovery![1] = null;
+  assert.deepEqual(gameReplayTimeline(savedOnly).frames[1].draw, { tiles: "O", count: 1 });
+  savedOnly.archivedState!.replayRecovery![0]!.move = "stale";
+  assert.deepEqual(gameReplayTimeline(savedOnly).frames[1].draw, { tiles: "", count: 1 });
+
+  const mismatch = structuredClone(game);
+  mismatch.trackedMoves![2].review!.board[0] = "T";
+  assert.deepEqual(gameReplayTimeline(archiveGame(mismatch)).frames[1].draw, { tiles: "", count: 1 });
+  const corrected = archiveForReview({
+    ...game,
+    past: [{ board: played, rack: nextRack, label: "Confirmed board correction", at: "1.5" }],
+  });
+  assert.deepEqual(gameReplayTimeline(corrected).frames[1].draw, { tiles: "", count: 1 });
+});
+
+test("archive recovery retains a uniquely scored placement alongside score-only history", () => {
+  const opening = emptyBoard(15);
+  const afterCat = opening.slice();
+  afterCat.splice(111, 3, "C", "A", "T");
+  const afterCats = afterCat.slice();
+  afterCats[114] = "S";
+  const scored = scorePlacement(afterCat, afterCats, PRESETS[0])!;
+  const first: TrackedMove = {
+    player: "you", word: "CAT", score: 10, at: "1",
+    review: { board: opening, rack: "CATEIRS", dictionaryId: "test",
+      tiles: [{ index: 111, letter: "C" }, { index: 112, letter: "A" }, { index: 113, letter: "T" }] },
+  };
+  const missing: TrackedMove = { player: "opponent", word: "CATS", score: scored.score, at: "2" };
+  const third: TrackedMove = {
+    player: "you", word: "AT", score: 2, at: "3",
+    review: { board: afterCats, rack: "EIRNOPT", dictionaryId: "test", tiles: [{ index: 127, letter: "T" }] },
+  };
+  const game = gameWithMoves([first, missing, third]);
+  const archived = archiveForReview(game);
+  const recovered = archived.archivedState?.replayRecovery?.[1]?.position;
+  assert.deepEqual(recovered?.board, afterCat);
+  assert.deepEqual(recovered?.tiles, [{ index: 114, letter: "S" }]);
+  assert.equal(recovered?.direction, "across");
+  assert.equal(archived.archivedState?.trackedMoves?.[1].review, undefined);
+  for (const candidate of [archiveGame(game), gameSchema.parse(archived)]) {
+    const frame = gameReplayTimeline(candidate).frames[2];
+    assert.deepEqual(frame.position, recovered);
+    assert.equal(frame.scores.opponent, scored.score);
+  }
+
+  const correction: Game = { ...game, past: [
+    { board: afterCat, rack: "", label: "Confirmed board correction", at: "1.5" },
+  ] };
+  const compacted = gameSchema.parse(archiveForReview(correction));
+  assert.deepEqual(compacted.archivedState?.past, []);
+  assert.equal(compacted.archivedState?.replayRecovery?.[0]?.correctionAfter, true);
+  assert.equal(gameReplayTimeline(compacted).frames[2].position, undefined);
+  assert.deepEqual(gameReplayTimeline(compacted).frames[3].board, afterCats);
+
+  const changedLayout = structuredClone(third);
+  changedLayout.review!.premiums = [...PRESETS[0].premiums];
+  changedLayout.review!.premiums[114] = "TW";
+  const blankCorrection = structuredClone(third);
+  blankCorrection.review!.board[111] = "c";
+  for (const invalid of [
+    [first, { ...missing, score: missing.score + 1 }, third],
+    [first, missing, { ...missing, at: "2.5" }, third],
+    [first, missing, changedLayout],
+    [first, missing, blankCorrection],
+  ]) {
+    const frames = gameReplayTimeline(archiveForReview(gameWithMoves(invalid))).frames;
+    assert.equal(frames[2].position, undefined);
+  }
+
+  const stale = structuredClone(archived);
+  stale.archivedState!.trackedMoves![1].score += 1;
+  assert.equal(gameReplayTimeline(stale).frames[2].position, undefined);
+  const malformed = structuredClone(archived);
+  malformed.archivedState!.replayRecovery![1]!.position!.tiles.push({ index: 114, letter: "S" });
+  assert.equal(gameSchema.safeParse(malformed).success, false);
+});
+
 test("replay exposes a board-based tile pool and flags overdrawn placements without a saved rack", () => {
   const board = emptyBoard(15);
   board[112] = "A";
