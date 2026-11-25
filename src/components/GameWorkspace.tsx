@@ -38,6 +38,7 @@ function readBoardInset() {
 
 export function GameBoardColumn({
   phone,
+  live,
   drawShelf,
   resizeDisabled,
   board,
@@ -45,6 +46,7 @@ export function GameBoardColumn({
   rack,
 }: {
   phone: boolean;
+  live: boolean;
   drawShelf: boolean;
   resizeDisabled: boolean;
   board: ReactNode;
@@ -77,6 +79,7 @@ export function GameBoardColumn({
     <div
       ref={column}
       className={phone ? "board-column phone-board-column" : "board-column"}
+      data-live={phone && live || undefined}
       style={phone ? {
         "--phone-rack-width": rackWidth + "px",
         "--phone-rack-gap": DIVIDER_GAP + "px",

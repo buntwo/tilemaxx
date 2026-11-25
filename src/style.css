@@ -6226,6 +6226,10 @@ label + label {
   align-items: center;
   container-type: inline-size;
 }
+.phone-board-column[data-live] {
+  /* Give the board room to grow while keeping the single rack clear of the screen edge. */
+  margin-inline-end: min(0px, calc(max(4px, env(safe-area-inset-right)) - var(--workspace-gutter)));
+}
 .phone-board-column > .board-panel { grid-area: 1 / 1; }
 .phone-board-column::before {
   content: "";

@@ -2353,6 +2353,7 @@ test.each([false, true])("game options export the saved game offline during repl
     await user.click(menu.getByRole("button", { name: "Replay game" }));
   }
   const slider = screen.getByRole("slider", { name: "Replay moves" });
+  if (archived) expect(slider.closest(".phone-board-column")?.hasAttribute("data-live")).toBe(false);
   fireEvent.change(slider, { target: { value: "1" } });
   const options = await openGameManagement(user);
   const createObjectURL = vi.fn((_file: Blob) => "blob:game-export");
@@ -6691,6 +6692,29 @@ test("the phone divider restores saved positions and uses the available board wi
   render(<App />);
   await screen.findByRole("heading", { name: /First game/ });
   expect(screen.getByRole<HTMLInputElement>("slider", { name: "Board size" }).value).toBe("200");
+});
+
+test("the phone board extends toward the edge in live play and reserves room for draws in replay", async () => {
+  remote.games[0] = replayFixture();
+  const user = await start(390);
+  await waitFor(() => expect(current().trackedMoves).toHaveLength(2));
+  const divider = screen.getByRole<HTMLInputElement>("slider", { name: "Board size" });
+  const column = divider.closest<HTMLElement>(".phone-board-column")!;
+  expect(column.hasAttribute("data-live")).toBe(true);
+  expect(divider.min).toBe("44");
+
+  const options = await openGameOptions(user);
+  await user.click(options.getByRole("button", { name: "Replay game" }));
+  expect(column.hasAttribute("data-live")).toBe(false);
+  expect(divider.min).toBe("88");
+  expect(screen.queryByRole("group", { name: "Tiles drawn" })).toBeNull();
+  await user.click(cell("Previous move"));
+  expect(screen.getByRole("group", { name: "Tiles drawn" })).toBeTruthy();
+  expect(divider.min).toBe("88");
+
+  await user.click(cell("Back to live"));
+  expect(column.hasAttribute("data-live")).toBe(true);
+  expect(divider.value).toBe("44");
 });
 
 test("the desktop divider retains its width when switching between play and replay", async () => {

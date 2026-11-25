@@ -1384,6 +1384,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           >
             <GameBoardColumn
               phone={narrowLayout}
+              live={!game.archived && !replay}
               drawShelf={replayDrawShelf}
               resizeDisabled={!!activeFlight}
               warnings={boardWarnings}
