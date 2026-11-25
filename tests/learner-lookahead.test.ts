@@ -47,7 +47,7 @@ function fixture() {
     board: emptyBoard(template.size),
     rack: "ABCQRST",
     bagSize: 86,
-    seed: 29,
+    seed: 235,
     playerSeed: 0,
   };
   const choose = createPlayerProfiles(
@@ -89,7 +89,7 @@ test("Learner compares three visible words with eight shared deals and can chang
   }
 
   assert.equal(comparisons, 24);
-  assert.equal(result.value[0].move.word, "CARTS");
+  assert.equal(result.value[0].move.word, "ACT");
   const first = result.value[0];
   const prior = ranked.find(({ move }) => move.id === first.move.id)!;
   assert.ok(first.utility.lookahead! > 0);

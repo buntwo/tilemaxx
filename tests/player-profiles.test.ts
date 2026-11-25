@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { gunzipSync } from "node:zlib";
+import { rackPoints } from "../shared/endgame";
 import { Lexicon } from "../shared/lexicon";
 import { emptyBoard, type Move, type Premium } from "../shared/model";
 import { moveLocation } from "../shared/notation";
@@ -243,6 +244,34 @@ test("profiles value shedding awkward duplicates and keeping flexible leaves", (
   assert.ok(profileLeaveValue("QU") > profileLeaveValue("QV"));
   assert.ok(profileLeaveValue("III?") > profileLeaveValue("IIII"));
   assert.ok(profileLeaveValue("SST") > profileLeaveValue("IIT"));
+});
+
+test("Learner gives the whole leave more weight, fading the boost as the bag empties", () => {
+  const template = PRESETS[0];
+  const board = emptyBoard(template.size);
+  const lexicon = new Lexicon(["CAT"]);
+  const choose = createPlayerProfiles(
+    lexicon, template, new Map([["CAT", 5]]), undefined, new Set(["CAT"]),
+  );
+  for (const rack of ["CATER?", "CATQVW"]) {
+    const [move] = solve(lexicon, board, rack, template).filter(({ blanks }) => !blanks);
+    assert.ok(move);
+    const quality = profileLeaveValue(move.leave);
+    const leaveAt = (profile: (typeof PLAYER_PROFILES)[number], bagSize: number) => {
+      const decision = choose([move], profile, {
+        board, rack, bagSize, seed: 0, playerSeed: 0,
+      }, { all: true });
+      return decision.considered![0].utility.leave;
+    };
+    const check = (actual: number, expected: number) =>
+      assert.ok(Math.abs(actual - expected) < 1e-8, `Expected ${expected}, got ${actual}`);
+    check(leaveAt("learner", 50), 0.98 * quality);
+    check(leaveAt("learner", 7), 0.98 * quality);
+    check(leaveAt("learner", 3), (0.56 + 0.42 * 3 / 7) * quality);
+    check(leaveAt("learner", 0), -0.65 * rackPoints(move.leave, template.rules));
+    check(leaveAt("casual", 50), 0.27 * quality);
+    check(leaveAt("strong", 50), 0.85 * quality);
+  }
 });
 
 test("only Strong uses known-rack lookahead to adjust a close empty-bag choice", (context) => {

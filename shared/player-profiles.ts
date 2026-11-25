@@ -305,6 +305,9 @@ export function createPlayerProfiles(
     const emptyBag = bagSize === 0 && template.rules !== "crossplay";
     const familiarityWeight = preset.lateFamiliarity
       * lateProfileFamiliarityWeight(bagSize, template.rackSize);
+    // Give Learner more credit for the whole leave while there are tiles to draw.
+    const learnerLeaveBoost =
+      profile === "learner" ? Math.min(1, bagSize / template.rackSize) : 0;
     const pool =
       !solo && emptyBag && profile === "strong"
         ? unseenTiles(position, template)
@@ -427,9 +430,12 @@ export function createPlayerProfiles(
       if (bagSize || emptyBag) {
         let estimate = leaveScores.get(move.leave);
         if (estimate === undefined) {
-          estimate = emptyBag
-            ? -preset.endRack * rackPoints(move.leave, template.rules)
-            : preset.leave * profileLeaveValue(move.leave);
+          if (emptyBag) {
+            estimate = -preset.endRack * rackPoints(move.leave, template.rules);
+          } else {
+            const quality = profileLeaveValue(move.leave);
+            estimate = preset.leave * (quality + learnerLeaveBoost * (0.75 * quality));
+          }
           leaveScores.set(move.leave, estimate);
         }
         leave = estimate;
