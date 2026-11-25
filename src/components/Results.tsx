@@ -432,12 +432,14 @@ export default function Results({
   const profile = view === "style" ? selectedProfile : undefined;
   const bingoStyle = isSimulatedStyle(selectedProfile) ? selectedProfile : undefined;
   const hunterSelected = !!bingoStyle && view === "style";
+  const autoMaster = hunterSelected && bingoStyle === "master";
   const hunterLabel = bingoStyle && SIMULATED_STYLE_LABELS[bingoStyle];
   const hunterKey = bingoStyle && resultSet?.total && !busy && !error && !invalid
     ? JSON.stringify([bingoStyle, analysisKey, resultSet.searchId, bagSize, scorelessTurns, replyAnalysis.opponentHasFinalTurn])
     : undefined;
   const hunter = useBingoHunter(hunterKey, runBingoHunter, {
     style: bingoStyle,
+    autoStart: autoMaster,
     gameId: analysisGame?.id,
     searchId: resultSet?.searchId,
     findMovesRequest,
@@ -963,6 +965,8 @@ export default function Results({
       {hunter.current?.error ? `Restart ${hunterLabel}` : "Run another 10 seconds"}
     </button>
   ) : undefined;
+  const masterIdleStatus = hunter.current?.canceled ? "Master calculation canceled."
+    : hunterResult || !totalMoves ? "No moves to compare." : "Starting Master…";
   const returnViewLabel = returnView === "style" && selectedProfile
     ? isSimulatedStyle(selectedProfile)
       ? SIMULATED_STYLE_LABELS[selectedProfile]
@@ -1440,13 +1444,13 @@ export default function Results({
                         : bingoStyle === "triple-threat"
                           ? "Take a bingo when available, then weigh points now, the next-turn bingo chance, and open triple-word lanes."
                           : bingoStyle === "master"
-                            ? "Compare your score, their reply, and what you can play next."
+                            ? masterIdleStatus
                             : "Rank moves by weighted play points now and expected bingo points after the reply. Bingos count in full.")}</p>
-              {hunterAction ?? (
+              {hunterAction ?? ((!autoMaster || hunter.current?.error || hunter.current?.canceled) && (
                 <button type="button" className="button primary" disabled={!hunterKey} onClick={() => hunter.start()}>
-                  Run {hunterLabel}
+                  {autoMaster ? "Try again" : `Run ${hunterLabel}`}
                 </button>
-              )}
+              ))}
             </>
           )}
         </div>

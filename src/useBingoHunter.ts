@@ -9,6 +9,7 @@ import { timingNow } from "./move-timing";
 type HuntState = {
   key: string;
   pending?: true;
+  canceled?: true;
   progress?: HunterProgress;
   result?: HunterSummary & { id: number; runs: (CalculationSpan & { id: number })[] };
   error?: string;
@@ -17,8 +18,8 @@ type HuntState = {
 export function useBingoHunter(
   key: string | undefined,
   run: RunBingoHunter | undefined,
-  { style, gameId, searchId, findMovesRequest, bagSize, scorelessTurns, opponentHasFinalTurn, workerLimit }:
-    Omit<HunterOptions, "resumeFrom"> & { gameId?: string; searchId?: number; findMovesRequest?: number },
+  { style, autoStart, gameId, searchId, findMovesRequest, bagSize, scorelessTurns, opponentHasFinalTurn, workerLimit }:
+    Omit<HunterOptions, "resumeFrom"> & { autoStart: boolean; gameId?: string; searchId?: number; findMovesRequest?: number },
 ) {
   const active = useRef<AbortController>(undefined);
   const lastStarted = useRef(new Map<SimulatedStyle, { gameId?: string; searchId: number; findMovesRequest?: number }>());
@@ -30,7 +31,9 @@ export function useBingoHunter(
     setStates((current) => {
       const stale = SIMULATED_STYLES.find(style => current[style]?.pending && current[style].key !== key);
       if (!stale) return current;
-      return { ...current, [stale]: { ...current[stale], pending: undefined, progress: undefined } };
+      const interrupted = current[stale];
+      return { ...current, [stale]: interrupted?.result
+        ? { ...interrupted, pending: undefined, progress: undefined } : undefined };
     });
     return () => active.current?.abort();
   }, [key]);
@@ -38,8 +41,10 @@ export function useBingoHunter(
   function cancel() {
     active.current?.abort();
     if (!style) return;
-    setStates((states) => ({ ...states, [style]: current?.result
-      ? { ...current, pending: undefined, progress: undefined } : undefined }));
+    const stopped: HuntState | undefined = current?.result
+      ? { ...current, pending: undefined, progress: undefined }
+      : style === "master" && key ? { key, canceled: true } : undefined;
+    setStates((states) => ({ ...states, [style]: stopped }));
   }
 
   const start = useCallback((resumeFrom?: number) => {
@@ -74,7 +79,15 @@ export function useBingoHunter(
     );
   }, [style, key, run, gameId, searchId, findMovesRequest, current?.result, bagSize, scorelessTurns, opponentHasFinalTurn, workerLimit]);
 
+  const masterNeedsRun = autoStart && !!key && !current;
   useEffect(() => {
+    if (style === "master") {
+      if (!masterNeedsRun) return;
+      // Wait for effect cleanup so a replayed setup cannot dispatch a second job.
+      let selected = true;
+      queueMicrotask(() => { if (selected) start(); });
+      return () => { selected = false; };
+    }
     const previous = style && lastStarted.current.get(style);
     // Reopening cached results or cancelling a hunt should leave the current run alone.
     if (key && gameId && previous && previous.gameId === gameId &&
@@ -82,7 +95,7 @@ export function useBingoHunter(
       findMovesRequest !== undefined && findMovesRequest > (previous.findMovesRequest ?? 0)) {
       start();
     }
-  }, [style, key, gameId, searchId, findMovesRequest, start]);
+  }, [style, key, masterNeedsRun, gameId, searchId, findMovesRequest, start]);
 
   return { current, start, cancel };
 }

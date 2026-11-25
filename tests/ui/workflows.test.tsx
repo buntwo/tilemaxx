@@ -642,8 +642,10 @@ test("Bingo Mercenary starts on demand, then follows new move searches", async (
   expect(ordinaryBreakdown.getByText(`${playPoints} × 0.75 = ${weightedPlayPoints}`)).toBeTruthy();
 });
 
-test("Bingo Tactician keeps its utility breakdown and continuation separate from Bingo Mercenary", async () => {
+test("Bingo styles run manually while Master starts on selection and reuses its result", async () => {
   const requests: Extract<SolverRequest, { kind: "bingo-hunter" }>[] = [];
+  const masterRequests = () => requests.filter(({ style }) => style === "master");
+  let finishMaster: () => void;
   class HunterWorker extends SolverWorker {
     postMessage(request: SolverRequest | ReplyRequest) {
       if (request.kind === "reply-summary") {
@@ -670,7 +672,9 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
           move, utility: { kind: "master", score: move.score, reply: -21, followUp: 19, leave: 4,
             rackAdjustment: 0, bingoChance: 0.3, total: move.score + 2, samples: 40, exactDeals: false, endgame: undefined },
         }]);
-        this.onmessage?.({ data: { id: request.id, kind: "bingo-hunter", summary: { checked: 1, limited: false } } });
+        finishMaster = () => this.onmessage?.({ data: {
+          id: request.id, kind: "bingo-hunter", summary: { checked: 1, limited: false },
+        } });
         return;
       }
       index.setProfile({ profile: style, profileBagSize: request.bagSize, profileSeed: request.id }, [{ move, utility: {
@@ -729,8 +733,15 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
   expect(requests[2].resumeFrom).toBe(requests[0].id);
   expect((await openUtility()).getByText("Bingo Tactician · Rank 1")).toBeTruthy();
   await user.selectOptions(select, "master");
+  await waitFor(() => expect(masterRequests()).toHaveLength(1));
+  expect(screen.queryByRole("button", { name: "Run Master" })).toBeNull();
   expect(screen.queryByRole("button", { name: /^Calculation timing,/ })).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Run Master" }));
+  await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
+  expect(screen.getByText("Master calculation canceled.")).toBeTruthy();
+  expect(masterRequests()).toHaveLength(1);
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+  expect(masterRequests()).toHaveLength(2);
+  act(finishMaster!);
   const master = await openUtility();
   expect(master.getByText("Master · Rank 1")).toBeTruthy();
   expect(master.getByText("Expected follow-up")).toBeTruthy();
@@ -742,6 +753,17 @@ test("Bingo Tactician keeps its utility breakdown and continuation separate from
   expect((await timer()).textContent).toBe(allMovesTime);
   await user.click(screen.getByRole("button", { name: "All moves" }));
   expect((await timer()).textContent).toBe(masterTime);
+  await user.selectOptions(select, "casual");
+  await user.selectOptions(select, "master");
+  expect((await timer()).textContent).toBe(masterTime);
+  expect(masterRequests()).toHaveLength(2);
+
+  await user.click(rackTile(1));
+  await user.keyboard("C{Enter}");
+  await waitFor(() => expect(masterRequests()).toHaveLength(3));
+  expect(masterRequests()[2].searchId).not.toBe(masterRequests()[1].searchId);
+  act(finishMaster!);
+  await checkTiming("Master simulation");
 });
 
 test("phone analysis taps preview and select a move without offering Play", async () => {

@@ -48,7 +48,7 @@ Both styles enumerate exact tile deals with up to two tiles in the bag and sampl
 
 ## Master
 
-Choose **Master** in **Playing style** and select **Run Master**. The progress counter shows how many candidates it has checked. Once you have run it in a game, new **Find moves** searches run Master again while it stays selected.
+Choose **Master** in **Playing style** to start the simulation. The progress counter shows how many candidates it has checked. Returning to Master for the same search reuses its completed result. New **Find moves** searches start Master while it stays selected.
 
 Master starts with score and rack leave to find up to 12 placements worth testing. It samples the opposing rack and bag without replacement and reuses the same deals across candidates. For each deal, it models the opponent’s reply and your following turn. It gives full credit to the current score, subtracts the opponent’s reply and leave, then adds 65% of your follow-up score and leave and 35% of your current leave. Finished deals use the actual points and final rack adjustments.
 
