@@ -70,6 +70,26 @@ test("move strength uses a short opponent rack established by the endgame tile p
   assert.equal(analyzeMoveStrength(lexicon, [opponent], endgame)[1]?.best, best.score);
 });
 
+test("move strength accepts our short rack when the remaining tiles fit in the opponent's rack", () => {
+  const tiles = "CATSDEFQXYZ";
+  const tileCounts = Object.fromEntries(TILE_SYMBOLS.map((tile) => [tile, Number(tiles.includes(tile))]));
+  const endgame = { ...template, tileCounts };
+  const short = { ...turn, position: { ...turn.position, rack: "CATS" } };
+  assert.deepEqual(analyzeMoveStrength(lexicon, [short], endgame), {
+    1: {
+      best: best.score,
+      percent: Math.round(1000 * short.score / best.score) / 10,
+      assumedEmptyBag: true,
+    },
+  });
+  assert.deepEqual(analyzeMoveStrength(lexicon, [short], {
+    ...endgame, tileCounts: { ...tileCounts, Z: 2 },
+  }), {});
+  assert.deepEqual(analyzeMoveStrength(lexicon, [short], {
+    ...endgame, tileCounts: { ...tileCounts, S: 0 },
+  }), {});
+});
+
 test("a recorded rack-out validates our short rack in live history and archive replay", () => {
   const endgame = {
     ...template,
@@ -104,6 +124,8 @@ test("a recorded rack-out validates our short rack in live history and archive r
   for (const source of [{ ...finished, scoring }, { ...finished, board: editedBoard }]) {
     const [row] = scoreHistoryMoves(reviewTurns(finished), source);
     assert.equal(row.rackOut, false);
-    assert.deepEqual(analyzeMoveStrength(lexicon, [{ ...row, position: row.position! }], endgame), {});
+    assert.deepEqual(analyzeMoveStrength(lexicon, [{ ...row, position: row.position! }], endgame), {
+      1: { best: best.score, percent: 100, assumedEmptyBag: true },
+    });
   }
 });

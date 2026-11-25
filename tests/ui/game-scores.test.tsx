@@ -175,6 +175,10 @@ test("move history calculates strength when opened and discards results for a ch
   await waitFor(() => expect(workers).toHaveLength(2));
   act(() => workers[0].onmessage?.(result));
   expect(table.queryByText("83.3%")).toBeNull();
+  act(() => workers[1].onmessage?.({
+    data: { result: { 1: { best: 10, percent: 100, assumedEmptyBag: true } } },
+  }));
+  expect(table.getByText("100%").getAttribute("title")).toBe("10 of 10 possible points (assuming an empty bag)");
 });
 
 test("the score chart pairs adjacent plays and carries forward the score for a missing reply", () => {

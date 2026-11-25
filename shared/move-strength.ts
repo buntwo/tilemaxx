@@ -10,10 +10,10 @@ export type MoveStrengthTurn = Pick<TrackedMove, "player" | "word" | "score"> & 
   position: TurnPosition;
   rackOut?: boolean;
 };
-export type MoveStrength = { best: number; percent: number };
+export type MoveStrength = { best: number; percent: number; assumedEmptyBag?: true };
 export type MoveStrengthResult = Partial<Record<number, MoveStrength>>;
 
-function knownRack({ player, position, rackOut }: MoveStrengthTurn, template: BoardTemplate) {
+function comparisonRack({ player, position, rackOut }: MoveStrengthTurn, template: BoardTemplate) {
   const { board, observerRack } = position;
   const exactOpponent = player === "opponent" && observerRack !== undefined
     ? endgameOpponentRack(unseenTiles({ board, rack: observerRack }, template), template.rackSize)
@@ -21,9 +21,10 @@ function knownRack({ player, position, rackOut }: MoveStrengthTurn, template: Bo
   const rack = rackLetters(position.rack ?? exactOpponent ?? "");
   if (!rack || rack.length > template.rackSize) return;
   const unseen = unseenTiles({ board, rack }, template);
-  if (unseen.excess.length ||
-      (player === "you" && rack.length < template.rackSize && unseen.total && !rackOut)) return;
-  return rackSlotsForMove({ board, rack }, position.tiles) ? rack : undefined;
+  if (unseen.excess.length || !rackSlotsForMove({ board, rack }, position.tiles)) return;
+  const assumedEmptyBag = player === "you" && rack.length < template.rackSize && unseen.total > 0 && !rackOut;
+  if (assumedEmptyBag && endgameOpponentRack(unseen, template.rackSize) === undefined) return;
+  return { rack, assumedEmptyBag };
 }
 
 export function analyzeMoveStrength(
@@ -41,8 +42,8 @@ export function analyzeMoveStrength(
         tiles.some(({ index }) => !Number.isInteger(index) || index < 0 || index >= board.length || board[index]))
       continue;
     const template = premiums?.length === board.length ? { ...layout, premiums } : layout;
-    const rack = knownRack(turn, template);
-    if (!rack) continue;
+    const comparison = comparisonRack(turn, template);
+    if (!comparison) continue;
     const after = board.slice();
     for (const { index, letter } of tiles) after[index] = letter;
     const play = scorePlacement(board, after, template, direction);
@@ -50,14 +51,18 @@ export function analyzeMoveStrength(
         !play.words.every(({ word }) => lexicon.has(word)))
       continue;
     try {
-      const best = prepareSolver(lexicon, board, template).bestScore(rack, {
+      const best = prepareSolver(lexicon, board, template).bestScore(comparison.rack, {
         maxMs: Math.min(500, Math.max(1, deadline - performance.now())),
       });
       if (!best || best < turn.score) continue;
       const percent = turn.score === best
         ? 100
         : Math.min(99.9, Math.round(1000 * turn.score / best) / 10);
-      results[turn.number] = { best, percent };
+      results[turn.number] = {
+        best,
+        percent,
+        ...(comparison.assumedEmptyBag && { assumedEmptyBag: true }),
+      };
     } catch (error) {
       if (!(error instanceof SearchLimitError)) throw error;
       // A timed-out search does not establish a maximum score.

@@ -120,6 +120,7 @@ export default function TrackedMoveHistory({
             <tbody>
               {moves.map((move) => {
                 const strength = strengths?.[move.number];
+                const assumption = strength?.assumedEmptyBag ? " (assuming an empty bag)" : "";
                 return (
                   <tr key={move.number}>
                     <td className="score-move-number">
@@ -144,7 +145,7 @@ export default function TrackedMoveHistory({
                     </td>
                     <td className="score-move-strength">
                       {strength ? (
-                        <span title={`${move.score} of ${strength.best} possible points`}>
+                        <span title={`${move.score} of ${strength.best} possible points${assumption}`}>
                           {strength.percent}%
                         </span>
                       ) : "—"}
