@@ -5706,11 +5706,9 @@ label + label {
 }
 .possible-moves-title .calculation-indicator {
   --move-heading-icon-slot: 32px;
+  --calculation-icon-size: 16px;
   width: var(--move-heading-icon-slot);
   height: var(--move-heading-icon-slot);
-}
-.possible-moves-title .calculation-indicator:has(.move-search-toggle) {
-  --calculation-icon-size: 16px;
 }
 .possible-moves-title :is(.calculation-idle-icon, .calculation-spinner) {
   inset: calc((var(--move-heading-icon-slot) - var(--calculation-icon-size)) / 2);
@@ -6719,7 +6717,11 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 
 .replay-strip-label { color: var(--primary); font-weight: 650; }
 .replay-recorded-word[aria-pressed="true"] { background: var(--soft); }
-.replay-recorded-word { min-height: 23px; padding: 2px 4px; }
+.replay-recorded-word {
+  min-height: 23px;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
 
 .replay-move-word {
   display: flex;
