@@ -1480,7 +1480,10 @@ label + label {
   border-top: 1px solid var(--line);
   margin-top: 12px;
 }
-.score-history { grid-area: 1 / 1 / 2 / -1; }
+.score-history {
+  grid-area: 1 / 1 / 2 / -1;
+  container-type: inline-size;
+}
 .score-history-replay {
   grid-area: 1 / 2;
   align-self: start;
@@ -1545,6 +1548,19 @@ label + label {
 }
 .score-history :is(th, td):last-child {
   text-align: right;
+}
+.score-history .score-move-strength {
+  width: 52px;
+  padding-inline: 2px;
+  text-align: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+@container (max-width: 270px) {
+  .score-history th:is(.score-move-strength, :last-child) {
+    font-size: 10px;
+  }
+  .score-history th:last-child { padding-inline: 1px; }
 }
 .score-history td {
   overflow-wrap: anywhere;

@@ -382,6 +382,7 @@ export function scoreHistoryMoves(
   const totals = { you: 0, opponent: 0 };
   return turns.map(({ move, position, index }) => ({
     ...move,
+    position,
     notation: recordedMoveNotation(move, position, template.size),
     bingo: move.bingo ?? (!!position && isBingo(template, position.tiles.length)),
     number: index + 1,

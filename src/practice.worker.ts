@@ -34,6 +34,7 @@ import type { BoardTemplate } from "../shared/model";
 import { runCandidateJobs } from "./candidate-analysis-pool";
 import { computeWorkerLimit } from "./compute-workers";
 import { parallelOptimalExchange } from "./parallel-exchange";
+import { analyzeMoveStrength, type MoveStrengthResult, type MoveStrengthTurn } from "../shared/move-strength";
 
 type PolicyReviewJob = {
   key: string;
@@ -80,7 +81,8 @@ export type PracticeRequest =
       turns: PolicyReviewJob[];
       workerLimit?: number;
     }
-  | { kind: "turn" | "game"; template: BoardTemplate; turns: ReviewJob[]; solo?: true };
+  | { kind: "turn" | "game"; template: BoardTemplate; turns: ReviewJob[]; solo?: true }
+  | { kind: "move-strength"; dictionaryId: string; template: BoardTemplate; turns: MoveStrengthTurn[] };
 
 export type OpponentPolicyMessage =
   | { result: OpponentPolicyResult }
@@ -219,6 +221,13 @@ self.onmessage = async ({ data }: MessageEvent<PracticeRequest>) => {
       self.postMessage({
         result: { reachedTimeLimit: completed < total },
       } satisfies OpponentPolicyBatchMessage);
+      return;
+    }
+    if (data.kind === "move-strength") {
+      const lexicon = await dictionary(data.dictionaryId);
+      self.postMessage({
+        result: analyzeMoveStrength(lexicon, data.turns, data.template),
+      } satisfies { result: MoveStrengthResult });
       return;
     }
     if (data.kind === "turn") {

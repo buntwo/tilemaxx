@@ -1688,6 +1688,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               {replay && (
                 <ReplayScores
                   {...replay}
+                  dictionaryId={savedGame?.dictionaryId ?? game.dictionaryId}
                   solo={game.solo}
                   finalScoring={!historical ? (savedGame?.archivedState ?? savedGame)?.scoring : undefined}
                   finalOutcome={!historical ? gameFinish.score?.outcome : undefined}

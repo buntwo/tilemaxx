@@ -203,6 +203,7 @@ export function ReplayScores({
   frames,
   scoreStart,
   index,
+  dictionaryId,
   solo,
   finalScoring,
   finalOutcome,
@@ -211,6 +212,7 @@ export function ReplayScores({
   frames: readonly ReplayFrame[];
   scoreStart: number;
   index: number;
+  dictionaryId: string;
   solo?: true;
   finalScoring?: GameScoring;
   finalOutcome?: GameScoreSummary["outcome"];
@@ -218,8 +220,16 @@ export function ReplayScores({
 }) {
   const moves = useMemo(
     () => scoreHistoryMoves(
-      frames.flatMap(({ move, position }, number) =>
-        move ? [{ move, position, index: number - 1 }] : [],
+      frames.flatMap(({ move, position, rack, template }, number) =>
+        move ? [{
+          move,
+          position: position && {
+            ...position,
+            premiums: template.premiums,
+            rack: move.player === "opponent" ? rack ?? position.rack : position.rack,
+          },
+          index: number - 1,
+        }] : [],
       ),
       frames[0].template,
     ),
@@ -258,7 +268,14 @@ export function ReplayScores({
         solo={solo}
         replay={{ index: frameIndex, scores, seek }}
       />
-      <TrackedMoveHistory moves={newestMoves} solo={solo} replayIndex={index} onSelect={seek} />
+      <TrackedMoveHistory
+        moves={newestMoves}
+        template={frames[0].template}
+        dictionaryId={dictionaryId}
+        solo={solo}
+        replayIndex={index}
+        onSelect={seek}
+      />
     </section>
   );
 }

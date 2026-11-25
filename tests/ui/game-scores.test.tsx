@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
 import { gameReplayTimeline } from "../../shared/game-replay";
@@ -118,7 +118,7 @@ test("an archive's final stats use the saved finish and replay stats use recorde
   const timeline = gameReplayTimeline(game);
   const seek = vi.fn();
   const { rerender } = render(
-    <ReplayScores {...timeline} index={3} finalScoring={scoring} finalOutcome={summarizeGameScore(game)?.outcome} seek={seek} />,
+    <ReplayScores {...timeline} dictionaryId={game.dictionaryId} index={3} finalScoring={scoring} finalOutcome={summarizeGameScore(game)?.outcome} seek={seek} />,
   );
   const panel = within(screen.getByRole("region", { name: "Game scores" }));
   expect(panel.getByText("106")).toBeTruthy();
@@ -128,12 +128,53 @@ test("an archive's final stats use the saved finish and replay stats use recorde
   expect(panel.getByText("Best 70 · 1 bingo")).toBeTruthy();
   expect(panel.getByRole("img", { name: "You won" })).toBeTruthy();
 
-  rerender(<ReplayScores {...timeline} index={1} seek={seek} />);
+  rerender(<ReplayScores {...timeline} dictionaryId={game.dictionaryId} index={1} seek={seek} />);
   expect(panel.getByText("1 move · Avg 24.0")).toBeTruthy();
   expect(panel.getByText("Best 24 · 0 bingos")).toBeTruthy();
   expect(panel.getByText("0 moves · Avg —")).toBeTruthy();
   expect(panel.queryByRole("img", { name: "You won" })).toBeNull();
   expect(panel.getByRole("img", { name: "Your turn" })).toBeTruthy();
+});
+
+test("move history calculates strength when opened and discards results for a changed word list", async () => {
+  const workers: StrengthWorker[] = [];
+  class StrengthWorker {
+    onmessage?: (event: { data: unknown }) => void;
+    postMessage = vi.fn();
+    terminate = vi.fn();
+    constructor() {
+      workers.push(this);
+    }
+  }
+  vi.stubGlobal("Worker", StrengthWorker);
+  const game = gameWithScores(10, 12);
+  game.trackedMoves = [{
+    player: "you", word: "CAT", score: 10, at: "",
+    review: {
+      board: game.board, rack: "CATSINE", dictionaryId: "test",
+      tiles: [{ index: 111, letter: "C" }, { index: 112, letter: "A" }, { index: 113, letter: "T" }],
+    },
+  }, { player: "opponent", word: "DOG", score: 12, at: "" }];
+  const { rerender } = show(game);
+  expect(workers).toHaveLength(0);
+  const details = screen.getByText("Tracked move history").closest("details")!;
+  details.open = true;
+  fireEvent(details, new Event("toggle"));
+  await waitFor(() => expect(workers).toHaveLength(1));
+  expect(workers[0].postMessage).toHaveBeenCalledWith(expect.objectContaining({
+    kind: "move-strength", dictionaryId: "test", turns: [expect.objectContaining({ number: 1, word: "CAT" })],
+  }));
+  const result = { data: { result: { 1: { best: 12, percent: 83.3 } } } };
+  act(() => workers[0].onmessage?.(result));
+  const table = within(screen.getByRole("table", { name: "Tracked moves" }));
+  expect(table.getByRole("columnheader", { name: "Move strength" })).toBeTruthy();
+  expect(table.getByText("83.3%").getAttribute("title")).toBe("10 of 12 possible points");
+  expect(within(table.getByRole("button", { name: "Review move 2: DOG" }).closest("tr")!).getByText("—")).toBeTruthy();
+  rerender(<GameScores game={{ ...game, dictionaryId: "other" }} onToggle={vi.fn()} onRecord={vi.fn()}
+    onCorrection={vi.fn()} onChange={vi.fn()} />);
+  await waitFor(() => expect(workers).toHaveLength(2));
+  act(() => workers[0].onmessage?.(result));
+  expect(table.queryByText("83.3%")).toBeNull();
 });
 
 test("the score chart pairs adjacent plays and carries forward the score for a missing reply", () => {
@@ -351,7 +392,7 @@ test("the score chart starts over after a scoring reset and keeps the saved move
     onCorrection={vi.fn()} onChange={vi.fn()} />);
   expect(screen.queryByRole("figure", { name: "Score by move" })).toBeNull();
 
-  rerender(<ReplayScores {...gameReplayTimeline(game)} index={2} seek={vi.fn()} />);
+  rerender(<ReplayScores {...gameReplayTimeline(game)} dictionaryId={game.dictionaryId} index={2} seek={vi.fn()} />);
   const details = screen.getByText("Tracked move history").closest("details")!;
   details.open = true;
   fireEvent(details, new Event("toggle"));

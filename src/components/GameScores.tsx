@@ -157,7 +157,7 @@ export default function GameScores({
     setError("");
   }
   const moves = useMemo(() => scoreHistoryMoves(turns, game.template), [turns, game.template]);
-  const newestMoves = [...moves].reverse();
+  const newestMoves = useMemo(() => [...moves].reverse(), [moves]);
   const chartMoves = moves.slice(currentScoreStart(game, history));
   return (
     <section className="panel score-panel" aria-label="Game scores">
@@ -275,6 +275,8 @@ export default function GameScores({
       {!!chartMoves.length && <ScoreChart moves={chartMoves} solo={solo} />}
       <TrackedMoveHistory
         moves={newestMoves}
+        template={game.template}
+        dictionaryId={game.dictionaryId}
         solo={solo}
         onSelect={(number) => setReview(number - 1)}
         onEdit={(number) => openEditor(number - 1)}
