@@ -46,7 +46,7 @@ function StrengthMeter({ score, strength }: { score: number; strength: MoveStren
       <button
         type="button"
         className="score-strength-trigger"
-        aria-label={`Move strength ${strength.assumedEmptyBag ? "approximately " : ""}${percent}%`}
+        aria-label={`Move strength ${percent}%`}
         aria-describedby={tooltipId}
         onClick={(event) => event.currentTarget.focus()}
       >
@@ -55,7 +55,7 @@ function StrengthMeter({ score, strength }: { score: number; strength: MoveStren
         </span>
       </button>
       <span className="score-strength-tooltip" role="tooltip" id={tooltipId}>
-        {`${strength.assumedEmptyBag ? "≈" : ""}${percent}% · ${score}/${strength.best} pts`}
+        {`${percent}% · ${score}/${strength.best} pts`}
       </span>
     </>
   );
