@@ -72,6 +72,80 @@ test("programmatic access is disabled until configured", async (t) => {
   assert.equal((await fetch(url + "/api/state/index")).status, 200);
 });
 
+test("the API records passes and exchanges and undoes them with the original rack", async (t) => {
+  const { endpoint, store } = await fixture(t);
+  const profile = store.createProfile("Turn recording test");
+  const created = await endpoint("/games/new", {
+    profileId: profile.id,
+    templateId: "scrabble",
+    name: "Turn recording test",
+  });
+  assert.equal(created.status, 201);
+  const game: Game = await created.json();
+  const path = `/games/${game.id}/actions`;
+  const request = (position: Game, command: object) =>
+    endpoint(path, { revision: position.revision, command });
+  async function apply(position: Game, command: object): Promise<Game> {
+    const response = await request(position, command);
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    return body;
+  }
+
+  const rack = await apply(game, {
+    action: "rack",
+    rack: "J.I?ARC",
+    excludedRackSlots: [5],
+    requiredRackSlots: [3],
+  });
+  const pass = { action: "record-pass", player: "opponent" };
+  const passed = await apply(rack, pass);
+  assert.deepEqual(passed.trackedMoves?.map(({ player, action, score }) =>
+    ({ player, action, score })), [{ player: "opponent", action: { kind: "pass" }, score: 0 }]);
+  assert.equal(passed.rack, rack.rack);
+  const retry = await request(rack, pass);
+  assert.equal(retry.status, 409);
+  assert.equal((await retry.json()).game.revision, passed.revision);
+  assert.equal((await request(passed, pass)).status, 422);
+
+  const ownExchange = { action: "record-exchange", player: "you" };
+  assert.equal((await request(passed, ownExchange)).status, 400);
+  assert.equal((await request(passed, { ...ownExchange, slots: [1] })).status, 422);
+  assert.equal((await request(passed, { ...ownExchange, slots: [0, 0] })).status, 422);
+  const exchanged = await apply(passed, { ...ownExchange, slots: [0, 3] });
+  assert.deepEqual(exchanged.trackedMoves?.at(-1)?.action, { kind: "exchange", slots: [0, 3] });
+  assert.equal(exchanged.rack, "IARC");
+  assert.deepEqual(exchanged.excludedRackSlots, [2]);
+  assert.equal(exchanged.requiredRackSlots, undefined);
+
+  const filled = await apply(exchanged, { action: "rack", rack: "IARCTO", excludedRackSlots: [2] });
+  const opponentExchange = { action: "record-exchange", player: "opponent" };
+  assert.equal((await request(filled, { ...opponentExchange, slots: [0] })).status, 400);
+  assert.equal((await request(filled, { ...opponentExchange, count: 8 })).status, 422);
+  const opponent = await apply(filled, { ...opponentExchange, count: 2 });
+  assert.deepEqual(opponent.trackedMoves?.at(-1)?.action, { kind: "exchange", count: 2 });
+  assert.equal(opponent.rack, filled.rack);
+  const undoOpponent = await apply(opponent, { action: "undo" });
+  assert.deepEqual(undoOpponent.trackedMoves, filled.trackedMoves);
+  assert.equal(undoOpponent.rack, filled.rack);
+  const unknown = await apply(undoOpponent, opponentExchange);
+  assert.deepEqual(unknown.trackedMoves?.at(-1)?.action, { kind: "exchange" });
+  const undoUnknown = await apply(unknown, { action: "undo" });
+  const undoOwn = await apply(undoUnknown, { action: "undo" });
+  assert.deepEqual(undoOwn.trackedMoves, passed.trackedMoves);
+  assert.equal(undoOwn.rack, rack.rack);
+  assert.deepEqual(undoOwn.excludedRackSlots, rack.excludedRackSlots);
+  assert.deepEqual(undoOwn.requiredRackSlots, rack.requiredRackSlots);
+  const undoPass = await apply(undoOwn, { action: "undo" });
+  assert.equal(undoPass.trackedMoves?.length, 0);
+  assert.deepEqual(undoPass.board, game.board);
+
+  const schemas = await (await endpoint("/schema")).json();
+  const actionSchema = JSON.stringify(schemas["POST /games/:id/actions"]);
+  assert.match(actionSchema, /"record-pass"/);
+  assert.match(actionSchema, /"record-exchange"/);
+});
+
 test("packed vocabulary is compressed, checks dictionary content, and revalidates study rules", async (t) => {
   const { url, auth, store } = await fixture(t);
   const listing = "TUI\nEWW\nABASE\nQIS\n";

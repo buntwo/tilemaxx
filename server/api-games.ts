@@ -6,6 +6,7 @@ import {
   correctTrackedMove,
   endGameManually,
   playTrackedMove,
+  recordBoardlessTurn,
   recordOpponentPlay,
   recordOpponentPlayForSearch,
   reopenSearchRecordedOpponentPlay,
@@ -43,6 +44,8 @@ import { ApiError } from "./api-error";
 import type { createStore } from "./store";
 import {
   cell,
+  exchangeCount,
+  exchangeSlots,
   gameSchema,
   nameSchema,
   premiums,
@@ -109,6 +112,22 @@ const action = z.discriminatedUnion("action", [
     action: z.literal("record-opponent"),
     forSearch: z.boolean().optional(),
   }),
+  z.strictObject({
+    action: z.literal("record-pass"),
+    player: z.enum(["you", "opponent"]),
+  }),
+  z.discriminatedUnion("player", [
+    z.strictObject({
+      action: z.literal("record-exchange"),
+      player: z.literal("you"),
+      slots: exchangeSlots,
+    }),
+    z.strictObject({
+      action: z.literal("record-exchange"),
+      player: z.literal("opponent"),
+      count: exchangeCount.optional(),
+    }),
+  ]),
   z.strictObject({ action: z.literal("reopen-opponent") }),
   z.strictObject({ action: z.literal("keep-board-correction") }),
   z.strictObject({ action: z.literal("score-tracking"), enabled: z.boolean() }),
@@ -289,6 +308,16 @@ function applyAction(game: Game, command: z.infer<typeof action>): Game {
       return command.forSearch
         ? recordOpponentPlayForSearch(game)
         : recordOpponentPlay(game);
+    case "record-pass":
+      return recordBoardlessTurn(game, command.player, { kind: "pass" });
+    case "record-exchange":
+      return recordBoardlessTurn(
+        game,
+        command.player,
+        command.player === "you"
+          ? { kind: "exchange", slots: command.slots }
+          : { kind: "exchange", count: command.count },
+      );
     case "reopen-opponent":
       return reopenSearchRecordedOpponentPlay(game);
     case "keep-board-correction":

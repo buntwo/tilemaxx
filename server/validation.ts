@@ -68,6 +68,8 @@ export const rack = z
   .regex(/^[A-Z?.]*$/)
   .max(10);
 export const rackSlots = z.array(z.number().int().min(0).max(9)).max(10).optional();
+export const exchangeSlots = rackSlots.unwrap().min(1);
+export const exchangeCount = z.number().int().min(1).max(10);
 export const templateSchema = z
   .object({
     id: z.string().max(100),
@@ -161,11 +163,11 @@ const boardlessTurn = z.union([
   z.strictObject({ kind: z.literal("pass") }),
   z.strictObject({
     kind: z.literal("exchange"),
-    slots: z.array(z.number().int().min(0).max(9)).min(1).max(10),
+    slots: exchangeSlots,
   }),
   z.strictObject({
     kind: z.literal("exchange"),
-    count: z.number().int().min(1).max(10).optional(),
+    count: exchangeCount.optional(),
   }),
 ]).optional();
 const trackedMoves = z

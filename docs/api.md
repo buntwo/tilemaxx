@@ -1,7 +1,7 @@
 # Tilemaxx HTTP API
 
 The API controls the same saved workspace as the web app. It can manage games,
-profiles, board templates and word lists, enter and score plays, recognize
+profiles, board templates and word lists, record plays, passes and exchanges, recognize
 screenshots, and run move, exchange, endgame and review analysis.
 
 ## Enable access
@@ -102,6 +102,8 @@ server returns the updated game. A `409` returns the current game in the
 | `edit-board` | Supply `edits` as `[{ "index": 112, "letter": "A" }]`. An empty letter erases a tile. |
 | `play` | Use a result's `tiles` and `direction`, or provide a placed word directly. Tilemaxx computes its score. Rack marks apply by default. Set `useRackMarks: false` for manual entry, or send `confirmedLeave` to record a play with a corrected rack. Optional `bagSize` confirms the tile count. |
 | `record-opponent` · `reopen-opponent` · `keep-board-correction` | Record the pending play, reopen the last play recorded by search, or keep edits as a correction. Use `forSearch: true` with `record-opponent` to match what the web app does before finding moves. |
+| `record-pass` | Give the active `player`, either `you` or `opponent`. Adds a turn worth zero points. |
+| `record-exchange` | For `player: "you"`, send the occupied rack `slots` to return. The server removes those tiles and compacts the remaining rack in order. For `player: "opponent"`, send `count` or omit it when unknown. |
 | `edit-details` | Change any of `name`, `platform`, `startedOn`, `notes`, and `dictionaryId`. |
 | `import-board` | Supply a corrected `board` and optionally `premiums`. Use `layoutOnly: true` to import only the supplied layout and start with an empty board. |
 | `clear-board` · `restore-premiums` | Clear board and rack, or restore the template's original premium squares. |
@@ -115,6 +117,13 @@ Board and rack indices are zero-based. For a board of size `N`, an index is
 letters are assigned blanks. In a rack, `?` is an unassigned blank and `.`
 is an empty slot. Manual board and play entry can transcribe plays from another
 game. Use the word checker or move generation to validate dictionary membership.
+
+Passes and exchanges require an active game with score tracking enabled.
+They follow the same turn order as the web app. A valid pending opponent
+placement is recorded first when you pass or exchange after it. Use the
+revision from an exchange response to enter replacement tiles with `rack`.
+`undo` restores the turn and rack from before the exchange, including when
+you have already entered the replacements.
 
 ## Analyze a position
 
