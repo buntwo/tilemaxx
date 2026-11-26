@@ -8061,7 +8061,13 @@ test("style exchanges replace general advice and ignore stale worker replies", a
         const move = result?.moves.find(({ word }) => word === "AT");
         if (move) result!.setProfile(request.query, [{ move, utility: {
           total: 5, points: 5, premium: 0, visibility: 1, appeal: 2, leave: 0, goingOut: 0,
-        } }]);
+        } }], undefined, request.query.profile === "learner" ? {
+          rack: "CATSVUW",
+          advice: {
+            slots: [4], profile: "learner", problem: "awkward", edge: 7,
+            comparedWith: { word: move.word, score: move.score },
+          },
+        } : undefined);
       }
       if (["solve", "page", "shortlist", "endgame", "discard", "cancel"].includes(request.kind))
         super.postMessage(request as SolverRequest);
@@ -8073,6 +8079,15 @@ test("style exchanges replace general advice and ignore stale worker replies", a
   const header = within(screen.getByRole("heading", { name: "Possible moves" }).closest("header")!);
   await header.findByRole("button", { name: "Swap V · +6 pts" });
   const picker = screen.getByRole("combobox", { name: "Playing style" });
+  await user.selectOptions(picker, "learner");
+  const forecast = await header.findByRole("button", { name: "Swap V" });
+  expect(forecast.title).toContain("Learner estimates +7 points through your next turn");
+  await user.click(forecast);
+  expect(simulation?.exchange.slots).toEqual([5]);
+  expect(styles).toEqual([]);
+  await user.click(screen.getByRole("button", { name: "Clear marks" }));
+  expect(screen.queryByRole("region", { name: "Simulate exchange" })).toBeNull();
+
   await user.selectOptions(picker, "casual");
   const styled = await header.findByRole("button", { name: "Swap UV" });
   expect(header.queryByRole("button", { name: "Swap V · +6 pts" })).toBeNull();

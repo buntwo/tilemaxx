@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createLearnerLookahead } from "../shared/learner-lookahead";
+import {
+  createLearnerLookahead,
+  LEARNER_EXCHANGE_DEALS,
+} from "../shared/learner-lookahead";
 import { Lexicon } from "../shared/lexicon";
 import { emptyBoard } from "../shared/model";
-import { createPlayerProfiles } from "../shared/player-profiles";
+import {
+  createPlayerProfiles,
+  profileWordHash,
+} from "../shared/player-profiles";
 import { PRESETS } from "../shared/presets";
 import { solvePosition } from "../shared/solver";
 
@@ -80,7 +86,12 @@ test("Learner compares three visible words with eight shared deals and can chang
   );
   assert.equal(slate[0].move, ranked[0].move);
 
-  const steps = evaluate(position, ranked, slate, Infinity);
+  const steps = evaluate(
+    { ...position, requiredRackSlots: [0] },
+    ranked,
+    slate,
+    Infinity,
+  );
   let comparisons = 0;
   let result = steps.next();
   while (!result.done) {
@@ -89,8 +100,8 @@ test("Learner compares three visible words with eight shared deals and can chang
   }
 
   assert.equal(comparisons, 24);
-  assert.equal(result.value[0].move.word, "ACT");
-  const first = result.value[0];
+  assert.equal(result.value.ranked[0].move.word, "ACT");
+  const first = result.value.ranked[0];
   const prior = ranked.find(({ move }) => move.id === first.move.id)!;
   assert.ok(first.utility.lookahead! > 0);
   assert.equal(
@@ -98,26 +109,103 @@ test("Learner compares three visible words with eight shared deals and can chang
     prior.utility.total + first.utility.lookahead!,
   );
   assert.deepEqual(
-    result.value
+    result.value.ranked
       .filter(({ utility }) => utility.lookahead !== undefined)
       .map(({ move }) => move.id)
       .sort(),
     slate.map(({ move }) => move.id).sort(),
   );
-  assert.equal(result.value.length, ranked.length);
+  assert.equal(result.value.ranked.length, ranked.length);
   assert.equal(prior.utility.lookahead, undefined);
+});
+
+test("Learner checks the swap on 32 deals and reuses the first eight placement outcomes", () => {
+  const { position, evaluate, ranked, slate } = fixture();
+  const steps = evaluate(position, ranked, slate, Infinity);
+  let count = 0;
+  let step = steps.next();
+  while (!step.done) {
+    count++;
+    step = steps.next();
+  }
+  assert.equal(count, 3 * 8 + LEARNER_EXCHANGE_DEALS);
+  assert.equal(LEARNER_EXCHANGE_DEALS, 32);
+  assert.equal(step.value.exchange, undefined);
+  assert.equal(step.value.ranked[0].move.word, "CARTS");
+});
+
+test("Learner recommends a simulated exchange with a clear edge over a spotted play", () => {
+  const template = PRESETS[0];
+  const words =
+    "OU FA GO HE IF NO OR OX PA RE TO UH US WE AX ON IS YE HA HI LO AL AG MA PI PE NU SI QI".split(
+      " ",
+    );
+  const lexicon = new Lexicon(words);
+  const board = emptyBoard(template.size);
+  const rack = "EIOOOUU";
+  const position = {
+    board,
+    rack,
+    bagSize: 86,
+    seed: profileWordHash(`${board.join(".")}:${rack}`),
+    playerSeed: 0,
+  };
+  const choose = createPlayerProfiles(
+    lexicon,
+    template,
+    new Map(),
+    undefined,
+    undefined,
+    new Map(words.map((word) => [word, 9_000])),
+  );
+  const decision = choose(
+    solvePosition(lexicon, position, template),
+    "learner",
+    position,
+    {
+      all: true,
+      learnerSlate: true,
+    },
+  );
+  const evaluate = createLearnerLookahead(lexicon, template, choose);
+  const work = evaluate(
+    position,
+    decision.considered!,
+    decision.learnerSlate!,
+    Infinity,
+  );
+  let count = 0;
+  let step = work.next();
+  while (!step.done) {
+    count++;
+    step = work.next();
+  }
+  assert.equal(count, 8 + LEARNER_EXCHANGE_DEALS);
+  assert.deepEqual(step.value.exchange, {
+    slots: [0, 1, 2, 3, 4, 5, 6],
+    profile: "learner",
+    comparedWith: { word: "OU", score: 4 },
+    problem: "balance",
+    edge: 4.5625,
+  });
+  assert.equal(
+    evaluate(position, decision.considered!, decision.learnerSlate!, 0).next()
+      .value?.exchange,
+    undefined,
+  );
+  assert.ok(evaluate(position, [], [], 0).next().value?.exchange);
 });
 
 test("Learner keeps static suggestions when the deadline or tile counts prevent a fair comparison", () => {
   const { position, evaluate, ranked, slate } = fixture();
   assert.deepEqual(evaluate(position, ranked, slate, 0).next(), {
     done: true,
-    value: ranked,
+    value: { ranked },
   });
   const tooFewUnseen = { ...position, bagSize: 93 };
   assert.deepEqual(evaluate(tooFewUnseen, ranked, slate).next(), {
     done: true,
-    value: ranked,
+    value: { ranked },
   });
 });
 

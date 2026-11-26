@@ -1,17 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { minimumExchangeBag } from "../shared/exchange";
-import type { Game, Move } from "../shared/model";
+import type { Game } from "../shared/model";
+import type { MovePage } from "../shared/move-results";
 import type { PlayerExchangeAdvice } from "../shared/player-exchange";
 import type { PlayerProfile } from "../shared/player-profiles";
 import { rackSlotsForLetters } from "../shared/rack-entry";
 import type { PracticeRequest, StyleExchangeMessage } from "./practice.worker";
+
+function withTiles(advice: PlayerExchangeAdvice, rack: string) {
+  const { slots, ...detail } = advice;
+  return { ...detail, tiles: slots.map((slot) => rack[slot]).join("") };
+}
 
 export function useStyleExchange(
   game: Game | undefined,
   positionKey: string,
   searchId: number | undefined,
   profile: PlayerProfile | undefined,
-  choice: { move?: Move } | undefined,
+  choice: MovePage["styleChoice"],
   bagSize: number,
   scorelessTurns: number,
   playerSeed: number,
@@ -25,7 +31,7 @@ export function useStyleExchange(
     !game.requiredRackSlots?.length &&
     bagSize >= minimumExchangeBag(game.template, 1);
   const key =
-    eligible && choice && profile && searchId !== undefined
+    eligible && choice && !choice.exchange && profile && searchId !== undefined
       ? JSON.stringify([
           positionKey,
           searchId,
@@ -51,13 +57,9 @@ export function useStyleExchange(
       worker?.terminate();
       worker = undefined;
       if (!result) return setReceived({ key });
-      const { slots, ...advice } = result;
       setReceived({
         key,
-        advice: {
-          ...advice,
-          tiles: slots.map((slot) => game.rack[slot]).join(""),
-        },
+        advice: withTiles(result, game.rack),
       });
     };
     try {
@@ -100,7 +102,10 @@ export function useStyleExchange(
     };
   }, [key, choice, profile, bagSize, scorelessTurns, playerSeed, received]);
   const pending = !!key && received?.key !== key;
-  const result = !pending && key && received?.advice;
+  const evaluated = eligible && choice?.exchange;
+  const result = evaluated
+    ? evaluated.advice && withTiles(evaluated.advice, evaluated.rack)
+    : !pending && key && received?.advice;
   const slots = game && result && rackSlotsForLetters(game, result.tiles);
   return {
     pending,

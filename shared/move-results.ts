@@ -6,6 +6,7 @@ import { leaveValue } from "./move-analysis";
 import { shortlistMoves } from "./move-shortlist";
 import type { PlayerProfile, ProfileUtility, RankedProfileMove } from "./player-profiles";
 import type { MasterUtility } from "./master-evaluation";
+import type { PlayerExchangeAdvice } from "./player-exchange";
 import type { RankedSoloMove, SoloStyleUtility } from "./solo-styles";
 import type { HunterUtility, RankedHunterMove } from "./bingo-hunter";
 import { compileMoveWordFilter } from "./move-word-filter";
@@ -95,6 +96,7 @@ export function profileQueryKey({
 
 type RankedMove = RankedProfileMove | RankedHunterMove | RankedSoloMove | { move: Move; utility: MasterUtility };
 export type MoveUtility = (ProfileUtility | HunterUtility | MasterUtility | SoloStyleUtility) & { rank: number };
+type StyleExchange = { rack: string; advice?: PlayerExchangeAdvice };
 
 export interface MovePage {
   offset: number;
@@ -105,7 +107,7 @@ export interface MovePage {
   scoreRanks: Record<string, number>;
   profileHead?: Move[];
   profileTiming?: CalculationSpan;
-  styleChoice?: { move?: Move };
+  styleChoice?: { move?: Move; exchange?: StyleExchange };
   utilities?: Record<string, MoveUtility>;
   endgame?: Record<string, EndgameEstimate>;
   exactEndgameCount?: number;
@@ -248,6 +250,7 @@ export class MoveResultIndex {
     ranked: readonly RankedMove[];
     ranks: Map<string, number>;
     timing?: CalculationSpan;
+    exchange?: StyleExchange;
   };
 
   private hunterOrders = new Map<SimulatedStyle, NonNullable<MoveResultIndex["profileOrder"]>>();
@@ -295,13 +298,19 @@ export class MoveResultIndex {
     return order?.key === profileQueryKey(query);
   }
 
-  setProfile(query: ProfileQuery, ranked: readonly RankedMove[], timing?: CalculationSpan) {
+  setProfile(
+    query: ProfileQuery,
+    ranked: readonly RankedMove[],
+    timing?: CalculationSpan,
+    exchange?: StyleExchange,
+  ) {
     const order = {
       key: profileQueryKey(query),
       moves: ranked.map(({ move }) => move),
       ranked,
       ranks: new Map(ranked.map(({ move }, index) => [move.id, index + 1])),
       timing,
+      exchange,
     };
     if (isSimulatedStyle(query.profile)) this.hunterOrders.set(query.profile, order);
     else this.profileOrder = order;
@@ -388,7 +397,9 @@ export class MoveResultIndex {
       scoreRanks: Object.fromEntries(
         rows.map(({ id }) => [id, this.scoreRanks.get(id)!]),
       ),
-      styleChoice: ranked && !isSimulatedStyle(profile) ? { move: ranked.moves[0] } : undefined,
+      styleChoice: ranked && !isSimulatedStyle(profile)
+        ? { move: ranked.moves[0], exchange: ranked.exchange }
+        : undefined,
       utilities: ranked && Object.fromEntries(rows.map(({ id }) => {
         const rank = ranked.ranks.get(id)!;
         return [id, { ...ranked.ranked[rank - 1].utility, rank }];

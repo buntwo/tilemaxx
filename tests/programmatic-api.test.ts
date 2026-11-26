@@ -6,8 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "../server/app";
 import { createStore } from "../server/store";
-import type { Game } from "../shared/model";
+import { emptyBoard, type Game } from "../shared/model";
 import { parseWords } from "../shared/lexicon";
+import { PRESETS } from "../shared/presets";
 import {
   casualWordProbability, decodeProfileVocabulary, learnerWordProbability,
   profileDictionaryRevision, profileVocabularyUrl,
@@ -138,6 +139,35 @@ test("server-side Casual and Learner share the game dictionary but use different
   }
   assert.deepEqual(await words("casual"), new Set(["AT"]));
   assert.deepEqual(await words("learner"), new Set(["AT", "QAT"]));
+});
+
+test("Learner moves and exchange advice report the same 32-deal recommendation", async (t) => {
+  const { store, endpoint } = await fixture(t);
+  const list = store.importDictionary(
+    "WOW24",
+    "OU FA GO HE IF NO OR OX PA RE TO UH US WE AX ON IS YE HA HI LO AL AG MA PI PE NU SI QI"
+      .replaceAll(" ", "\n"),
+  );
+  const position = {
+    dictionaryId: list.id,
+    template: PRESETS[0],
+    board: emptyBoard(PRESETS[0].size),
+    rack: "EIOOOUU",
+  };
+  async function analyze(kind: string, move?: string) {
+    const result = await endpoint("/analysis", {
+      position,
+      operation: { kind, style: "learner", seed: 0, ...(move && { move }) },
+    });
+    const payload = await result.json();
+    assert.equal(result.status, 200, JSON.stringify(payload));
+    return payload;
+  }
+  const { styleChoice, exchangeAdvice } = await analyze("moves");
+  assert.equal(styleChoice.word, "OU");
+  assert.ok(exchangeAdvice.edge > 2);
+  assert.deepEqual((await analyze("exchange-advice")).advice, exchangeAdvice);
+  assert.deepEqual((await analyze("exchange-advice", styleChoice.id)).advice, exchangeAdvice);
 });
 
 test("bearer and browser credentials protect both API surfaces", async (t) => {

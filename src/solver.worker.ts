@@ -99,13 +99,13 @@ async function prepareProfile(
     all: true, learnerSlate: profile === "learner",
   });
 
-  if (!learnerSlate || learnerSlate.length < 2) {
+  if (profile !== "learner") {
     result.setProfile(query, considered ?? [], { start, end: timingNow() });
     return;
   }
 
   const evaluate = models.learner ??= createLearnerLookahead(lexicon, template, models.choose);
-  const steps = evaluate(profilePosition, considered ?? [], learnerSlate);
+  const steps = evaluate(profilePosition, considered ?? [], learnerSlate ?? []);
   let slice = performance.now();
   let step = steps.next();
   while (!step.done) {
@@ -116,7 +116,10 @@ async function prepareProfile(
     }
     step = steps.next();
   }
-  result.setProfile(query, step.value, { start, end: timingNow() });
+  result.setProfile(query, step.value.ranked, { start, end: timingNow() }, {
+    rack: position.rack,
+    advice: step.value.exchange,
+  });
 }
 
 async function fetchPage({ id, searchId, query }: Extract<SolverRequest, { kind: "page" }>) {

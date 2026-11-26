@@ -58,6 +58,7 @@ export function createProgrammaticRouter(
         const operation = input.operation;
         const style = operation.kind === "moves" ? operation.style
           : operation.kind === "compare" ? operation.opponent
+          : operation.kind === "exchange-advice" && operation.style === "learner" ? "learner"
           : undefined;
         if (style === "casual" || style === "learner")
           input = { ...input, profileVocabulary: (await vocabulary(input.dictionary.file)).bytes };

@@ -47,10 +47,12 @@ type ExchangeComparison = {
 type ExchangeScreen = {
   advice?: PlayerExchangeAdvice;
   comparison?: ExchangeComparison;
+  learnerSwap?: Pick<Swap, "keep" | "returned"> & { advice: PlayerExchangeAdvice };
 };
 
 export const PLAYER_EXCHANGE_SAMPLES = 16;
 const FORECAST_BUDGET_MS = 1_500;
+const LEARNER_MIN_HEURISTIC_EDGE = -5;
 const vowels = "AEIOU";
 const scoreGate = { casual: 14, learner: 24, strong: 24 };
 const casualWeights: Record<string, number> = {
@@ -337,6 +339,15 @@ export function screenPlayerExchange(
       move.score * (casual ? 0.8 : 1)
     : Infinity;
   const advice = delta > 1.5 ? adviceFor(position, first) : undefined;
+  if (profile === "learner" && move && delta >= LEARNER_MIN_HEURISTIC_EDGE)
+    return {
+      advice,
+      learnerSwap: {
+        keep: first.keep,
+        returned: first.returned,
+        advice: advice ?? adviceFor(position, first),
+      },
+    };
   if (profile !== "strong" || !move || delta < -10 || delta > 8)
     return { advice };
   const pool = unseen.tiles.flatMap(({ symbol, count }) =>

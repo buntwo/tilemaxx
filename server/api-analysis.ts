@@ -24,6 +24,7 @@ import {
   scoreTotalsAtPosition,
 } from "../shared/game-scoring";
 import { Lexicon } from "../shared/lexicon";
+import { createLearnerLookahead } from "../shared/learner-lookahead";
 import { scorePlacement } from "../shared/game-scoring";
 import type { Move, Rules } from "../shared/model";
 import {
@@ -39,12 +40,14 @@ import { optimizeExchange } from "../shared/optimal-exchange";
 import {
   samplePlayerExchange,
   screenPlayerExchange,
+  type PlayerExchangeAdvice,
 } from "../shared/player-exchange";
 import {
   createPlayerProfiles,
   lateProfileFamiliarityWeight,
   profileWordHash,
   type PlayerProfile,
+  type ProfilePosition,
 } from "../shared/player-profiles";
 import { checkPremiumDefense } from "../shared/premium-defense";
 import { rackComposition } from "../shared/rack-entry";
@@ -118,6 +121,25 @@ function checkBag(
       422,
       "Enter a valid number of prior passes or scoreless turns.",
     );
+}
+
+function forecastLearner(
+  lexicon: Lexicon,
+  template: Request["position"]["template"],
+  choose: ReturnType<typeof createPlayerProfiles>,
+  moves: readonly Move[],
+  position: ProfilePosition,
+  reference?: Move,
+) {
+  const { considered, learnerSlate } = reference ? {} : choose(moves, "learner", position, {
+    all: true,
+    learnerSlate: true,
+  });
+  const forecast = createLearnerLookahead(lexicon, template, choose);
+  const work = forecast(position, considered ?? [], learnerSlate ?? [], undefined, reference);
+  let step = work.next();
+  while (!step.done) step = work.next();
+  return step.value;
 }
 
 function gameReview(
@@ -351,22 +373,24 @@ export async function analyzePosition(
       profileScorelessTurns: settings.scorelessTurns,
     };
     let styleSummary;
+    let exchangeAdvice: PlayerExchangeAdvice | undefined;
     if (style && !isSimulatedStyle(style)) {
       const positionKey = `${board.join(".")}:${rackComposition(position.rack)}`;
-      const ranking = profiles(root, lexicon, template, style, bagSize, vocabulary)(
-        moves,
-        style,
-        {
-          ...settings,
-          seed: profileWordHash(
-            sample ? `${positionKey}:${sample}` : positionKey,
-          ),
-          playerSeed: seed,
-          solo: solo ? true : undefined,
-        },
-        { all: true },
-      );
-      index.setProfile(profileQuery, ranking.considered ?? []);
+      const profilePosition = {
+        ...settings,
+        seed: profileWordHash(sample ? `${positionKey}:${sample}` : positionKey),
+        playerSeed: seed,
+        solo: solo ? true as const : undefined,
+      };
+      const choose = profiles(root, lexicon, template, style, bagSize, vocabulary);
+      if (style === "learner") {
+        const result = forecastLearner(lexicon, template, choose, moves, profilePosition);
+        index.setProfile(profileQuery, result.ranked);
+        exchangeAdvice = result.exchange;
+      } else {
+        const ranking = choose(moves, style, profilePosition, { all: true });
+        index.setProfile(profileQuery, ranking.considered ?? []);
+      }
     } else if (style) {
       if (isSoloSimulatedStyle(style) !== !!solo)
         throw new ApiError(
@@ -483,6 +507,7 @@ export async function analyzePosition(
       topScore,
       styleSummary,
       styleChoice: page.styleChoice?.move,
+      exchangeAdvice,
     };
   }
   if (operation.kind === "premium-defense")
@@ -521,6 +546,16 @@ export async function analyzePosition(
             { seed: operation.seed },
           ),
       };
+    }
+    if (operation.style === "learner" && !solo) {
+      const choose = profiles(root, lexicon, template, "learner", bagSize, vocabulary);
+      const result = forecastLearner(lexicon, template, choose, moves, {
+        ...settings,
+        solo: undefined,
+        seed: profileWordHash(`${board.join(".")}:${rackComposition(position.rack)}`),
+        playerSeed: operation.seed,
+      }, operation.move ? find(operation.move) : undefined);
+      return { advice: result.exchange };
     }
     const { comparison, advice } = screenPlayerExchange({
       ...settings,

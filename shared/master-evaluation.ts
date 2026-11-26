@@ -2,6 +2,7 @@ import { createBingoReplySearch, type BingoDeal } from "./bingo-replies";
 import type { HunterPosition } from "./bingo-hunter";
 import { endgameStreaks, nextEndgameStreak, rackPoints } from "./endgame";
 import { isBingo, type Board, type Move } from "./model";
+import { randomGenerator, sampleTiles } from "./move-analysis";
 import { leaveValue } from "./rack-leave";
 import { rackComposition } from "./rack-entry";
 import type { createSolverFactory } from "./solver";
@@ -16,6 +17,8 @@ export type MasterAction = {
   move: Move | null;
   leave: string;
   draw: number;
+  returned?: string;
+  held?: string;
 };
 
 export type MasterOutcome = {
@@ -36,26 +39,34 @@ export function createMasterEvaluator(
   selectFollowUp?: (moves: Move[], board: Board, rack: string, bagSize: number) => Move | undefined,
 ) {
   const { board, bagSize, template, scorelessTurns } = position;
-  const { move, leave, draw } = action;
+  const { move, leave, draw, returned, held = "" } = action;
   const boardAfter = move ? factory.place(board, move) : board;
-  const bagAfter = bagSize - draw;
+  const bagAfter = returned ? bagSize : bagSize - draw;
   const rule = endgameStreaks[template.rules];
-  const streak = rule ? nextEndgameStreak(rule, scorelessTurns, move) : 0;
+  const streak = rule && !(returned && rule.passesOnly)
+    ? nextEndgameStreak(rule, scorelessTurns, move)
+    : 0;
   const search = createBingoReplySearch(
     factory,
     boardAfter,
     bagAfter > 0,
-    (solver, rack, limits, next, reply) => selectFollowUp
-      ? selectFollowUp(
-          solver.solve(rack, limits, { unsorted: true }),
-          next,
-          rack,
-          Math.max(0, bagAfter - (reply?.tiles.length ?? 0)),
-        ) ?? null
-      : solver.bestReply(rack, policy.leaf > 0, limits),
+    (solver, rack, limits, next, reply) => {
+      if (!selectFollowUp) return solver.bestReply(rack, policy.leaf > 0, limits);
+      let available = rack;
+      for (const tile of held) available = available.replace(tile, "");
+      const moves = solver.solve(available, limits, { unsorted: true });
+      if (held)
+        for (const move of moves) move.leave = rackComposition(move.leave + held);
+      return selectFollowUp(
+        moves,
+        next,
+        rack,
+        Math.max(0, bagAfter - (reply?.tiles.length ?? 0)),
+      ) ?? null;
+    },
   );
   const points = (rack: string) => rackPoints(rack, template.rules);
-  return (deal: BingoDeal, deadline: number): MasterOutcome => {
+  return (deal: BingoDeal, deadline: number, shuffleSeed = 0): MasterOutcome => {
     const rack = rackComposition(leave + deal.bag.slice(0, draw));
     const result = {
       reply: 0,
@@ -77,6 +88,10 @@ export function createMasterEvaluator(
     if (rule && streak >= rule.limit)
       return finish(points(deal.opponent) - points(rack));
 
+    const replyBag = returned
+      ? sampleTiles([...(deal.bag.slice(draw) + returned)], bagAfter, randomGenerator(shuffleSeed))
+      : deal.bag;
+    const replyStart = returned ? 0 : draw;
     const reply = search.reply(deal.opponent, deadline);
     result.reply = reply?.score ?? 0;
     const opposingLeave = reply?.leave ?? deal.opponent;
@@ -84,7 +99,7 @@ export function createMasterEvaluator(
     if (rule && !bagAfter && !opposingLeave) return finish(-2 * points(rack));
     const opponentDraw = Math.min(bagAfter, reply?.tiles.length ?? 0);
     const opponentRack = () =>
-      opposingLeave + deal.bag.slice(draw, draw + opponentDraw);
+      opposingLeave + replyBag.slice(replyStart, replyStart + opponentDraw);
     const replyStreak = rule ? nextEndgameStreak(rule, streak, reply) : 0;
     if (rule && replyStreak >= rule.limit)
       return finish(points(opponentRack()) - points(rack));
@@ -102,9 +117,9 @@ export function createMasterEvaluator(
         points(opponentRack()) -
           points(
             ownLeave +
-              deal.bag.slice(
-                draw + opponentDraw,
-                draw + opponentDraw + ownDraw,
+              replyBag.slice(
+                replyStart + opponentDraw,
+                replyStart + opponentDraw + ownDraw,
               ),
           ),
       );
