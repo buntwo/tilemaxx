@@ -1,4 +1,4 @@
-import { ArrowLeftRight, ChevronsUpDown, SkipForward } from "lucide-react";
+import { ArrowLeftRight, SkipForward, UserRound, UsersRound } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { boardActionPlayer } from "../../shared/game-scoring";
 import type { BoardlessTurn, Game, Player } from "../../shared/model";
@@ -63,13 +63,36 @@ export function useBoardTurnActions(
 
   const controls = (
     <div className="board-turn-actions" data-player={player} role="group" aria-label={`Record turn · ${label}`}>
-      <button type="button" className="board-turn-button" onClick={() => record({ kind: "pass" })}>
-        <SkipForward size={14} aria-hidden="true" /> Pass
+      {!inferred && (
+        <button
+          type="button"
+          className="board-turn-button board-turn-player"
+          aria-label={`${label}. Switch active player`}
+          title={`${label}. Switch active player`}
+          onClick={() => {
+            setDraft(undefined);
+            setOpening({ gameId: game.id, player: player === "you" ? "opponent" : "you" });
+          }}
+        >
+          {player === "you" ? <UserRound size={14} aria-hidden="true" /> : <UsersRound size={14} aria-hidden="true" />}
+        </button>
+      )}
+      <button
+        type="button"
+        className="board-turn-button"
+        aria-label="Pass"
+        title="Pass"
+        onClick={() => record({ kind: "pass" })}
+      >
+        <SkipForward size={14} aria-hidden="true" />
+        <span className="board-control-label">Pass</span>
       </button>
       <button
         ref={exchangeButton}
         type="button"
         className="board-turn-button"
+        aria-label="Exchange"
+        title="Exchange"
         disabled={player === "you" && !rackLetters(game.rack)}
         aria-expanded={!!exchange}
         aria-controls={opponentExchange ? countId : undefined}
@@ -81,54 +104,38 @@ export function useBoardTurnActions(
           }
         }}
       >
-        <ArrowLeftRight size={14} aria-hidden="true" /> Exchange
+        <ArrowLeftRight size={14} aria-hidden="true" />
+        <span className="board-control-label">Exchange</span>
       </button>
     </div>
   );
 
-  const details = (
-    <div className="board-turn-details" data-player={player}>
-      {inferred ? <span className="board-turn-player" role="status">{label}</span> : (
+  const details = opponentExchange && (
+    <div className="board-turn-count" data-player={player} id={countId}>
+      <strong id={groupId}>How many tiles did your opponent exchange?</strong>
+      <div className="board-turn-count-options" role="group" aria-labelledby={groupId}>
+        {[...Array.from({ length: game.template.rackSize }, (_, i) => i + 1), 0].map((count, index) => (
+          <button
+            key={count}
+            ref={index === 0 ? firstCount : undefined}
+            type="button"
+            className="button secondary"
+            aria-pressed={exchange.count === count}
+            onClick={() => setDraft({ ...exchange, count })}
+          >
+            {count || "Unknown"}
+          </button>
+        ))}
+      </div>
+      <div className="board-turn-confirm">
         <button
           type="button"
-          className="text-button board-turn-player"
-          aria-label={`${label}. Switch active player`}
-          onClick={() => {
-            setDraft(undefined);
-            setOpening({ gameId: game.id, player: player === "you" ? "opponent" : "you" });
-          }}
-        >
-          {label} <ChevronsUpDown size={12} aria-hidden="true" />
-        </button>
-      )}
-      {opponentExchange && (
-        <div className="board-turn-count" id={countId}>
-          <strong id={groupId}>How many tiles did your opponent exchange?</strong>
-          <div className="board-turn-count-options" role="group" aria-labelledby={groupId}>
-            {[...Array.from({ length: game.template.rackSize }, (_, i) => i + 1), 0].map((count, index) => (
-              <button
-                key={count}
-                ref={index === 0 ? firstCount : undefined}
-                type="button"
-                className="button secondary"
-                aria-pressed={exchange.count === count}
-                onClick={() => setDraft({ ...exchange, count })}
-              >
-                {count || "Unknown"}
-              </button>
-            ))}
-          </div>
-          <div className="board-turn-confirm">
-            <button
-              type="button"
-              className="button primary"
-              disabled={exchange.count === undefined}
-              onClick={() => record({ kind: "exchange", count: exchange.count || undefined })}
-            >Record exchange</button>
-            <button type="button" className="text-button" onClick={cancel}>Cancel</button>
-          </div>
-        </div>
-      )}
+          className="button primary"
+          disabled={exchange.count === undefined}
+          onClick={() => record({ kind: "exchange", count: exchange.count || undefined })}
+        >Record exchange</button>
+        <button type="button" className="text-button" onClick={cancel}>Cancel</button>
+      </div>
     </div>
   );
 

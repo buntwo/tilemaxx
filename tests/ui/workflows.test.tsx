@@ -2303,6 +2303,13 @@ async function typeRack(
 
 test.each([1200, 390])("board exchange focuses the compacted rack and Undo restores both exchanges at %ipx", async (width) => {
   const user = await start(width);
+  const board = within(screen.getByRole("region", { name: "Game board" }));
+  const controls = ["Pass", "Exchange", "Define"];
+  const strip = board.getByRole("button", { name: "Define" }).closest(".direct-entry-tools")!;
+  expect([...strip.querySelectorAll("button")]
+    .map((button) => button.getAttribute("aria-label") ?? "")
+    .filter((label) => controls.includes(label))).toEqual(controls);
+  expect(board.queryByText("Your turn")).toBeNull();
   await typeRack(user, "IJNATRC");
   await user.click(cell("Exchange"));
   const exchange = cell("Record exchange");

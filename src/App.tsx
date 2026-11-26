@@ -1529,7 +1529,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     historyControls={boardModeHistory}
                   />
                 ) : moveReview.showing && (
-                  <div className={`board-review-actions${boardTurns.controls ? " with-board-turn-actions" : ""}`}>
+                  <div className="board-review-actions">
                     <span aria-live="polite">
                       {preview ? (
                         <>
@@ -1539,8 +1539,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                         "Choose a move to preview"
                       )}
                     </span>
-                    {boardModeHistory}
                     {boardTurns.controls}
+                    {boardModeHistory}
                     {!movePreview?.analysis && (
                       <button
                         className="board-review-play"

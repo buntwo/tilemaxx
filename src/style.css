@@ -6145,7 +6145,7 @@ label + label {
 .with-board-history .direct-entry-actions > .text-button { padding-inline: 4px; }
 .board-panel .direct-entry-actions > .board-define {
   min-width: 46px;
-  min-height: 24px;
+  min-height: var(--board-define-height);
   justify-content: center;
   border: 1px solid var(--line);
   border-radius: 5px;
@@ -6590,6 +6590,7 @@ label + label {
 .board-panel {
   --board-strip-height: 33px;
   --board-strip-control-height: 28px;
+  --board-define-height: 24px;
   --board-strip-inset: calc((var(--board-strip-height) - var(--board-strip-control-height)) / 2);
 }
 .board-panel[data-turn="you"] { --board-turn-color: var(--value-good); }
@@ -6602,71 +6603,61 @@ label + label {
   margin-inline: 0;
   padding-inline: 2px;
 }
-.board-panel .with-board-turn-actions {
+.board-panel :is(.with-board-history, .board-review-actions) {
   container: board-turn-strip / inline-size;
-  flex-wrap: wrap;
 }
-.with-board-turn-actions .direct-entry-actions {
-  flex: 0 1 auto;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  min-width: 0;
-}
-.board-turn-actions,
-.board-turn-details { --turn-color: var(--value-good); }
-.board-turn-actions[data-player="opponent"],
-.board-turn-details[data-player="opponent"] { --turn-color: var(--value-bad); }
+.board-define-icon { display: none; }
 .board-turn-actions,
 .board-turn-count-options,
 .board-turn-confirm {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
-.board-turn-actions { margin-inline: 3px; }
+.board-turn-actions { --turn-color: var(--value-good); flex: none; }
+.board-turn-actions[data-player="opponent"],
+.board-turn-count { --turn-color: var(--value-bad); }
+.board-turn-count-options,
+.board-turn-confirm { flex-wrap: wrap; }
 .board-turn-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  min-height: var(--board-strip-control-height);
-  padding: 2px 6px;
+  min-width: var(--board-define-height);
+  min-height: var(--board-define-height);
+  padding: 0 5px;
   border: 1px solid color-mix(in srgb, var(--turn-color) 36%, var(--line));
-  border-radius: 6px;
+  border-radius: 5px;
   background: color-mix(in srgb, var(--turn-color) 10%, var(--surface));
   color: var(--turn-color);
   font: inherit;
   font-size: 11px;
   font-weight: 650;
+  white-space: nowrap;
 }
+.board-turn-player { padding-inline: 0; }
 .board-turn-button:is(:hover, [aria-expanded="true"]):not(:disabled) {
   background: color-mix(in srgb, var(--turn-color) 19%, var(--surface));
 }
-.board-turn-details {
-  display: grid;
-  gap: 5px;
-  padding: 0 7px 4px;
-}
-.board-turn-details .board-turn-player {
-  display: inline-flex;
-  align-items: center;
-  justify-self: end;
-  gap: 3px;
-  padding-inline: 5px;
-  color: var(--turn-color);
-  font-size: 11px;
-  font-weight: 650;
-}
 .board-turn-count {
   display: grid;
-  gap: 7px;
-  padding: 7px;
+  gap: 5px;
+  margin: 3px 7px 6px;
+  padding: 6px;
   border: 1px solid var(--line);
   border-radius: 7px;
-  font-size: 13px;
+  font-size: 12px;
 }
-.board-turn-count .button { min-height: 32px; }
-.board-turn-count-options .button { min-width: 34px; }
+.board-turn-count :is(.button, .text-button) {
+  min-height: var(--board-define-height);
+  padding: 0 5px;
+  border-radius: 5px;
+  font-size: 11px;
+}
+.board-turn-count-options .button {
+  min-width: var(--board-define-height);
+}
 .board-turn-count-options .button[aria-pressed="true"] {
   border-color: var(--turn-color);
   background: color-mix(in srgb, var(--turn-color) 14%, var(--surface));
@@ -6679,10 +6670,31 @@ label + label {
   border-color: var(--value-good);
 }
 @container board-turn-strip (max-width: 360px) {
-  .board-turn-button > svg { display: none; }
+  .board-control-label { display: none; }
+  .board-define-icon { display: block; }
+  .board-turn-button,
+  .board-panel .direct-entry-actions > .board-define {
+    width: var(--board-define-height);
+    min-width: 0;
+    padding-inline: 0;
+  }
 }
-@media (pointer: coarse) {
-  .board-turn-button, .board-turn-count .button { min-height: 44px; min-width: 44px; justify-content: center; }
+@container board-turn-strip (max-width: 180px) {
+  .board-turn-actions { gap: 1px; }
+  .board-panel .with-board-history:has(.board-turn-actions) .direct-entry-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .board-turn-button,
+  .board-panel .direct-entry-actions > .board-define,
+  .board-panel :is(.board-undo, .board-redo) { width: 21px; }
+  .board-undo { margin-inline-start: 0; }
+  .board-undo::before,
+  .board-review-actions:has(.board-turn-actions) .board-review-play:disabled { display: none; }
 }
 .app-shell:not(.phone-layout) .board-panel:has(> .last-play-lane) { padding-top: 0; }
 .board-panel :is(.last-play-row, .board-warnings) { min-height: 24px; }

@@ -11,7 +11,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
-import { Trash2 } from "lucide-react";
+import { BookOpenText, Trash2, X } from "lucide-react";
 import Board from "./Board";
 import BoardHistoryControls from "./BoardHistoryControls";
 import MoveWord from "./MoveWord";
@@ -882,7 +882,7 @@ export function BoardInput({
         }}
       />
       <div
-        className={`direct-entry-tools${historyControls ? " with-board-history" : ""}${turnActions ? " with-board-turn-actions" : ""}`}
+        className={`direct-entry-tools${historyControls ? " with-board-history" : ""}`}
       >
         {statusAction}
         <div className="direct-entry-status" role="status" data-missing-rack={!!missing || undefined}>
@@ -918,18 +918,23 @@ export function BoardInput({
               </button>
             </>
           )}
+          {turnActions}
           {(definitionLanguage || historyControls) && (
             <button
               type="button"
               className="text-button board-define"
+              aria-label={defining ? "Cancel" : "Define"}
+              title={defining ? "Cancel" : "Define"}
               disabled={!canDefine}
               onClick={toggleDefine}
             >
-              {defining ? "Cancel" : "Define"}
+              {defining
+                ? <X className="board-define-icon" size={15} aria-hidden="true" />
+                : <BookOpenText className="board-define-icon" size={15} aria-hidden="true" />}
+              <span className="board-control-label">{defining ? "Cancel" : "Define"}</span>
             </button>
           )}
           {historyControls}
-          {turnActions}
         </div>
         {!historyControls && help}
       </div>
