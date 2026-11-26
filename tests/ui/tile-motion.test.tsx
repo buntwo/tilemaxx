@@ -37,6 +37,7 @@ test.each([false, true])("tile flight staggers the trial color with each tile (t
   for (const index of [0, 1]) {
     const target = document.createElement("button");
     target.dataset.cell = String(index);
+    target.style.borderRadius = "2px";
     target.getBoundingClientRect = () => new DOMRect(80 + index * 25, 100, 24, 24);
     board.append(target);
   }
@@ -70,7 +71,7 @@ test.each([false, true])("tile flight staggers the trial color with each tile (t
     expect(flights[0][0]).toMatchObject([
       { width: "32px", height: "32px" },
       { offset: .52 },
-      { width: "24px", height: "24px" },
+      { width: "24px", height: "24px", borderRadius: "2px" },
     ]);
     expect([...document.querySelectorAll(".flying-tile.tile-face .tile-face-content")].map((face) => face.textContent))
       .toEqual(["A1", "T0"]);

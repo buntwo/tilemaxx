@@ -1798,11 +1798,11 @@ label + label {
 }
 .tile-face {
   --tile-face-edge: var(--tile-edge);
-  border-radius: 6px;
   background: var(--tile);
   color: var(--tile-text);
   box-shadow: inset 0 -2px var(--tile-face-edge);
 }
+.tile-face:not(.square) { border-radius: 6px; }
 .tile-face.blank {
   --tile-face-edge: #9fbccc;
   background: var(--blank-tile);

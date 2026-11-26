@@ -141,7 +141,7 @@ export function flyTiles(
           width: source.width,
           height: source.height,
         };
-    return [{ source: start, end, letter }];
+    return [{ source: start, end, letter, borderRadius: getComputedStyle(target).borderRadius }];
   });
   if (!flights.length) return;
 
@@ -151,7 +151,7 @@ export function flyTiles(
   document.body.append(layer);
   let cancelled = false;
   let finished = false;
-  const animations = flights.flatMap(({ source, end, letter }, i) => {
+  const animations = flights.flatMap(({ source, end, letter, borderRadius }, i) => {
     const blank = letter !== letter.toUpperCase();
     const tile = document.createElement("span");
     tile.className = `flying-tile tile-face${blank ? " blank" : ""}`;
@@ -184,6 +184,7 @@ export function flyTiles(
           transform: "translate(0,0)",
           width: `${end.width}px`,
           height: `${end.height}px`,
+          borderRadius,
           boxShadow: `inset 0 -2px ${edge}`,
         },
       ],
