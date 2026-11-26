@@ -91,15 +91,15 @@ export default function GameOptions({
   }
 
   function startNewGame() {
-    const today = localDate();
-    if (game.archived) {
-      return openCreatedGame(
-        () => store.createGame(newGameFromSettings(game, today)),
-        "New game started.",
-      );
-    }
     return openCreatedGame(
-      () => store.archiveAndStartNewGame(game.id, today),
+      () => store.createGame(newGameFromSettings(game, localDate())),
+      "New game started.",
+    );
+  }
+
+  function archiveAndStartNewGame() {
+    return openCreatedGame(
+      () => store.archiveAndStartNewGame(game.id, localDate()),
       "Game archived. New game started.",
     );
   }
@@ -207,19 +207,17 @@ export default function GameOptions({
             <button disabled={busy} onClick={exportGame}>
               <Download size={17} aria-hidden="true" /> Export game
             </button>
-            {game.archived && (
-              <button
-                disabled={busy || !online}
-                title={connectionRequired}
-                onClick={() => void startNewGame()}
-              >
-                <Plus size={17} aria-hidden="true" />
-                <span>
-                  Start new game
-                  <small>{game.solo ? "Same settings, starting today" : "Same opponent and settings, starting today"}</small>
-                </span>
-              </button>
-            )}
+            <button
+              disabled={busy || !online}
+              title={connectionRequired}
+              onClick={() => void startNewGame()}
+            >
+              <Plus size={17} aria-hidden="true" />
+              <span>
+                Start new game
+                <small>{game.solo ? "Same settings, starting today" : "Same opponent and settings, starting today"}</small>
+              </span>
+            </button>
             {position.scoring?.end ? (
               <button disabled={busy} onClick={onResume}>
                 <Play size={17} aria-hidden="true" />
@@ -241,7 +239,7 @@ export default function GameOptions({
               <button
                 disabled={busy || !online}
                 title={connectionRequired}
-                onClick={() => void startNewGame()}
+                onClick={() => void archiveAndStartNewGame()}
               >
                 <Plus size={17} aria-hidden="true" /> Archive &amp; start new game
               </button>

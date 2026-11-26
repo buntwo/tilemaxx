@@ -4347,6 +4347,45 @@ test("game options archive the current game and open a blank game with today's d
   expect(options.queryByRole("button", { name: "Archive & start new game" })).toBeNull();
 });
 
+test("starting a new game from My games keeps the current game and copies its settings", async () => {
+  const original = {
+    ...game(),
+    revision: 1,
+    platform: "Scrabble GO",
+    startedOn: "2026-10-08",
+    notes: "Notes from this match",
+    trackScores: false,
+    rack: "CAT",
+  };
+  original.board[original.template.start] = "A";
+  remote.games[0] = original;
+  const user = await start();
+  await waitFor(() => expect(current().revision).toBe(original.revision));
+  const options = await openGameManagement(user);
+  await user.click(options.getByRole("button", { name: /^Start new game/ }));
+  await screen.findByText("New game started.");
+  const [previous, fresh] = remote.games;
+  expect(previous).toEqual(original);
+  expect(fresh).toMatchObject({
+    id: "g1",
+    profileId: original.profileId,
+    name: original.name,
+    platform: original.platform,
+    dictionaryId: original.dictionaryId,
+    template: original.template,
+    startedOn: localDate(),
+    trackScores: false,
+    archived: false,
+    board: emptyBoard(original.template.size),
+    rack: "",
+    past: [],
+    future: [],
+  });
+  expect(fresh.notes).toBeUndefined();
+  expect(localStorage.getItem("tilewise:game")).toBe(fresh.id);
+  expect(document.querySelector(".board-entry .square.occupied")).toBeNull();
+});
+
 test("sidebar Stats filters archived games and updates the monthly metric", async () => {
   const archived = (
     id: string, platform: string, rules: Game["template"]["rules"],
