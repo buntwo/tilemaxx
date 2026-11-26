@@ -708,13 +708,25 @@ label + label {
   color: inherit;
   letter-spacing: 0;
 }
-.profile-picker select {
+.profile-select {
+  display: grid;
+  align-items: center;
+}
+.profile-select > * { grid-area: 1 / 1; }
+.profile-select select {
+  appearance: none;
   border: 0;
   background: none;
-  padding: 3px 0;
+  padding: 3px 16px 3px 0;
   font-size: 12px;
   width: 100%;
   font-weight: 600;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+.profile-select svg {
+  justify-self: end;
+  pointer-events: none;
 }
 .direction-shortcut {
   font-size: 10px;

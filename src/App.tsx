@@ -9,6 +9,7 @@ import {
   BookOpen,
   Check,
   CheckCheck,
+  ChevronDown,
   CloudOff,
   Copy,
   Grid2X2,
@@ -1196,30 +1197,33 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             )}
             <span>
               <small>PLAYING AS</small>
-              <select
-                aria-label="Current profile"
-                value={profileId}
-                onChange={(e) => {
-                  if (e.target.value === "new") {
-                    openDialog("profile");
-                    return;
-                  }
-                  setProfileId(e.target.value);
-                  setGameId("");
-                }}
-              >
-                {!profile && (
-                  <option value="" disabled>
-                    Select a profile
-                  </option>
-                )}
-                {data.profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-                <option value="new">+ New profile</option>
-              </select>
+              <span className="profile-select">
+                <select
+                  aria-label="Current profile"
+                  value={profileId}
+                  onChange={(e) => {
+                    if (e.target.value === "new") {
+                      openDialog("profile");
+                      return;
+                    }
+                    setProfileId(e.target.value);
+                    setGameId("");
+                  }}
+                >
+                  {!profile && (
+                    <option value="" disabled>
+                      Select a profile
+                    </option>
+                  )}
+                  {data.profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                  <option value="new">+ New profile</option>
+                </select>
+                <ChevronDown size={12} aria-hidden="true" />
+              </span>
             </span>
           </div>
         </div>
