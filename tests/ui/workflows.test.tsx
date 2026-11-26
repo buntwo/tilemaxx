@@ -3250,7 +3250,7 @@ test("a phone keyboard’s Shift flag on Enter still finds moves on the first pr
   expect(await screen.findByRole("button", { name: /^CATS, / })).toBeTruthy();
 });
 
-test("board entry skips played tiles by default and Backspace returns over them", async () => {
+test("letters and periods follow the board entry skip setting, and Backspace returns over skipped tiles", async () => {
   const user = await start();
   await user.click(screen.getByRole("button", { name: /^I8:/ }));
   await user.keyboard("A T");
@@ -3261,6 +3261,11 @@ test("board entry skips played tiles by default and Backspace returns over them"
   await user.keyboard("{Backspace}");
   expect(selectedCell()).toBe("112");
   expect(current().board.slice(112, 116)).toEqual(["", "A", "t", ""]);
+  await user.keyboard(".");
+  expect(selectedCell()).toBe("115");
+  expect(current().board.slice(112, 116)).toEqual(["", "A", "t", ""]);
+  await user.keyboard("{Backspace}");
+  expect(selectedCell()).toBe("112");
   await user.paste("C R");
   expect(current().board.slice(112, 116)).toEqual(["C", "A", "t", "r"]);
 
@@ -3277,6 +3282,10 @@ test("board entry skips played tiles by default and Backspace returns over them"
   await user.click(settings.getByRole("button", { name: "Close dialog" }));
   await user.click(screen.getByRole("button", { name: /^H8: C/ }));
   expect(screen.getByText("8H · Space: blank · Period: skip · Click again: Down")).toBeTruthy();
+  await user.keyboard(".");
+  expect(selectedCell()).toBe("113");
+  expect(current().board.slice(112, 116)).toEqual(["C", "A", "t", "r"]);
+  await user.click(screen.getByRole("button", { name: /^H8: C/ }));
   await user.keyboard("CQ");
   expect(current().board.slice(112, 116)).toEqual(["C", "Q", "t", "r"]);
 });

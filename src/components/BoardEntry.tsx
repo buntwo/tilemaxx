@@ -669,7 +669,7 @@ export function BoardInput({
       blank = false;
       const adjacent = neighbor(i, dr, dc);
       let next = adjacent;
-      if (skipPlayedTiles && char !== ".") {
+      if (skipPlayedTiles) {
         const played = ownPlay?.base ?? nextBoard;
         while (next !== null && played[next]) next = neighbor(next, dr, dc);
       }
