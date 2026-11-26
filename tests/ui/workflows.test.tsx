@@ -5933,7 +5933,7 @@ test.each([52, 380])("phone rack entry reveals the tiles above the keyboard and 
 test.each([
   { layout: "phone", width: 390 },
   { layout: "desktop", width: 950 },
-])("on $layout, dictionary warnings appear between Last play and the board", async ({ layout, width }) => {
+])("on $layout, dictionary warnings appear between the Last strip and the board", async ({ layout, width }) => {
   class ValidatingWorker extends SolverWorker {
     protected boardWarnings(
       lexicon: Lexicon,
@@ -5970,7 +5970,7 @@ test.each([
     expect(warning.previousElementSibling).toBe(screen.getByRole("region", { name: "Your rack" }));
   } else {
     expect(warning.previousElementSibling?.querySelector(".last-play-summary")?.textContent)
-      .toContain("Last play");
+      .toContain("Last:");
     expect(warning.nextElementSibling).toBe(board.querySelector(".board-entry"));
   }
   expect(workspace.classList.contains("move-review")).toBe(layout === "phone");
@@ -6520,7 +6520,7 @@ test("holding a board tile corrects recorded scores and saves with undo and redo
   expect(cell("H8: C blank, start")).toBeTruthy();
   expect(scoreTotals()).toBe("3–4");
   expect(points()).toEqual(["3", "4"]);
-  expect(cell("Last play: You CATS 3 pts 8H")).toBeTruthy();
+  expect(cell("Last: You CATS 3 pts 8H")).toBeTruthy();
   expect(scores.queryByRole("button", { name: "Keep as correction" })).toBeNull();
   await user.click(cell("Undo"));
   expect(scoreTotals()).toBe("6–10");
@@ -6592,7 +6592,7 @@ test.each([false, true])("definitions work on recorded words and inside game rev
     }
   }
 
-  const lastPlay = await screen.findByRole("button", { name: /Last play: You CAT/ });
+  const lastPlay = await screen.findByRole("button", { name: /Last: You CAT/ });
   await define(lastPlay);
   if (phone) expect(lastPlay.getAttribute("aria-expanded")).toBe("false");
 
@@ -6612,11 +6612,11 @@ test.each([false, true])("definitions work on recorded words and inside game rev
     .toEqual(Array(4).fill("/api/definitions?language=en&word=CAT"));
 });
 
-test("correcting the last opponent play updates the board, Last play, and history without finding moves again", async () => {
+test("correcting the last opponent play updates the board, the Last strip, and history without finding moves again", async () => {
   const user = await start();
   const scores = within(screen.getByRole("region", { name: "Game scores" }));
   const lastPlay = (word: string, points: number) =>
-    cell(`Last play: Opp ${word} ${points} pts 8H`);
+    cell(`Last: Opp ${word} ${points} pts 8H`);
   const latestMove = () => within(scores.getByRole("table", { name: "Tracked moves" }))
     .getAllByRole("row").slice(1).map((row) =>
       within(row).getAllByRole("cell").map((value) => value.textContent),
