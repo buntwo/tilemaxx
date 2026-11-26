@@ -3509,11 +3509,37 @@ label + label {
   flex: none;
   accent-color: var(--primary);
 }
-.workspace-preference-list .workspace-turn-border {
-  justify-content: space-between;
+.workspace-turn-border {
+  margin-top: 12px;
 }
-.workspace-turn-border select {
-  width: auto;
+.workspace-turn-border > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.workspace-turn-border .theme-switch {
+  margin-top: 4px;
+}
+.workspace-turn-border button {
+  min-height: 44px;
+}
+.turn-border-preview {
+  display: flex;
+  align-items: flex-end;
+  flex: none;
+  width: 24px;
+  height: 18px;
+  border: 1px solid var(--value-good);
+  border-radius: 3px;
+}
+.turn-border-preview::after {
+  content: "";
+  width: 100%;
+  height: 5px;
+  border-top: 1px solid var(--line);
+}
+.turn-border-preview[data-divider]::after {
+  border-color: var(--value-good);
 }
 .workspace-hardware-info {
   display: grid;
@@ -6146,9 +6172,10 @@ label + label {
 }
 .with-board-history .direct-entry-actions > .text-button { padding-inline: 4px; }
 .board-panel .direct-entry-actions > .board-define {
-  min-width: 46px;
+  min-width: 60px;
   min-height: var(--board-define-height);
   justify-content: center;
+  gap: 4px;
   border-radius: 5px;
   color: var(--existing-letter);
 }
@@ -6627,7 +6654,7 @@ label + label {
   color: var(--muted);
   font-size: 11px;
 }
-.board-define-icon { display: none; }
+.board-define-cancel-icon { display: none; }
 .board-turn-actions,
 .board-turn-capsule,
 .board-turn-count-options,
@@ -6712,7 +6739,7 @@ label + label {
 }
 @container board-turn-strip (max-width: 360px) {
   .board-control-label { display: none; }
-  .board-define-icon { display: block; }
+  .board-define-cancel-icon { display: block; }
   .board-turn-button,
   .board-panel .direct-entry-actions > .board-define {
     width: var(--board-define-height);

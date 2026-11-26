@@ -934,8 +934,8 @@ export function BoardInput({
               onClick={toggleDefine}
             >
               {defining
-                ? <X className="board-define-icon" size={15} aria-hidden="true" />
-                : <BookOpenText className="board-define-icon" size={15} aria-hidden="true" />}
+                ? <X className="board-define-cancel-icon" size={15} aria-hidden="true" />
+                : <BookOpenText size={15} aria-hidden="true" />}
               <span className="board-control-label">{defining ? "Cancel" : "Define"}</span>
             </button>
           )}
