@@ -1809,7 +1809,7 @@ label + label {
   color: var(--tile-text);
   box-shadow: inset 0 -2px var(--tile-face-edge);
 }
-.tile-face:not(.square) { border-radius: 6px; }
+.tile-face:not(.square) { border-radius: min(6px, 18%); }
 .tile-face.blank {
   --tile-face-edge: #9fbccc;
   background: var(--blank-tile);
@@ -1948,7 +1948,7 @@ label + label {
   font-weight: 600;
   border: 1px solid #decfae;
   border-bottom: 3px solid var(--tile-edge);
-  border-radius: 6px;
+  border-radius: min(6px, 18%);
   background: var(--tile);
   color: var(--tile-text);
   box-shadow: 0 2px 2px #00000006;
@@ -4966,7 +4966,7 @@ label + label {
   position: absolute;
   z-index: 2;
   border: 1px dashed #ffedc5;
-  border-radius: 6px;
+  border-radius: min(6px, 18%);
   background: #503221a6;
   pointer-events: none;
 }
@@ -5019,6 +5019,7 @@ label + label {
 .rack-face {
   display: grid;
   place-items: center;
+  border-radius: inherit;
   font-size: min(1em, 54cqi);
 }
 .rack-face.empty {
@@ -5066,7 +5067,7 @@ label + label {
   display: grid;
   place-items: center;
   height: 1.12em;
-  border-radius: 5px 5px 0 0;
+  border-radius: min(5px, 18cqi) min(5px, 18cqi) 0 0;
   background: light-dark(#205647, #b5e7c8);
   color: light-dark(#f4fbf6, #18392b);
   font-size: min(9px, 20cqi);
@@ -5246,7 +5247,7 @@ label + label {
   min-width: 0;
   min-height: 0;
   aspect-ratio: 1;
-  border-radius: 4px;
+  border-radius: min(4px, 18%);
   font-size: 13px;
   font-weight: 650;
   line-height: 1;
