@@ -6927,11 +6927,13 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 }
 .phone-layout .board-replay-controls { --replay-hit: 30px; }
 .replay-move-strip {
+  --replay-player-color: var(--value-good);
   flex: 0 0 100%;
   display: grid;
   grid-template-columns: auto 3.5ch minmax(0, 1fr) auto;
   grid-template-areas: "label player word result";
-  align-items: center;
+  align-content: center;
+  align-items: baseline;
   gap: 0 6px;
   min-height: 32px;
   padding: 3px 8px;
@@ -6942,12 +6944,17 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   line-height: 18px;
 }
 
-.replay-strip-label { grid-area: label; color: var(--primary); font-weight: 650; }
-.replay-strip-status { grid-column: 2 / -1; grid-row: 1; line-height: 1.2; }
+.replay-strip-label { grid-area: label; font-weight: 650; }
+.replay-strip-status { grid-column: 2 / -1; grid-row: 1; }
 .replay-move-player { grid-area: player; color: var(--existing-letter); }
+.replay-move-strip[data-player="opponent"] { --replay-player-color: var(--value-bad); }
+.replay-move-strip[data-player] > .last-play-word {
+  grid-area: word;
+  color: var(--replay-player-color);
+}
+.replay-move-strip[data-player] .bingo-move-word { color: inherit; }
 .replay-recorded-word[aria-pressed="true"] { background: var(--soft); }
 .replay-recorded-word {
-  grid-area: word;
   display: block;
   justify-self: start;
   min-width: 0;
@@ -6985,13 +6992,13 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   grid-area: result;
   display: grid;
   grid-template-columns: calc(var(--replay-point-digits) * 1ch + 2em) 4ch;
+  align-items: baseline;
   gap: 4px;
   text-align: end;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.replay-move-result strong { color: var(--value-good); }
-.replay-move-strip[data-player="opponent"] .replay-move-result strong { color: var(--value-bad); }
+.replay-move-result strong { color: var(--replay-player-color); }
 .board-replay-track {
   /* Wrap using the preferred slider width and the largest move count. */
   flex: 1 0 auto;

@@ -59,9 +59,9 @@ function ReplayMoveStrip({
             {details?.location && <span>{details.location}</span>}
           </div>
         </>
-      ) : historical && (
+      ) : (
         <span className="replay-strip-status">
-          {board?.every((tile) => !tile)
+          {!historical ? "Final board" : board?.every((tile) => !tile)
             ? "Start of game"
             : "Before first recorded move"}
         </span>

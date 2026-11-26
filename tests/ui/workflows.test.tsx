@@ -2778,7 +2778,8 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   expect(scorePanel.getByText("1 move · Avg 10.0")).toBeTruthy();
   expect(scorePanel.getByText("1 move · Avg 4.0")).toBeTruthy();
   expect(controls.getByRole("button", { name: "Play from start" })).toBeTruthy();
-  expect(controls.queryByText("Final board")).toBeNull();
+  const strip = within(controls.getByRole("status"));
+  expect(strip.getByText("Final board")).toBeTruthy();
   await user.click(scorePanel.getByText("Tracked move history"));
   const history = within(await scorePanel.findByRole("table", { name: "Tracked moves" }));
   expect(history.getAllByRole("columnheader").map((header) => header.textContent))
@@ -2792,6 +2793,7 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   expect(scorePanel.queryByRole("button", { name: "Add missed move" })).toBeNull();
   expect(history.queryByRole("button", { name: /^Edit move/ })).toBeNull();
   fireEvent.change(slider, { target: { value: "0" } });
+  expect(strip.getByText("Start of game")).toBeTruthy();
   expect(scorePanel.getAllByText("0 moves · Avg —")).toHaveLength(2);
   expect(scorePanel.getAllByText("Best — · 0 bingos")).toHaveLength(2);
   const opening = history.getByRole("button", { name: "Replay move 1: CAT" });
@@ -2806,7 +2808,7 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   expect(cell("Define")).toBeTruthy();
   expect(controls.getByRole("button", { name: "Preview recorded move CAT" }).getAttribute("aria-pressed")).toBe("true");
   expect(cell("H8: A, start").classList.contains("ghost")).toBe(true);
-  expect(controls.queryByText("Final board")).toBeNull();
+  expect(strip.queryByText("Final board")).toBeNull();
   expect(screen.getByRole("button", { name: "Unseen tiles, 0 estimated tiles in the bag before the play" })).toBeTruthy();
   expect(screen.queryByRole("group", { name: /Draw unknown|Tiles drawn/ })).toBeNull();
 
@@ -2853,6 +2855,7 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   fireEvent.change(slider, { target: { value: "3" } });
   expect(cell("A1: Q, edited after archiving")).toHaveProperty("disabled", false);
   expect(slider).toHaveProperty("value", "3");
+  expect(strip.getByText("Final board")).toBeTruthy();
 
   fireEvent.change(slider, { target: { value: "1" } });
   const restoreOptions = await openGameManagement(user);
