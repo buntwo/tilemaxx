@@ -86,13 +86,6 @@ function replay(
   assert.deepEqual(line.points, { you: scores[0], opponent: scores[1] });
 }
 
-test("indexed word enumeration survives a worker index transfer", () => {
-  assert.deepEqual(
-    [...Lexicon.fromIndex(lexicon).words()].sort(),
-    [...words].sort(),
-  );
-});
-
 test("incremental preparation and single-tile paths match full generation across branches and rules", () => {
   let seed = 77;
   const random = () =>

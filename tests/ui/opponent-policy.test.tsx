@@ -114,12 +114,15 @@ function fit(random: number) {
   } satisfies OpponentPolicyResult;
 }
 
-test("the timeline keeps the recorded turn order when a later job finishes first", () => {
+test("the timeline keeps recorded order through out-of-order results, cancellation, and resume", () => {
   setup();
   const table = within(
     screen.getByRole("table", { name: "Opponent moves by turn" }),
   );
+  expect(table.getByText("No saved placement")).toBeTruthy();
   const { worker, job } = start();
+  expect(job.kind).toBe("opponent-policy-timeline");
+  expect(job.turns.map(({ input }) => input.word)).toEqual(["AT", "OX"]);
   worker.returnTurn(job, 1, fit(0.2), 1);
   expect(screen.getByText("Checked 1 of 2 turns in this batch.")).toBeTruthy();
   const rows = table.getAllByRole("row").slice(1);
@@ -128,25 +131,8 @@ test("the timeline keeps the recorded turn order when a later job finishes first
   ).toEqual(["1 · AT", "3 · OX", "4 · TEA"]);
   expect(within(rows[1]).getByText("High fit")).toBeTruthy();
   expect(within(rows[0]).queryByText("High fit")).toBeNull();
-});
 
-test("the timeline streams in order, keeps finished turns after cancellation and opens their saved detail", () => {
-  setup();
-  const table = within(
-    screen.getByRole("table", { name: "Opponent moves by turn" }),
-  );
-  expect(table.getAllByRole("rowheader").map((row) => row.textContent)).toEqual(
-    ["1 · AT", "3 · OX", "4 · TEA"],
-  );
-  expect(table.getByText("No saved placement")).toBeTruthy();
-  const { worker, job } = start();
-  expect(job.kind).toBe("opponent-policy-timeline");
-  expect(job.turns.map(({ input }) => input.word)).toEqual(["AT", "OX"]);
-  worker.returnTurn(job, 0, fit(0.2));
-  expect(screen.getByText("Checked 1 of 2 turns in this batch.")).toBeTruthy();
-  expect(table.getByText("High fit")).toBeTruthy();
-
-  fireEvent.click(table.getByRole("button", { name: "3 · OX" }));
+  fireEvent.click(table.getByRole("button", { name: "1 · AT" }));
   expect(screen.getByText("Queued in timeline analysis.")).toBeTruthy();
   expect(worker.terminate).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Back to game review" }));
@@ -154,17 +140,17 @@ test("the timeline streams in order, keeps finished turns after cancellation and
     screen.getByRole("button", { name: "Cancel timeline analysis" }),
   );
   expect(worker.terminate).toHaveBeenCalledOnce();
-  worker.returnTurn(job, 1, fit(0.2));
+  worker.returnTurn(job, 0, fit(0.2), 2);
 
   const { worker: resumed, job: remaining } = start("Analyze remaining turns");
-  expect(remaining.turns.map(({ input }) => input.word)).toEqual(["OX"]);
+  expect(remaining.turns.map(({ input }) => input.word)).toEqual(["AT"]);
   resumed.returnTurn(remaining, 0, fit(1));
   act(() =>
     resumed.onmessage?.({ data: { result: { reachedTimeLimit: false } } }),
   );
   expect(screen.getByText("1 high-fit turn · 2 checked")).toBeTruthy();
 
-  fireEvent.click(screen.getByRole("button", { name: "1 · AT" }));
+  fireEvent.click(screen.getByRole("button", { name: "3 · OX" }));
   const detail = within(
     screen.getByRole("region", { name: "Opponent policy fit" }),
   );

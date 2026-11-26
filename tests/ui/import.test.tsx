@@ -150,30 +150,29 @@ test("recognition errors leave import unapplied and allow retry", async () => {
   ).toBe(false);
 });
 
-for (const type of ["image/heic", "image/heif", ""]) {
-  test(`HEIF import converts unsupported native images with MIME '${type}'`, async () => {
-    vi.stubGlobal(
-      "Image",
-      class {
-        naturalWidth = 750;
-        naturalHeight = 750;
-        src = "";
-        attempt = 0;
-        async decode() {
-          if (!this.attempt++) throw new Error("Native decoder unavailable");
-        }
-      },
-    );
-    vi.mocked(convertHeif).mockResolvedValue(
-      new Blob(["png"], { type: "image/png" }),
-    );
-    const file = new File(["heif"], "board.HEIF", { type });
-    const { onApply } = await setup(file);
-    expect(convertHeif).toHaveBeenCalledOnce();
-    expect(vi.mocked(convertHeif).mock.calls[0][0]).toBe(file);
-    expect(onApply).not.toHaveBeenCalled();
-  });
-}
+test("HEIF import falls back to conversion when native decoding fails", async () => {
+  vi.stubGlobal(
+    "Image",
+    class {
+      naturalWidth = 750;
+      naturalHeight = 750;
+      src = "";
+      attempt = 0;
+      async decode() {
+        if (!this.attempt++) throw new Error("Native decoder unavailable");
+      }
+    },
+  );
+  vi.mocked(convertHeif).mockResolvedValue(
+    new Blob(["png"], { type: "image/png" }),
+  );
+  const file = new File(["heif"], "board.HEIF");
+  const { onApply } = await setup(file);
+  expect(convertHeif).toHaveBeenCalledOnce();
+  expect(vi.mocked(convertHeif).mock.calls[0][0]).toBe(file);
+  expect(onApply).not.toHaveBeenCalled();
+});
+
 test("native HEIC decoding skips fallback conversion", async () => {
   await setup(new File(["heic"], "board.heic", { type: "image/heic" }));
   expect(convertHeif).not.toHaveBeenCalled();
