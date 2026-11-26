@@ -1645,6 +1645,16 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   onCancelBoardOdds={solver.cancelBoardOdds}
                 />
               )}
+              <Activity mode={replay ? "hidden" : "visible"}>{gameScores}</Activity>
+              {replay && savedGame && (
+                <ReplayScores
+                  {...replay}
+                  sourceGame={savedGame}
+                  solo={game.solo}
+                  finalScoring={!historical ? (savedGame?.archivedState ?? savedGame)?.scoring : undefined}
+                  finalOutcome={!historical ? gameFinish.score?.outcome : undefined}
+                />
+              )}
               {!narrowLayout && !replay && (
                 <div className="companion-note">
                   <span className="note-icon">
@@ -1660,19 +1670,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   </div>
                 </div>
               )}
-              {replay && savedGame && (
-                <ReplayScores
-                  {...replay}
-                  sourceGame={savedGame}
-                  solo={game.solo}
-                  finalScoring={!historical ? (savedGame?.archivedState ?? savedGame)?.scoring : undefined}
-                  finalOutcome={!historical ? gameFinish.score?.outcome : undefined}
-                />
-              )}
             </div>
-            <Activity mode={replay ? "hidden" : "visible"}>
-              <div className="game-scores-column">{gameScores}</div>
-            </Activity>
           </GameWorkspace>
         ) : selectedGame ? (
           <section className="welcome-panel panel" aria-label="Game board">

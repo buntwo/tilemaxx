@@ -5294,7 +5294,9 @@ test.each([
 test("resizing changes the game layout once and preserves open score history", async () => {
   const user = await start(751);
   const header = screen.getByRole("heading", { name: "First game" }).closest("header")!;
+  const moves = screen.getByRole("region", { name: "Possible moves" });
   const scores = screen.getByRole("region", { name: "Game scores" });
+  expect(scores.previousElementSibling).toBe(moves);
   const history = within(scores).getByText("Tracked move history");
   await user.click(history);
   const shell = header.closest(".app-shell")!;
@@ -5308,6 +5310,7 @@ test("resizing changes the game layout once and preserves open score history", a
     expect(shell.classList.contains("phone-layout"), String(width)).toBe(false);
     expect(!!sidebar(), String(width)).toBe(width >= 992);
     expect(screen.getByRole("region", { name: "Game scores" })).toBe(scores);
+    expect(scores.previousElementSibling).toBe(moves);
     expect(history.closest("details")?.open).toBe(true);
   }
 
