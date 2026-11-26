@@ -152,7 +152,7 @@ export function trackedTurnLabel(
     }
   }
   const count = "slots" in action ? action.slots.length : action.count;
-  if (!count) return "Exchange · count unknown";
+  if (!count) return exchangeNotation === "compact" ? "Exch" : "Exchange · count unknown";
   return exchangeNotation === "compact"
     ? `Exch ${count}`
     : `Exchange · ${count} ${count === 1 ? "tile" : "tiles"}`;
