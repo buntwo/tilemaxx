@@ -3522,6 +3522,7 @@ label + label {
 }
 .workspace-turn-border button {
   min-height: 44px;
+  padding-inline: 8px;
 }
 .turn-border-preview {
   display: flex;

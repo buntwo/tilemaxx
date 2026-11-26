@@ -7141,12 +7141,15 @@ test("hovering a move highlights the first available copy of each rack tile it u
 });
 
 test("the board turn border follows the active player and remembers its placement", async () => {
-  localStorage.setItem("tilemaxx:workspace-preferences", JSON.stringify({ autoUpdate: false }));
+  localStorage.setItem("tilemaxx:workspace-preferences", JSON.stringify({
+    autoUpdate: false,
+    turnBorder: "panel-and-divider",
+  }));
   const user = userEvent.setup();
   const app = render(<App />);
   const board = () => screen.getByRole("region", { name: "Game board" });
   await screen.findByRole("heading", { name: /First game/ });
-  expect(board().getAttribute("data-turn-border")).toBe("panel-and-divider");
+  expect(board().getAttribute("data-turn-border")).toBe("panel-only");
   expect(board().getAttribute("data-turn")).toBe("you");
 
   await user.click(cell("Your turn. Switch active player"));
@@ -7155,11 +7158,16 @@ test("the board turn border follows the active player and remembers its placemen
 
   await user.click(cell("Settings"));
   const settings = within(screen.getByRole("dialog", { name: "Settings" }));
-  const turnBorder = settings.getByRole("combobox", { name: "Turn border" });
-  expect(turnBorder).toHaveProperty("value", "panel-and-divider");
-  await user.selectOptions(turnBorder, "panel-only");
+  const turnBorder = within(settings.getByRole("group", { name: "Turn border" }));
+  const panelOnly = turnBorder.getByRole("button", { name: "Panel only" });
+  const panelAndDivider = turnBorder.getByRole("button", { name: "Panel and divider" });
+  expect(panelOnly.getAttribute("aria-pressed")).toBe("true");
+  expect(panelAndDivider.getAttribute("aria-pressed")).toBe("false");
+  await user.click(panelAndDivider);
+  expect(panelOnly.getAttribute("aria-pressed")).toBe("false");
+  expect(panelAndDivider.getAttribute("aria-pressed")).toBe("true");
   await user.click(settings.getByRole("button", { name: "Close dialog" }));
-  expect(board().getAttribute("data-turn-border")).toBe("panel-only");
+  expect(board().getAttribute("data-turn-border")).toBe("panel-and-divider");
   expect(board().getAttribute("data-turn")).toBe("opponent");
 
   await user.click(cell("Pass"));
@@ -7169,7 +7177,7 @@ test("the board turn border follows the active player and remembers its placemen
   app.unmount();
   render(<App />);
   await screen.findByRole("heading", { name: /First game/ });
-  expect(board().getAttribute("data-turn-border")).toBe("panel-only");
+  expect(board().getAttribute("data-turn-border")).toBe("panel-and-divider");
 });
 
 test("workspace settings keep board previews visible with plain rack tiles and persist across reloads", async () => {

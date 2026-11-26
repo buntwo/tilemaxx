@@ -1409,7 +1409,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 className="board-panel panel"
                 data-replay={historical || undefined}
                 data-turn={boardTurns.player}
-                data-turn-border={preferences.turnBorder}
+                data-turn-border={preferences.boardTurnBorder}
                 onKeyDown={(event) => {
                   if (
                     !historical &&
