@@ -292,8 +292,8 @@ test("Game scores labels passes and exchanges and carries forward both totals", 
   expect(cursor.getAttribute("aria-valuetext")).toBe(
     "Moves 3–4. You 24 points, Exchange J C for 0 points. Opponent 18 points, Exchange · 3 tiles for 0 points",
   );
-  expect(chart.getByText("Exchange J C").className).toBe("score-chart-action");
-  expect(chart.getByText("Exchange · 3 tiles").className).toBe("score-chart-action");
+  expect(chart.getByText("-JC").className).toBe("score-chart-action");
+  expect(chart.getByText("-3").className).toBe("score-chart-action");
 });
 
 test("seeking on the replay chart keeps it in view when the layout above it changes", () => {

@@ -137,17 +137,21 @@ export function recordedMoveDetails(
   return { notation: move.word };
 }
 
-export function trackedTurnLabel({ word, action, review }: Pick<TrackedMove, "word" | "action" | "review">) {
+export function trackedTurnLabel(
+  { word, action, review }: Pick<TrackedMove, "word" | "action" | "review">,
+  exchangeNotation: "label" | "gcg" = "label",
+) {
   if (!action) return word;
   if (action.kind === "pass") return "Pass";
   if ("slots" in action) {
     const tiles = action.slots.map((slot) => review?.rack?.[slot]).filter(Boolean);
-    if (tiles.length === action.slots.length) return `Exchange ${tiles.join(" ")}`;
+    if (tiles.length === action.slots.length) {
+      return exchangeNotation === "gcg" ? `-${tiles.join("")}` : `Exchange ${tiles.join(" ")}`;
+    }
   }
   const count = "slots" in action ? action.slots.length : action.count;
-  return count
-    ? `Exchange · ${count} ${count === 1 ? "tile" : "tiles"}`
-    : "Exchange · count unknown";
+  if (!count) return "Exchange · count unknown";
+  return exchangeNotation === "gcg" ? `-${count}` : `Exchange · ${count} ${count === 1 ? "tile" : "tiles"}`;
 }
 
 export function recordedMoveNotation(

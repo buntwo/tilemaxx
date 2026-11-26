@@ -296,7 +296,7 @@ export default function ScoreChart({
                   <>
                     {play.bingo && <BingoBadge />}
                     {play.action ? (
-                      <span className="score-chart-action">{trackedTurnLabel(play)}</span>
+                      <span className="score-chart-action">{trackedTurnLabel(play, "gcg")}</span>
                     ) : (
                       <DefinitionWord
                         key={play.number}
