@@ -29,7 +29,7 @@ function MoveCell({
         aria-current={move.number === replayIndex ? "step" : undefined}
         onClick={() => onSelect(move.number)}
       >
-        {move.action ? <span className="score-history-word">{move.notation}</span> :
+        {move.action ? <span className="score-history-action">{move.notation}</span> :
         <DefinitionWord word={move.word} className={move.bingo ? "score-history-word bingo-move-word" : "score-history-word"}>
           {move.notation}
         </DefinitionWord>}

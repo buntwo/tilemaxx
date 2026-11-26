@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
 import { gameReplayTimeline } from "../../shared/game-replay";
-import { emptyScoring, summarizeGameScore } from "../../shared/game-scoring";
+import { emptyScoring, recordBoardlessTurn, summarizeGameScore } from "../../shared/game-scoring";
 import { emptyBoard, type Game } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
 import { ReplayScores } from "../../src/components/GameReplay";
@@ -246,6 +246,52 @@ test("the score chart pairs adjacent plays and carries forward the score for a m
   );
   expect(plays()).toEqual(["PLANTED+80 pts", "RATION+67 pts"]);
   expect(tooltip.querySelectorAll('.score-chart-play [aria-label="Bingo"]')).toHaveLength(1);
+});
+
+test("Game scores labels passes and exchanges and carries forward both totals", () => {
+  const game = gameWithScores(24, 18);
+  game.rack = "JINATRC";
+  game.scoring!.you.moves = 1;
+  game.scoring!.opponent.moves = 1;
+  game.trackedMoves = [
+    { player: "you", word: "FEEN", score: 24, bingo: false, at: "" },
+    { player: "opponent", word: "ONYX", score: 18, bingo: false, at: "" },
+  ];
+  const ownExchange = recordBoardlessTurn(game, "you", { kind: "exchange", slots: [0, 6] });
+  const countedExchange = recordBoardlessTurn(ownExchange, "opponent", { kind: "exchange", count: 3 });
+  const pass = recordBoardlessTurn(countedExchange, "you", { kind: "pass" });
+  const unknownExchange = recordBoardlessTurn(pass, "opponent", { kind: "exchange" });
+  show(unknownExchange);
+
+  const history = screen.getByText("Tracked move history").closest("details")!;
+  history.open = true;
+  fireEvent(history, new Event("toggle"));
+  const table = within(screen.getByRole("table", { name: "Tracked moves" }));
+  for (const [move, player, total] of [
+    ["3: Exchange J C", "You", "24"],
+    ["4: Exchange · 3 tiles", "Opp", "18"],
+    ["5: Pass", "You", "24"],
+    ["6: Exchange · count unknown", "Opp", "18"],
+  ]) {
+    const row = table.getByRole("button", { name: `Review move ${move}` }).closest("tr")!;
+    expect(row.querySelector(".score-move-player")?.textContent).toBe(player);
+    expect(row.querySelector(".score-move-points")?.textContent).toBe("0");
+    expect(row.querySelector(".score-move-total")?.textContent).toBe(total);
+    expect(within(row).getByLabelText("Move strength unavailable")).toBeTruthy();
+  }
+
+  const chart = within(screen.getByRole("figure", { name: "Score by move" }));
+  const cursor = chart.getByRole("slider");
+  fireEvent.focus(cursor);
+  expect(cursor.getAttribute("aria-valuetext")).toBe(
+    "Moves 5–6. You 24 points, Pass for 0 points. Opponent 18 points, Exchange · count unknown for 0 points",
+  );
+  fireEvent.change(cursor, { target: { value: "2" } });
+  expect(cursor.getAttribute("aria-valuetext")).toBe(
+    "Moves 3–4. You 24 points, Exchange J C for 0 points. Opponent 18 points, Exchange · 3 tiles for 0 points",
+  );
+  expect(chart.getByText("Exchange J C")).toBeTruthy();
+  expect(chart.getByText("Exchange · 3 tiles")).toBeTruthy();
 });
 
 test("seeking on the replay chart keeps it in view when the layout above it changes", () => {

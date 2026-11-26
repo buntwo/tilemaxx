@@ -83,7 +83,7 @@ function describePair(pair: ScorePair, solo: boolean) {
       const score = `${labels[player]} ${number.format(pair.totals[player])} points`;
       const play = pair.plays[player];
       return play
-        ? `${score}, ${play.word} for ${number.format(play.score)} points${play.bingo ? ", bingo" : ""}`
+        ? `${score}, ${trackedTurnLabel(play)} for ${number.format(play.score)} points${play.bingo ? ", bingo" : ""}`
         : score;
     }),
   ].join(". ");

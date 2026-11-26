@@ -1615,6 +1615,10 @@ label + label {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.score-history-action {
+  display: block;
+  white-space: normal;
+}
 .score-move-play .score-history-bingo {
   flex: none;
   margin: 0;
