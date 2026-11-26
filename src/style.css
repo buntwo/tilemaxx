@@ -6137,7 +6137,8 @@ label + label {
   gap: 2px;
 }
 .with-board-history .direct-entry-actions {
-  --board-action-gap: 1px;
+  --board-action-gap: 2px;
+  --board-tool-group-gap: 7px;
   flex: none;
   margin-left: auto;
   gap: var(--board-action-gap);
@@ -6148,10 +6149,11 @@ label + label {
   min-width: 46px;
   min-height: var(--board-define-height);
   justify-content: center;
-  border: 1px solid var(--line);
   border-radius: 5px;
-  background: var(--board-button-background);
   color: var(--existing-letter);
+}
+.direct-entry-actions > :is(.board-turn-actions + .board-define, .board-define + .board-undo) {
+  margin-inline-start: calc(var(--board-tool-group-gap) - var(--board-action-gap));
 }
 .board-panel .direct-entry-actions > .board-define:hover:not(:disabled) { background: var(--soft); }
 .with-board-history .direct-entry-status {
@@ -6254,17 +6256,15 @@ label + label {
   width: var(--board-strip-control-height);
   padding-inline: 0;
 }
-.board-undo {
-  position: relative;
-  margin-inline-start: 8px;
-}
 :is(.board-undo, .board-redo):not(:disabled) { color: var(--primary); }
-.board-undo::before {
+.direct-entry-actions > .board-define + .board-undo { position: relative; }
+.direct-entry-actions > .board-define + .board-undo::before {
   content: "";
   position: absolute;
-  inset-inline-start: -3px;
-  inset-block: 6px;
-  border-left: 1px solid var(--line);
+  inset-inline-start: calc((var(--board-tool-group-gap) + 1px) / -2);
+  inset-block: 7px;
+  border-inline-start: 1px solid var(--line);
+  pointer-events: none;
 }
 .board-mode-history {
   display: flex;
@@ -6592,7 +6592,6 @@ label + label {
 .board-panel {
   --board-strip-height: 33px;
   --board-strip-control-height: 28px;
-  --board-button-background: light-dark(#f2f5f0, #29372e);
   --board-strip-inset: calc((var(--board-strip-height) - var(--board-strip-control-height)) / 2);
 }
 .board-panel[data-turn="you"] { --board-turn-color: var(--value-good); }
@@ -6630,6 +6629,7 @@ label + label {
 }
 .board-define-icon { display: none; }
 .board-turn-actions,
+.board-turn-capsule,
 .board-turn-count-options,
 .board-turn-confirm {
   display: flex;
@@ -6637,21 +6637,14 @@ label + label {
 }
 .board-turn-actions {
   --turn-color: var(--value-good);
-  --board-turn-gap: 6px;
   flex: none;
-  gap: var(--board-turn-gap);
+  gap: 4px;
 }
-.with-board-history .direct-entry-actions > .board-turn-actions:has(+ .board-define) {
-  position: relative;
-  margin-inline-end: calc(var(--board-turn-gap) - var(--board-action-gap));
-}
-.with-board-history .direct-entry-actions > .board-turn-actions:has(+ .board-define)::after {
-  content: "";
-  position: absolute;
-  inset-block: 4px;
-  inset-inline-start: calc(100% + (var(--board-turn-gap) - 1px) / 2);
-  border-inline-start: 1px solid var(--line);
-  pointer-events: none;
+.board-turn-capsule {
+  gap: 2px;
+  padding-inline: 2px;
+  border-radius: 6px;
+  background: light-dark(#f2f5f0, #29372e);
 }
 .board-turn-actions[data-player="opponent"] { --turn-color: var(--value-bad); }
 .board-turn-count-options,
@@ -6664,9 +6657,9 @@ label + label {
   min-width: var(--board-define-height);
   min-height: var(--board-define-height);
   padding: 0 5px;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 5px;
-  background: var(--board-button-background);
+  background: transparent;
   color: color-mix(in srgb, var(--turn-color) 68%, var(--muted));
   font: inherit;
   font-size: 11px;
@@ -6728,7 +6721,9 @@ label + label {
   }
 }
 @container board-turn-strip (max-width: 180px) {
-  .board-turn-actions { --board-turn-gap: 3px; }
+  .with-board-history .direct-entry-actions { --board-tool-group-gap: 4px; }
+  .board-turn-actions { gap: 2px; }
+  .board-turn-capsule { gap: 1px; padding-inline: 1px; }
   .board-panel .with-board-history:has(.board-turn-actions) .direct-entry-status {
     position: absolute;
     width: 1px;
@@ -6739,9 +6734,7 @@ label + label {
   }
   .board-turn-button,
   .board-panel .direct-entry-actions > .board-define,
-  .board-panel :is(.board-undo, .board-redo) { width: 21px; }
-  .board-undo { margin-inline-start: 0; }
-  .board-undo::before,
+  .board-panel :is(.board-undo, .board-redo) { width: 20px; }
   .board-review-actions:has(.board-turn-actions) .board-review-play:disabled { display: none; }
 }
 .app-shell:not(.phone-layout) .board-panel:has(> .last-play-lane) { padding-top: 0; }

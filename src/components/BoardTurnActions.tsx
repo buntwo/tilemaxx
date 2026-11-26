@@ -77,36 +77,38 @@ export function useBoardTurnActions(
           {player === "you" ? <UserRound size={14} aria-hidden="true" /> : <UsersRound size={14} aria-hidden="true" />}
         </button>
       )}
-      <button
-        type="button"
-        className="board-turn-button"
-        aria-label="Pass"
-        title="Pass"
-        onClick={() => record({ kind: "pass" })}
-      >
-        <SkipForward size={14} aria-hidden="true" />
-        <span className="board-control-label">Pass</span>
-      </button>
-      <button
-        ref={exchangeButton}
-        type="button"
-        className="board-turn-button"
-        aria-label="Exchange"
-        title="Exchange"
-        disabled={player === "you" && !rackLetters(game.rack)}
-        aria-expanded={!!exchange}
-        aria-controls={opponentExchange ? countId : undefined}
-        onClick={() => {
-          if (exchange) cancel();
-          else {
-            onStart();
-            setDraft({ key, slots: [] });
-          }
-        }}
-      >
-        <ArrowLeftRight size={14} aria-hidden="true" />
-        <span className="board-control-label">Exchange</span>
-      </button>
+      <div className="board-turn-capsule">
+        <button
+          type="button"
+          className="board-turn-button"
+          aria-label="Pass"
+          title="Pass"
+          onClick={() => record({ kind: "pass" })}
+        >
+          <SkipForward size={14} aria-hidden="true" />
+          <span className="board-control-label">Pass</span>
+        </button>
+        <button
+          ref={exchangeButton}
+          type="button"
+          className="board-turn-button"
+          aria-label="Exchange"
+          title="Exchange"
+          disabled={player === "you" && !rackLetters(game.rack)}
+          aria-expanded={!!exchange}
+          aria-controls={opponentExchange ? countId : undefined}
+          onClick={() => {
+            if (exchange) cancel();
+            else {
+              onStart();
+              setDraft({ key, slots: [] });
+            }
+          }}
+        >
+          <ArrowLeftRight size={14} aria-hidden="true" />
+          <span className="board-control-label">Exchange</span>
+        </button>
+      </div>
     </div>
   );
 
