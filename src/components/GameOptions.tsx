@@ -49,6 +49,7 @@ export default function GameOptions({
   boardLocked,
   onUpdate,
   onChooseGame,
+  onResume,
   onArchived,
   onOpen,
   onReplay,
@@ -62,6 +63,7 @@ export default function GameOptions({
   boardLocked: boolean;
   onUpdate: (game: Game) => void;
   onChooseGame: (id: string) => void;
+  onResume: () => void;
   onArchived: () => void;
   onOpen: (dialog: GameOptionDialog) => void;
   onReplay?: () => void;
@@ -71,6 +73,7 @@ export default function GameOptions({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const connectionRequired = online ? undefined : "A server connection is required";
+  const position = game.archived && game.archivedBoard ? game.archivedState ?? game : game;
 
   async function openCreatedGame(create: () => Promise<Game>, message?: string) {
     setBusy(true);
@@ -217,7 +220,15 @@ export default function GameOptions({
                 </span>
               </button>
             )}
-            {!game.archived && !game.scoring?.end && (
+            {position.scoring?.end ? (
+              <button disabled={busy} onClick={onResume}>
+                <Play size={17} aria-hidden="true" />
+                <span>
+                  Resume game
+                  {game.archived && <small>Continue from the saved final position</small>}
+                </span>
+              </button>
+            ) : !game.archived && (
               <button disabled={busy} onClick={() => onOpen("end-game")}>
                 <Check size={17} aria-hidden="true" /> End game
               </button>

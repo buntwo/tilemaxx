@@ -131,7 +131,7 @@ import {
   undo,
 } from "../shared/model";
 import { recentOpponentNames } from "../shared/game-index";
-import { archiveForReview } from "../shared/archive-history";
+import { archiveForReview, resumeFinishedGame } from "../shared/archive-history";
 
 type Dialog =
   | "screenshot"
@@ -608,6 +608,17 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       };
     }
     store.update(next);
+  }
+  function resumeGame() {
+    if (!savedGame) return;
+    const next = resumeFinishedGame(savedGame);
+    if (next === savedGame) return;
+    editPosition();
+    gameFinish.dismiss();
+    updateSavedGame(next);
+    chooseGame(next.id);
+    setDialog(null);
+    notify("Game resumed.");
   }
   function updateAfterTurn(next: Game) {
     if (historical) {
@@ -1566,6 +1577,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               {gameOver ? (
                 <section className="results-panel game-over panel" aria-label="Possible moves">
                   <h3>Game over</h3>
+                  <button type="button" className="button secondary" onClick={resumeGame}>
+                    Resume game
+                  </button>
                 </section>
               ) : (
                 <Results
@@ -2195,7 +2209,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             notify(
               archive
                 ? "Game ended and archived."
-                : "Game ended. Use Undo to resume.",
+                : "Game ended.",
             );
           }}
           onClose={() => setDialog(null)}
@@ -2214,6 +2228,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             updateSavedGame(next);
           }}
           onChooseGame={chooseGame}
+          onResume={resumeGame}
           onArchived={() =>
             chooseGame(activeGames.find((item) => item.id !== savedGame.id)?.id ?? "")
           }

@@ -1113,6 +1113,10 @@ label + label {
   background: light-dark(#f5dfdf, #523033);
 }
 .game-over {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 14px;
 }
 .game-title-picker h1:focus {

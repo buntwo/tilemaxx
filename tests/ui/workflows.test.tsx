@@ -5633,6 +5633,61 @@ test("end game defaults to deductions and archiving with both settings reversibl
   });
 });
 
+test.each([false, true])("a finished game can be resumed and have another move recorded (archived: %s)", async (archive) => {
+  const user = await start();
+  await user.click(cell("H8: DW, start"));
+  await user.keyboard("CAT");
+  await typeRack(user, "S");
+  await user.click(cell("Find moves"));
+  const before = current();
+  expect(before.trackedMoves?.map(({ word }) => word)).toEqual(["CAT"]);
+
+  const options = await openGameManagement(user);
+  await user.click(options.getByRole("button", { name: "End game" }));
+  const finish = within(screen.getByRole("dialog", { name: "End game" }));
+  if (!archive) await user.click(finish.getByRole("checkbox", { name: "Archive game" }));
+  await user.click(finish.getByRole("button", { name: "End game" }));
+  await act(() => store.flush());
+  expect(remote.games[0].archived).toBe(archive);
+  expect(remote.games[0].scoring?.end?.endedAt).toBeTruthy();
+
+  if (archive) {
+    const sidebar = screen.queryByRole("button", { name: "Open sidebar" });
+    if (sidebar) await user.click(sidebar);
+    await user.click(navLink("Archived games"));
+    await user.click(await screen.findByRole("button", { name: /^First game/ }));
+    await screen.findByRole("heading", { name: "First game" });
+    await user.click(cell("A1: TW"));
+    await user.keyboard("Q");
+    expect(cell("A1: Q, edited after archiving")).toBeTruthy();
+    await user.click((await openGameManagement(user)).getByRole("button", { name: /Resume game/ }));
+  } else {
+    await user.click(within(screen.getByRole("region", { name: "Possible moves" })).getByRole("button", { name: "Resume game" }));
+  }
+  expect(current().archived).toBe(false);
+  expect(current().scoring?.end).toBeUndefined();
+  expect(current().board).toEqual(before.board);
+  expect(current().rack).toBe("S");
+  expect(scoreTotals()).toBe("0–10");
+  expect(current().trackedMoves).toEqual(before.trackedMoves);
+  const findMoves = screen.queryByRole("button", { name: "Find moves" });
+  if (findMoves) await user.click(findMoves);
+  await user.click(await screen.findByRole("button", { name: /^CATS, / }));
+  await act(() => store.flush());
+  expect(remote.games[0].trackedMoves?.map(({ word }) => word)).toEqual(["CAT", "CATS"]);
+  expect(remote.games[0].scoring?.end).toBeUndefined();
+  expect(scoreTotals()).toBe("6–10");
+  if (archive) {
+    await user.click((await openGameManagement(user)).getByRole("button", { name: "End game" }));
+    await user.click(within(screen.getByRole("dialog", { name: "End game" })).getByRole("button", { name: "End game" }));
+    await act(() => store.flush());
+    expect(remote.games[0].archivedState?.scoring?.end).toMatchObject({
+      manual: true, scores: { you: 6, opponent: 10 },
+    });
+    expect(remote.games[0].archivedState?.trackedMoves?.map(({ word }) => word)).toEqual(["CAT", "CATS"]);
+  }
+});
+
 test.each([
   ["scrabble", "Available when the bag is empty."],
   ["crossplay", "Crossplay doesn’t deduct unplayed tiles."],

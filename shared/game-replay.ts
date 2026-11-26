@@ -365,7 +365,7 @@ function recoverReplay(
 }
 
 export function captureArchiveReplay(game: Game) {
-  const { recovery } = recoverReplay(game, true);
+  const { recovery } = recoverReplay(game, true, game.replayRecovery);
   if (recovery.some((turn) => turn !== null)) return recovery;
 }
 
@@ -375,7 +375,7 @@ export function gameReplayTimeline(game: Game): { frames: ReplayFrame[]; scoreSt
   const { frames, scoreStart } = recoverReplay(
     source,
     !source.archived || !!snapshot,
-    snapshot?.replayRecovery,
+    snapshot?.replayRecovery ?? source.replayRecovery,
   );
   return { frames, scoreStart };
 }

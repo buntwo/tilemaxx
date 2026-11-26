@@ -237,6 +237,7 @@ export const gameSchema = gameProgress
     revision: z.number().int().min(0),
     updatedAt: z.string().max(50),
     archived: z.boolean(),
+    replayRecovery,
     archivedBoard: z.array(cell).max(625).optional(),
     archivedState: gameProgress
       .extend({ premiums: premiums.optional(), replayRecovery })
@@ -288,26 +289,29 @@ export const gameSchema = gameProgress
           (entry.trackedMoves?.every((move) => validReview(move.review)) ??
             true),
       );
+    const validRecovery = (recovery: z.infer<typeof replayRecovery>) =>
+      recovery?.every((turn) =>
+        !turn ||
+        (validReview(turn.position) &&
+          validRack(turn.observerRack ?? "") &&
+          validRack(turn.afterRack ?? "") &&
+          (!turn.draw ||
+            (validRack(turn.draw.tiles) &&
+              (turn.draw.count === undefined ||
+                (turn.draw.count >= turn.draw.tiles.length && turn.draw.count <= g.template.rackSize))))),
+      ) ?? true;
     return (
       g.board.length === size &&
       (!g.originalPremiums || g.originalPremiums.length === size) &&
       (!g.archivedBoard || g.archivedBoard.length === size) &&
       validProgress(g) &&
+      validRecovery(g.replayRecovery) &&
       (!g.archivedState ||
         (g.archived &&
           !!g.archivedBoard &&
           (!g.archivedState.premiums ||
             g.archivedState.premiums.length === size) &&
           validProgress(g.archivedState) &&
-          (g.archivedState.replayRecovery?.every((turn) =>
-            !turn ||
-            (validReview(turn.position) &&
-              validRack(turn.observerRack ?? "") &&
-              validRack(turn.afterRack ?? "") &&
-              (!turn.draw ||
-                (validRack(turn.draw.tiles) &&
-                  (turn.draw.count === undefined ||
-                    (turn.draw.count >= turn.draw.tiles.length && turn.draw.count <= g.template.rackSize))))),
-          ) ?? true)))
+          validRecovery(g.archivedState.replayRecovery)))
     );
   }, "Invalid position dimensions");

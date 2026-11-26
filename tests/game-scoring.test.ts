@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { gameSchema } from "../server/validation";
+import { resumeFinishedGame } from "../shared/archive-history";
 import { BoardEditHistory } from "../shared/board-entry";
 import { summarizeGame } from "../shared/game-index";
 import {
@@ -188,6 +189,11 @@ test("manual game results preserve the finish timestamp through saves, undo, red
   const resumed = undo(saved);
   assert.deepEqual(resumed.scoring, game.scoring);
   assert.equal(summarizeGame(resumed).endedOn, undefined);
+  assert.equal(resumeFinishedGame(game), game);
+  const explicitlyResumed = resumeFinishedGame(saved);
+  assert.deepEqual(gameScoreTotals(explicitlyResumed.scoring), { you: 7, opponent: 15 });
+  assert.deepEqual(undo(explicitlyResumed).scoring, saved.scoring);
+  assert.equal(redo(undo(explicitlyResumed)).scoring?.end, undefined);
   const nextDay = new Date(2026, 10, 17, 8);
   t.mock.timers.setTime(nextDay.getTime());
   assert.deepEqual(redo(resumed).scoring?.end, ended.scoring?.end);
@@ -279,6 +285,11 @@ test("legacy rack-outs can be recovered from a recorded final play and a matchin
   assert.equal(backfillGameResult(finished), finished);
   assert.equal(undo(finished).scoring?.end, undefined);
   assert.deepEqual(redo(undo(finished)).scoring?.end, finished.scoring?.end);
+  const resumed = resumeFinishedGame(finished);
+  assert.equal(resumed.scoring?.end, undefined);
+  assert.deepEqual(gameScoreTotals(resumed.scoring), { you: 26, opponent: 10 });
+  assert.deepEqual(resumed.board, finished.board);
+  assert.deepEqual(trackedMoveHistory(resumed), trackedMoveHistory(finished));
 
   const archived = archiveGame(old);
   const edited = { ...archived, board: [...archived.board] };

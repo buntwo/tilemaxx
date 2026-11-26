@@ -162,6 +162,8 @@ export interface Game extends Position {
   archived: boolean;
   archivedBoard?: Board;
   archivedState?: ArchiveState;
+  // Recovery carried forward when an archived game is resumed.
+  replayRecovery?: (RecoveredReplayTurn | null)[];
   savedBoardWordScores?: SavedBoardWordScores;
 }
 export type ArchiveState = Pick<

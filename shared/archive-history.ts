@@ -8,6 +8,7 @@ import {
 import { captureArchiveReplay } from "./game-replay";
 import {
   archiveGame,
+  remember,
   restoreArchivedGame,
   type Game,
   type SavedBoardWordScores,
@@ -106,11 +107,26 @@ export function archiveForReview(game: Game): Game {
   return compactArchivedHistory(saveArchiveReplay(archiveGame(game)));
 }
 
+export function resumeFinishedGame(game: Game): Game {
+  const saved = restoreArchivedGame(game);
+  if (!saved.scoring?.end) return game;
+  const position = game.archived ? removeUndoHistory(saved) : saved;
+  return {
+    ...position,
+    ...(!game.archived && remember(position, "Resumed game")),
+    scoring: { ...(position.scoring ?? saved.scoring), end: undefined },
+    archived: false,
+    archivedBoard: undefined,
+    archivedState: undefined,
+    replayRecovery: game.archivedState?.replayRecovery ?? game.replayRecovery,
+  };
+}
+
 export function saveArchiveReplay(game: Game): Game {
   const snapshot = game.archivedState;
   if (!game.archived || !game.archivedBoard || !snapshot || snapshot.replayRecovery) return game;
   const replayRecovery = captureArchiveReplay(restoreArchivedGame(game));
-  return replayRecovery
-    ? { ...game, archivedState: { ...snapshot, replayRecovery } }
+  return replayRecovery || game.replayRecovery
+    ? { ...game, replayRecovery: undefined, archivedState: { ...snapshot, replayRecovery } }
     : game;
 }

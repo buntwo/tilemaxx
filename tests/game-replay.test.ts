@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   archiveForReview,
   compactArchivedHistory,
+  resumeFinishedGame,
 } from "../shared/archive-history";
 import { summarizeGame } from "../shared/game-index";
 import { gameReplayTimeline, hasRecordedMoves, replayGamePosition } from "../shared/game-replay";
@@ -305,6 +306,15 @@ test("a short final refill uses the recovered observer rack in old and new archi
   delete savedOnly.archivedState!.trackedMoves![2].review!.rack;
   savedOnly.archivedState!.replayRecovery![1] = null;
   assert.deepEqual(gameReplayTimeline(savedOnly).frames[1].draw, { tiles: "O", count: 1 });
+  savedOnly.archivedState!.scoring = { ...emptyScoring(), end: { manual: true } };
+  const resumed = gameSchema.parse(JSON.parse(JSON.stringify(resumeFinishedGame(savedOnly))));
+  assert.equal(resumed.archived, false);
+  assert.equal(resumed.archivedState, undefined);
+  assert.equal(resumed.scoring?.end, undefined);
+  assert.deepEqual(gameReplayTimeline(resumed).frames[1].draw, { tiles: "O", count: 1 });
+  const rearchived = archiveForReview(resumed);
+  assert.equal(rearchived.replayRecovery, undefined);
+  assert.deepEqual(rearchived.archivedState?.replayRecovery?.[0]?.draw, { tiles: "O", count: 1 });
   savedOnly.archivedState!.replayRecovery![0]!.move = "stale";
   assert.deepEqual(gameReplayTimeline(savedOnly).frames[1].draw, { tiles: "", count: 1 });
 
