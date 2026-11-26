@@ -6137,9 +6137,10 @@ label + label {
   gap: 2px;
 }
 .with-board-history .direct-entry-actions {
+  --board-action-gap: 1px;
   flex: none;
   margin-left: auto;
-  gap: 1px;
+  gap: var(--board-action-gap);
   white-space: nowrap;
 }
 .with-board-history .direct-entry-actions > .text-button { padding-inline: 4px; }
@@ -6612,13 +6613,20 @@ label + label {
 .board-turn-confirm {
   display: flex;
   align-items: center;
-  gap: 3px;
 }
-.board-turn-actions { --turn-color: var(--value-good); flex: none; }
+.board-turn-actions {
+  --turn-color: var(--value-good);
+  --board-turn-gap: 6px;
+  flex: none;
+  gap: var(--board-turn-gap);
+}
+.with-board-history .direct-entry-actions > .board-turn-actions:has(+ .board-define) {
+  margin-inline-end: calc(var(--board-turn-gap) - var(--board-action-gap));
+}
 .board-turn-actions[data-player="opponent"],
 .board-turn-count { --turn-color: var(--value-bad); }
 .board-turn-count-options,
-.board-turn-confirm { flex-wrap: wrap; }
+.board-turn-confirm { flex-wrap: wrap; gap: 3px; }
 .board-turn-button {
   display: inline-flex;
   align-items: center;
@@ -6680,7 +6688,7 @@ label + label {
   }
 }
 @container board-turn-strip (max-width: 180px) {
-  .board-turn-actions { gap: 1px; }
+  .board-turn-actions { --board-turn-gap: 3px; }
   .board-panel .with-board-history:has(.board-turn-actions) .direct-entry-status {
     position: absolute;
     width: 1px;
