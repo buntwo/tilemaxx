@@ -3994,6 +3994,21 @@ test("rack typing and mobile Backspace return to the erased slot without shiftin
   expect(current().rack).toBe("CAT");
 });
 
+test("switching profiles clears focus from the profile selector", async () => {
+  remote.profiles.push({ id: "other", name: "Other profile" });
+  remote.games.push({ ...game(), id: "other-game", profileId: "other", name: "Other game" });
+  const user = await start();
+  const selector = screen.getByRole("combobox", { name: "Current profile" });
+  act(() => selector.focus());
+  expect(document.activeElement).toBe(selector);
+
+  await user.selectOptions(selector, "other");
+
+  expect(selector).toHaveProperty("value", "other");
+  expect(document.activeElement).not.toBe(selector);
+  expect(await screen.findByRole("heading", { name: "Other game" })).toBeTruthy();
+});
+
 test("rename profile preserves games and stable profile selection", async () => {
   const user = await start();
   await user.click(

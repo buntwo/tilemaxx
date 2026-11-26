@@ -1176,12 +1176,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 <select
                   aria-label="Current profile"
                   value={profileId}
-                  onChange={(e) => {
-                    if (e.target.value === "new") {
+                  onChange={({ currentTarget }) => {
+                    if (currentTarget.value === "new") {
                       openDialog("profile");
                       return;
                     }
-                    selectProfile(e.target.value);
+                    selectProfile(currentTarget.value);
+                    currentTarget.blur();
                   }}
                 >
                   {!profile && (
