@@ -6616,7 +6616,7 @@ test("correcting the last opponent play updates the board, the Last strip, and h
   const user = await start();
   const scores = within(screen.getByRole("region", { name: "Game scores" }));
   const lastPlay = (word: string, points: number) =>
-    cell(`Last: Opp ${word} ${points} pts 8H`);
+    cell(`Last: Opponent ${word} ${points} pts 8H`);
   const latestMove = () => within(scores.getByRole("table", { name: "Tracked moves" }))
     .getAllByRole("row").slice(1).map((row) =>
       within(row).getAllByRole("cell").map((value) => value.textContent),

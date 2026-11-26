@@ -6530,7 +6530,8 @@ label + label {
   min-height: 0;
   padding: 0 2px;
 }
-.rack-visually-hidden {
+.rack-visually-hidden,
+.visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -6827,6 +6828,9 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+.last-play-word[data-player="you"] { color: var(--value-good); }
+.last-play-word[data-player="opponent"] { color: var(--value-bad); }
+.last-play-word[data-player] .bingo-move-word { color: inherit; }
 .last-play-word .bingo-badge {
   justify-content: center;
   flex: none;
