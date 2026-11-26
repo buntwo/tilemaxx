@@ -3813,6 +3813,28 @@ label + label {
   margin-bottom: 5px;
   background: var(--bg);
 }
+.game-option-split {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+.game-option-split > button {
+  position: relative;
+  gap: 6px;
+}
+.game-option-split > button + button::before {
+  position: absolute;
+  inset-block: 7px;
+  inset-inline-start: 0;
+  border-inline-start: 1px solid var(--line);
+  content: "";
+  pointer-events: none;
+}
+.game-option-manage > .game-option-list + .game-option-list:not(.game-option-reset) {
+  border-top: 1px solid var(--line);
+  margin-top: 3px;
+  padding-top: 3px;
+}
 .game-option-reset {
   border-top: 1px solid var(--line);
   margin-top: 6px;
@@ -3835,6 +3857,7 @@ label + label {
   .game-options-modal :is(.game-option-list > button, .game-option-edit, .game-option-manage > summary, .game-word-list select) {
     min-height: 44px;
   }
+  .game-option-split > button { font-size: 13px; }
 }
 .keyboard-shortcuts {
   display: grid;

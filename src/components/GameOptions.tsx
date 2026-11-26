@@ -203,48 +203,17 @@ export default function GameOptions({
             Manage game
             <ChevronDown size={16} aria-hidden="true" />
           </summary>
-          <div className="game-option-list">
-            <button disabled={busy} onClick={exportGame}>
-              <Download size={17} aria-hidden="true" /> Export game
-            </button>
+          <div className="game-option-list game-option-split" role="group" aria-label="Start or duplicate">
             <button
+              aria-label="Start new game"
               disabled={busy || !online}
-              title={connectionRequired}
+              title={connectionRequired ?? (game.solo ? "Same settings, starting today" : "Same opponent and settings, starting today")}
               onClick={() => void startNewGame()}
             >
-              <Plus size={17} aria-hidden="true" />
-              <span>
-                Start new game
-                <small>{game.solo ? "Same settings, starting today" : "Same opponent and settings, starting today"}</small>
-              </span>
+              <Plus size={17} aria-hidden="true" /> Start new
             </button>
-            {position.scoring?.end ? (
-              <button disabled={busy} onClick={onResume}>
-                <Play size={17} aria-hidden="true" />
-                <span>
-                  Resume game
-                  {game.archived && <small>Continue from the saved final position</small>}
-                </span>
-              </button>
-            ) : !game.archived && (
-              <button disabled={busy} onClick={() => onOpen("end-game")}>
-                <Check size={17} aria-hidden="true" /> End game
-              </button>
-            )}
-            <button disabled={busy} onClick={toggleArchive}>
-              <Archive size={17} aria-hidden="true" />
-              {game.archived ? "Move to My games" : "Archive game"}
-            </button>
-            {!game.archived && (
-              <button
-                disabled={busy || !online}
-                title={connectionRequired}
-                onClick={() => void archiveAndStartNewGame()}
-              >
-                <Plus size={17} aria-hidden="true" /> Archive &amp; start new game
-              </button>
-            )}
             <button
+              aria-label="Duplicate game"
               disabled={busy || !online}
               title={connectionRequired}
               onClick={() =>
@@ -259,7 +228,45 @@ export default function GameOptions({
                 )
               }
             >
-              <Copy size={17} aria-hidden="true" /> Duplicate game
+              <Copy size={17} aria-hidden="true" /> Duplicate
+            </button>
+          </div>
+          <div className="game-option-list game-option-split" role="group" aria-label="Archive actions">
+            <button disabled={busy} onClick={toggleArchive}>
+              <Archive size={17} aria-hidden="true" />
+              {game.archived ? "Move to My games" : "Archive game"}
+            </button>
+            {!game.archived && (
+              <button
+                aria-label="Archive &amp; start new game"
+                disabled={busy || !online}
+                title={connectionRequired}
+                onClick={() => void archiveAndStartNewGame()}
+              >
+                <Archive size={17} aria-hidden="true" /> Archive &amp; start
+              </button>
+            )}
+          </div>
+          {(position.scoring?.end || !game.archived) && (
+            <div className="game-option-list">
+              {position.scoring?.end ? (
+                <button disabled={busy} onClick={onResume}>
+                  <Play size={17} aria-hidden="true" />
+                  <span>
+                    Resume game
+                    {game.archived && <small>Continue from the saved final position</small>}
+                  </span>
+                </button>
+              ) : (
+                <button disabled={busy} onClick={() => onOpen("end-game")}>
+                  <Check size={17} aria-hidden="true" /> End game
+                </button>
+              )}
+            </div>
+          )}
+          <div className="game-option-list">
+            <button disabled={busy} onClick={exportGame}>
+              <Download size={17} aria-hidden="true" /> Export game
             </button>
           </div>
           <div className="game-option-list game-option-reset">

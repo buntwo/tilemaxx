@@ -4362,7 +4362,16 @@ test("starting a new game from My games keeps the current game and copies its se
   const user = await start();
   await waitFor(() => expect(current().revision).toBe(original.revision));
   const options = await openGameManagement(user);
-  await user.click(options.getByRole("button", { name: /^Start new game/ }));
+  const startRow = options.getByRole("group", { name: "Start or duplicate" });
+  const archiveRow = options.getByRole("group", { name: "Archive actions" });
+  expect(within(startRow).getByRole("button", { name: "Duplicate game" })).toBeTruthy();
+  expect(within(archiveRow).getByRole("button", { name: "Archive game" })).toBeTruthy();
+  expect(within(archiveRow).getByRole("button", { name: "Archive & start new game" })).toBeTruthy();
+  expect(startRow.nextElementSibling).toBe(archiveRow);
+  const end = options.getByRole("button", { name: "End game" });
+  expect(archiveRow.nextElementSibling).toBe(end.parentElement);
+  expect(within(end.parentElement!).getAllByRole("button")).toEqual([end]);
+  await user.click(within(startRow).getByRole("button", { name: "Start new game" }));
   await screen.findByText("New game started.");
   const [previous, fresh] = remote.games;
   expect(previous).toEqual(original);
@@ -5699,7 +5708,10 @@ test.each([false, true])("a finished game can be resumed and have another move r
     await user.click(cell("A1: TW"));
     await user.keyboard("Q");
     expect(cell("A1: Q, edited after archiving")).toBeTruthy();
-    await user.click((await openGameManagement(user)).getByRole("button", { name: /Resume game/ }));
+    const management = await openGameManagement(user);
+    const resume = management.getByRole("button", { name: /Resume game/ });
+    expect(management.getByRole("group", { name: "Archive actions" }).nextElementSibling).toBe(resume.parentElement);
+    await user.click(resume);
   } else {
     await user.click(within(screen.getByRole("region", { name: "Possible moves" })).getByRole("button", { name: "Resume game" }));
   }
