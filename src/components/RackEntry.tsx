@@ -732,9 +732,7 @@ export default function RackEntry({
     <>
       {recordingExchange ? (
         <div className="rack-exchange-actions rack-record-exchange" role="group" aria-label="Exchange your tiles">
-          <span role="status">{recordingExchange.slots.length
-            ? `${recordingExchange.slots.length} selected`
-            : "Select tiles to exchange"}</span>
+          <span role="status">{recordingExchange.slots.length} selected</span>
           <button
             type="button"
             className="button primary"

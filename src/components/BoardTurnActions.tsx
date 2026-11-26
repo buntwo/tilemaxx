@@ -112,7 +112,7 @@ export function useBoardTurnActions(
 
   const details = opponentExchange && (
     <div className="board-turn-count" data-player={player} id={countId}>
-      <strong id={groupId}>How many tiles did your opponent exchange?</strong>
+      <span id={groupId}>How many tiles did your opponent exchange?</span>
       <div className="board-turn-count-options" role="group" aria-labelledby={groupId}>
         {[...Array.from({ length: game.template.rackSize }, (_, i) => i + 1), 0].map((count, index) => (
           <button

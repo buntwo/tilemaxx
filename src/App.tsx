@@ -1496,6 +1496,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     boardHistoryControls
                   }
                   turnActions={moveReview.showing ? undefined : boardTurns.controls}
+                  turnHint={boardTurns.rackExchange ? "Select tiles to exchange" : undefined}
                   statusAction={
                     compactGame && !historical && !game.archived && !boardLocked && !game.board.some(Boolean) && (
                       <button

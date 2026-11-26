@@ -86,6 +86,7 @@ export default function BoardEntry({
   moveFilter,
   historyControls,
   turnActions,
+  turnHint,
   statusAction,
   overlay,
 }: {
@@ -113,6 +114,7 @@ export default function BoardEntry({
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
   turnActions?: ReactNode;
+  turnHint?: string;
   statusAction?: ReactNode;
   overlay?: ReactNode;
 }) {
@@ -215,6 +217,7 @@ export default function BoardEntry({
           />
         ) : historyControls}
         turnActions={turnActions}
+        turnHint={turnHint}
         statusAction={ownPlay ? undefined : statusAction}
         overlay={overlay}
         onBreak={() => history.current.reset()}
@@ -315,6 +318,7 @@ export function BoardInput({
   moveFilter,
   historyControls,
   turnActions,
+  turnHint,
   statusAction,
   overlay,
 }: {
@@ -346,6 +350,7 @@ export function BoardInput({
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
   turnActions?: ReactNode;
+  turnHint?: string;
   statusAction?: ReactNode;
   overlay?: ReactNode;
 }) {
@@ -936,6 +941,7 @@ export function BoardInput({
           )}
           {historyControls}
         </div>
+        {turnHint && <div className="board-turn-hint">{turnHint}</div>}
         {!historyControls && help}
       </div>
       {historyControls && help}

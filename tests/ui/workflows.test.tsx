@@ -2312,13 +2312,18 @@ test.each([1200, 390])("board exchange focuses the compacted rack and Undo resto
   expect(board.queryByText("Your turn")).toBeNull();
   await typeRack(user, "IJNATRC");
   await user.click(cell("Exchange"));
+  expect(strip.contains(screen.getByText("Select tiles to exchange"))).toBe(true);
+  const rackExchange = within(screen.getByRole("group", { name: "Exchange your tiles" }));
+  expect(rackExchange.getByRole("status").textContent).toBe("0 selected");
   const exchange = cell("Record exchange");
   expect((exchange as HTMLButtonElement).disabled).toBe(true);
   await user.click(rackTile(2));
   await user.click(rackTile(7));
+  expect(rackExchange.getByRole("status").textContent).toBe("2 selected");
   expect(rackTile(2).getAttribute("aria-pressed")).toBe("true");
   expect(current().rack).toBe("IJNATRC");
   await user.click(exchange);
+  expect(screen.queryByText("Select tiles to exchange")).toBeNull();
   expect(current().rack).toBe("INATR");
   expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Rack letters" }));
   expect(rackTile(6).classList.contains("selected")).toBe(true);

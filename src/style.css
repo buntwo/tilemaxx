@@ -6608,6 +6608,27 @@ label + label {
 .board-panel :is(.with-board-history, .board-review-actions) {
   container: board-turn-strip / inline-size;
 }
+.board-panel .with-board-history:has(> .board-turn-hint) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: var(--board-strip-control-height) auto;
+  row-gap: 0;
+}
+.board-panel .with-board-history:has(> .board-import):has(> .board-turn-hint) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.with-board-history:has(> .board-turn-hint) > .direct-entry-actions {
+  grid-column: -2 / -1;
+  grid-row: 1;
+}
+.board-turn-hint {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  padding: 2px 10px 3px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
 .board-define-icon { display: none; }
 .board-turn-actions,
 .board-turn-count-options,
@@ -6650,7 +6671,6 @@ label + label {
   color: color-mix(in srgb, var(--turn-color) 68%, var(--muted));
   font: inherit;
   font-size: 11px;
-  font-weight: 650;
   white-space: nowrap;
 }
 .board-turn-player { padding-inline: 0; }
@@ -6687,7 +6707,13 @@ label + label {
   background: var(--soft);
 }
 .rack-record-exchange { flex-wrap: wrap; }
-.rack-record-exchange > span { color: var(--muted); font-size: 12px; }
+.rack-record-exchange > span {
+  flex: 0 0 11ch;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .rack-entry[data-recording-exchange] .rack-tile.exchange-mark .rack-slot {
   --rack-slot-mark: inset 0 0 0 2px var(--value-good);
   border-color: var(--value-good);
