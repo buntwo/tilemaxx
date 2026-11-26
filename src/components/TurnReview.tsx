@@ -1,4 +1,4 @@
-import { moveLocation } from "../../shared/notation";
+import { moveLocation, trackedTurnLabel } from "../../shared/notation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { scorePlacement } from "../../shared/game-scoring";
 import {
@@ -64,7 +64,7 @@ export default function TurnReview({
     ? { ...game.template, premiums: position.premiums }
     : game.template;
   const eligible = turns.flatMap(({ position, move, index }) =>
-    position?.rack && move.player === "you" ? [{ position, move, index }] : [],
+    !move.action && position?.rack && move.player === "you" ? [{ position, move, index }] : [],
   );
   const policyTurns = game.solo ? noPolicyTurns : turns;
   const timelines = {
@@ -116,10 +116,10 @@ export default function TurnReview({
         turn ? (
           <>
             Review move {turn.index + 1} ·{" "}
-            <MoveWord
+            {turn.move.action ? trackedTurnLabel(turn.move) : <MoveWord
               word={turn.move.word}
               bingo={turnBingo(turn, template)}
-            />
+            />}
           </>
         ) : (
           "Review game"
@@ -176,7 +176,7 @@ export default function TurnReview({
                   <p>Rack before the move is unknown.</p>
                 ) : null}
                 {breakdown && <ScoreBreakdown breakdown={breakdown} />}
-                {position.rack && !progress && !alternatives && (
+                {!turn.move.action && position.rack && !progress && !alternatives && (
                   <button
                     className="button primary"
                     onClick={() =>
@@ -248,7 +248,9 @@ export default function TurnReview({
                       data-policy-turn={turn.index}
                       onClick={() => choose(turn.index)}
                     >
-                      {turn.index + 1} · <MoveWord word={turn.move.word} bingo={turnBingo(turn, game.template)} /> · {turn.move.score} pts
+                      {turn.index + 1} · {turn.move.action
+                        ? trackedTurnLabel(turn.move)
+                        : <MoveWord word={turn.move.word} bingo={turnBingo(turn, game.template)} />} · {turn.move.score} pts
                     </button>
                   </li>
                 ))}
@@ -262,7 +264,7 @@ export default function TurnReview({
             )}
             <p>
               {eligible.length} of{" "}
-              {turns.filter((turn) => turn.move.player === "you").length} of
+              {turns.filter(({ move }) => !move.action && move.player === "you").length} of
               your tracked turns have a saved board and rack to analyze.
             </p>
             {!!eligible.length && !progress && !summary && (

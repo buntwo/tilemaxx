@@ -15,6 +15,7 @@ import {
   redo,
   wordBonuses,
   type Board,
+  type BoardlessTurn,
   type BoardTemplate,
   type Game,
   type GameOutcome,
@@ -29,7 +30,7 @@ import {
   type TurnPosition,
 } from "./model";
 import { recordedMoveNotation } from "./notation";
-import { rackLetters, rackSlotsForMove } from "./rack-entry";
+import { rackLetters, rackSlotsForMove, reorderRack } from "./rack-entry";
 import { endgameOpponentRack, unseenTiles } from "./tile-pool";
 import { PRESETS } from "./presets";
 import {
@@ -65,7 +66,6 @@ export function nextPlayerToMove(game: Game): Player | undefined {
   if (
     !scoring ||
     game.solo ||
-    scoring.incomplete ||
     scoring.end ||
     game.archived ||
     !tracksScores(game) ||
@@ -73,7 +73,8 @@ export function nextPlayerToMove(game: Game): Player | undefined {
   )
     return;
   const last = trackedMoveHistory(game).at(-1);
-  if (last) return last.player === "you" ? "opponent" : "you";
+  if (last && (!scoring.incomplete || last.action))
+    return last.player === "you" ? "opponent" : "you";
 }
 
 export function gameScoreTotals(scoring: GameScoring | undefined) {
@@ -317,6 +318,7 @@ export function reviewTurns(game: Game) {
     const snapshot = move.review
       ? { ...move.review, dictionaryId: game.dictionaryId }
       : undefined;
+    if (move.action) return { move, index, position: snapshot };
     if (snapshot && (move.player === "opponent" || snapshot.excludedRackSlots))
       return { move, index, position: snapshot };
     const pastIndex = game.past.findIndex(
@@ -408,9 +410,10 @@ export function lastRecordedBoardPlay(game: Game) {
   if (
     !move ||
     index < currentScoreStart(game, moves) ||
-    !game.board.some(Boolean)
+    (!move.action && !game.board.some(Boolean))
   )
     return;
+  if (move.action) return { move, bingo: false };
   const position = move.review ?? reviewTurns(game)[index]?.position;
   if (!position) return { move, bingo: move.bingo };
   if (position.tiles.some(({ index, letter }) => game.board[index] !== letter))
@@ -507,6 +510,12 @@ function rescoreBoardCorrections(game: Game, board: Board, base: Board) {
     const after = original.map((letter, index) =>
       changes.has(index) ? board[index] : letter,
     );
+    if (move.action) {
+      for (const index of changes) cells.add(index);
+      moves ??= [...history];
+      moves[i] = { ...move, review: { ...position, board: before } };
+      continue;
+    }
     const template = position.premiums
       ? { ...game.template, premiums: position.premiums }
       : game.template;
@@ -684,8 +693,8 @@ export function boardWordsAt(game: Game, index: number) {
   );
   const recordedTurns = new Set<string>();
   for (let i = moves.length - 1; i >= currentScoreStart(game, moves); i--) {
-    const { review, at, player } = moves[i];
-    if (!review) continue;
+    const { review, at, player, action } = moves[i];
+    if (!review || action) continue;
     recordedTurns.add(
       `${player}:${at}:${review.tiles.map(({ index }) => index).join(",")}`,
     );
@@ -892,6 +901,77 @@ function addScore(
     ...scoring,
     pendingBase: undefined,
     [player]: addMoveToPlayerScore(scoring[player], play.score, play.bingo),
+  };
+}
+
+/** A pending, scoreable opponent placement precedes the next turn action. */
+export function boardActionPlayer(game: Game): Player | undefined {
+  if (game.solo || pendingOpponentTurns(game).length) return "you";
+  return nextPlayerToMove(game);
+}
+
+export function recordBoardlessTurn(
+  game: Game,
+  player: Player,
+  action: BoardlessTurn,
+): Game {
+  if (!tracksScores(game) || game.archived || game.scoring?.end)
+    throw new Error("Turn recording is available in an active game with score tracking on.");
+  const expected = boardActionPlayer(game);
+  if (expected && player !== expected)
+    throw new Error("The active player changed.");
+  const previous = recordOpponentPlay(game);
+  if (previous.scoring?.end) return previous;
+  if (previous.scoring?.pendingBase)
+    throw new Error("Finish the board entry or keep it as a correction under Game scores before recording this turn.");
+
+  const own = player === "you";
+  let next: Game = previous;
+  if (action.kind === "exchange") {
+    if (own && "slots" in action) {
+      const selected = new Set(action.slots);
+      if (
+        !selected.size || selected.size !== action.slots.length ||
+        action.slots.some((slot) =>
+          !Number.isInteger(slot) || !previous.rack[slot] || previous.rack[slot] === ".",
+        )
+      )
+        throw new Error("Select occupied rack tiles to exchange.");
+      const kept = [...previous.rack].flatMap((letter, slot) =>
+        letter !== "." && !selected.has(slot) ? [slot] : [],
+      );
+      const rack = reorderRack(previous, kept);
+      next = {
+        ...previous,
+        rack: rack.rack,
+        excludedRackSlots: rack.excludedRackSlots.length ? rack.excludedRackSlots : undefined,
+        requiredRackSlots: rack.requiredRackSlots.length ? rack.requiredRackSlots : undefined,
+      };
+    } else if (
+      own || "slots" in action ||
+      (action.count !== undefined &&
+        (!Number.isInteger(action.count) || action.count < 1 || action.count > game.template.rackSize))
+    ) {
+      throw new Error("Enter a valid exchange tile count.");
+    }
+  }
+  const word = action.kind === "pass" ? "PASS" : "EXCHANGE";
+  return {
+    ...next,
+    ...remember(previous, word, 0, player, false, {
+      board: previous.board,
+      ...(own
+        ? {
+            rack: previous.rack,
+            excludedRackSlots: previous.excludedRackSlots,
+            requiredRackSlots: previous.requiredRackSlots,
+          }
+        : { observerRack: previous.rack }),
+      dictionaryId: previous.dictionaryId,
+      premiums: previous.template.premiums,
+      tiles: [],
+    }, action),
+    scoring: addScore(previous.scoring ?? emptyScoring(), player, { word, score: 0, bingo: false }),
   };
 }
 
@@ -1413,6 +1493,8 @@ export function correctTrackedMove(
     throw new Error("Solo move history only records your plays.");
 
   const previous = insert ? undefined : moves[index];
+  if (previous?.action || change.action)
+    throw new Error("Use Undo to change a recorded pass or exchange.");
   const next = [...moves];
   next.splice(index, insert ? 0 : 1, {
     ...previous,

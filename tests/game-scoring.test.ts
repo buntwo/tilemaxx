@@ -6,6 +6,7 @@ import { BoardEditHistory } from "../shared/board-entry";
 import { summarizeGame } from "../shared/game-index";
 import {
   backfillGameResult,
+  boardActionPlayer,
   boardWordsAt,
   correctTrackedMove,
   displayedGameScoring,
@@ -17,6 +18,7 @@ import {
   pendingOpponentPlay,
   pendingOpponentTurns,
   playTrackedMove,
+  recordBoardlessTurn,
   recordOpponentPlay,
   recordOpponentPlayForSearch,
   recordOpponentRackOut,
@@ -71,6 +73,58 @@ function fixture(): Game {
     archived: false,
   };
 }
+
+test("passes and both kinds of exchange survive validation, undo, and redo", () => {
+  const game = { ...fixture(), rack: "A.A?ECT", excludedRackSlots: [4], requiredRackSlots: [6] };
+  const passed = recordBoardlessTurn(game, "opponent", { kind: "pass" });
+  assert.equal(nextPlayerToMove(passed), "you");
+  assert.equal(lastRecordedBoardPlay(passed)?.move.action?.kind, "pass");
+  assert.deepEqual(gameScoreTotals(passed.scoring), { you: 0, opponent: 0 });
+  assert.equal(undo(passed).scoring, undefined);
+
+  const exchanged = recordBoardlessTurn(passed, "you", { kind: "exchange", slots: [0, 3] });
+  assert.equal(exchanged.rack, "AECT");
+  assert.deepEqual(exchanged.excludedRackSlots, [1]);
+  assert.deepEqual(exchanged.requiredRackSlots, [3]);
+  assert.equal(exchanged.board, game.board);
+  assert.equal(nextPlayerToMove(exchanged), "opponent");
+
+  const opponent = recordBoardlessTurn(exchanged, "opponent", { kind: "exchange", count: 4 });
+  const filled = gameSchema.parse({ ...opponent, rack: "AECTUV" });
+  assert.equal(summarizeGame(filled).fullMoveHistory, true);
+  const undoOpponent = undo(filled);
+  assert.equal(undoOpponent.rack, "AECT");
+  assert.equal(nextPlayerToMove(undoOpponent), "opponent");
+  const undoExchange = undo(undoOpponent);
+  assert.equal(undoExchange.rack, game.rack);
+  assert.deepEqual(undoExchange.excludedRackSlots, [4]);
+  assert.deepEqual(undoExchange.requiredRackSlots, [6]);
+  assert.deepEqual(trackedMoveHistory(undoExchange).map(({ action }) => action), [{ kind: "pass" }]);
+  const redone = gameSchema.parse(redo(redo(undoExchange)));
+  assert.deepEqual(redone.trackedMoves, filled.trackedMoves);
+  assert.equal(redone.rack, filled.rack);
+  assert.deepEqual(redone.scoring, filled.scoring);
+  assert.equal(nextPlayerToMove(redone), "you");
+  assert.throws(() => recordBoardlessTurn(undoExchange, "you", { kind: "exchange", slots: [1] }), /occupied rack/);
+  assert.throws(() => recordBoardlessTurn(exchanged, "opponent", { kind: "exchange", count: 8 }), /valid exchange/);
+});
+
+test("a pass after a typed opponent word records two separately undoable turns", () => {
+  const game = { ...fixture(), rack: "SATEINR" };
+  const board = [...game.board];
+  board.splice(game.template.start, 3, ..."CAT");
+  const entered = new BoardEditHistory().apply(game, board, "enter");
+  assert.equal(boardActionPlayer(entered), "you");
+  const passed = recordBoardlessTurn(entered, "you", { kind: "pass" });
+  assert.deepEqual(trackedMoveHistory(passed).map(({ word, player }) => [word, player]), [
+    ["CAT", "opponent"],
+    ["PASS", "you"],
+  ]);
+  const opponentPlayed = undo(passed);
+  assert.equal(nextPlayerToMove(opponentPlayed), "you");
+  assert.deepEqual(opponentPlayed.board, board);
+  assert.deepEqual(undo(opponentPlayed).board, game.board);
+});
 
 test("direct play spends matching tiles first, honors designated blanks, and identifies excess letters", () => {
   const game = { ...fixture(), rack: "S?E" };

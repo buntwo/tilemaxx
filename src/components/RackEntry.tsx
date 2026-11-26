@@ -44,6 +44,7 @@ import TilePool from "./TilePool";
 import RackBag from "./RackBag";
 import { unseenTiles } from "../../shared/tile-pool";
 import { createTileFaceContent, RackTileFace } from "./TileFace";
+import type { RackExchangeEntry } from "./BoardTurnActions";
 
 const SENTINEL = "\u200b";
 const EXCHANGE_CACHE_LIMIT = 16;
@@ -75,6 +76,7 @@ export default function RackEntry({
   recordedPreview,
   replayRackLayout,
   drawShelf,
+  recordingExchange,
 }: {
   ref?: Ref<RackEntryHandle>;
   game: Game;
@@ -97,6 +99,7 @@ export default function RackEntry({
   recordedPreview?: boolean;
   replayRackLayout?: ReplayRackLayout;
   drawShelf?: boolean;
+  recordingExchange?: RackExchangeEntry;
 }) {
   const [cursor, setCursor] = useState(game.rack.length);
   const [focused, setFocused] = useState(false);
@@ -123,7 +126,8 @@ export default function RackEntry({
   }>();
   const excludeMode = mode === "exclude";
   const requireMode = mode === "require";
-  const exchangeMode = mode === "exchange";
+  const recording = !!recordingExchange;
+  const exchangeMode = mode === "exchange" || recording;
   const reviewing = !!onReviewEdit;
   const bagLabel = `${bagCount}${bagConfirmed ? "" : " estimated"} ${bagCount === 1 ? "tile" : "tiles"} in the bag`;
   const recordedBag = replayFrame?.bag;
@@ -166,7 +170,7 @@ export default function RackEntry({
   const requiredSlots = game.requiredRackSlots ?? [];
   // Exchange selections address physical slots even when solver results can be reused.
   const slotKey = JSON.stringify([positionKey, game.rack, excludedSlots, requiredSlots]);
-  const canReorder = !reviewing && !flyingRack && mode === "entry";
+  const canReorder = !reviewing && !flyingRack && !recording && mode === "entry";
   const exchangeSlots = Object.keys(exchangeMarks)
     .map(Number)
     .filter((i) => game.rack[i] === exchangeMarks[i]);
@@ -177,7 +181,7 @@ export default function RackEntry({
   const canOpenOptimal = !game.solo && !opponentRack && bagCount > 0;
   const bingoMinimum = minimumBingoTiles(game.template);
   const enoughBingoTiles = splitRack(game).available.length >= bingoMinimum;
-  const showingOptimal = canOpenOptimal && enoughBingoTiles && optimalOpen?.key === optimalKey;
+  const showingOptimal = !recording && canOpenOptimal && enoughBingoTiles && optimalOpen?.key === optimalKey;
   const reorder = useRackReorder({
     rack,
     letters: game.rack,
@@ -220,7 +224,7 @@ export default function RackEntry({
     [exchangeKey],
   );
   const advice =
-    mode === "entry" && !exchangeSlots.length && !flyingRack && !focused
+    !recording && mode === "entry" && !exchangeSlots.length && !flyingRack && !focused
       ? exchangeAdvice
       : undefined;
   useLayoutEffect(() => {
@@ -237,6 +241,13 @@ export default function RackEntry({
       });
   });
   useImperativeHandle(ref, () => ({ openSuggestedExchange, focusEntry }));
+  useLayoutEffect(() => {
+    if (!recording) return;
+    input.current?.blur();
+    if (tools.current) tools.current.open = false;
+    setMode("entry");
+    rack.current?.querySelector<HTMLButtonElement>(".rack-tile:not(.empty)")?.focus();
+  }, [recording]);
   useEffect(() => {
     const close = (event: PointerEvent) => {
       if (!tools.current?.contains(event.target as Node) && tools.current)
@@ -483,7 +494,7 @@ export default function RackEntry({
         const required =
           !!tile &&
           (flyingRack?.before.requiredRackSlots ?? requiredSlots).includes(i);
-        const exchanging = !flyingRack && exchangeSlots.includes(i);
+        const exchanging = !flyingRack && (recordingExchange?.slots ?? exchangeSlots).includes(i);
         const exchangeIcon = exchanging && (
           <Repeat2 className="rack-exchange-icon" size={12} strokeWidth={3.2} aria-hidden="true" />
         );
@@ -511,7 +522,7 @@ export default function RackEntry({
                       : active
             }
             aria-disabled={
-              !onReviewEdit && mode !== "entry" && !tile ? true : undefined
+              !onReviewEdit && (mode !== "entry" || recording) && !tile ? true : undefined
             }
             aria-keyshortcuts={canReorder && tile ? `Shift+${previousTileKey} Shift+${nextTileKey}` : undefined}
             onKeyDown={(event) => {
@@ -529,6 +540,7 @@ export default function RackEntry({
               clearTimeout(holdTimer.current);
               tileHold.current = null;
               suppressTap.current = false;
+              if (recording) return;
               if (tile) reorder.begin(event, i);
               if (event.pointerType !== "touch" || !tile || flyingRack) return;
               tileHold.current = {
@@ -579,6 +591,13 @@ export default function RackEntry({
                 suppressTap.current = false;
                 return;
               }
+              if (recordingExchange) {
+                if (tile) {
+                  event.currentTarget.focus({ preventScroll: true });
+                  recordingExchange.toggle(i);
+                }
+                return;
+              }
               onReviewEdit
                 ? editFromReview(i)
                 : exchangeMode
@@ -612,7 +631,7 @@ export default function RackEntry({
       })}
     </div>
   );
-  const rackTools = (
+  const rackTools = !recording && (
     <div className="rack-lane-tools">
       {mode === "entry" ? (
         <details
@@ -711,7 +730,24 @@ export default function RackEntry({
   );
   const details = (
     <>
-      {!!exchangeSlots.length && (
+      {recordingExchange ? (
+        <div className="rack-exchange-actions rack-record-exchange" role="group" aria-label="Exchange your tiles">
+          <span role="status">{recordingExchange.slots.length
+            ? `${recordingExchange.slots.length} selected`
+            : "Select tiles to exchange"}</span>
+          <button
+            type="button"
+            className="button primary"
+            disabled={!recordingExchange.slots.length}
+            onClick={() => {
+              setExchangeMarks({});
+              setSimulation(undefined);
+              recordingExchange.confirm();
+            }}
+          >Record exchange</button>
+          <button type="button" className="text-button" onClick={recordingExchange.cancel}>Cancel</button>
+        </div>
+      ) : !!exchangeSlots.length && (
         <div className="rack-exchange-actions">
           <button
             ref={exchangeButton}
@@ -762,7 +798,7 @@ export default function RackEntry({
           }}
         />
       )}
-      {activeSimulation && !!exchangeSlots.length && (
+      {!recording && activeSimulation && !!exchangeSlots.length && (
         <ExchangeAnalysis
           key={exchangeKey}
           game={game}
@@ -805,6 +841,7 @@ export default function RackEntry({
     <div
       className="rack-entry"
       data-recorded-preview={recordedPreview || undefined}
+      data-recording-exchange={recording || undefined}
       data-replay-opponent={recordedOpponent || undefined}
       data-draw-shelf={drawShelf || undefined}
       style={
@@ -852,7 +889,8 @@ export default function RackEntry({
       <input
         className="rack-keyboard-input"
         ref={input}
-        tabIndex={onReviewEdit ? -1 : undefined}
+        tabIndex={onReviewEdit || recording ? -1 : undefined}
+        readOnly={recording}
         aria-label="Rack letters"
         aria-keyshortcuts="Alt+R"
         aria-describedby={opponentRack || phoneLayout ? undefined : helpId}
@@ -878,7 +916,7 @@ export default function RackEntry({
         }}
         onPaste={(e) => {
           e.preventDefault();
-          enter(e.clipboardData.getData("text"));
+          if (!recording) enter(e.clipboardData.getData("text"));
         }}
         onCopy={(e) => {
           if (selectAll) {
@@ -887,7 +925,7 @@ export default function RackEntry({
           }
         }}
         onKeyDown={(e) => {
-          if (e.nativeEvent.isComposing) return;
+          if (recording || e.nativeEvent.isComposing) return;
           if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
             e.preventDefault();
             setSelectAll(true);
@@ -963,7 +1001,7 @@ export default function RackEntry({
       {!opponentRack && !phoneLayout && (
         <div className="rack-entry-actions">
           <div className="rack-lane-hint">
-            <p id={helpId} className="rack-entry-help" hidden={!!advice}>
+            <p id={helpId} className="rack-entry-help" hidden={!!advice || recording}>
               {exchangeMode
                 ? "Tap tiles to mark for exchange"
                 : excludeMode
@@ -990,7 +1028,7 @@ export default function RackEntry({
               <Pencil size={14} /> Enter your play
             </button>
           )}
-          {canOpenOptimal && (
+          {!recording && canOpenOptimal && (
             <button
               ref={optimalButton}
               type="button"

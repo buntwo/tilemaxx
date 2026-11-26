@@ -21,6 +21,7 @@ import MoveWord from "./MoveWord";
 import ScoreBreakdown from "./ScoreBreakdown";
 import ScoreChart from "./ScoreChart";
 import TrackedMoveHistory from "./TrackedMoveHistory";
+import { trackedTurnLabel } from "../../shared/notation";
 import TurnReview from "./TurnReview";
 
 function ScorePlayerMarker({
@@ -347,7 +348,7 @@ export default function GameScores({
                   <option value={history.length}>After the latest move</option>
                   {newestMoves.map((move) => (
                     <option key={move.number} value={move.number - 1}>
-                      Before #{move.number} {move.word}
+                      Before #{move.number} {trackedTurnLabel(move)}
                       {move.bingo ? " · 🏆 Bingo" : ""}
                     </option>
                   ))}

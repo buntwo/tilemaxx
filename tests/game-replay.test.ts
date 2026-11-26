@@ -10,6 +10,7 @@ import { gameReplayTimeline, hasRecordedMoves, replayGamePosition } from "../sha
 import {
   boardWordsAt,
   emptyScoring,
+  recordBoardlessTurn,
   reviewTurns,
   scorePlacement,
   tracksScores,
@@ -44,6 +45,23 @@ function gameWithMoves(trackedMoves: TrackedMove[]): Game {
     archived: false,
   };
 }
+
+test("replay keeps pass boards and exchange tiles and draws after archiving", () => {
+  const game = { ...gameWithMoves([]), rack: "IJNATRC" };
+  const pass = recordBoardlessTurn(game, "opponent", { kind: "pass" });
+  const exchange = recordBoardlessTurn(pass, "you", { kind: "exchange", slots: [1, 6] });
+  const opponent = recordBoardlessTurn({ ...exchange, rack: "INATROU" }, "opponent", { kind: "exchange" });
+  const archived = gameSchema.parse(archiveForReview(opponent));
+  const { frames } = gameReplayTimeline(archived);
+  assert.deepEqual(frames.map(({ board }) => board), Array(4).fill(game.board));
+  assert.deepEqual(frames[1].move?.action, { kind: "pass" });
+  assert.equal(frames[2].rack, game.rack);
+  assert.deepEqual(frames[2].playedSlots, [1, 6]);
+  assert.deepEqual(frames[2].draw, { tiles: "OU", count: 2 });
+  assert.deepEqual(frames[3].move?.action, { kind: "exchange" });
+  assert.equal(frames[3].move?.score, 0);
+  assert.ok(summarizeGame(archived).fullMoveHistory);
+});
 
 test("replay accumulates each player's recorded stats through the selected move and honors a scoring reset", () => {
   const review = {

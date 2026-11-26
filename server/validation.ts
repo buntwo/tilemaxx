@@ -153,11 +153,21 @@ const review = z
           letter: z.string().regex(/^[a-zA-Z]$/),
         }),
       )
-      .min(1)
       .max(10),
     direction: z.enum(["across", "down"]).optional(),
   })
   .optional();
+const boardlessTurn = z.union([
+  z.strictObject({ kind: z.literal("pass") }),
+  z.strictObject({
+    kind: z.literal("exchange"),
+    slots: z.array(z.number().int().min(0).max(9)).min(1).max(10),
+  }),
+  z.strictObject({
+    kind: z.literal("exchange"),
+    count: z.number().int().min(1).max(10).optional(),
+  }),
+]).optional();
 const trackedMoves = z
   .array(
     z.object({
@@ -165,6 +175,7 @@ const trackedMoves = z
       word: z.string().regex(/^[A-Z]{2,25}$/),
       score: z.number().int().nonnegative(),
       bingo: z.boolean().optional(),
+      action: boardlessTurn,
       at: z.string().max(50),
       review,
     }),
@@ -179,6 +190,7 @@ const historySchema = z.object({
   label: z.string().max(100),
   score: z.number().optional(),
   bingo: z.boolean().optional(),
+  action: boardlessTurn,
   player: z.enum(["you", "opponent"]).optional(),
   recordedOnSearch: z.literal(true).optional(),
   trackScores: z.boolean().optional(),
@@ -258,9 +270,10 @@ export const gameSchema = gameProgress
       excludedRackSlots?: number[];
       requiredRackSlots?: number[];
     }) => validRack(rack, [...excludedRackSlots, ...requiredRackSlots]);
-    const validReview = (position: z.infer<typeof review>) =>
+    const validReview = (position: z.infer<typeof review>, boardless = false) =>
       !position ||
       (position.board.length === size &&
+        (boardless ? position.tiles.length === 0 : position.tiles.length > 0) &&
         (!position.premiums || position.premiums.length === size) &&
         validRackMarks(position) &&
         validRack(position.observerRack ?? "") &&
@@ -269,9 +282,22 @@ export const gameSchema = gameProgress
         ) &&
         new Set(position.tiles.map((tile) => tile.index)).size ===
           position.tiles.length);
+    const validTurn = ({
+      action, bingo, player, review: position, score,
+    }: Pick<z.infer<typeof historySchema>, "action" | "bingo" | "player" | "review" | "score">, label: string) => {
+      if (!action) return validReview(position);
+      if (!player || (g.solo && player !== "you") || !position || score !== 0 || bingo ||
+          label !== (action.kind === "pass" ? "PASS" : "EXCHANGE") || !validReview(position, true))
+        return false;
+      if (action.kind === "pass") return true;
+      return "slots" in action
+        ? player === "you" && validRack(position.rack ?? "", action.slots)
+        : player === "opponent" && (action.count ?? 0) <= g.template.rackSize;
+    };
+    const validTrackedMoves = (moves: z.infer<typeof trackedMoves>) =>
+      moves?.every((move) => validTurn(move, move.word)) ?? true;
     const validProgress = (progress: z.infer<typeof gameProgress>) =>
-      (progress.trackedMoves?.every((move) => validReview(move.review)) ??
-        true) &&
+      validTrackedMoves(progress.trackedMoves) &&
       (!progress.savedBoardWordScores ||
         (progress.savedBoardWordScores.board.length === size &&
           progress.savedBoardWordScores.words.every(({ start }) => start < size))) &&
@@ -285,9 +311,8 @@ export const gameSchema = gameProgress
         (entry) =>
           entry.board.length === size &&
           (!entry.premiums || entry.premiums.length === size) &&
-          validReview(entry.review) &&
-          (entry.trackedMoves?.every((move) => validReview(move.review)) ??
-            true),
+          validTurn(entry, entry.label) &&
+          validTrackedMoves(entry.trackedMoves),
       );
     const validRecovery = (recovery: z.infer<typeof replayRecovery>) =>
       recovery?.every((turn) =>

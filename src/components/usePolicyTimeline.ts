@@ -21,7 +21,7 @@ export function usePolicyTimeline(
   const policyTurns = useMemo(
     () =>
       turns.flatMap(({ move, index, position }) => {
-        if (move.player !== player) return [];
+        if (move.player !== player || move.action) return [];
         const input: OpponentPolicyInput | undefined = position?.tiles.length
           ? {
               position: {

@@ -52,11 +52,16 @@ export interface Position {
   requiredRackSlots?: number[];
 }
 export type Player = "you" | "opponent";
+export type BoardlessTurn =
+  | { kind: "pass" }
+  | { kind: "exchange"; slots: number[] }
+  | { kind: "exchange"; count?: number };
 export interface TrackedMove {
   player: Player;
   word: string;
   score: number;
   bingo?: boolean;
+  action?: BoardlessTurn;
   at: string;
   review?: TurnPosition;
 }
@@ -119,6 +124,7 @@ export interface HistoryEntry extends Position {
   label: string;
   score?: number;
   bingo?: boolean;
+  action?: BoardlessTurn;
   player?: Player;
   recordedOnSearch?: true;
   trackScores?: boolean;
@@ -457,6 +463,7 @@ function trackedMove(
       score: entry.score,
       ...(bingo !== undefined && { bingo }),
       ...(entry.review && { review: entry.review }),
+      ...(entry.action && { action: entry.action }),
       at: entry.at,
     };
 }
@@ -495,6 +502,7 @@ export function remember(
   player?: Player,
   bingo?: boolean,
   review?: TurnPosition,
+  action?: BoardlessTurn,
 ): Pick<Game, "past" | "future" | "trackedMoves"> {
   const entry: HistoryEntry = {
     board: [...game.board],
@@ -506,6 +514,7 @@ export function remember(
     player,
     bingo,
     review,
+    ...(action && { action }),
     scoring: game.scoring,
     at: new Date().toISOString(),
   };
@@ -595,6 +604,7 @@ export function undo(game: Game): Game {
             ? undefined
             : game.trackScores !== false,
         bingo: trackedMove(step, game.scoring)?.bingo,
+        ...(step.action && { action: step.action }),
         review: step.review,
         scoring: game.scoring,
         trackedMoves: step.trackedMoves && trackedMoveHistory(game),
@@ -638,6 +648,7 @@ export function redo(game: Game): Game {
             ? undefined
             : game.trackScores !== false,
         bingo: move?.bingo,
+        ...(step.action && { action: step.action }),
         review: step.review,
         scoring: game.scoring,
         trackedMoves: step.trackedMoves && trackedMoveHistory(game),

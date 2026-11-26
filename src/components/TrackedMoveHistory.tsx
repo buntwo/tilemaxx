@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { ChevronDown, Pencil, Play, Plus } from "lucide-react";
 import type { scoreHistoryMoves } from "../../shared/game-scoring";
 import type { BoardTemplate } from "../../shared/model";
+import { trackedTurnLabel } from "../../shared/notation";
 import type { MoveStrength, MoveStrengthResult } from "../../shared/move-strength";
 import type { PracticeRequest } from "../practice.worker";
 import { DefinitionWord } from "./MoveDefinitions";
@@ -24,13 +25,14 @@ function MoveCell({
       <button
         type="button"
         className="score-review-link"
-        aria-label={`${replayIndex === undefined ? "Review" : "Replay"} move ${move.number}: ${move.word}`}
+        aria-label={`${replayIndex === undefined ? "Review" : "Replay"} move ${move.number}: ${trackedTurnLabel(move)}`}
         aria-current={move.number === replayIndex ? "step" : undefined}
         onClick={() => onSelect(move.number)}
       >
+        {move.action ? <span className="score-history-word">{move.notation}</span> :
         <DefinitionWord word={move.word} className={move.bingo ? "score-history-word bingo-move-word" : "score-history-word"}>
           {move.notation}
-        </DefinitionWord>
+        </DefinitionWord>}
       </button>
       {move.bingo && <BingoBadge className="score-history-bingo" />}
     </div>
@@ -88,8 +90,8 @@ export default function TrackedMoveHistory({
     kind: "move-strength",
     dictionaryId,
     template,
-    turns: moves.flatMap(({ number, player, word, score, position, rackOut }) =>
-      position && (position.rack || position.observerRack !== undefined)
+    turns: moves.flatMap(({ number, player, word, score, position, rackOut, action }) =>
+      !action && position && (position.rack || position.observerRack !== undefined)
         ? [{ number, player, word, score, position, rackOut }]
         : [],
     ),
@@ -146,7 +148,7 @@ export default function TrackedMoveHistory({
                 return (
                   <tr key={move.number} data-player={move.player}>
                     <td className="score-move-number">
-                      {onEdit ? (
+                      {onEdit && !move.action ? (
                         <button
                           type="button"
                           className="score-edit-move"

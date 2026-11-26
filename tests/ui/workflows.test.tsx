@@ -2300,6 +2300,62 @@ async function typeRack(
   await user.click(rackTile(1));
   await user.keyboard(letters);
 }
+
+test.each([1200, 390])("board exchange focuses the compacted rack and Undo restores both exchanges at %ipx", async (width) => {
+  const user = await start(width);
+  await typeRack(user, "IJNATRC");
+  await user.click(cell("Exchange"));
+  const exchange = cell("Record exchange");
+  expect((exchange as HTMLButtonElement).disabled).toBe(true);
+  await user.click(rackTile(2));
+  await user.click(rackTile(7));
+  expect(rackTile(2).getAttribute("aria-pressed")).toBe("true");
+  expect(current().rack).toBe("IJNATRC");
+  await user.click(exchange);
+  expect(current().rack).toBe("INATR");
+  expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Rack letters" }));
+  expect(rackTile(6).classList.contains("selected")).toBe(true);
+  expect(screen.getByRole("group", { name: /Record turn · Opponent/ })).toBeTruthy();
+  await user.keyboard("OU");
+  expect(current().rack).toBe("INATROU");
+
+  await user.click(cell("Exchange"));
+  const counts = within(screen.getByRole("group", { name: "How many tiles did your opponent exchange?" }));
+  await user.click(counts.getByRole("button", { name: "3" }));
+  expect(counts.getByRole("button", { name: "3" }).getAttribute("aria-pressed")).toBe("true");
+  await user.click(cell("Record exchange"));
+  expect(current().trackedMoves?.at(-1)?.action).toEqual({ kind: "exchange", count: 3 });
+  expect(current().rack).toBe("INATROU");
+  await user.click(cell("Undo"));
+  expect(current().rack).toBe("INATROU");
+  expect(screen.getByRole("group", { name: /Record turn · Opponent/ })).toBeTruthy();
+  await user.click(cell("Undo"));
+  expect(current().rack).toBe("IJNATRC");
+  expect(current().trackedMoves).toHaveLength(0);
+  await user.click(cell("Redo"));
+  expect(current().rack).toBe("INATROU");
+});
+
+test("Pass records immediately for either player and an unknown opponent exchange can be undone", async () => {
+  const user = await start();
+  await user.click(cell("Your turn. Switch active player"));
+  await user.click(cell("Pass"));
+  expect(current().trackedMoves?.at(-1)).toMatchObject({ player: "opponent", action: { kind: "pass" }, score: 0 });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  await user.click(cell("Pass"));
+  expect(current().trackedMoves?.at(-1)).toMatchObject({ player: "you", action: { kind: "pass" }, score: 0 });
+  await user.click(cell("Exchange"));
+  await user.click(cell("Unknown"));
+  await user.click(cell("Record exchange"));
+  expect(current().trackedMoves?.at(-1)).toMatchObject({ player: "opponent", action: { kind: "exchange" } });
+  await user.click(cell("Undo"));
+  expect(current().trackedMoves).toHaveLength(2);
+  expect(screen.getByRole("group", { name: /Record turn · Opponent/ })).toBeTruthy();
+  await user.click(cell("Undo"));
+  expect(current().trackedMoves).toHaveLength(1);
+  expect(screen.getByRole("group", { name: /Record turn · Your/ })).toBeTruthy();
+});
+
 const selectedCell = () =>
   document
     .querySelector(".board-entry .square.selected")

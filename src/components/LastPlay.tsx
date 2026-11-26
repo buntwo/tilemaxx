@@ -1,7 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { lastRecordedBoardPlay } from "../../shared/game-scoring";
-import { moveLocation } from "../../shared/notation";
+import { moveLocation, trackedTurnLabel } from "../../shared/notation";
 import { wordBonuses, type Game } from "../../shared/model";
 import type { unseenTiles } from "../../shared/tile-pool";
 import MoveWord from "./MoveWord";
@@ -127,7 +127,7 @@ function LastPlayLane({
       <span>Last play: {move.player === "you" ? "You" : "Opp"}</span>
       <span aria-hidden="true">·</span>
       <strong className="last-play-word">
-        <MoveWord word={move.word} bingo={bingo} />
+        {move.action ? trackedTurnLabel(move) : <MoveWord word={move.word} bingo={bingo} />}
       </strong>
       <span aria-hidden="true">·</span>
       <span className="last-play-points">{move.score} pts</span>
@@ -144,6 +144,7 @@ function LastPlayLane({
     <div
       ref={lane}
       className="last-play-lane"
+      data-boardless-turn={move.action?.kind}
       onPointerLeave={() => setHover(false)}
     >
       <div className="last-play-row">

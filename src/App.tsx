@@ -94,8 +94,10 @@ import GameScoreBadge from "./components/GameScoreBadge";
 import GameScores from "./components/GameScores";
 import GameOptions from "./components/GameOptions";
 import EndGameDialog from "./components/EndGameDialog";
+import { useBoardTurnActions } from "./components/BoardTurnActions";
 import {
   playTrackedMove,
+  recordBoardlessTurn,
   lastSearchRecordedOpponentTurn,
   nextPlayerToMove,
   recordOpponentPlay,
@@ -121,6 +123,7 @@ import { premiumPalette } from "./premium-palettes";
 import NewGameDialog from "./components/NewGameDialog";
 import {
   type BoardTemplate,
+  type BoardlessTurn,
   type Game,
   type Move,
   type Player,
@@ -492,6 +495,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       : undefined,
     activeFlight?.reviewing,
   );
+  const boardTurns = useBoardTurnActions(
+    game && canEnterOwnPlay && tracksScores(game) && !historical && !enteringOwnPlay &&
+      (!moveReview.showing || !preview) && !squareFilter.selecting ? game : undefined,
+    editPosition,
+    commitBoardTurn,
+  );
   useLayoutEffect(() => {
     if (!flight) return;
     if (!activeFlight) {
@@ -745,6 +754,24 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     if (moveReview.showing) moveReview.dismiss();
     if (squareFilter.selecting) squareFilter.setSelecting(false);
     setPreview(null);
+  }
+  function commitBoardTurn(player: Player, action: BoardlessTurn) {
+    if (!game) return false;
+    try {
+      const next = recordBoardlessTurn(game, player, action);
+      const recorded = next.past.at(-1);
+      if (recorded?.player === "you" && recorded.action?.kind === "exchange") {
+        rackRefill.current = { position: positionSignature(next), from: document.activeElement };
+        solver.rememberResults();
+      }
+      editPosition();
+      updateAfterTurn(next);
+      setError("");
+      return true;
+    } catch (error) {
+      setError((error as Error).message);
+      return false;
+    }
   }
   function startOwnPlay() {
     if (!canEnterOwnPlay) return;
@@ -1447,7 +1474,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                       />
                     )
                   }
-                  onSelect={editPosition}
+                  onSelect={() => {
+                    boardTurns.dismiss?.();
+                    editPosition();
+                  }}
                   onSolve={hasPlayableRack && !activeFlight ? solve : undefined}
                   storedDraft={draft}
                   ownPlay={enteringOwnPlay ? {
@@ -1461,6 +1491,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     !squareFilter.selecting &&
                     boardHistoryControls
                   }
+                  turnActions={moveReview.showing ? undefined : boardTurns.controls}
                   statusAction={
                     compactGame && !historical && !game.archived && !boardLocked && !game.board.some(Boolean) && (
                       <button
@@ -1494,7 +1525,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     historyControls={boardModeHistory}
                   />
                 ) : moveReview.showing && (
-                  <div className="board-review-actions">
+                  <div className={`board-review-actions${boardTurns.controls ? " with-board-turn-actions" : ""}`}>
                     <span aria-live="polite">
                       {preview ? (
                         <>
@@ -1505,6 +1536,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                       )}
                     </span>
                     {boardModeHistory}
+                    {boardTurns.controls}
                     {!movePreview?.analysis && (
                       <button
                         className="board-review-play"
@@ -1518,6 +1550,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     )}
                   </div>
                 )}
+                {boardTurns.details}
                 {replay && (
                   <ReplayControls
                     {...replay}
@@ -1570,6 +1603,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   recordedPreview={!!recordedPreview}
                   replayRackLayout={replay?.rackLayout}
                   drawShelf={replayDrawShelf}
+                  recordingExchange={boardTurns.rackExchange}
                 />
               </section>}
             />

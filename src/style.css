@@ -6526,6 +6526,9 @@ label + label {
   white-space: nowrap;
 }
 .phone-board-column .last-play-bag { flex-shrink: 1; }
+@container (max-width: 450px) {
+  .phone-board-column [data-boardless-turn] .last-play-bag { display: none; }
+}
 .move-review :is(.direct-entry-tools, .phone-rack-details) { display: none; }
 .board-review-actions {
   display: flex;
@@ -6578,6 +6581,88 @@ label + label {
   --board-strip-height: 33px;
   --board-strip-control-height: 28px;
   --board-strip-inset: calc((var(--board-strip-height) - var(--board-strip-control-height)) / 2);
+}
+.board-panel .with-board-turn-actions {
+  container: board-turn-strip / inline-size;
+  flex-wrap: wrap;
+}
+.with-board-turn-actions .direct-entry-actions {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.board-turn-actions,
+.board-turn-details { --turn-color: var(--value-good); }
+.board-turn-actions[data-player="opponent"],
+.board-turn-details[data-player="opponent"] { --turn-color: var(--value-bad); }
+.board-turn-actions,
+.board-turn-count-options,
+.board-turn-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.board-turn-actions { margin-inline: 3px; }
+.board-turn-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--board-strip-control-height);
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--turn-color) 36%, var(--line));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--turn-color) 10%, var(--surface));
+  color: var(--turn-color);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+}
+.board-turn-button:is(:hover, [aria-expanded="true"]):not(:disabled) {
+  background: color-mix(in srgb, var(--turn-color) 19%, var(--surface));
+}
+.board-turn-details {
+  display: grid;
+  gap: 5px;
+  padding: 0 7px 4px;
+}
+.board-turn-details .board-turn-player {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 3px;
+  padding-inline: 5px;
+  color: var(--turn-color);
+  font-size: 11px;
+  font-weight: 650;
+}
+.board-turn-count {
+  display: grid;
+  gap: 7px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 13px;
+}
+.board-turn-count .button { min-height: 32px; }
+.board-turn-count-options .button { min-width: 34px; }
+.board-turn-count-options .button[aria-pressed="true"] {
+  border-color: var(--turn-color);
+  background: color-mix(in srgb, var(--turn-color) 14%, var(--surface));
+  color: var(--turn-color);
+}
+.rack-record-exchange { flex-wrap: wrap; }
+.rack-record-exchange > span { color: var(--muted); font-size: 12px; }
+.rack-entry[data-recording-exchange] .rack-tile.exchange-mark .rack-slot {
+  --rack-slot-mark: inset 0 0 0 2px var(--value-good);
+  border-color: var(--value-good);
+}
+@container board-turn-strip (max-width: 360px) {
+  .board-turn-button > svg { display: none; }
+}
+@media (pointer: coarse) {
+  .board-turn-button, .board-turn-count .button { min-height: 44px; min-width: 44px; justify-content: center; }
 }
 .app-shell:not(.phone-layout) .board-panel:has(> .last-play-lane) { padding-top: 0; }
 .board-panel :is(.last-play-row, .board-warnings) { min-height: 24px; }

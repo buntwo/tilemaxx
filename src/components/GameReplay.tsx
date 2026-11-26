@@ -8,7 +8,7 @@ import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { gameScoreTotals, scoreHistoryMoves, type GameScoreSummary } from "../../shared/game-scoring";
 import type { ReplayFrame } from "../../shared/game-replay";
 import type { Game, GameScoring } from "../../shared/model";
-import { recordedMoveDetails } from "../../shared/notation";
+import { recordedMoveDetails, trackedTurnLabel } from "../../shared/notation";
 import { ScorePlayers } from "./GameScores";
 import MoveWord from "./MoveWord";
 import ScoreChart from "./ScoreChart";
@@ -39,7 +39,7 @@ function ReplayMoveStrip({
           <span className="replay-move-player">
             {move.player === "you" ? "You" : "Opp"}
           </span>
-          <button
+          {move.action ? <strong className="last-play-word">{details?.notation}</strong> : <button
             className="text-button replay-recorded-word last-play-word"
             type="button"
             disabled={!position}
@@ -53,7 +53,7 @@ function ReplayMoveStrip({
               notation={details?.notation}
               bingo={move.bingo}
             />
-          </button>
+          </button>}
           <div className="replay-move-result">
             <strong>{move.score} pts</strong>
             {details?.location && <span>{details.location}</span>}
@@ -118,7 +118,7 @@ export function ReplayControls({
   const value =
     !historical ? "Final board" : index === 0
       ? "Before the first recorded move"
-      : `Move ${index} of ${recordedCount}, ${frame.move?.player === "you" ? "you" : "opponent"}, ${frame.move?.word}, ${frame.move?.score} points`;
+      : `Move ${index} of ${recordedCount}, ${frame.move?.player === "you" ? "you" : "opponent"}, ${frame.move ? trackedTurnLabel(frame.move) : ""}, ${frame.move?.score} points`;
   return (
     <div
       ref={controls}

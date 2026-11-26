@@ -85,6 +85,7 @@ export default function BoardEntry({
   storedDraft,
   moveFilter,
   historyControls,
+  turnActions,
   statusAction,
   overlay,
 }: {
@@ -111,6 +112,7 @@ export default function BoardEntry({
   storedDraft?: { current: DraftHistory | undefined };
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
+  turnActions?: ReactNode;
   statusAction?: ReactNode;
   overlay?: ReactNode;
 }) {
@@ -212,6 +214,7 @@ export default function BoardEntry({
             onRedo={() => changeDraftHistory("redo")}
           />
         ) : historyControls}
+        turnActions={turnActions}
         statusAction={ownPlay ? undefined : statusAction}
         overlay={overlay}
         onBreak={() => history.current.reset()}
@@ -311,6 +314,7 @@ export function BoardInput({
   ownPlay,
   moveFilter,
   historyControls,
+  turnActions,
   statusAction,
   overlay,
 }: {
@@ -341,6 +345,7 @@ export function BoardInput({
   ownPlay?: OwnPlayInput;
   moveFilter?: MoveFilterSelection;
   historyControls?: ReactNode;
+  turnActions?: ReactNode;
   statusAction?: ReactNode;
   overlay?: ReactNode;
 }) {
@@ -877,7 +882,7 @@ export function BoardInput({
         }}
       />
       <div
-        className={`direct-entry-tools${historyControls ? " with-board-history" : ""}`}
+        className={`direct-entry-tools${historyControls ? " with-board-history" : ""}${turnActions ? " with-board-turn-actions" : ""}`}
       >
         {statusAction}
         <div className="direct-entry-status" role="status" data-missing-rack={!!missing || undefined}>
@@ -924,6 +929,7 @@ export function BoardInput({
             </button>
           )}
           {historyControls}
+          {turnActions}
         </div>
         {!historyControls && help}
       </div>

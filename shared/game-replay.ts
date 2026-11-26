@@ -87,8 +87,8 @@ function matchesBoardAfter(position: TurnPosition, after: Board) {
   return board.length === after.length && board.every((tile, index) => tile === after[index]);
 }
 
-function recordedMoveKey({ player, word, score, at }: TrackedMove) {
-  return JSON.stringify([player, word, score, at]);
+function recordedMoveKey({ player, word, score, at, action }: TrackedMove) {
+  return JSON.stringify(action ? [player, word, score, at, action] : [player, word, score, at]);
 }
 
 function recoverPlacement(
@@ -126,7 +126,7 @@ function recoverPlacement(
 }
 
 function replayRefill(
-  { position, rack, playedSlots, template, bag, unseen }: ReplayFrame,
+  { position, rack, playedSlots, template, bag, unseen, move }: ReplayFrame,
   next: Pick<ReplayFrame, "board" | "rack">,
   saved?: RecoveredReplayTurn | null,
 ): Pick<ReplayFrame, "afterRack" | "draw"> {
@@ -136,13 +136,16 @@ function replayRefill(
     ? rackLetters(next.rack)
     : undefined;
   const leave = rackComposition([...rack].filter((_, slot) => !playedSlots.includes(slot)).join(""));
-  if (bag?.count === 0) {
+  const exchange = move?.action?.kind === "exchange";
+  if (bag?.count === 0 && !exchange) {
     return !bag.invalid && (unseen?.total === 0 || !bag.estimated || (matching !== undefined && rackComposition(matching) === leave))
       ? { afterRack: leave }
       : {};
   }
 
-  const count = bag && !bag.invalid ? Math.min(playedSlots.length, bag.count) : undefined;
+  const count = exchange
+    ? playedSlots.length
+    : bag && !bag.invalid ? Math.min(playedSlots.length, bag.count) : undefined;
   const unknown = { draw: { tiles: "", count } };
   // Recheck saved refill evidence against the original placement and bag.
   const after = matching ?? saved?.afterRack ??
@@ -209,9 +212,9 @@ function recoverReplay(
   if (!turns.length) return { frames: [], scoreStart: 0, recovery: [] };
   const { template } = source;
   const size = template.size ** 2;
-  function savedPosition(position: TurnPosition | undefined) {
+  function savedPosition(position: TurnPosition | undefined, boardless = false) {
     return position?.board.length === size &&
-      position.tiles.length > 0 &&
+      (boardless ? position.tiles.length === 0 : position.tiles.length > 0) &&
       new Set(position.tiles.map(({ index }) => index)).size ===
         position.tiles.length &&
       position.tiles.every(
@@ -242,11 +245,11 @@ function recoverReplay(
       at > move.at && (nextAt === undefined || at < nextAt),
     );
   });
-  const anchors = turns.map(({ position, index }) =>
-    savedPosition(position) ?? savedPosition(savedTurns[index]?.position),
+  const anchors = turns.map(({ move, position, index }) =>
+    savedPosition(position, !!move.action) ?? savedPosition(savedTurns[index]?.position),
   );
   const positions = anchors.map((position, index) => {
-    if (position || index === 0) return position;
+    if (position || index === 0 || turns[index].move.action) return position;
     if (correctionAfter[index - 1] || correctionAfter[index]) return;
     const previous = anchors[index - 1];
     const next = anchors[index + 1];
@@ -335,8 +338,11 @@ function recoverReplay(
       scores: gameScoreTotals(stats),
       stats,
     };
+    const action = move.action;
+    if (action?.kind === "exchange" && "slots" in action)
+      frame.playedSlots = action.slots;
     const savedTurn = savedTurns[index];
-    if (move.player === "you") {
+    if (move.player === "you" && action?.kind !== "pass") {
       const next = correctionAfter[index] ? {} :
         index + 1 < turns.length
           ? { board: positions[index + 1]?.board, rack: ownRacks[index + 1] }
@@ -345,7 +351,7 @@ function recoverReplay(
     } else if (ownRacks[index] !== undefined) {
       frame.afterRack = rackComposition(ownRacks[index]!);
     }
-    const recoveredPosition = position && !savedPosition(move.review) ? position : undefined;
+    const recoveredPosition = position && !savedPosition(move.review, !!action) ? position : undefined;
     const observerRack = move.player === "opponent" && position?.observerRack === undefined
       ? ownRacks[index] : undefined;
     const draw = frame.draw?.tiles ? frame.draw : undefined;

@@ -85,10 +85,11 @@ export function moveNotation(move: NotationMove, size?: number, board?: Board) {
 
 /** Recover a recorded main word and its location from the saved placement. */
 export function recordedMoveDetails(
-  move: Pick<TrackedMove, "word">,
+  move: Pick<TrackedMove, "word" | "action" | "review">,
   position: Pick<TurnPosition, "board" | "tiles" | "direction"> | undefined,
   size: number,
 ): { notation: string; location?: string } {
+  if (move.action) return { notation: trackedTurnLabel(move) };
   if (!position?.tiles.length) return { notation: move.word };
   const board = [...position.board];
   for (const tile of position.tiles) board[tile.index] = tile.letter;
@@ -134,6 +135,19 @@ export function recordedMoveDetails(
     }
   }
   return { notation: move.word };
+}
+
+export function trackedTurnLabel({ word, action, review }: Pick<TrackedMove, "word" | "action" | "review">) {
+  if (!action) return word;
+  if (action.kind === "pass") return "Pass";
+  if ("slots" in action) {
+    const tiles = action.slots.map((slot) => review?.rack?.[slot]).filter(Boolean);
+    if (tiles.length === action.slots.length) return `Exchange ${tiles.join(" ")}`;
+  }
+  const count = "slots" in action ? action.slots.length : action.count;
+  return count
+    ? `Exchange · ${count} ${count === 1 ? "tile" : "tiles"}`
+    : "Exchange · count unknown";
 }
 
 export function recordedMoveNotation(

@@ -112,7 +112,8 @@ function hasFullMoveHistory(position: Game): boolean {
     const review =
       history[i].review ?? (legacyTurns ??= reviewTurns(position))[i].position;
     if (
-      !review?.tiles.length ||
+      !review ||
+      (!review.tiles.length && !history[i].action) ||
       !review.board.every((tile, index) => tile.toUpperCase() === played[index])
     )
       return false;

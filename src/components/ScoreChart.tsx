@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { Player, TrackedMove } from "../../shared/model";
+import { trackedTurnLabel } from "../../shared/notation";
 import { DefinitionWord, useMoveDefinitionContext } from "./MoveDefinitions";
 import { BingoBadge } from "./MoveWord";
 import "./score-chart.css";
@@ -23,7 +24,7 @@ const chartHeight = 206;
 const plotTop = 12;
 const plotBottom = chartHeight - 32;
 
-type ChartMove = Pick<TrackedMove, "player" | "word" | "score" | "bingo"> & {
+type ChartMove = Pick<TrackedMove, "player" | "word" | "score" | "bingo" | "action" | "review"> & {
   number: number;
 };
 type ScorePair = {
@@ -294,11 +295,11 @@ export default function ScoreChart({
                 {play ? (
                   <>
                     {play.bingo && <BingoBadge />}
-                    <DefinitionWord
+                    {play.action ? <strong>{trackedTurnLabel(play)}</strong> : <DefinitionWord
                       key={play.number}
                       word={play.word}
                       className={play.bingo ? "bingo-move-word" : undefined}
-                    />
+                    />}
                     <span className="score-chart-points">+{number.format(play.score)} pts</span>
                   </>
                 ) : muted ? (

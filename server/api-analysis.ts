@@ -158,7 +158,7 @@ function gameReview(
   if (operation.kind === "review-game")
     return reviewGame(
       turns.flatMap(({ move, index, position }) =>
-        move.player === "you" && position?.rack
+        !move.action && move.player === "you" && position?.rack
           ? [{ move, index, position }]
           : [],
       ),
@@ -169,6 +169,8 @@ function gameReview(
 
   function policy(turn: (typeof turns)[number], maxMs?: number) {
     const { move, position } = turn;
+    if (move.action)
+      return { kind: "unavailable", reason: "This turn did not place a word." };
     if (!position)
       return {
         kind: "unavailable",
@@ -192,7 +194,7 @@ function gameReview(
 
   if (operation.kind === "policy-timeline") {
     const available = turns.filter(
-      ({ move }) => move.player === operation.player,
+      ({ move }) => !move.action && move.player === operation.player,
     );
     const deadline = performance.now() + 25_000;
     const rows = [];
@@ -226,7 +228,7 @@ function gameReview(
     const { position } = turn;
     return {
       ...turn,
-      moves: position
+      moves: position && !turn.move.action
         ? reviewTurn(lexicon, position, templateForTurn(position)).slice(0, 30)
         : [],
     };
