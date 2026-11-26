@@ -45,7 +45,7 @@ test("the archived board shows only the main word and opens the compact breakdow
   render(<LastPlay game={archiveGame(opponentBingo())} />);
 
   const trigger = screen.getByRole("button", {
-    name: "Last: Opponent STEALER Bingo 70 pts K8",
+    name: "Opponent STEALER Bingo 70 pts K8",
   });
   expect(
     trigger.querySelector(".bingo-badge svg")?.getAttribute("height"),
@@ -106,12 +106,12 @@ test("a one-tile down entry uses the across extension as its main word and undo 
   );
   const { rerender } = render(<LastPlay game={game} />);
   expect(
-    screen.getByRole("button", { name: "Last: You SCATS 7 pts 8G" }),
+    screen.getByRole("button", { name: "You SCATS 7 pts 8G" }),
   ).toBeTruthy();
   rerender(<LastPlay game={undo(game)} />);
   expect(
     screen.getByRole("button", {
-      name: "Last: Opponent STEALER Bingo 70 pts K8",
+      name: "Opponent STEALER Bingo 70 pts K8",
     }),
   ).toBeTruthy();
 });
@@ -128,13 +128,13 @@ test("an older score entry with no recoverable position shows its recorded word 
       }}
     />,
   );
-  expect(screen.getByText("Last:")).toBeTruthy();
+  expect(screen.queryByText("Last:")).toBeNull();
   expect(screen.getByText("Opponent").classList.contains("visually-hidden")).toBe(true);
   expect(screen.getByText("70 pts")).toBeTruthy();
   expect(screen.queryByRole("button")).toBeNull();
 });
 
-test("the Last strip abbreviates exchanges with known tiles or a count", () => {
+test("the latest-turn strip abbreviates exchanges with known tiles or a count", () => {
   const ownExchange = recordBoardlessTurn(
     { ...opponentBingo(), rack: "CATERS?" },
     "you",
@@ -163,7 +163,7 @@ test("the bag status shows remaining blanks beside the vowel percentage", () => 
   expect(status.closest("button")).toBeNull();
   expect(
     screen.getByRole("button", {
-      name: "Last: Opponent STEALER Bingo 70 pts K8",
+      name: "Opponent STEALER Bingo 70 pts K8",
     }),
   ).toBeTruthy();
 
