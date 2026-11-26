@@ -147,14 +147,16 @@ test("move history calculates strength when opened and discards results for a ch
     }
   }
   vi.stubGlobal("Worker", StrengthWorker);
-  const game = gameWithScores(10, 12);
+  const game = gameWithScores(104, 12);
+  const review = {
+    board: game.board, rack: "CATSINE", dictionaryId: "test",
+    tiles: [{ index: 111, letter: "C" }, { index: 112, letter: "A" }, { index: 113, letter: "T" }],
+  };
   game.trackedMoves = [{
-    player: "you", word: "CAT", score: 10, at: "",
-    review: {
-      board: game.board, rack: "CATSINE", dictionaryId: "test",
-      tiles: [{ index: 111, letter: "C" }, { index: 112, letter: "A" }, { index: 113, letter: "T" }],
-    },
-  }, { player: "opponent", word: "DOG", score: 12, at: "" }];
+    player: "you", word: "CAT", score: 76, at: "", review,
+  }, { player: "opponent", word: "DOG", score: 12, at: "" },
+  { player: "you", word: "AT", score: 12, at: "", review },
+  { player: "you", word: "ACT", score: 16, at: "", review }];
   const { rerender } = show(game);
   expect(workers).toHaveLength(0);
   const details = screen.getByText("Tracked move history").closest("details")!;
@@ -162,23 +164,41 @@ test("move history calculates strength when opened and discards results for a ch
   fireEvent(details, new Event("toggle"));
   await waitFor(() => expect(workers).toHaveLength(1));
   expect(workers[0].postMessage).toHaveBeenCalledWith(expect.objectContaining({
-    kind: "move-strength", dictionaryId: "test", turns: [expect.objectContaining({ number: 1, word: "CAT" })],
+    kind: "move-strength", dictionaryId: "test", turns: [
+      expect.objectContaining({ number: 4, word: "ACT" }),
+      expect.objectContaining({ number: 3, word: "AT" }),
+      expect.objectContaining({ number: 1, word: "CAT" }),
+    ],
   }));
-  const result = { data: { result: { 1: { best: 12, percent: 83.3 } } } };
+  const result = { data: { result: {
+    1: { best: 82, percent: 92.7 },
+    3: { best: 20, percent: 60 },
+    4: { best: 20, percent: 80 },
+  } } };
   act(() => workers[0].onmessage?.(result));
   const table = within(screen.getByRole("table", { name: "Tracked moves" }));
   expect(table.getByRole("columnheader", { name: "Move strength" })).toBeTruthy();
-  expect(table.getByText("83.3%").getAttribute("title")).toBe("10 of 12 possible points");
+  for (const [percent, band, tooltip] of [
+    [93, "red", "93% · 76/82 pts"],
+    [60, "green", "60% · 12/20 pts"],
+    [80, "yellow", "80% · 16/20 pts"],
+  ] as const) {
+    const pill = table.getByRole("button", { name: `Move strength ${percent}%` });
+    expect(pill.querySelector(".score-strength-track")?.getAttribute("data-band")).toBe(band);
+    expect(pill.querySelector<HTMLElement>(".score-strength-fill")?.style.height).toBe(`${percent}%`);
+    expect(pill.getAttribute("aria-describedby")).toBe(table.getByText(tooltip).id);
+  }
   expect(within(table.getByRole("button", { name: "Review move 2: DOG" }).closest("tr")!).getByText("—")).toBeTruthy();
   rerender(<GameScores game={{ ...game, dictionaryId: "other" }} onToggle={vi.fn()} onRecord={vi.fn()}
     onCorrection={vi.fn()} onChange={vi.fn()} />);
   await waitFor(() => expect(workers).toHaveLength(2));
   act(() => workers[0].onmessage?.(result));
-  expect(table.queryByText("83.3%")).toBeNull();
+  expect(table.queryByRole("button", { name: "Move strength 93%" })).toBeNull();
   act(() => workers[1].onmessage?.({
-    data: { result: { 1: { best: 10, percent: 100, assumedEmptyBag: true } } },
+    data: { result: { 1: { best: 76, percent: 100, assumedEmptyBag: true } } },
   }));
-  expect(table.getByText("100%").getAttribute("title")).toBe("10 of 10 possible points (assuming an empty bag)");
+  const assumed = table.getByText("100% · 76/76 pts");
+  expect(within(assumed).getByText("Assuming an empty bag")).toBeTruthy();
 });
 
 test("the score chart pairs adjacent plays and carries forward the score for a missing reply", () => {
@@ -440,7 +460,7 @@ test("the score chart starts over after a scoring reset and keeps the saved move
   const table = within(await screen.findByRole("table", { name: "Tracked moves" }));
   const bingo = table.getByRole("button", { name: "Replay move 2: STEALER" });
   const row = within(bingo.closest("tr")!);
-  expect(row.getByText("(100)")).toBeTruthy();
+  expect(row.getByText("100")).toBeTruthy();
   expect(row.getByLabelText("Bingo")).toBeTruthy();
   expect(table.getByRole("button", { name: "Replay move 1: OLD" })).toBeTruthy();
 });

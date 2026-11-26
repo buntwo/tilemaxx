@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { ChevronDown, Pencil, Play, Plus } from "lucide-react";
 import type { scoreHistoryMoves } from "../../shared/game-scoring";
 import type { BoardTemplate } from "../../shared/model";
-import type { MoveStrengthResult } from "../../shared/move-strength";
+import type { MoveStrength, MoveStrengthResult } from "../../shared/move-strength";
 import type { PracticeRequest } from "../practice.worker";
 import { DefinitionWord } from "./MoveDefinitions";
 import { BingoBadge } from "./MoveWord";
@@ -19,10 +19,8 @@ function MoveCell({
   onSelect: (number: number) => void;
   replayIndex?: number;
 }) {
-  const total = <small className="score-move-total">({move.total})</small>;
   return (
     <div className="score-move-play">
-      {move.player === "opponent" && <>{total}{" "}</>}
       <button
         type="button"
         className="score-review-link"
@@ -30,12 +28,37 @@ function MoveCell({
         aria-current={move.number === replayIndex ? "step" : undefined}
         onClick={() => onSelect(move.number)}
       >
-        <span className={move.bingo ? "bingo-move-word" : undefined}>
-          <DefinitionWord word={move.word}>{move.notation}</DefinitionWord>
+        <DefinitionWord word={move.word} className={move.bingo ? "score-history-word bingo-move-word" : "score-history-word"}>
+          {move.notation}
+        </DefinitionWord>
+      </button>
+      {move.bingo && <BingoBadge className="score-history-bingo" />}
+    </div>
+  );
+}
+
+function StrengthPill({ score, strength }: { score: number; strength: MoveStrength }) {
+  const tooltipId = useId();
+  const percent = Math.round(100 * score / strength.best);
+  const band = percent <= 60 ? "green" : percent <= 80 ? "yellow" : "red";
+  return (
+    <>
+      <button
+        type="button"
+        className="score-strength-trigger"
+        aria-label={`Move strength ${percent}%`}
+        aria-describedby={tooltipId}
+        onClick={(event) => event.currentTarget.focus()}
+      >
+        <span className="score-strength-track" data-band={band} aria-hidden="true">
+          <span className="score-strength-fill" style={{ height: `${percent}%` }} />
         </span>
       </button>
-      {move.player === "you" && <>{" "}{total}</>}
-    </div>
+      <span className="score-strength-tooltip" role="tooltip" id={tooltipId}>
+        {`${percent}% · ${score}/${strength.best} pts`}
+        {strength.assumedEmptyBag && <small>Assuming an empty bag</small>}
+      </span>
+    </>
   );
 }
 
@@ -105,24 +128,24 @@ export default function TrackedMoveHistory({
           <table aria-label="Tracked moves" aria-busy={calculating || undefined}>
             <thead>
               <tr>
-                <th scope="col" aria-label="Move number">#</th>
-                <th scope="col">You</th>
-                <th scope="col">Pts</th>
+                <th scope="col" className="score-move-number" aria-label="Move number">#</th>
+                {!solo && <th scope="col" className="score-move-player">Player</th>}
+                <th scope="col">Play</th>
+                <th scope="col" className="score-move-points" aria-label="Points">Pts</th>
+                <th scope="col" className="score-move-total" aria-label="Running total">Total</th>
                 <th
                   scope="col"
                   className="score-move-strength"
                   aria-label="Move strength"
                   title="Points scored as a percentage of the highest possible score"
                 >Strength</th>
-                {!solo && <th scope="col">Opponent</th>}
               </tr>
             </thead>
             <tbody>
               {moves.map((move) => {
                 const strength = strengths?.[move.number];
-                const assumption = strength?.assumedEmptyBag ? " (assuming an empty bag)" : "";
                 return (
-                  <tr key={move.number}>
+                  <tr key={move.number} data-player={move.player}>
                     <td className="score-move-number">
                       {onEdit ? (
                         <button
@@ -136,25 +159,19 @@ export default function TrackedMoveHistory({
                         </button>
                       ) : <span className="score-move-index">{move.number}</span>}
                     </td>
-                    <td>
-                      {move.player === "you" && <MoveCell move={move} onSelect={onSelect} replayIndex={replayIndex} />}
-                    </td>
-                    <td className="score-move-points">
-                      {move.score}
-                      {move.bingo && <BingoBadge className="score-history-bingo" />}
-                    </td>
-                    <td className="score-move-strength">
-                      {strength ? (
-                        <span title={`${move.score} of ${strength.best} possible points${assumption}`}>
-                          {strength.percent}%
-                        </span>
-                      ) : "—"}
-                    </td>
                     {!solo && (
-                      <td>
-                        {move.player === "opponent" && <MoveCell move={move} onSelect={onSelect} replayIndex={replayIndex} />}
+                      <td className="score-move-player">
+                        {move.player === "you" ? "You" : <span aria-label="Opponent">Opp</span>}
                       </td>
                     )}
+                    <td><MoveCell move={move} onSelect={onSelect} replayIndex={replayIndex} /></td>
+                    <td className="score-move-points">{move.score}</td>
+                    <td className="score-move-total">{move.total}</td>
+                    <td className="score-move-strength">
+                      {strength ? (
+                        <StrengthPill score={move.score} strength={strength} />
+                      ) : <span aria-label="Move strength unavailable">—</span>}
+                    </td>
                   </tr>
                 );
               })}

@@ -2710,10 +2710,13 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   await user.click(scorePanel.getByText("Tracked move history"));
   const history = within(await scorePanel.findByRole("table", { name: "Tracked moves" }));
   expect(history.getAllByRole("columnheader").map((header) => header.textContent))
-    .toEqual(["#", "You", "Pts", "Strength", "Opponent"]);
+    .toEqual(["#", "Player", "Play", "Pts", "Total", "Strength"]);
   const reply = history.getByRole("button", { name: "Replay move 2: ART" });
   expect(reply.textContent).toBe("AR(T)");
-  expect(reply.closest("tr")?.querySelector(".score-move-total")?.textContent).toBe("(4)");
+  const replyRow = reply.closest("tr")!;
+  expect(replyRow.getAttribute("data-player")).toBe("opponent");
+  expect(within(replyRow).getAllByRole("cell").map((cell) => cell.textContent))
+    .toEqual(["2", "Opp", "AR(T)", "4", "4", "—"]);
   expect(scorePanel.queryByRole("button", { name: "Add missed move" })).toBeNull();
   expect(history.queryByRole("button", { name: /^Edit move/ })).toBeNull();
   fireEvent.change(slider, { target: { value: "0" } });
@@ -6218,8 +6221,8 @@ test("score tracking records typed opponent moves and solver plays across undo, 
           .map((cell) => cell.textContent),
       ),
   ).toEqual([
-    ["2", "(CAT)S (6)", "6", "—", ""],
-    ["1", "", "10", "—", "(10) CAT"],
+    ["2", "You", "(CAT)S", "6", "6", "—"],
+    ["1", "Opp", "CAT", "10", "10", "—"],
   ]);
   await user.click(cell("Undo"));
   expect(current().scoring?.opponent.points).toBe(10);
@@ -6311,7 +6314,7 @@ test("holding a board tile corrects recorded scores and saves with undo and redo
   expect(scoreTotals()).toBe("6–10");
   await user.click(scores.getByText("Tracked move history"));
   const points = () => within(scores.getByRole("table", { name: "Tracked moves" }))
-    .getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[2].textContent);
+    .getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[3].textContent);
   const tile = cell("H8: C, start");
   vi.useFakeTimers();
   try {
@@ -6438,7 +6441,7 @@ test("correcting the last opponent play updates the board, Last play, and histor
   const blank = cell("H8: C blank, start");
   expect(within(blank).getByText("0")).toBeTruthy();
   expect(scoreTotals()).toBe("0–4");
-  expect(latestMove()).toEqual([["1", "", "4", "—", "(4) cAT"]]);
+  expect(latestMove()).toEqual([["1", "Opp", "cAT", "4", "4", "—"]]);
   expect(trackedScore().getAttribute("data-turn")).toBe("you");
   expect(cell("Edit last opponent move")).toBeTruthy();
   await user.hover(blank);
@@ -6460,7 +6463,7 @@ test("correcting the last opponent play updates the board, Last play, and histor
   await user.click(cell("H8: C, start"));
   await user.keyboard("{Delete} C");
   expect(lastPlay("CAT", 4)).toBeTruthy();
-  expect(latestMove()).toEqual([["1", "", "4", "—", "(4) cAT"]]);
+  expect(latestMove()).toEqual([["1", "Opp", "cAT", "4", "4", "—"]]);
   expect(cell("Edit last opponent move")).toBeTruthy();
 
   await user.click(cell("H8: C blank, start"));
@@ -6468,13 +6471,13 @@ test("correcting the last opponent play updates the board, Last play, and histor
   expect(scoreTotals()).toBe("0–0");
   await user.keyboard("C");
   expect(lastPlay("CAT", 10)).toBeTruthy();
-  expect(latestMove()).toEqual([["1", "", "10", "—", "(10) CAT"]]);
+  expect(latestMove()).toEqual([["1", "Opp", "CAT", "10", "10", "—"]]);
 
   await user.click(cell("J8: T"));
   await user.keyboard("B");
   expect(lastPlay("CAB", 14)).toBeTruthy();
   expect(scoreTotals()).toBe("0–14");
-  expect(latestMove()).toEqual([["1", "", "14", "—", "(14) CAB"]]);
+  expect(latestMove()).toEqual([["1", "Opp", "CAB", "14", "14", "—"]]);
   await store.flush();
   await act(() => store.refresh());
   expect(lastPlay("CAB", 14)).toBeTruthy();
