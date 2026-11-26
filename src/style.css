@@ -1739,7 +1739,7 @@ label + label {
 }
 .tile-face {
   --tile-face-edge: var(--tile-edge);
-  border-radius: clamp(2px, 8%, 4px);
+  border-radius: 6px;
   background: var(--tile);
   color: var(--tile-text);
   box-shadow: inset 0 -2px var(--tile-face-edge);
