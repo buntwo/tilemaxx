@@ -8,31 +8,39 @@ import LayoutThumbnail from "./LayoutThumbnail";
 export default function BoardStudio({
   templates,
   headerControl,
+  templateId,
+  onEdit,
+  onCloseEditor,
   onSave,
   onDelete,
   onBack,
 }: {
   templates: BoardTemplate[];
   headerControl?: ReactNode;
+  templateId?: string;
+  onEdit: (id: string) => void;
+  onCloseEditor: () => void;
   onSave: (template: BoardTemplate, editing: boolean) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onBack: () => void;
 }) {
-  // undefined is the library; null creates a new board.
-  const [editing, setEditing] = useState<BoardTemplate | null | undefined>();
+  const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<BoardTemplate | null>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  if (editing !== undefined)
+  const editing = templates.find((template) => !template.builtin && template.id === templateId);
+  if (editing || creating)
     return (
       <BoardEditor
         templates={templates}
+        key={editing?.id ?? "new"}
         headerControl={headerControl}
-        initial={editing || undefined}
-        onClose={() => setEditing(undefined)}
+        initial={editing}
+        onClose={editing ? onCloseEditor : () => setCreating(false)}
         onSave={async (draft) => {
           await onSave(draft, !!editing);
-          setEditing(undefined);
+          if (editing) onCloseEditor();
+          else setCreating(false);
         }}
       />
     );
@@ -48,6 +56,7 @@ export default function BoardStudio({
           <ArrowLeft size={16} /> Back to games
         </button>
       </div>
+      {templateId && <p role="status">This board template is unavailable.</p>}
       <div className="panel studio-panel">
         <div className="studio-section-title">CUSTOM BOARDS</div>
         {custom.length ? (
@@ -71,7 +80,7 @@ export default function BoardStudio({
                 <button
                   className="button secondary"
                   aria-label={`Edit ${template.name}`}
-                  onClick={() => setEditing(template)}
+                  onClick={() => onEdit(template.id)}
                 >
                   <Pencil size={14} />
                   Edit
@@ -116,7 +125,7 @@ export default function BoardStudio({
             ))}
         </div>
         <footer className="studio-footer">
-          <button className="button primary" onClick={() => setEditing(null)}>
+          <button className="button primary" onClick={() => setCreating(true)}>
             <Plus size={16} />
             New custom board
           </button>

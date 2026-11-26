@@ -1,8 +1,9 @@
-import { useId, useState, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { archiveGameDate, archiveStatistics } from "../../shared/archive-stats";
 import type { GameSummary } from "../../shared/game-index";
 import { matchGamePlatform } from "../premium-palettes";
+import type { StatsView } from "../navigation";
 import "./archive-stats.css";
 
 const languages = {
@@ -219,16 +220,19 @@ function StatCard({
 export default function ArchiveStats({
   games,
   headerControl,
+  view,
+  onChangeView,
   onBack,
 }: {
   games: readonly GameSummary[];
   headerControl?: ReactNode;
+  view?: StatsView;
+  onChangeView: (view: StatsView) => void;
   onBack: () => void;
 }) {
-  const [platform, setPlatform] = useState("");
-  const [language, setLanguage] = useState("");
-  const [year, setYear] = useState("");
-  const [metric, setMetric] = useState<Metric>("averageScore");
+  const { platform = "", language = "", year = "" } = view ?? {};
+  const metric = view?.metric && Object.hasOwn(metrics, view.metric)
+    ? view.metric as Metric : "averageScore";
   const trendHeading = useId();
 
   const platforms = new Map<string, string>();
@@ -293,7 +297,7 @@ export default function ArchiveStats({
               Platform
               <select
                 value={selectedPlatform}
-                onChange={(event) => setPlatform(event.currentTarget.value)}
+                onChange={(event) => onChangeView({ ...view, platform: event.currentTarget.value })}
               >
                 <option value="">All platforms</option>
                 {[...platforms]
@@ -309,7 +313,7 @@ export default function ArchiveStats({
               Language
               <select
                 value={selectedLanguage}
-                onChange={(event) => setLanguage(event.currentTarget.value)}
+                onChange={(event) => onChangeView({ ...view, language: event.currentTarget.value })}
               >
                 <option value="">All languages</option>
                 {[...languageOptions]
@@ -325,7 +329,7 @@ export default function ArchiveStats({
               Year
               <select
                 value={selectedYear}
-                onChange={(event) => setYear(event.currentTarget.value)}
+                onChange={(event) => onChangeView({ ...view, year: event.currentTarget.value })}
               >
                 <option value="">All years</option>
                 {[...years]
@@ -388,9 +392,10 @@ export default function ArchiveStats({
                   <select
                     aria-label="Trend metric"
                     value={metric}
-                    onChange={(event) =>
-                      setMetric(event.currentTarget.value as Metric)
-                    }
+                    onChange={(event) => onChangeView({
+                      ...view,
+                      metric: event.currentTarget.value === "averageScore" ? undefined : event.currentTarget.value,
+                    })}
                   >
                     {Object.entries(metrics).map(([key, { name }]) => (
                       <option key={key} value={key}>

@@ -95,11 +95,12 @@ export function ReplayControls({
   showRecorded: boolean;
   onToggleRecorded: () => void;
   playing: boolean;
-  seek: (index: number) => void;
+  seek: (index: number, replace?: boolean) => void;
   togglePlay: () => void;
   close: () => void;
 }) {
   const controls = useRef<HTMLDivElement>(null);
+  const scrub = useRef<{ changed: boolean } | null>(null);
   const pointDigits = useMemo(
     () => frames.reduce((width, { move }) => Math.max(width, String(move?.score ?? 0).length), 2),
     [frames],
@@ -186,7 +187,14 @@ export function ReplayControls({
           style={
             { "--replay-progress": `${(100 * index) / last}%` } as CSSProperties
           }
-          onChange={(event) => seek(event.currentTarget.valueAsNumber)}
+          onPointerDown={() => { scrub.current = { changed: false }; }}
+          onPointerUp={() => { scrub.current = null; }}
+          onPointerCancel={() => { scrub.current = null; }}
+          onBlur={() => { scrub.current = null; }}
+          onChange={(event) => {
+            seek(event.currentTarget.valueAsNumber, scrub.current?.changed);
+            if (scrub.current) scrub.current.changed = true;
+          }}
         />
         <span
           className="board-replay-count"

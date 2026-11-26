@@ -33,18 +33,19 @@ const noPolicyTurns: ReturnType<typeof reviewTurns> = [];
 
 export default function TurnReview({
   game,
-  index,
+  index: selected,
+  onSelect,
   onClose,
 }: {
   game: Game;
   index: number | null;
+  onSelect: (index: number | null) => void;
   onClose: () => void;
 }) {
   const turns = useMemo(() => reviewTurns(game), [game]);
-  const [selected, setSelected] = useState(index);
   const [policyPlayer, setPolicyPlayer] = useState<Player>(
     () =>
-      (index === null ? undefined : turns[index]?.move.player) ??
+      (selected === null ? undefined : turns[selected]?.move.player) ??
       (turns.some(({ move }) => move.player === "opponent")
         ? "opponent"
         : "you"),
@@ -56,7 +57,7 @@ export default function TurnReview({
   useEffect(() => {
     reset();
     setPreview(undefined);
-  }, [game.dictionaryId, reset]);
+  }, [game.dictionaryId, reset, selected]);
   const turn = selected === null ? undefined : turns[selected];
   const position = turn?.position;
   const template = position?.premiums
@@ -107,9 +108,7 @@ export default function TurnReview({
     const nextTurn = index === null ? turn : turns[index];
     if (nextTurn) setPolicyPlayer(nextTurn.move.player);
     if (index === null) returnToTurn.current = selected;
-    reset();
-    setPreview(undefined);
-    setSelected(index);
+    onSelect(index);
   }
   return (
     <Modal

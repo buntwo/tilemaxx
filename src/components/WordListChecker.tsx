@@ -17,22 +17,24 @@ type Check = {
 export default function WordListChecker({
   dictionaries,
   selectedId,
+  onSelectList,
   onClose,
 }: {
   dictionaries: Dictionary[];
   selectedId?: string;
+  onSelectList: (id: string) => void;
   onClose: () => void;
 }) {
-  const [selected, setSelected] = useState<string>();
+  const [usingFile, setUsingFile] = useState(false);
   const [file, setFile] = useState<File>();
   const [input, setInput] = useState("");
   const [check, setCheck] = useState<Check>();
   const worker = useRef<{ source: WordListSource; instance: Worker }>(null);
   const requestId = useRef(0);
   const dictionary =
-    dictionaries.find(({ id }) => id === (selected ?? selectedId)) ??
+    dictionaries.find(({ id }) => id === selectedId) ??
     dictionaries[0];
-  const local = selected === "" ? file : undefined;
+  const local = usingFile ? file : undefined;
   const source = local ?? dictionary?.id;
   const listName = local?.name ?? dictionary?.name;
   const current = check?.source === source ? check : undefined;
@@ -57,7 +59,6 @@ export default function WordListChecker({
       });
       return;
     }
-    if (selected === undefined) setSelected(dictionary?.id);
     const id = ++requestId.current;
     setCheck({ source, word, result: "checking" });
     let instance: Worker | undefined;
@@ -122,7 +123,9 @@ export default function WordListChecker({
               value={local ? "" : (dictionary?.id ?? "")}
               disabled={!source}
               onChange={(event) => {
-                setSelected(event.target.value);
+                const id = event.target.value;
+                setUsingFile(!id);
+                if (id) onSelectList(id);
                 clearCheck();
               }}
             >
@@ -145,7 +148,7 @@ export default function WordListChecker({
                 const next = event.currentTarget.files?.[0];
                 if (!next) return;
                 setFile(next);
-                setSelected("");
+                setUsingFile(true);
                 clearCheck();
                 event.currentTarget.value = "";
               }}

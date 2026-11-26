@@ -105,6 +105,7 @@ export default function GameScores({
   onEditLastOpponentMove,
   onReplay,
   onChange,
+  reviewNavigation,
 }: {
   game: Game;
   onToggle: (enabled: boolean) => void;
@@ -113,6 +114,10 @@ export default function GameScores({
   onEditLastOpponentMove?: () => void;
   onReplay?: (returnFocus: HTMLButtonElement) => void;
   onChange: (game: Game) => void;
+  reviewNavigation?: {
+    index?: number | null;
+    select: (index: number | null | undefined) => void;
+  };
 }) {
   const { solo } = game;
   const tracking = tracksScores(game);
@@ -142,7 +147,9 @@ export default function GameScores({
     historyKey: string;
   }>();
   const [error, setError] = useState("");
-  const [review, setReview] = useState<number | null>();
+  const [localReview, setLocalReview] = useState<number | null>();
+  const review = reviewNavigation ? reviewNavigation.index : localReview;
+  const setReview = reviewNavigation?.select ?? setLocalReview;
   function openEditor(index?: number) {
     const move = index === undefined ? undefined : history[index];
     setEditor({
@@ -287,6 +294,7 @@ export default function GameScores({
         <TurnReview
           game={game}
           index={review}
+          onSelect={setReview}
           onClose={() => setReview(undefined)}
         />
       )}

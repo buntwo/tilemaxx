@@ -106,12 +106,18 @@ function IllustratedView({ figure }: { figure: GuideFigure }) {
 
 export default function UiGuide({
   phoneLayout,
+  selectedView,
+  onSelectView,
   onClose,
 }: {
   phoneLayout: boolean;
+  selectedView?: string;
+  onSelectView: (view: string) => void;
   onClose: () => void;
 }) {
-  const [view, setView] = useState(phoneLayout ? "Phone" : "Workspace");
+  const views = [...guideFigures.map(({ tab }) => tab), "All names"];
+  const slug = (label: string) => label.toLowerCase().replaceAll(" ", "-");
+  const view = views.find((label) => slug(label) === selectedView) ?? (phoneLayout ? "Phone" : "Workspace");
   const [query, setQuery] = useState("");
   const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
   const searching = words.length > 0;
@@ -142,14 +148,14 @@ export default function UiGuide({
         />
       </label>
       <div className="ui-guide-views" role="group" aria-label="Guide views">
-        {[...guideFigures.map(({ tab }) => tab), "All names"].map((label) => (
+        {views.map((label) => (
           <button
             key={label}
             type="button"
             className="button secondary"
             aria-pressed={!searching && view === label}
             onClick={() => {
-              setView(label);
+              onSelectView(slug(label));
               setQuery("");
             }}
           >

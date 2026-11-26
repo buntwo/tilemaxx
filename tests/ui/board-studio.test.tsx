@@ -17,6 +17,8 @@ test("custom board deletion requires confirmation, permits cancel and retry, and
     return (
       <BoardStudio
         templates={templates}
+        onEdit={() => {}}
+        onCloseEditor={() => {}}
         onSave={async () => {}}
         onBack={() => {}}
         onDelete={async (id) => {
@@ -52,6 +54,8 @@ test("starting a custom board from Lexulous copies its bag, rack size, and tile 
   render(
     <BoardStudio
       templates={PRESETS}
+      onEdit={() => {}}
+      onCloseEditor={() => {}}
       onSave={saved}
       onDelete={async () => {}}
       onBack={() => {}}

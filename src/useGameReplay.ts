@@ -15,18 +15,29 @@ type Session = {
   returnFocus: HTMLElement | null;
 };
 
-export function useGameReplay(game: Game | undefined, shortcutsEnabled: boolean) {
+export function useGameReplay(
+  game: Game | undefined,
+  shortcutsEnabled: boolean,
+  move: number | undefined,
+  setMove: (move: number | undefined, replace?: boolean) => void,
+) {
   const [session, setSession] = useState<Session>();
   const focusAfterClose = useRef<HTMLElement | null>(null);
   const available = useMemo(() => !!game && hasRecordedMoves(game), [game]);
-  const archive = useMemo<Session | undefined>(() => {
-    if (!game?.archived || !available) return;
-    const timeline = gameReplayTimeline(game);
-    return { source: game, timeline, index: timeline.frames.length, playing: false, showRecorded: false, returnFocus: null };
-  }, [game, available]);
-  const current = session?.source.id === game?.id && session?.source.archived === game?.archived
-    ? session ?? archive
-    : archive;
+  const linked = move !== undefined;
+  const savedTimeline = useMemo(() => {
+    if (game && available && (game.archived || linked)) return gameReplayTimeline(game);
+  }, [game, available, linked]);
+  const activeSession = session && game && session.source.id === game.id &&
+    session.source.archived === game.archived && session.index === move ? session : undefined;
+  const current = activeSession ?? (game && savedTimeline && {
+    source: game,
+    timeline: savedTimeline,
+    index: move === undefined ? savedTimeline.frames.length : Math.min(move, savedTimeline.frames.length - 1),
+    playing: false,
+    showRecorded: move !== undefined && move > 0,
+    returnFocus: null,
+  });
   const timeline = current?.timeline;
   const recordedCount = timeline ? timeline.frames.length - 1 : 0;
   const last = recordedCount + (game?.archived ? 1 : 0);
@@ -43,26 +54,30 @@ export function useGameReplay(game: Game | undefined, shortcutsEnabled: boolean)
   const position = setup?.game;
 
   useEffect(() => {
-    if (session && (session.source.id !== game?.id || session.source.archived !== game.archived))
-      setSession(undefined);
-  }, [session, game?.id, game?.archived]);
+    if (session && !activeSession) setSession(undefined);
+  }, [session, activeSession]);
+  const advance = useEffectEvent(() => {
+    if (!current?.playing) return;
+    const next = index + 1;
+    setSession(next <= recordedCount ? {
+      ...current,
+      index: next,
+      playing: next < last,
+      showRecorded: true,
+    } : undefined);
+    setMove(next <= recordedCount ? next : undefined, true);
+  });
   useEffect(() => {
-    if (!playing || !current) return;
-    const timer = setTimeout(() => {
-      setSession((previous) => previous === current ? {
-        ...previous,
-        index: index + 1,
-        playing: index + 1 < last,
-        showRecorded: index + 1 <= recordedCount,
-      } : previous);
-    }, STEP_MS);
+    if (!playing) return;
+    const timer = setTimeout(() => advance(), STEP_MS);
     return () => clearTimeout(timer);
-  }, [current, index, last, playing, recordedCount]);
+  }, [index, playing]);
 
   function close() {
     if (!current || !historical) return;
     focusAfterClose.current = current.returnFocus;
     setSession(undefined);
+    setMove(undefined);
   }
   useLayoutEffect(() => {
     if (historical || !focusAfterClose.current) return;
@@ -72,17 +87,19 @@ export function useGameReplay(game: Game | undefined, shortcutsEnabled: boolean)
 
   function open(returnFocus: HTMLElement | null) {
     if (!game || !available) return;
-    const timeline = archive?.timeline ?? gameReplayTimeline(game);
+    const timeline = savedTimeline ?? gameReplayTimeline(game);
+    const index = game.archived ? 0 : timeline.frames.length - 1;
     setSession({
       source: game,
       timeline,
-      index: game.archived ? 0 : timeline.frames.length - 1,
+      index,
       showRecorded: !game.archived,
       playing: false,
       returnFocus,
     });
+    setMove(index);
   }
-  function seek(next: number) {
+  function seek(next: number, replace = false) {
     if (!current) return;
     const index = Math.max(0, Math.min(next, last));
     if (index === current.index && !current.trial && !current.playing) return;
@@ -93,6 +110,7 @@ export function useGameReplay(game: Game | undefined, shortcutsEnabled: boolean)
       showRecorded: index > 0,
       trial: undefined,
     });
+    setMove(index <= recordedCount ? index : undefined, replace);
   }
   function togglePlay() {
     if (!current) return;
@@ -104,6 +122,7 @@ export function useGameReplay(game: Game | undefined, shortcutsEnabled: boolean)
       showRecorded: true,
       trial: undefined,
     });
+    setMove(index);
   }
   function pause() {
     if (current?.playing) setSession({ ...current, playing: false });

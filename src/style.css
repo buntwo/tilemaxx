@@ -641,6 +641,7 @@ label + label {
   font-size: 12px;
   font-weight: 550;
   text-align: left;
+  text-decoration: none;
   border-radius: 6px;
   color: var(--muted);
 }

@@ -87,7 +87,7 @@ import {
   IncompleteMoveHistoryIcon,
   readGameDetails,
 } from "./components/GameDetails";
-import ArchivedGames, { type ArchiveSort } from "./components/ArchivedGames";
+import ArchivedGames from "./components/ArchivedGames";
 import ArchiveStats from "./components/ArchiveStats";
 import SyncConflictMenu from "./components/SyncConflictMenu";
 import GameScoreBadge from "./components/GameScoreBadge";
@@ -114,6 +114,7 @@ import { useMoveListNavigation } from "./useMoveListNavigation";
 import { profileWordHash } from "../shared/player-profiles";
 import OfflineStatus from "./components/OfflineStatus";
 import { useAutoUpdate } from "./useAutoUpdate";
+import { followRoute, routeHref, useNavigation, type Workspace, type WorkspaceTool } from "./navigation";
 import { useWorkspaceLayout } from "./useWorkspaceLayout";
 import { store, useStore } from "./store";
 import { premiumPalette } from "./premium-palettes";
@@ -135,30 +136,32 @@ import { archiveForReview } from "../shared/archive-history";
 type Dialog =
   | "screenshot"
   | "new"
-  | "dictionaries"
   | "dictionary-sources"
-  | "word-list-checker"
   | "profile"
   | "rename-profile"
   | "delete-profile"
   | "history"
   | "board-help"
-  | "help"
-  | "ui-guide"
-  | "keyboard-shortcuts"
-  | "workspace-settings"
   | "rename"
   | "delete"
   | "end-game"
   | "manage"
   | null;
-const workspaceHashes = {
-  games: "",
-  archive: "#archived-games",
-  stats: "#stats",
-  studio: "#board-studio",
-} as const;
-type Workspace = keyof typeof workspaceHashes;
+
+const workspaceLinks = [
+  ["games", "My games", Home],
+  ["archive", "Archived games", Archive],
+  ["stats", "Stats", ChartNoAxesCombined],
+  ["studio", "Board studio", Grid2X2],
+] as const;
+const toolLinks = [
+  ["dictionaries", "Word lists", BookOpen],
+  ["word-list-checker", "Word list checker", ListChecks],
+  ["ui-guide", "UI guide", Map],
+  ["keyboard-shortcuts", "Keyboard shortcuts", Keyboard],
+  ["help", "Use on another device", Smartphone],
+] as const;
+
 type TileFlight = NonNullable<ReturnType<typeof prepareTileFlight>> & {
   before: Game;
   bag: LastPlayBag;
@@ -167,13 +170,6 @@ type TileFlight = NonNullable<ReturnType<typeof prepareTileFlight>> & {
   reviewing: boolean;
   trial: boolean;
 };
-
-function currentWorkspace(): Workspace {
-  if (location.hash === workspaceHashes.archive) return "archive";
-  if (location.hash === workspaceHashes.stats) return "stats";
-  if (location.hash === workspaceHashes.studio) return "studio";
-  return "games";
-}
 
 function saved(key: string, fallback = "") {
   try {
@@ -278,9 +274,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const state = useStore(),
     data = state.data;
   const { shell, narrowLayout, sidebarOverlay } = useWorkspaceLayout(!!data);
-  const [profileId, setProfileId] = useState(saved("tilewise:profile")),
-    [gameId, setGameId] = useState(saved("tilewise:game"));
-  const [dialog, setDialog] = useState<Dialog>(null),
+  const [preferredProfile] = useState(() => saved("tilewise:profile"));
+  const [localDialog, setDialog] = useState<Dialog>(null),
     [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false),
     [toast, setToast] = useState(""),
     [error, setError] = useState("");
@@ -303,23 +298,47 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const [formName, setFormName] = useState(""),
     [formBusy, setFormBusy] = useState(false);
   const [editProfileId, setEditProfileId] = useState("");
-  const [workspace, setWorkspace] = useState(currentWorkspace);
+  const { route, navigate, closeOverlay } = useNavigation(() => {
+    setDialog(null);
+    setSidebarDrawerOpen(false);
+    setPreview(null);
+    gameReplay.pause();
+  });
+  const { workspace } = route;
+  const dialog = route.tool ?? localDialog;
+  const lastArchiveSort = useRef(route.sort);
+  useEffect(() => {
+    if (workspace === "archive") lastArchiveSort.current = route.sort;
+  }, [route.sort, workspace]);
   useLayoutEffect(() => {
     if (pendingGameSearch.current !== workspace) return;
     pendingGameSearch.current = undefined;
     if (workspace === "archive") archiveFilter.current?.focus();
     else gamePicker.current?.focusSearch();
   }, [workspace]);
-  const [archiveSort, setArchiveSort] = useState<ArchiveSort>("date");
   const [archiveEditId, setArchiveEditId] = useState<string>();
   const importBase = useRef<Game | null>(null);
-  const selectedGame = data?.games.find(
-    (g) => g.id === gameId && g.profileId === profileId,
+  const linkedGame = route.gameId ? data?.games.find((game) => game.id === route.gameId) : undefined;
+  const profile = data?.profiles.find((p) => p.id === (linkedGame?.profileId ?? route.profileId ?? preferredProfile))
+    ?? data?.profiles[0];
+  const profileId = profile?.id ?? "";
+  const profileGames = data?.games.filter((g) => g.profileId === profileId) ?? [];
+  const activeGames = orderGames(
+    profileGames.filter((g) => !g.archived),
+    profile?.gameOrder,
   );
+  const lastActive = saved(`tilewise:last:${profileId}`);
+  const defaultGame = activeGames.find((g) => g.id === lastActive) ?? activeGames[0];
+  const lastViewed = workspace === "games" && location.pathname === "/" ? saved("tilewise:game") : "";
+  const selectedGame = route.gameId ? linkedGame :
+    profileGames.find((g) => g.id === lastViewed) ?? defaultGame;
+  const gameId = route.gameId ?? selectedGame?.id ?? "";
   const savedGame = selectedGame ? state.games[selectedGame.id] : undefined;
   const gameReplay = useGameReplay(
     workspace === "games" ? savedGame : undefined,
     !dialog && !(sidebarOverlay && sidebarDrawerOpen),
+    route.move,
+    (move, replace) => navigate({ ...route, gameId, move, review: undefined }, replace),
   );
   const replay = gameReplay.active;
   const historical = gameReplay.historical;
@@ -329,7 +348,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const replayDrawShelf = replay?.frames.some(({ draw }) => draw !== undefined) ?? false;
   const game = gameReplay.position ?? savedGame;
   const squareFilter = useMoveSquareFilter(workspace === "games" ? game : undefined);
-  const profile = data?.profiles.find((p) => p.id === profileId);
   const editProfile = data?.profiles.find((p) => p.id === editProfileId);
   const editingArchive =
     dialog === "rename" && archiveEditId
@@ -449,7 +467,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       }
       return true;
     },
-    showGuide: () => openDialog("keyboard-shortcuts"),
+    showGuide: () => openTool("keyboard-shortcuts"),
   });
   const updateBusy =
     state.pending.length > 0 ||
@@ -545,31 +563,19 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     };
   }, []);
   useEffect(() => {
-    if (!data) return;
-    const pid = data.profiles.some((p) => p.id === profileId)
-      ? profileId
-      : data.profiles[0]?.id;
-    if (pid !== profileId) setProfileId(pid);
-    const current = data.games.find(
-      (g) => g.id === gameId && g.profileId === pid,
-    );
-    if (!current) {
-      const last = saved(`tilewise:last:${pid}`);
-      const active = orderGames(
-        data.games.filter((g) => g.profileId === pid && !g.archived),
-        data.profiles.find((p) => p.id === pid)?.gameOrder,
-      );
-      setGameId(active.find((g) => g.id === last)?.id ?? active[0]?.id ?? "");
-    }
-  }, [data, profileId, gameId]);
+    if (route.workspace === "games" && !route.gameId && gameId)
+      navigate({ ...route, gameId, profileId: undefined }, true);
+  }, [gameId, navigate, route]);
   useEffect(() => {
     try {
-      localStorage.setItem("tilewise:profile", profileId);
-      localStorage.setItem("tilewise:game", gameId);
-      if (savedGame && savedGame.profileId === profileId && !savedGame.archived)
-        localStorage.setItem(`tilewise:last:${profileId}`, savedGame.id);
+      if (profileId) localStorage.setItem("tilewise:profile", profileId);
+      if (openId) {
+        localStorage.setItem("tilewise:game", openId);
+        if (!selectedGame?.archived)
+          localStorage.setItem(`tilewise:last:${profileId}`, openId);
+      }
     } catch {}
-  }, [profileId, gameId, savedGame?.archived, savedGame?.profileId]);
+  }, [profileId, openId, selectedGame?.archived]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     try {
@@ -580,16 +586,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   useEffect(() => {
     setError("");
   }, [gameId, historical ? replay?.index : undefined]);
-  useEffect(() => {
-    const changeView = () => {
-      setWorkspace(currentWorkspace());
-      setDialog(null);
-      setSidebarDrawerOpen(false);
-      setPreview(null);
-    };
-    window.addEventListener("hashchange", changeView);
-    return () => window.removeEventListener("hashchange", changeView);
-  }, []);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(""), 4000);
@@ -654,28 +650,47 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     setToast(text);
   }
   function showWorkspace(next: Workspace) {
-    if (workspace !== next)
-      history.pushState(
-        null,
-        "",
-        workspaceHashes[next] || location.pathname + location.search,
-      );
-    setWorkspace(next);
+    navigate(workspaceRoute(next));
     setSidebarDrawerOpen(false);
     setPreview(null);
   }
+  function workspaceRoute(next: Workspace) {
+    const activeId = selectedGame && !selectedGame.archived ? selectedGame.id : defaultGame?.id;
+    const archiveSort = workspace === "archive" ? route.sort : lastArchiveSort.current;
+    return {
+      workspace: next,
+      profileId,
+      gameId: next === "games" ? activeId : undefined,
+      sort: next === "archive" ? archiveSort : undefined,
+      stats: next === "stats" ? route.stats : undefined,
+    };
+  }
   function chooseGame(id: string) {
-    if (workspace !== "games") showWorkspace("games");
-    setGameId(id);
+    navigate({ workspace: "games", gameId: id || undefined, profileId: id ? undefined : profileId });
     setSidebarDrawerOpen(false);
   }
   function openMyGames() {
     showWorkspace("games");
-    if (!selectedGame?.archived) return;
-    const last = saved(`tilewise:last:${profileId}`);
-    setGameId(
-      activeGames.find((g) => g.id === last)?.id ?? activeGames[0]?.id ?? "",
-    );
+  }
+  function selectProfile(id: string) {
+    navigate({ workspace, profileId: id });
+  }
+  function toolRoute(tool: WorkspaceTool) {
+    return { ...route, profileId, tool };
+  }
+  function openTool(tool: WorkspaceTool) {
+    gameReplay.pause();
+    setSidebarDrawerOpen(false);
+    navigate(toolRoute(tool));
+  }
+  function closeTool() {
+    closeOverlay({ ...route, tool: undefined, guide: undefined, wordList: undefined });
+  }
+  function selectReview(index: number | null | undefined) {
+    const review = index == null ? index : index + 1;
+    const next = { ...route, gameId, move: undefined, review };
+    if (review === undefined) closeOverlay(next);
+    else navigate(next);
   }
   function openDialog(next: Dialog) {
     setError("");
@@ -815,12 +830,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       setError((e as Error).message);
     }
   }
-  const profileGames =
-    data?.games.filter((g) => g.profileId === profileId) ?? [];
-  const activeGames = orderGames(
-    profileGames.filter((g) => !g.archived),
-    profile?.gameOrder,
-  );
   const archivedGames = profileGames.filter((g) => g.archived);
   const viewingArchivedGame = workspace === "games" && selectedGame?.archived;
   const pending = state.pending.length > 0,
@@ -904,6 +913,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   );
   const gameScores = savedGame && (
     <GameScores
+      reviewNavigation={{
+        index: route.review == null ? route.review : route.review - 1,
+        select: selectReview,
+      }}
       key={savedGame.id}
       game={savedGame}
       onToggle={(enabled) => update(setScoreTracking(savedGame, enabled))}
@@ -935,7 +948,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     <SyncConflictMenu
       games={conflictGames}
       onOpen={(game) => {
-        setProfileId(game.profileId);
         chooseGame(game.id);
         setReviewConflictId(game.id);
       }}
@@ -1074,66 +1086,30 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           {profile ? "New game" : "New profile"}
         </button>
         <div className="sidebar-divider" />
-        <button
-          className="nav-link"
-          aria-current={
-            workspace === "games" && !viewingArchivedGame ? "page" : undefined
-          }
-          onClick={openMyGames}
-        >
-          <Home size={18} />
-          My games
-        </button>
-        <button
-          className="nav-link"
-          aria-current={
-            workspace === "archive" || viewingArchivedGame ? "page" : undefined
-          }
-          onClick={() => showWorkspace("archive")}
-        >
-          <Archive size={18} />
-          Archived games
-        </button>
-        <button
-          className="nav-link"
-          aria-current={workspace === "stats" ? "page" : undefined}
-          onClick={() => showWorkspace("stats")}
-        >
-          <ChartNoAxesCombined size={18} aria-hidden="true" />
-          Stats
-        </button>
-        <button
-          className="nav-link"
-          aria-current={workspace === "studio" ? "page" : undefined}
-          onClick={() => showWorkspace("studio")}
-        >
-          <Grid2X2 size={18} />
-          Board studio
-        </button>
-        <button className="nav-link" onClick={() => openDialog("dictionaries")}>
-          <BookOpen size={18} />
-          Word lists
-        </button>
-        <button className="nav-link" onClick={() => openDialog("word-list-checker")}>
-          <ListChecks size={18} aria-hidden="true" />
-          Word list checker
-        </button>
-        <button className="nav-link" onClick={() => openDialog("ui-guide")}>
-          <Map size={18} aria-hidden="true" />
-          UI guide
-        </button>
-        <button
-          className="nav-link"
-          aria-keyshortcuts="?"
-          onClick={() => openDialog("keyboard-shortcuts")}
-        >
-          <Keyboard size={18} aria-hidden="true" />
-          Keyboard shortcuts
-        </button>
-        <button className="nav-link" onClick={() => openDialog("help")}>
-          <Smartphone size={18} />
-          Use on another device
-        </button>
+        {workspaceLinks.map(([section, label, Icon]) => (
+          <a
+            key={section}
+            href={routeHref(workspaceRoute(section))}
+            className="nav-link"
+            aria-current={section === (viewingArchivedGame ? "archive" : workspace) ? "page" : undefined}
+            onClick={(event) => followRoute(event, () => showWorkspace(section))}
+          >
+            <Icon size={18} aria-hidden="true" />
+            {label}
+          </a>
+        ))}
+        {toolLinks.map(([tool, label, Icon]) => (
+          <a
+            key={tool}
+            href={routeHref(toolRoute(tool))}
+            className="nav-link"
+            aria-keyshortcuts={tool === "keyboard-shortcuts" ? "?" : undefined}
+            onClick={(event) => followRoute(event, () => openTool(tool))}
+          >
+            <Icon size={18} aria-hidden="true" />
+            {label}
+          </a>
+        ))}
         <div className="sidebar-bottom">
           <div className="workspace-controls">
             <OfflineStatus
@@ -1150,7 +1126,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 type="button"
                 aria-label="Settings"
                 title="Settings"
-                onClick={() => openDialog("workspace-settings")}
+                onClick={() => openTool("workspace-settings")}
               >
                 <Settings size={15} aria-hidden="true" />
               </button>
@@ -1205,8 +1181,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                       openDialog("profile");
                       return;
                     }
-                    setProfileId(e.target.value);
-                    setGameId("");
+                    selectProfile(e.target.value);
                   }}
                 >
                   {!profile && (
@@ -1326,6 +1301,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         {workspace === "studio" ? (
           <BoardStudio
             headerControl={sidebarButton}
+            templateId={route.template}
+            onEdit={(template) => navigate({ ...route, template })}
+            onCloseEditor={() => closeOverlay({ ...route, template: undefined })}
             onDelete={async (id) => {
               await store.deleteTemplate(id);
               notify(
@@ -1350,8 +1328,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             headerControl={sidebarButton}
             games={archivedGames}
             dictionaries={data.dictionaries}
-            sort={archiveSort}
-            onSort={setArchiveSort}
+            sort={route.sort ?? "date"}
+            onSort={(sort) => navigate({ ...route, profileId, sort: sort === "date" ? undefined : sort })}
             onOpen={chooseGame}
             onEdit={(id) => {
               setArchiveEditId(id);
@@ -1364,6 +1342,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             key={profileId}
             headerControl={sidebarButton}
             games={archivedGames}
+            view={route.stats}
+            onChangeView={(stats) => navigate({ ...route, profileId, stats })}
             onBack={openMyGames}
           />
         ) : game ? (
@@ -1700,6 +1680,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               error={state.loadErrors[selectedGame.id]}
             />
           </section>
+        ) : route.gameId ? (
+          <section className="welcome-panel panel" aria-label="Game board">
+            <p role="status">This game is unavailable.</p>
+            <button className="button secondary" onClick={openMyGames}>Back to games</button>
+          </section>
         ) : (
           <div className="welcome-panel panel">
             <div className="illustrated-tiles">
@@ -1817,8 +1802,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   notify("Profile renamed.");
                 } else {
                   const p = await store.createProfile(formName.trim());
-                  setProfileId(p.id);
-                  setGameId("");
+                  selectProfile(p.id);
                 }
                 setDialog(null);
               });
@@ -1882,6 +1866,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               if (formBusy || formName !== editProfile.name) return;
               void action(async () => {
                 await store.deleteProfile(editProfile.id, formName);
+                if (editProfile.id === profileId)
+                  navigate({ workspace }, true);
                 setDialog(null);
                 notify("Profile deleted.");
               });
@@ -2026,7 +2012,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         <WordLists
           dictionaries={data.dictionaries}
           selectedId={savedGame?.dictionaryId}
-          onClose={() => setDialog(null)}
+          onClose={closeTool}
           onNotify={notify}
         />
       )}
@@ -2068,15 +2054,21 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       {dialog === "word-list-checker" && (
         <WordListChecker
           dictionaries={data.dictionaries}
-          selectedId={game?.dictionaryId}
-          onClose={() => setDialog(null)}
+          selectedId={route.wordList ?? game?.dictionaryId}
+          onSelectList={(wordList) => navigate({ ...route, wordList })}
+          onClose={closeTool}
         />
       )}
       {dialog === "ui-guide" && (
-        <UiGuide phoneLayout={narrowLayout} onClose={() => setDialog(null)} />
+        <UiGuide
+          phoneLayout={narrowLayout}
+          selectedView={route.guide}
+          onSelectView={(guide) => navigate({ ...route, guide })}
+          onClose={closeTool}
+        />
       )}
       {dialog === "keyboard-shortcuts" && (
-        <KeyboardShortcuts phoneLayout={narrowLayout} onClose={() => setDialog(null)} />
+        <KeyboardShortcuts phoneLayout={narrowLayout} onClose={closeTool} />
       )}
       {dialog === "workspace-settings" && (
         <WorkspaceSettings
@@ -2086,14 +2078,14 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           concurrencyHint={concurrencyHint}
           workerLimit={workerLimit}
           onChange={setPreferences}
-          onClose={() => setDialog(null)}
+          onClose={closeTool}
         />
       )}
       {dialog === "help" && (
         <Modal
           title="Same game. Any screen."
           subtitle="Open Tilemaxx on your iPhone or Mac, then choose the same profile."
-          onClose={() => setDialog(null)}
+          onClose={closeTool}
         >
           <div className="device-illustration">
             <Monitor size={44} />
@@ -2176,7 +2168,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                 void action(async () => {
                   await store.deleteGame(savedGame.id);
                   setDialog(null);
-                  setGameId("");
+                  navigate({ workspace: "games", profileId }, true);
                   notify("Game deleted.");
                 })
               }
@@ -2228,7 +2220,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           }
           onOpen={(next) => {
             if (next === "end-game") replay?.close();
-            openDialog(next);
+            if (next === "dictionaries") {
+              setDialog(null);
+              openTool(next);
+            } else openDialog(next);
           }}
           onReplay={canReplayGame && !historical ? () => {
             gameReplay.open(gameOptionsButton.current);

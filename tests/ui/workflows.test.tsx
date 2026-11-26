@@ -2272,6 +2272,7 @@ async function start(width = shellWidth) {
   return user;
 }
 const entry = () => screen.getByRole("textbox", { name: "Type on board" });
+const navLink = (name: string) => screen.getByRole("link", { name });
 const cell = (name: string) => screen.getByRole("button", { name });
 async function openGameOptions(user: ReturnType<typeof userEvent.setup>) {
   await user.click(cell("Game options"));
@@ -2339,7 +2340,7 @@ test.each([false, true])("game options export the saved game offline during repl
   const user = await start(archived ? 390 : 1200);
   if (archived) {
     await user.click(cell("Open sidebar"));
-    await user.click(cell("Archived games"));
+    await user.click(navLink("Archived games"));
     await user.click(screen.getByRole("button", { name: /^First game \/ Élodie/ }));
   }
   await waitFor(() => expect(current().trackedMoves).toHaveLength(2));
@@ -2402,6 +2403,81 @@ function replayRackLabels(tray: HTMLElement) {
     tile.getAttribute("aria-label")?.replace(/^Rack tile \d+: /, "").replace(", used by preview", ", played"),
   );
 }
+
+test("game links restore replay and review turns, and stepping works with browser history", async () => {
+  const replayGame = { ...replayFixture(), id: "replay-game", profileId: "other", name: "Linked game" };
+  remote.profiles.push({ id: "other", name: "Other profile" });
+  remote.games.push(replayGame);
+  localStorage.setItem("tilewise:profile", "p");
+  history.replaceState(null, "", "/games/replay-game?move=1");
+  const user = userEvent.setup();
+  const app = render(<App />);
+  const slider = () => screen.getByRole("slider", { name: "Replay moves" });
+  await screen.findByRole("button", { name: "Preview recorded move CAT" });
+  expect(screen.getByLabelText("Current profile")).toHaveProperty("value", "other");
+
+  await user.click(cell("Next move"));
+  expect(location.search).toBe("?move=2");
+  expect(slider()).toHaveProperty("value", "2");
+  history.back();
+  await waitFor(() => expect(slider()).toHaveProperty("value", "1"));
+  history.forward();
+  await waitFor(() => expect(slider()).toHaveProperty("value", "2"));
+
+  app.unmount();
+  const reloaded = render(<App />);
+  await screen.findByRole("button", { name: "Preview recorded move ART" });
+  await user.click(cell("Back to live"));
+  expect(location.search).toBe("");
+  await user.click(cell("Review game"));
+  const review = await screen.findByRole("dialog", { name: "Review game" });
+  expect(location.search).toBe("?review=game");
+  await user.click(within(review).getByRole("button", { name: /2 · ART/ }));
+  expect(location.search).toBe("?review=2");
+  reloaded.unmount();
+  render(<App />);
+  const restored = await screen.findByRole("dialog", { name: /^Review move 2/ });
+  await user.click(within(restored).getByRole("button", { name: "Close dialog" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(location.search).toBe("");
+});
+
+test("archive and sidebar links restore selections while typed search text stays local", async () => {
+  remote.games.push(archiveGame({ ...game(), id: "archive", name: "Archive opponent" }));
+  remote.templates.push({ ...PRESETS[0], id: "mini", builtin: false, name: "Mini board" });
+  remote.dictionaries.push({ ...remote.dictionaries[0], id: "alternate", name: "Alternate list" });
+  const user = await start();
+  await user.click(navLink("Archived games"));
+  await user.selectOptions(screen.getByRole("combobox", { name: "Sort by" }), "opponent");
+  const archiveLink = location.href;
+  await user.type(screen.getByRole("searchbox", { name: "Filter by opponent" }), "Archive opponent");
+  expect(location.href).toBe(archiveLink);
+
+  await user.click(navLink("Board studio"));
+  await user.click(cell("Edit Mini board"));
+  expect(new URL(location.href).searchParams.get("template")).toBe("mini");
+  history.back();
+  await screen.findByRole("heading", { name: "Board studio" });
+  history.back();
+  const archiveSort = await screen.findByRole("combobox", { name: "Sort by" });
+  expect(archiveSort).toHaveProperty("value", "opponent");
+  expect(location.href).toBe(archiveLink);
+  expect(screen.getByRole("searchbox", { name: "Filter by opponent" })).toHaveProperty("value", "");
+
+  await user.click(navLink("Word list checker"));
+  const checker = within(await screen.findByRole("dialog", { name: "Word list checker" }));
+  await user.selectOptions(checker.getByRole("combobox", { name: "Word list" }), "alternate");
+  const checkerLink = location.href;
+  expect(new URL(checkerLink).searchParams.get("list")).toBe("alternate");
+  await user.type(checker.getByRole("textbox", { name: "Word" }), "CAT");
+  expect(location.href).toBe(checkerLink);
+  await user.click(checker.getByRole("button", { name: "Close dialog" }));
+  await waitFor(() => expect(location.href).toBe(archiveLink));
+  history.go(2);
+  const reopened = within(await screen.findByRole("dialog", { name: "Word list checker" }));
+  expect(reopened.getByRole("combobox", { name: "Word list" })).toHaveProperty("value", "alternate");
+  expect(reopened.getByRole("textbox", { name: "Word" })).toHaveProperty("value", "");
+});
 
 test("live replay opens at the latest recorded move and keeps an in-progress play on exit", async () => {
   remote.games[0] = replayFixture();
@@ -2610,7 +2686,7 @@ test("archiving drops undo history, keeps replay and endgame racks, and allows l
   expect(remote.games[0].past).toEqual([]);
   expect(remote.games[0].archivedState?.past).toEqual([]);
   await user.click(cell("Open sidebar"));
-  await user.click(cell("Archived games"));
+  await user.click(navLink("Archived games"));
   await user.click(screen.getByRole("button", { name: /^Replay archive/ }));
   await screen.findByRole("heading", { name: "Replay archive" });
   const archivedOptions = await openGameOptions(user);
@@ -3975,8 +4051,8 @@ test("profile deletion requires the exact name and allows a new profile after de
 
 test("custom template creation/editing persists one template and built-ins have no edit action", async () => {
   const user = await start();
-  await user.click(screen.getByRole("button", { name: "Board studio" }));
-  expect(location.hash).toBe("#board-studio");
+  await user.click(screen.getByRole("link", { name: "Board studio" }));
+  expect(location.pathname).toBe("/board-studio");
   expect(screen.getByRole("heading", { name: "Board studio" })).toBeTruthy();
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.queryByRole("heading", { name: "Your rack" })).toBeNull();
@@ -4135,7 +4211,7 @@ test("existing games and their thumbnails use platform palettes independently of
     template,
   );
 
-  await user.click(screen.getByRole("button", { name: "Archived games" }));
+  await user.click(screen.getByRole("link", { name: "Archived games" }));
   const archive = screen.getByRole("button", { name: /^Archived match/ });
   expect(palette(archive.querySelector("svg.board-thumbnail"))).toBe(
     "in-person",
@@ -4243,7 +4319,7 @@ test("game options archive the current game and open a blank game with today's d
   expect(fresh.board.every((tile) => !tile)).toBe(true);
   expect(document.querySelector(".board-entry .square.occupied")).toBeNull();
   expect(fresh.notes).toBeUndefined();
-  await user.click(cell("Archived games"));
+  await user.click(navLink("Archived games"));
   const archive = within(
     screen.getByRole("region", { name: "Archived games" }),
   );
@@ -4273,11 +4349,11 @@ test("sidebar Stats filters archived games and updates the monthly metric", asyn
   );
   const user = await start(390);
   await user.click(cell("Open sidebar"));
-  await user.click(cell("Stats"));
+  await user.click(navLink("Stats"));
   const stats = within(await screen.findByRole("region", { name: "Stats" }));
   await stats.findByText("of 3 games in this profile");
   expect(stats.getByText("400", { selector: "dd" })).toBeTruthy();
-  expect(window.location.hash).toBe("#stats");
+  expect(location.pathname).toBe("/stats");
 
   await user.selectOptions(stats.getByRole("combobox", { name: "Platform" }), "platform:wordfeud");
   expect(stats.getByText("350", { selector: "dd" })).toBeTruthy();
@@ -4285,11 +4361,17 @@ test("sidebar Stats filters archived games and updates the monthly metric", asyn
   await user.selectOptions(stats.getByRole("combobox", { name: "Year" }), "2025");
   expect(stats.getByText("400", { selector: "dd" })).toBeTruthy();
   await user.selectOptions(stats.getByRole("combobox", { name: "Trend metric" }), "winRate");
+  expect(Object.fromEntries(new URLSearchParams(location.search))).toEqual({
+    profile: "p", platform: "platform:wordfeud", language: "fr", year: "2025", metric: "winRate",
+  });
   await user.click(stats.getByText("Monthly values"));
   const table = within(stats.getByRole("table", { name: "Monthly win rate" }));
   expect(table.getByRole("row", { name: /Jan.*2025.*100%.*1/ })).toBeTruthy();
   await user.selectOptions(stats.getByRole("combobox", { name: "Year" }), "2026");
   expect(stats.getByRole("status").textContent).toBe("No archived games match these filters.");
+  history.back();
+  await waitFor(() => expect(stats.getByRole("combobox", { name: "Year" })).toHaveProperty("value", "2025"));
+  expect(stats.getByRole("combobox", { name: "Trend metric" })).toHaveProperty("value", "winRate");
   await user.click(stats.getByRole("button", { name: "Back to games" }));
   await screen.findByRole("heading", { name: /First game/ });
 });
@@ -4337,7 +4419,7 @@ test("solo games track one score, use the whole bag, and restart solo from the a
   expect(finish.queryByRole("combobox", { name: "Result" })).toBeNull();
   await user.click(finish.getByRole("button", { name: "End game" }));
 
-  await user.click(cell("Archived games"));
+  await user.click(navLink("Archived games"));
   const archive = within(screen.getByRole("region", { name: "Archived games" }));
   await user.click(archive.getByRole("button", { name: /^Practice run/ }));
   expect(scoreTotals()).toBe("10");
@@ -4434,7 +4516,7 @@ test("starting another game from an archive copies settings onto a fresh board",
   const archived = archiveGame(original);
   remote.games.push(archived);
   const user = await start();
-  await user.click(cell("Archived games"));
+  await user.click(navLink("Archived games"));
   const archive = within(screen.getByRole("region", { name: "Archived games" }));
   await user.click(archive.getByRole("button", { name: /^Morgan/ }));
   const options = await openGameOptions(user);
@@ -4449,7 +4531,7 @@ test("starting another game from an archive copies settings onto a fresh board",
   await screen.findByText("New game started.");
   const fresh = remote.games[2];
   expect(localStorage.getItem("tilewise:game")).toBe(fresh.id);
-  expect(cell("My games").getAttribute("aria-current")).toBe("page");
+  expect(navLink("My games").getAttribute("aria-current")).toBe("page");
   expect(document.querySelector(".board-entry .square.occupied")).toBeNull();
   expect(fresh).toMatchObject({
     name: original.name,
@@ -4573,7 +4655,7 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
   );
   const user = await start();
   await act(() => store.refresh());
-  await user.click(cell("Archived games"));
+  await user.click(navLink("Archived games"));
   const row = (name: string) =>
     within(screen.getByRole("region", { name: "Archived games" }))
       .getByRole("button", { name: new RegExp(`^${name}`) });
@@ -4605,7 +4687,7 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
   expect(board().queryByRole("heading", { name: "You win!" })).toBeNull();
   expect(startSquare).toHaveProperty("disabled", false);
 
-  await user.click(cell("Archived games"));
+  await user.click(navLink("Archived games"));
   await user.click(row("Manually ended opponent"));
   await screen.findByRole("heading", { name: "Manually ended opponent" });
   await screen.findByRole("button", { name: "Replay finish animation" });
@@ -4682,7 +4764,7 @@ test("archived games sort by finishing time with date and last-move fallbacks an
   );
   const user = await start();
   await act(() => store.refresh());
-  await user.click(cell("Archived games"));
+  await user.click(navLink("Archived games"));
   const archive = within(screen.getByRole("region", { name: "Archived games" }));
   const search = archive.getByRole("searchbox", { name: "Filter by opponent" });
   const sort = archive.getByRole("combobox", { name: "Sort by" });
@@ -4839,7 +4921,7 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
     },
   );
   await act(() => store.refresh());
-  await user.click(cell("Archived games"));
+  await user.click(navLink("Archived games"));
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.queryByRole("heading", { name: "Your rack" })).toBeNull();
   const archived = () =>
@@ -4852,7 +4934,7 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   expect(thumbnail.querySelector(".thumbnail-played")).toBeTruthy();
   await user.click(archived().getByRole("button", { name: "Back to games" }));
   expect(screen.getByRole("heading", { name: "First game" })).toBeTruthy();
-  await user.click(cell("Archived games"));
+  await user.click(navLink("Archived games"));
   const names = () =>
     archived()
       .getAllByRole("listitem")
@@ -4918,8 +5000,8 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   expect(screen.getByText("Club night · Test words", { selector: ".game-heading-metadata" })).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Switch game" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Back to archived games" })).toBeNull();
-  expect(cell("Archived games").getAttribute("aria-current")).toBe("page");
-  expect(cell("My games").getAttribute("aria-current")).toBeNull();
+  expect(navLink("Archived games").getAttribute("aria-current")).toBe("page");
+  expect(navLink("My games").getAttribute("aria-current")).toBeNull();
   expect(rackTile(1).getAttribute("aria-label")).toBe("Rack tile 1: D");
   const details = await openGameOptions(user);
   expect(details.getByText("Review the endgame.")).toBeTruthy();
@@ -4955,14 +5037,14 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
     archived: true,
     board: archivedBoard,
   });
-  await user.click(cell("Archived games"));
-  expect(location.hash).toBe("#archived-games");
+  await user.click(navLink("Archived games"));
+  expect(location.pathname).toBe("/archived-games");
   expect(names()[0]).toBe("SamClub night · Test words · Jun 1, 2026");
   expect(screen.queryByRole("heading", { name: "Sam" })).toBeNull();
-  await user.click(cell("My games"));
+  await user.click(navLink("My games"));
   expect(screen.getByRole("heading", { name: "First game" })).toBeTruthy();
   expect(cell("Switch game")).toBeTruthy();
-  expect(cell("My games").getAttribute("aria-current")).toBe("page");
+  expect(navLink("My games").getAttribute("aria-current")).toBe("page");
 });
 
 test("the game header, picker, and archive mark incomplete move histories", async () => {
@@ -5008,7 +5090,7 @@ test("the game header, picker, and archive mark incomplete move histories", asyn
   await screen.findByRole("heading", { name: "Active partial match" });
   expect(within(cell("Switch game")).getByRole("img", icon)).toBeTruthy();
   expect(cell("Switch game").getAttribute("aria-description")).toContain(icon.name);
-  await user.click(cell("Archived games"));
+  await user.click(navLink("Archived games"));
   const tracked = screen.getByRole("button", { name: /^Tracked match/ });
   expect(within(tracked).queryByRole("img", icon)).toBeNull();
   const partial = screen.getByRole("button", { name: /^Partial match/ });
@@ -5122,7 +5204,7 @@ test("the sidebar checker uses the selected list or local file independently of 
   }
   vi.stubGlobal("Worker", CheckerWorker);
   const user = await start();
-  await user.click(screen.getByRole("button", { name: "Word list checker" }));
+  await user.click(screen.getByRole("link", { name: "Word list checker" }));
   const dialog = within(screen.getByRole("dialog", { name: "Word list checker" }));
   const list = dialog.getByRole<HTMLSelectElement>("combobox", { name: "Word list" });
   const word = dialog.getByRole("textbox", { name: "Word" });
@@ -5253,7 +5335,7 @@ test.each([false, true])("the sidebar opens the illustrated guide (phone %s)", a
   if (phone)
     await user.click(screen.getByRole("button", { name: "Open sidebar" }));
   const menu = within(screen.getByRole("complementary", { name: "Sidebar" }));
-  await user.click(menu.getByRole("button", { name: "UI guide" }));
+  await user.click(menu.getByRole("link", { name: "UI guide" }));
 
   const guide = within(screen.getByRole("dialog", { name: "UI guide" }));
   expect(guide.getByRole("img").getAttribute("alt")).toMatch(
@@ -5299,7 +5381,7 @@ test("the phone layout keeps settings, the build version, board help and move fi
   expect(document.documentElement.dataset.theme).toBe("dark");
   await user.click(settings.getByRole("button", { name: "Close dialog" }));
   await user.click(main.getByRole("button", { name: "Open sidebar" }));
-  await user.click(sidebar.getByRole("button", { name: "My games" }));
+  await user.click(sidebar.getByRole("link", { name: "My games" }));
 
   const score = main.getByRole("group", { name: "Tracked score" });
   expect(score.closest(".game-heading")).toBeTruthy();
@@ -7108,7 +7190,7 @@ test("workspace shortcuts focus the rack and game filter, and the guide leaves r
   fireEvent.keyDown(document.activeElement!, { key: "f", code: "KeyF", altKey: true });
   expect(screen.queryByRole("searchbox", { name: "Filter by opponent" })).toBeNull();
   await user.click(within(guide()!).getByRole("button", { name: "Close dialog" }));
-  await user.click(cell("Keyboard shortcuts"));
+  await user.click(navLink("Keyboard shortcuts"));
   expect(guide()).toBeTruthy();
 });
 
@@ -7131,7 +7213,7 @@ test("Option+U and Option+Y undo and redo game history", async () => {
   expect(placed()).toBe("");
   expect(current().future).toHaveLength(1);
 
-  await user.click(cell("Keyboard shortcuts"));
+  await user.click(navLink("Keyboard shortcuts"));
   const guide = within(screen.getByRole("dialog", { name: "Keyboard shortcuts" }));
   expect(guide.getByText("Alt / Option + U")).toBeTruthy();
   expect(guide.getByText("Alt / Option + Y")).toBeTruthy();
@@ -7248,7 +7330,7 @@ test("coordinate entry stops at edges, distinguishes two-digit rows, and can be 
   expect(current().board.some(Boolean)).toBe(false);
   expect(current().past).toHaveLength(0);
 
-  await user.click(cell("Keyboard shortcuts"));
+  await user.click(navLink("Keyboard shortcuts"));
   expect(screen.getByText("Alt / Option + B")).toBeTruthy();
   fireEvent.keyDown(document.activeElement!, { key: "∫", code: "KeyB", altKey: true });
   expect(overlay()).toBeNull();
@@ -7310,7 +7392,7 @@ test("search games focuses the archived filter and can return there from an arch
   remote.games.push({ ...game(), id: "finished", name: "Jo Smith", archived: true });
   const user = await start();
   await act(() => store.refresh());
-  await user.click(cell("Archived games"));
+  await user.click(navLink("Archived games"));
   const search = () => screen.getByRole("searchbox", { name: "Filter by opponent" });
   await user.keyboard("{Alt>}f{/Alt}");
   expect(document.activeElement).toBe(search());
@@ -8342,7 +8424,7 @@ test("an archived game can solve an edited empty-bag position before and after F
   }
   vi.stubGlobal("Worker", ArchivedEndgameWorker);
   const user = await start();
-  await user.click(cell("Archived games"));
+  await user.click(navLink("Archived games"));
   await user.click(await screen.findByRole("button", { name: /^Archived endgame/ }));
   await screen.findByRole("heading", { name: "Archived endgame" });
 

@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
+import { useState } from "react";
 import { emptyBoard, type Game, type TrackedMove } from "../../shared/model";
 import type { OpponentPolicyResult } from "../../shared/opponent-policy";
 import { shortlistConfidence } from "../../shared/shortlist-confidence";
@@ -79,9 +80,11 @@ function setup(index: number | null = null) {
       { ...placement("TEA", 6), review: undefined },
     ],
   };
-  const review = (current = game) => (
-    <TurnReview game={current} index={index} onClose={() => {}} />
-  );
+  function Review({ current }: { current: Game }) {
+    const [selected, select] = useState(index);
+    return <TurnReview game={current} index={selected} onSelect={select} onClose={() => {}} />;
+  }
+  const review = (current = game) => <Review current={current} />;
   return { game, review, ...render(review()) };
 }
 
