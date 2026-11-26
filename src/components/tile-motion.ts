@@ -1,10 +1,10 @@
 import {
-  tileScore,
   type Move,
   type Position,
   type Rules,
 } from "../../shared/model";
 import { rackSlotsForMove } from "../../shared/rack-entry";
+import { createTileFaceContent } from "./TileFace";
 
 export function canAnimateTiles() {
   return (
@@ -16,7 +16,7 @@ export function canAnimateTiles() {
 export function rackTileRects(rack: HTMLElement, slots: number[]) {
   return slots.map((slot) =>
     rack
-      .querySelector(`[data-rack-slot="${slot}"] .rack-slot`)
+      .querySelector(`[data-rack-slot="${slot}"] .rack-slot-window`)
       ?.getBoundingClientRect(),
   );
 }
@@ -141,7 +141,7 @@ export function flyTiles(
           width: source.width,
           height: source.height,
         };
-    return [{ source: start, target, end, letter }];
+    return [{ source: start, end, letter }];
   });
   if (!flights.length) return;
 
@@ -151,53 +151,40 @@ export function flyTiles(
   document.body.append(layer);
   let cancelled = false;
   let finished = false;
-  const animations = flights.flatMap(({ source, target, end, letter }, i) => {
+  const animations = flights.flatMap(({ source, end, letter }, i) => {
     const blank = letter !== letter.toUpperCase();
     const tile = document.createElement("span");
-    tile.className = `flying-tile${blank ? " blank" : ""}`;
-    const glyph = document.createElement("span");
-    glyph.className = "flying-letter";
-    glyph.textContent = letter.toUpperCase();
-    const points = document.createElement("small");
-    points.textContent = String(tileScore(letter, rules));
-    const boardGlyph = getComputedStyle(target.querySelector(".tile-letter")!);
-    const boardPoints = getComputedStyle(target.querySelector(".tile-points")!);
-    Object.assign(glyph.style, {
-      fontSize: boardGlyph.fontSize,
-      fontWeight: boardGlyph.fontWeight,
-      marginTop: boardGlyph.marginTop,
-    });
-    Object.assign(points.style, {
-      fontSize: boardPoints.fontSize,
-      fontWeight: boardPoints.fontWeight,
-      right: boardPoints.right,
-      bottom: boardPoints.bottom,
-    });
-    tile.append(glyph, points);
+    tile.className = `flying-tile tile-face${blank ? " blank" : ""}`;
+    tile.append(createTileFaceContent(letter, rules));
     Object.assign(tile.style, {
       left: `${end.left}px`,
       top: `${end.top}px`,
       width: `${end.width}px`,
       height: `${end.height}px`,
-      borderRadius: getComputedStyle(target).borderRadius,
     });
     layer.append(tile);
     const dx = source.left - end.left;
     const dy = source.top - end.top;
-    const scaleX = source.width / end.width;
-    const scaleY = source.height / end.height;
     const delay = i * 62;
     const edge = trial ? "var(--archive-tile-edge)" : blank ? "#9fbccc" : "var(--tile-edge)";
     const motion = tile.animate(
       [
-        { transform: `translate(${dx}px,${dy}px) scale(${scaleX},${scaleY})` },
         {
-          transform: `translate(${dx * 0.54}px,${dy * 0.45 - 13}px) rotate(-4deg) scale(${(scaleX + 1) * 0.44},${(scaleY + 1) * 0.44})`,
+          transform: `translate(${dx}px,${dy}px)`,
+          width: `${source.width}px`,
+          height: `${source.height}px`,
+        },
+        {
+          transform: `translate(${dx * 0.54}px,${dy * 0.45 - 13}px) rotate(-4deg)`,
+          width: `${(source.width + end.width) * 0.44}px`,
+          height: `${(source.height + end.height) * 0.44}px`,
           offset: 0.52,
         },
         {
-          transform: "translate(0,0) scale(1)",
-          boxShadow: `inset 0 -2px ${edge}, 0 1px 2px #0001`,
+          transform: "translate(0,0)",
+          width: `${end.width}px`,
+          height: `${end.height}px`,
+          boxShadow: `inset 0 -2px ${edge}`,
         },
       ],
       {

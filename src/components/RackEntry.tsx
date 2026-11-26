@@ -21,7 +21,7 @@ import {
   sortedRackSlots,
   splitRack,
 } from "../../shared/rack-entry";
-import { minimumBingoTiles, tileScore, type Game, type Move } from "../../shared/model";
+import { minimumBingoTiles, type Game, type Move } from "../../shared/model";
 import type { ExchangeResult } from "../../shared/exchange";
 import type { OptimalExchangeResult } from "../../shared/optimal-exchange";
 import {
@@ -43,6 +43,7 @@ import OpponentRack from "./OpponentRack";
 import TilePool from "./TilePool";
 import RackBag from "./RackBag";
 import { unseenTiles } from "../../shared/tile-pool";
+import { createTileFaceContent, RackTileFace } from "./TileFace";
 
 const SENTINEL = "\u200b";
 const EXCHANGE_CACHE_LIMIT = 16;
@@ -311,11 +312,8 @@ export default function RackEntry({
       slides.current.get(i)?.stop();
       function face(letter: string) {
         const tile = document.createElement("span");
-        tile.className = `rack-face rack-slide${letter === "?" ? " blank" : ""}`;
-        tile.textContent = letter === "?" ? "" : letter;
-        const score = document.createElement("small");
-        score.textContent = String(tileScore(letter, game.template.rules));
-        tile.append(score);
+        tile.className = `rack-face rack-slide tile-face${letter === "?" ? " blank" : ""}`;
+        tile.append(createTileFaceContent(letter, game.template.rules));
         mask!.append(tile);
         return tile;
       }
@@ -593,12 +591,7 @@ export default function RackEntry({
             }}
           >
             <span className="rack-slot">
-              <span
-                className={`rack-face${unknown ? " unknown" : tile === "?" ? " blank" : !tile ? " empty" : ""}`}
-              >
-                {unknown ? "?" : tile === "?" ? "" : tile || "·"}
-                {tile && <small>{tileScore(tile, game.template.rules)}</small>}
-              </span>
+              <RackTileFace tile={tile} rules={game.template.rules} unknown={unknown} />
               <span className="rack-slot-window" aria-hidden="true" />
               {required ? (
                 <span className="rack-required-stripe" aria-hidden="true">

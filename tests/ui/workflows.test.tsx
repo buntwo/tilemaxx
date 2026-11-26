@@ -5870,7 +5870,7 @@ test.each([1200, 390])("finish overlay waits for the last tile, dismisses outsid
       if (this.matches(".board-finish")) return new DOMRect(10, 20, 500, 530);
       if (this.matches('[data-cell="0"]')) return new DOMRect(40, 70, 24, 24);
       if (this.matches('[data-cell="224"]')) return new DOMRect(480, 510, 24, 24);
-      return this.matches(".rack-slot, .square")
+      return this.matches(".rack-slot-window, .square")
         ? new DOMRect(60, 80, 24, 24)
         : rect.call(this);
     });

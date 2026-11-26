@@ -15,11 +15,11 @@ import {
   type Move,
   type Player,
   coordinate,
-  tileScore,
 } from "../../shared/model";
 import { BingoBadge } from "./MoveWord";
 import BoardCoordinates, { type CoordinateSelection } from "./BoardCoordinates";
 import { canHoverWithMouse } from "../move-preview";
+import TileFace from "./TileFace";
 
 const TILE_HOLD_MS = 450;
 
@@ -183,7 +183,7 @@ export default function Board({
                   data-definition-open={definedSquare === i || undefined}
                   disabled={disabled || (defining && !board[i])}
                   tabIndex={compact && !overlay ? -1 : undefined}
-                  className={`square ${bonus.toLowerCase()} ${tile ? "occupied" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${trial ? "trial-tile" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}${wordTiles.has(i) ? " word-hover" : ""}${marked ? " move-filter-square" : ""}`}
+                  className={`square ${bonus.toLowerCase()} ${tile ? "occupied tile-face" : ""} ${ghost ? "ghost" : ""} ${archiveEdit ? "archive-edit" : ""} ${trial ? "trial-tile" : ""} ${selected === i ? "selected" : ""} ${tile && tile === tile.toLowerCase() ? "blank" : ""} ${selected === i && pendingBlank ? "pending-blank" : ""}${highlight === i ? " defense-square" : ""}${wordTiles.has(i) ? " word-hover" : ""}${marked ? " move-filter-square" : ""}`}
                   aria-label={`${coordinate(i, n)}${tile ? `: ${tile.toUpperCase()}${tile === tile.toLowerCase() ? " blank" : ""}` : bonus ? `: ${bonus}` : ": empty"}${i === template.start ? ", start" : ""}${archiveEdit ? ", edited after archiving" : ""}${trial ? ", trial tile" : ""}${overlay ? `, ${overlay.label}` : ""}${marked && !selectingSquares ? ", required for move filter" : ""}${missing ? `, missing ${missing} from rack` : draft ? ", draft tile" : ""}`}
                   aria-pressed={
                     cellOverlay
@@ -298,14 +298,7 @@ export default function Board({
                     </span>
                   )}
                   {tile ? (
-                    <>
-                      <span className="tile-letter">{tile.toUpperCase()}</span>
-                      {!missing && (
-                        <span className="tile-points">
-                          {tileScore(tile, template.rules)}
-                        </span>
-                      )}
-                    </>
+                    <TileFace tile={tile} rules={template.rules} hidePoints={!!missing} />
                   ) : i === template.start ? (
                     <>
                       <Star

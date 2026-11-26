@@ -1696,7 +1696,7 @@ label + label {
   outline-offset: 0 !important;
   transition: box-shadow 0.1s;
 }
-.square:hover {
+.square:not(.occupied):hover {
   box-shadow: inset 0 0 0 2px #718b7f88;
 }
 .premium-label {
@@ -1735,27 +1735,39 @@ label + label {
 }
 .square.occupied {
   transition: none;
+}
+.tile-face {
+  --tile-face-edge: var(--tile-edge);
+  border-radius: clamp(2px, 8%, 4px);
   background: var(--tile);
   color: var(--tile-text);
-  box-shadow:
-    inset 0 -2px var(--tile-edge),
-    0 1px 2px #0001;
+  box-shadow: inset 0 -2px var(--tile-face-edge);
+}
+.tile-face.blank {
+  --tile-face-edge: #9fbccc;
+  background: var(--blank-tile);
+  color: var(--blank-ink);
+}
+.tile-face-content {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  container-type: inline-size;
+  line-height: 1;
+  pointer-events: none;
 }
 .tile-letter {
-  font-size: clamp(10px, 3.7cqw, 23px);
+  font-size: clamp(6px, 56cqi, 24px);
   font-weight: 630;
-  line-height: 1;
-  margin-top: -1px;
 }
 .tile-points {
-  font-size: clamp(5px, 1.3cqw, 8px);
   position: absolute;
-  bottom: 2px;
-  right: 3px;
-  line-height: 1;
-}
-.square.blank .tile-letter {
-  color: #758778;
+  bottom: max(1px, 9%);
+  right: max(1px, 3%);
+  font-size: calc(clamp(3px, 24cqi, 8px) + max(0px, 100cqi - 36px) * .3);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .square.selected {
   outline: 2px solid var(--primary);
@@ -1873,12 +1885,6 @@ label + label {
   background: var(--tile);
   color: var(--tile-text);
   box-shadow: 0 2px 2px #00000006;
-}
-.rack-tile small {
-  font-size: 8px;
-  position: absolute;
-  bottom: 4px;
-  right: 6px;
 }
 .rack-tile.empty {
   background: var(--bg);
@@ -3948,13 +3954,6 @@ label + label {
   .axis {
     min-height: 13px;
   }
-  .tile-points {
-    right: 2px;
-    bottom: 2px;
-  }
-  .tile-letter {
-    font-size: clamp(8px, 3.7cqw, 23px);
-  }
   .center-star {
     width: 43%;
     height: 43%;
@@ -4015,11 +4014,6 @@ label + label {
   .rack-tile {
     font-size: 23px;
     max-width: 55px;
-  }
-  .rack-tile small {
-    font-size: 8px;
-    right: 4px;
-    bottom: 3px;
   }
   .rack-input-row input {
     font-size: 16px;
@@ -4162,11 +4156,8 @@ label + label {
   }
 }
 @media (hover: none) {
-  .square:hover {
+  .square:not(.occupied):hover {
     box-shadow: none;
-  }
-  .square.occupied {
-    box-shadow: inset 0 -2px var(--tile-edge);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -4462,15 +4453,6 @@ label + label {
   height: 100%;
   stroke-width: 3;
 }
-.square.occupied.blank {
-  background: var(--blank-tile);
-  box-shadow:
-    inset 0 -2px #9fbccc,
-    0 1px 2px #0001;
-}
-.square.blank .tile-letter {
-  color: var(--blank-ink);
-}
 @property --preview-tile-light {
   syntax: "<percentage>";
   inherits: true;
@@ -4520,9 +4502,6 @@ label + label {
   --preview-edge: #355e83;
   color: #06131f;
 }
-.square.occupied.ghost.blank .tile-letter {
-  color: inherit;
-}
 .square.occupied.ghost::before,
 .rack-tile.move-preview .rack-face::before {
   content: "";
@@ -4551,7 +4530,7 @@ label + label {
     inset 0 -2px var(--archive-tile-edge),
     0 1px 2px #0001;
 }
-.square.occupied:is(.archive-edit, .trial-tile).blank .tile-letter {
+.square.occupied:is(.archive-edit, .trial-tile).blank {
   color: var(--archive-blank-ink);
 }
 .square.occupied.word-hover {
@@ -4735,11 +4714,6 @@ label + label {
 .rack-entry .rack-lane:has(.rack-owner-label) > .rack-tiles { margin-block: 0; }
 .rack-lane:has(.rack-owner-label) .rack-tiles { gap: clamp(3px, 1vw, 7px); }
 .rack-lane:has(.rack-owner-label) :where(.rack-face) { font-size: min(23px, 54cqi); }
-.rack-lane:has(.rack-owner-label) :where(.rack-face small) {
-  font-size: min(8px, 22cqi);
-  right: min(6px, 13cqi);
-  bottom: min(4px, 10cqi);
-}
 .rack-player-lane:has(> .rack-shuffle) {
   display: grid;
   grid-template-columns: minmax(42px, 1fr) minmax(0, var(--rack-tray-width)) minmax(42px, 1fr);
@@ -4920,29 +4894,13 @@ label + label {
 .rack-face {
   position: absolute;
   inset: 0;
-  border-radius: inherit;
   pointer-events: none;
 }
-.rack-slot-window { overflow: hidden; }
+.rack-slot-window { overflow: hidden; border-radius: inherit; }
 .rack-face {
   display: grid;
   place-items: center;
   font-size: min(1em, 54cqi);
-  background: var(--tile);
-  color: var(--tile-text);
-  box-shadow: inset 0 -2px var(--tile-edge);
-}
-@container (max-width: 34px) {
-  .rack-slot .rack-face small {
-    font-size: min(8px, 22cqi);
-    right: min(4px, 7cqi);
-    bottom: min(4px, 7cqi);
-  }
-}
-.rack-face.blank {
-  background: var(--blank-tile);
-  color: var(--blank-ink);
-  box-shadow: inset 0 -2px #9fbccc;
 }
 .rack-face.empty {
   font-size: .74em;
@@ -4965,22 +4923,9 @@ label + label {
 }
 .flying-tile {
   position: absolute;
-  display: grid;
-  place-items: center;
   transform-origin: top left;
-  background: var(--tile);
-  color: var(--tile-text);
-  border-radius: 5px;
-  font-weight: 630;
-  line-height: 1;
-  box-shadow: inset 0 -2px var(--tile-edge), 0 4px 9px #172b2533;
+  box-shadow: inset 0 -2px var(--tile-face-edge), 0 4px 9px #172b2533;
 }
-.flying-tile.blank {
-  background: var(--blank-tile);
-  color: var(--blank-ink);
-  box-shadow: inset 0 -2px #9fbccc, 0 4px 9px #172b2533;
-}
-.flying-tile small { position: absolute; }
 .rack-tile.excluded .rack-slot {
   border-style: dashed;
   background: var(--surface);
@@ -6155,7 +6100,6 @@ label + label {
   box-shadow: none;
   border: 1px dashed currentColor;
 }
-.square[data-missing-rack] :is(.tile-letter, .tile-points) { color: inherit; }
 .own-play-actions {
   display: flex;
   align-items: center;
@@ -6281,13 +6225,6 @@ label + label {
   line-height: 1;
 }
 @container (max-width: 210px) {
-  .phone-board-column .board-entry .board-grid .tile-letter {
-    font-size: clamp(6px, 3.8cqw, 8px);
-  }
-  .phone-board-column .board-entry .board-grid .tile-points {
-    inset: auto 1px 1px auto;
-    font-size: clamp(3px, 1.9cqw, 4px);
-  }
   .phone-board-column .board-entry .board-grid .premium-label {
     font-size: clamp(4px, 2.8cqw, 6px);
   }
@@ -6460,7 +6397,6 @@ label + label {
   width: var(--phone-opponent-tile-size);
 }
 .phone-board-column .rack-face { font-size: min(23px, 59cqi); }
-.phone-board-column .rack-face small { right: 2px; bottom: 1px; }
 .phone-board-column .rack-lane-tools {
   display: grid;
   justify-items: center;

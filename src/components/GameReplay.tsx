@@ -7,11 +7,12 @@ import {
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { gameScoreTotals, scoreHistoryMoves, type GameScoreSummary } from "../../shared/game-scoring";
 import type { ReplayFrame } from "../../shared/game-replay";
-import { tileScore, type Game, type GameScoring } from "../../shared/model";
+import type { Game, GameScoring } from "../../shared/model";
 import { recordedMoveDetails } from "../../shared/notation";
 import { ScorePlayers } from "./GameScores";
 import MoveWord from "./MoveWord";
 import ScoreChart from "./ScoreChart";
+import { RackTileFace } from "./TileFace";
 import TrackedMoveHistory from "./TrackedMoveHistory";
 
 function ReplayMoveStrip({
@@ -297,10 +298,7 @@ function ReplayTile({
       aria-label={label}
     >
       <span className="rack-slot">
-        <span className={`rack-face${unknown ? " unknown" : tile === "?" ? " blank" : !tile ? " empty" : ""}`}>
-          {unknown ? "?" : tile === "?" ? "" : tile || "·"}
-          {tile && <small>{tileScore(tile, rules)}</small>}
-        </span>
+        <RackTileFace tile={tile} rules={rules} unknown={unknown} />
       </span>
     </span>
   );
