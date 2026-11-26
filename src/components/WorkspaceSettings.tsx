@@ -4,7 +4,9 @@ import { computeWorkerLimit, isWorkerCount } from "../compute-workers";
 import Modal from "./Modal";
 
 const storageKey = "tilemaxx:workspace-preferences";
+type TurnBorder = "panel-and-divider" | "panel-only";
 const defaults = {
+  turnBorder: "panel-and-divider" as TurnBorder,
   highlightRackPreview: true,
   pulseMovePreviews: true,
   animatePlayedTiles: true,
@@ -42,6 +44,7 @@ function readPreferences(): Preferences {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) ?? "null");
     return {
+      turnBorder: saved?.turnBorder === "panel-only" ? "panel-only" : defaults.turnBorder,
       highlightRackPreview: saved?.highlightRackPreview !== false,
       pulseMovePreviews: saved?.pulseMovePreviews !== false,
       animatePlayedTiles: saved?.animatePlayedTiles !== false,
@@ -115,6 +118,18 @@ export default function WorkspaceSettings({
               </button>
             ))}
           </div>
+          <label className="workspace-turn-border">
+            Turn border
+            <select
+              value={preferences.turnBorder}
+              onChange={(event) =>
+                onChange({ ...preferences, turnBorder: event.currentTarget.value as TurnBorder })
+              }
+            >
+              <option value="panel-and-divider">Panel and divider</option>
+              <option value="panel-only">Panel only</option>
+            </select>
+          </label>
         </fieldset>
         {sections.map(({ title, options }) => (
           <fieldset key={title}>

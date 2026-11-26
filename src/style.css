@@ -3505,6 +3505,12 @@ label + label {
   flex: none;
   accent-color: var(--primary);
 }
+.workspace-preference-list .workspace-turn-border {
+  justify-content: space-between;
+}
+.workspace-turn-border select {
+  width: auto;
+}
 .workspace-hardware-info {
   display: grid;
   gap: 6px;
@@ -4724,7 +4730,7 @@ label + label {
 .direct-entry-tools {
   margin: 8px 16px 0;
   padding: 10px 0 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--board-strip-divider, var(--line));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -6582,6 +6588,16 @@ label + label {
   --board-strip-control-height: 28px;
   --board-strip-inset: calc((var(--board-strip-height) - var(--board-strip-control-height)) / 2);
 }
+.board-panel[data-turn="you"] { --board-turn-color: var(--value-good); }
+.board-panel[data-turn="opponent"] { --board-turn-color: var(--value-bad); }
+.board-panel[data-turn] { border-color: var(--board-turn-color); }
+.board-panel[data-turn][data-turn-border="panel-and-divider"] {
+  --board-strip-divider: var(--board-turn-color);
+}
+.board-panel[data-turn][data-turn-border="panel-and-divider"] .with-board-history {
+  margin-inline: 0;
+  padding-inline: 2px;
+}
 .board-panel .with-board-turn-actions {
   container: board-turn-strip / inline-size;
   flex-wrap: wrap;
@@ -6769,7 +6785,7 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   padding-block: var(--board-strip-inset);
   min-height: var(--board-strip-height);
   border: 0;
-  box-shadow: inset 0 1px var(--line);
+  box-shadow: inset 0 1px var(--board-strip-divider, var(--line));
 }
 .board-panel :is(
   .direct-entry-actions > button, .move-square-controls > button,

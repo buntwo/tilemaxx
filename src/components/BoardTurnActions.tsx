@@ -13,6 +13,7 @@ export type RackExchangeEntry = {
 
 export function useBoardTurnActions(
   game: Game | undefined,
+  showControls: boolean,
   onStart: () => void,
   onRecord: (player: Player, action: BoardlessTurn) => boolean,
 ) {
@@ -24,9 +25,9 @@ export function useBoardTurnActions(
   const groupId = useId();
   const inferred = useMemo(() => game && boardActionPlayer(game), [game]);
   const player = inferred ?? (opening?.gameId === game?.id ? opening?.player : undefined) ?? "you";
-  const key = game && JSON.stringify([
+  const key = game && showControls ? JSON.stringify([
     game.id, game.board, game.rack, game.past.at(-1)?.at, game.past.length, player,
-  ]);
+  ]) : undefined;
   const exchange = draft?.key === key ? draft : undefined;
   const opponentExchange = !!exchange && player === "opponent";
 
@@ -52,13 +53,14 @@ export function useBoardTurnActions(
     return () => document.removeEventListener("keydown", escape);
   }, [exchange]);
 
-  if (!game || !key) return {};
+  if (!game) return {};
+  const label = player === "you" ? "Your turn" : "Opponent’s turn";
+  if (!key) return { player, label };
 
   function record(action: BoardlessTurn) {
     if (onRecord(player, action)) setDraft(undefined);
   }
 
-  const label = player === "you" ? "Your turn" : "Opponent’s turn";
   const controls = (
     <div className="board-turn-actions" data-player={player} role="group" aria-label={`Record turn · ${label}`}>
       <button type="button" className="board-turn-button" onClick={() => record({ kind: "pass" })}>
@@ -143,5 +145,5 @@ export function useBoardTurnActions(
     cancel,
   } : undefined;
 
-  return { controls, details, rackExchange, dismiss: () => setDraft(undefined) };
+  return { player, label, controls, details, rackExchange, dismiss: () => setDraft(undefined) };
 }

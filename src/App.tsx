@@ -496,8 +496,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     activeFlight?.reviewing,
   );
   const boardTurns = useBoardTurnActions(
-    game && canEnterOwnPlay && tracksScores(game) && !historical && !enteringOwnPlay &&
-      (!moveReview.showing || !preview) && !squareFilter.selecting ? game : undefined,
+    workspace === "games" && game && !game.archived && !gameOver && !historical &&
+      tracksScores(game) ? game : undefined,
+    canEnterOwnPlay && !enteringOwnPlay && (!moveReview.showing || !preview) && !squareFilter.selecting,
     editPosition,
     commitBoardTurn,
   );
@@ -1404,8 +1405,11 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               board={<section
                 ref={boardPanel}
                 aria-label="Game board"
+                aria-description={boardTurns.label}
                 className="board-panel panel"
                 data-replay={historical || undefined}
+                data-turn={boardTurns.player}
+                data-turn-border={preferences.turnBorder}
                 onKeyDown={(event) => {
                   if (
                     !historical &&

@@ -2471,6 +2471,7 @@ test("game links restore replay and review turns, and stepping works with browse
   const slider = () => screen.getByRole("slider", { name: "Replay moves" });
   await screen.findByRole("button", { name: "Preview recorded move CAT" });
   expect(screen.getByLabelText("Current profile")).toHaveProperty("value", "other");
+  expect(screen.getByRole("region", { name: "Game board" }).hasAttribute("data-turn")).toBe(false);
 
   await user.click(cell("Next move"));
   expect(location.search).toBe("?move=2");
@@ -2485,6 +2486,7 @@ test("game links restore replay and review turns, and stepping works with browse
   await screen.findByRole("button", { name: "Preview recorded move ART" });
   await user.click(cell("Back to live"));
   expect(location.search).toBe("");
+  expect(screen.getByRole("region", { name: "Game board" }).getAttribute("data-turn")).toBe("you");
   await user.click(cell("Review game"));
   const review = await screen.findByRole("dialog", { name: "Review game" });
   expect(location.search).toBe("?review=game");
@@ -7111,6 +7113,38 @@ test("hovering a move highlights the first available copy of each rack tile it u
   expect(blankMove.querySelector(".assigned-blank")?.textContent).toBe("A");
   await user.hover(blankMove);
   expect(highlighted()).toEqual([1, 2, 3]);
+});
+
+test("the board turn border follows the active player and remembers its placement", async () => {
+  localStorage.setItem("tilemaxx:workspace-preferences", JSON.stringify({ autoUpdate: false }));
+  const user = userEvent.setup();
+  const app = render(<App />);
+  const board = () => screen.getByRole("region", { name: "Game board" });
+  await screen.findByRole("heading", { name: /First game/ });
+  expect(board().getAttribute("data-turn-border")).toBe("panel-and-divider");
+  expect(board().getAttribute("data-turn")).toBe("you");
+
+  await user.click(cell("Your turn. Switch active player"));
+  expect(board().getAttribute("data-turn")).toBe("opponent");
+  expect(board().getAttribute("aria-description")).toBe("Opponent’s turn");
+
+  await user.click(cell("Settings"));
+  const settings = within(screen.getByRole("dialog", { name: "Settings" }));
+  const turnBorder = settings.getByRole("combobox", { name: "Turn border" });
+  expect(turnBorder).toHaveProperty("value", "panel-and-divider");
+  await user.selectOptions(turnBorder, "panel-only");
+  await user.click(settings.getByRole("button", { name: "Close dialog" }));
+  expect(board().getAttribute("data-turn-border")).toBe("panel-only");
+  expect(board().getAttribute("data-turn")).toBe("opponent");
+
+  await user.click(cell("Pass"));
+  expect(current().trackedMoves?.at(-1)?.player).toBe("opponent");
+  expect(board().getAttribute("data-turn")).toBe("you");
+
+  app.unmount();
+  render(<App />);
+  await screen.findByRole("heading", { name: /First game/ });
+  expect(board().getAttribute("data-turn-border")).toBe("panel-only");
 });
 
 test("workspace settings keep board previews visible with plain rack tiles and persist across reloads", async () => {
