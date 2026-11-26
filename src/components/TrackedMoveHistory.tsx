@@ -37,7 +37,7 @@ function MoveCell({
   );
 }
 
-function StrengthPill({ score, strength }: { score: number; strength: MoveStrength }) {
+function StrengthMeter({ score, strength }: { score: number; strength: MoveStrength }) {
   const tooltipId = useId();
   const percent = Math.round(100 * score / strength.best);
   const band = percent <= 60 ? "green" : percent <= 80 ? "yellow" : "red";
@@ -46,7 +46,7 @@ function StrengthPill({ score, strength }: { score: number; strength: MoveStreng
       <button
         type="button"
         className="score-strength-trigger"
-        aria-label={`Move strength ${percent}%`}
+        aria-label={`Move strength ${strength.assumedEmptyBag ? "approximately " : ""}${percent}%`}
         aria-describedby={tooltipId}
         onClick={(event) => event.currentTarget.focus()}
       >
@@ -55,8 +55,7 @@ function StrengthPill({ score, strength }: { score: number; strength: MoveStreng
         </span>
       </button>
       <span className="score-strength-tooltip" role="tooltip" id={tooltipId}>
-        {`${percent}% · ${score}/${strength.best} pts`}
-        {strength.assumedEmptyBag && <small>Assuming an empty bag</small>}
+        {`${strength.assumedEmptyBag ? "≈" : ""}${percent}% · ${score}/${strength.best} pts`}
       </span>
     </>
   );
@@ -169,7 +168,7 @@ export default function TrackedMoveHistory({
                     <td className="score-move-total">{move.total}</td>
                     <td className="score-move-strength">
                       {strength ? (
-                        <StrengthPill score={move.score} strength={strength} />
+                        <StrengthMeter score={move.score} strength={strength} />
                       ) : <span aria-label="Move strength unavailable">—</span>}
                     </td>
                   </tr>

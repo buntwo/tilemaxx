@@ -197,8 +197,8 @@ test("move history calculates strength when opened and discards results for a ch
   act(() => workers[1].onmessage?.({
     data: { result: { 1: { best: 76, percent: 100, assumedEmptyBag: true } } },
   }));
-  const assumed = table.getByText("100% · 76/76 pts");
-  expect(within(assumed).getByText("Assuming an empty bag")).toBeTruthy();
+  const estimate = table.getByRole("button", { name: "Move strength approximately 100%" });
+  expect(estimate.getAttribute("aria-describedby")).toBe(table.getByText("≈100% · 76/76 pts").id);
 });
 
 test("the score chart pairs adjacent plays and carries forward the score for a missing reply", () => {
