@@ -290,7 +290,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     const button = sidebarVisible ? sidebarCollapseButton : sidebarOpenButton;
     button.current?.focus({ preventScroll: true });
   }, [sidebarVisible]);
-  const [theme, setTheme] = useState(saved("tilewise:theme", "system"));
+  const [theme, setTheme] = useState(() =>
+    // Older versions saved System even when the user had never selected it.
+    saved("tilemaxx:theme") || (saved("tilewise:theme") === "light" ? "light" : "dark"),
+  );
   const [preferences, setPreferences] = preferenceState;
   const [movePreview, setPreview] = useState<{
     move: Move;
@@ -588,10 +591,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   }, [profileId, openId, selectedGame?.archived]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    try {
-      localStorage.setItem("tilewise:theme", theme);
-    } catch {}
   }, [theme]);
+  function changeTheme(nextTheme: string) {
+    setTheme(nextTheme);
+    try {
+      localStorage.setItem("tilemaxx:theme", nextTheme);
+    } catch {}
+  }
   useEffect(() => setPreview(null), [signature]);
   useEffect(() => {
     setError("");
@@ -2125,7 +2131,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       {dialog === "workspace-settings" && (
         <WorkspaceSettings
           theme={theme}
-          onThemeChange={setTheme}
+          onThemeChange={changeTheme}
           preferences={preferences}
           concurrencyHint={concurrencyHint}
           workerLimit={workerLimit}

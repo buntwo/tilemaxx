@@ -15,10 +15,12 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Tilemaxx — find your next move</title>
     <script>
+      let theme = "dark";
       try {
-        document.documentElement.dataset.theme =
-          localStorage.getItem("tilewise:theme") || "system";
+        theme = localStorage.getItem("tilemaxx:theme") ||
+          (localStorage.getItem("tilewise:theme") === "light" ? "light" : "dark");
       } catch {}
+      document.documentElement.dataset.theme = theme;
     </script>
   </head>
   <body>

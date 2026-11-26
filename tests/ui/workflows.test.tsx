@@ -4761,7 +4761,7 @@ test("multiple games retain separate racks and word lists", async () => {
   );
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(screen.getByRole("button", { name: "dark theme" }));
-  expect(localStorage.getItem("tilewise:theme")).toBe("dark");
+  expect(localStorage.getItem("tilemaxx:theme")).toBe("dark");
   await user.click(screen.getByRole("button", { name: "Close dialog" }));
   expect(
     Object.values(store.snapshot.games).find((g) => g.name === "Second game")!
@@ -7180,6 +7180,26 @@ test("the board turn border follows the active player and remembers its placemen
   expect(board().getAttribute("data-turn-border")).toBe("panel-and-divider");
 });
 
+test("Dark replaces the old System default and a new System selection persists", async () => {
+  localStorage.setItem("tilewise:theme", "system");
+  const user = userEvent.setup();
+  const app = render(<App />);
+  await screen.findByRole("heading", { name: /First game/ });
+  expect(document.documentElement.dataset.theme).toBe("dark");
+
+  await user.click(cell("Settings"));
+  const settings = within(screen.getByRole("dialog", { name: "Settings" }));
+  expect(settings.getByRole("button", { name: "dark theme" }).getAttribute("aria-pressed")).toBe("true");
+  await user.click(settings.getByRole("button", { name: "system theme" }));
+  expect(document.documentElement.dataset.theme).toBe("system");
+  await user.click(settings.getByRole("button", { name: "Close dialog" }));
+
+  app.unmount();
+  render(<App />);
+  await screen.findByRole("heading", { name: /First game/ });
+  expect(document.documentElement.dataset.theme).toBe("system");
+});
+
 test("workspace settings keep board previews visible with plain rack tiles and persist across reloads", async () => {
   const hardware = vi.spyOn(navigator, "hardwareConcurrency", "get").mockReturnValue(8);
   const user = userEvent.setup();
@@ -7204,10 +7224,11 @@ test("workspace settings keep board previews visible with plain rack tiles and p
 
   await openSettings();
   expect(dialog().getByText("Applies to all games in this browser only.")).toBeTruthy();
+  expect(dialog().getByRole("button", { name: "dark theme" }).getAttribute("aria-pressed")).toBe("true");
   for (const theme of ["light", "system", "dark"]) {
     await user.click(dialog().getByRole("button", { name: `${theme} theme` }));
     expect(document.documentElement.dataset.theme).toBe(theme);
-    expect(localStorage.getItem("tilewise:theme")).toBe(theme);
+    expect(localStorage.getItem("tilemaxx:theme")).toBe(theme);
   }
   expect(
     ["Move previews", "Gameplay", "Updates"].map(
