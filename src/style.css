@@ -3832,10 +3832,6 @@ label + label {
   flex-shrink: 0;
   font-size: 11px;
 }
-.archived-game-back {
-  margin-top: 14px;
-  min-height: 44px;
-}
 .archive-games {
   list-style: none;
   margin: 0;
@@ -6034,7 +6030,6 @@ label + label {
     display: none;
   }
 }
-.phone-layout .archived-game-back { margin-top: 4px; }
 .phone-layout .board-panel {
   position: relative;
   overflow: visible;

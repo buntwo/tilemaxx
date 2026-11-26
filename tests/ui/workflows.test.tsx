@@ -4605,7 +4605,7 @@ test("archive rows show saved tracked scores and outcome colors from summaries",
   expect(board().queryByRole("heading", { name: "You win!" })).toBeNull();
   expect(startSquare).toHaveProperty("disabled", false);
 
-  await user.click(cell("Back to archived games"));
+  await user.click(cell("Archived games"));
   await user.click(row("Manually ended opponent"));
   await screen.findByRole("heading", { name: "Manually ended opponent" });
   await screen.findByRole("button", { name: "Replay finish animation" });
@@ -4917,6 +4917,7 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
   expect(screen.getByRole("heading", { name: "Sam" })).toBeTruthy();
   expect(screen.getByText("Club night · Test words", { selector: ".game-heading-metadata" })).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Switch game" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Back to archived games" })).toBeNull();
   expect(cell("Archived games").getAttribute("aria-current")).toBe("page");
   expect(cell("My games").getAttribute("aria-current")).toBeNull();
   expect(rackTile(1).getAttribute("aria-label")).toBe("Rack tile 1: D");
@@ -4954,15 +4955,12 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
     archived: true,
     board: archivedBoard,
   });
-  await user.click(cell("Back to archived games"));
+  await user.click(cell("Archived games"));
   expect(location.hash).toBe("#archived-games");
   expect(names()[0]).toBe("SamClub night · Test words · Jun 1, 2026");
   expect(screen.queryByRole("heading", { name: "Sam" })).toBeNull();
   await user.click(cell("My games"));
   expect(screen.getByRole("heading", { name: "First game" })).toBeTruthy();
-  expect(
-    screen.queryByRole("button", { name: "Back to archived games" }),
-  ).toBeNull();
   expect(cell("Switch game")).toBeTruthy();
   expect(cell("My games").getAttribute("aria-current")).toBe("page");
 });
@@ -5936,8 +5934,8 @@ test.each([1200, 390])("finish overlay waits for the last tile, dismisses outsid
     await user.click(board.getByRole("button", { name: "Archive game" }));
     expect(board.queryByRole("heading", { name: "You win!" })).toBeNull();
     expect(screen.getByRole("heading", { name: "First game" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Back to archived games" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Switch game" })).toBeNull();
+    expect(current().archived).toBe(true);
     expect(current().archivedBoard).toEqual(finished.board);
     expect(current().archivedState?.scoring).toEqual(finished.scoring);
     await act(() => store.flush());

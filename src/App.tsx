@@ -2,7 +2,6 @@ import { isSimulatedStyle } from "../shared/simulated-styles";
 import { Activity, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ImagePlus,
-  ArrowLeft,
   ArrowRight,
   ChartNoAxesCombined,
   CircleArrowUp,
@@ -1229,15 +1228,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         </div>
       </aside>
       <main className="main-content">
-        {viewingArchivedGame && (
-          <button
-            className="button secondary archive-back archived-game-back"
-            onClick={() => showWorkspace("archive")}
-          >
-            <ArrowLeft size={16} aria-hidden="true" />
-            Back to archived games
-          </button>
-        )}
         {workspace === "games" && (
           <header className="workspace-heading game-heading">
             {sidebarButton}
