@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test } from "vitest";
-import { emptyScoring, recordOpponentPlay } from "../../shared/game-scoring";
+import { emptyScoring, recordBoardlessTurn, recordOpponentPlay } from "../../shared/game-scoring";
 import {
   applyMove,
   archiveGame,
@@ -132,6 +132,24 @@ test("an older score entry with no recoverable position shows its recorded word 
   expect(screen.getByText("Opponent").classList.contains("visually-hidden")).toBe(true);
   expect(screen.getByText("70 pts")).toBeTruthy();
   expect(screen.queryByRole("button")).toBeNull();
+});
+
+test("the Last strip abbreviates exchanges with known tiles or a count", () => {
+  const ownExchange = recordBoardlessTurn(
+    { ...opponentBingo(), rack: "CATERS?" },
+    "you",
+    { kind: "exchange", slots: [0, 1, 2] },
+  );
+  const { rerender } = render(<LastPlay game={ownExchange} />);
+  expect(screen.getByText("Exch CAT")).toBeTruthy();
+
+  const counted = recordBoardlessTurn(ownExchange, "opponent", { kind: "exchange", count: 4 });
+  rerender(<LastPlay game={counted} />);
+  expect(screen.getByText("Exch 4")).toBeTruthy();
+
+  const unknown = recordBoardlessTurn(ownExchange, "opponent", { kind: "exchange" });
+  rerender(<LastPlay game={unknown} />);
+  expect(screen.getByText("Exch")).toBeTruthy();
 });
 
 test("the bag status shows remaining blanks beside the vowel percentage", () => {

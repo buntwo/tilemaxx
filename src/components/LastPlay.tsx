@@ -127,7 +127,7 @@ function LastPlayLane({
       <span>Last:</span>
       <span className="visually-hidden">{move.player === "you" ? "You" : "Opponent"}</span>
       <strong className="last-play-word" data-player={move.player}>
-        {move.action ? trackedTurnLabel(move) : <MoveWord word={move.word} bingo={bingo} />}
+        {move.action ? trackedTurnLabel(move, "compact") : <MoveWord word={move.word} bingo={bingo} />}
       </strong>
       <span aria-hidden="true">·</span>
       <span className="last-play-points">{move.score} pts</span>
