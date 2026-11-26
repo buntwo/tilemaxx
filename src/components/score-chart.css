@@ -163,6 +163,8 @@
 }
 .score-chart-play [data-move-id] { cursor: help; }
 
+.score-chart-action { font-weight: 500; }
+
 .score-chart-points {
   color: var(--existing-letter);
   font-weight: 400;

@@ -295,11 +295,15 @@ export default function ScoreChart({
                 {play ? (
                   <>
                     {play.bingo && <BingoBadge />}
-                    {play.action ? <strong>{trackedTurnLabel(play)}</strong> : <DefinitionWord
-                      key={play.number}
-                      word={play.word}
-                      className={play.bingo ? "bingo-move-word" : undefined}
-                    />}
+                    {play.action ? (
+                      <span className="score-chart-action">{trackedTurnLabel(play)}</span>
+                    ) : (
+                      <DefinitionWord
+                        key={play.number}
+                        word={play.word}
+                        className={play.bingo ? "bingo-move-word" : undefined}
+                      />
+                    )}
                     <span className="score-chart-points">+{number.format(play.score)} pts</span>
                   </>
                 ) : muted ? (

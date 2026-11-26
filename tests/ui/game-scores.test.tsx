@@ -286,12 +286,14 @@ test("Game scores labels passes and exchanges and carries forward both totals", 
   expect(cursor.getAttribute("aria-valuetext")).toBe(
     "Moves 5–6. You 24 points, Pass for 0 points. Opponent 18 points, Exchange · count unknown for 0 points",
   );
+  expect(chart.getByText("Pass").className).toBe("score-chart-action");
+  expect(chart.getByText("Exchange · count unknown").className).toBe("score-chart-action");
   fireEvent.change(cursor, { target: { value: "2" } });
   expect(cursor.getAttribute("aria-valuetext")).toBe(
     "Moves 3–4. You 24 points, Exchange J C for 0 points. Opponent 18 points, Exchange · 3 tiles for 0 points",
   );
-  expect(chart.getByText("Exchange J C")).toBeTruthy();
-  expect(chart.getByText("Exchange · 3 tiles")).toBeTruthy();
+  expect(chart.getByText("Exchange J C").className).toBe("score-chart-action");
+  expect(chart.getByText("Exchange · 3 tiles").className).toBe("score-chart-action");
 });
 
 test("seeking on the replay chart keeps it in view when the layout above it changes", () => {
