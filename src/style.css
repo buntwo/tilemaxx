@@ -6150,7 +6150,7 @@ label + label {
   justify-content: center;
   border: 1px solid var(--line);
   border-radius: 5px;
-  background: light-dark(#f2f5f0, #29372e);
+  background: var(--board-button-background);
   color: var(--existing-letter);
 }
 .board-panel .direct-entry-actions > .board-define:hover:not(:disabled) { background: var(--soft); }
@@ -6592,6 +6592,7 @@ label + label {
   --board-strip-height: 33px;
   --board-strip-control-height: 28px;
   --board-define-height: 24px;
+  --board-button-background: light-dark(#f2f5f0, #29372e);
   --board-strip-inset: calc((var(--board-strip-height) - var(--board-strip-control-height)) / 2);
 }
 .board-panel[data-turn="you"] { --board-turn-color: var(--value-good); }
@@ -6621,10 +6622,18 @@ label + label {
   gap: var(--board-turn-gap);
 }
 .with-board-history .direct-entry-actions > .board-turn-actions:has(+ .board-define) {
+  position: relative;
   margin-inline-end: calc(var(--board-turn-gap) - var(--board-action-gap));
 }
-.board-turn-actions[data-player="opponent"],
-.board-turn-count { --turn-color: var(--value-bad); }
+.with-board-history .direct-entry-actions > .board-turn-actions:has(+ .board-define)::after {
+  content: "";
+  position: absolute;
+  inset-block: 4px;
+  inset-inline-start: calc(100% + (var(--board-turn-gap) - 1px) / 2);
+  border-inline-start: 1px solid var(--line);
+  pointer-events: none;
+}
+.board-turn-actions[data-player="opponent"] { --turn-color: var(--value-bad); }
 .board-turn-count-options,
 .board-turn-confirm { flex-wrap: wrap; gap: 3px; }
 .board-turn-button {
@@ -6635,18 +6644,21 @@ label + label {
   min-width: var(--board-define-height);
   min-height: var(--board-define-height);
   padding: 0 5px;
-  border: 1px solid color-mix(in srgb, var(--turn-color) 36%, var(--line));
+  border: 1px solid var(--line);
   border-radius: 5px;
-  background: color-mix(in srgb, var(--turn-color) 10%, var(--surface));
-  color: var(--turn-color);
+  background: var(--board-button-background);
+  color: var(--existing-letter);
   font: inherit;
   font-size: 11px;
   font-weight: 650;
   white-space: nowrap;
 }
+.board-turn-button > svg {
+  color: color-mix(in srgb, var(--turn-color) 68%, var(--muted));
+}
 .board-turn-player { padding-inline: 0; }
 .board-turn-button:is(:hover, [aria-expanded="true"]):not(:disabled) {
-  background: color-mix(in srgb, var(--turn-color) 19%, var(--surface));
+  background: var(--soft);
 }
 .board-turn-count {
   display: grid;
@@ -6667,9 +6679,8 @@ label + label {
   min-width: var(--board-define-height);
 }
 .board-turn-count-options .button[aria-pressed="true"] {
-  border-color: var(--turn-color);
-  background: color-mix(in srgb, var(--turn-color) 14%, var(--surface));
-  color: var(--turn-color);
+  border-color: var(--muted);
+  background: var(--soft);
 }
 .rack-record-exchange { flex-wrap: wrap; }
 .rack-record-exchange > span { color: var(--muted); font-size: 12px; }
