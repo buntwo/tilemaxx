@@ -134,6 +134,8 @@ export function ReplayControls({
   const storedExplanation = historical ? frame.move?.styleExplanation : undefined;
   const fresh = reanalysis?.result;
   const explanation = storedExplanation ?? fresh?.explanation;
+  const showWhy = !!(explanation || reanalysis);
+  const reserveWhy = frames.some(({ move }) => move && (!move.action || move.styleExplanation));
   const simulated = reanalysis?.solo ? SOLO_SIMULATED_STYLES : OPPONENT_SIMULATED_STYLES;
   const selectedStyle = PLAYER_PROFILES.some((profile) => profile === style) || simulated.some((item) => item === style)
     ? style : "learner";
@@ -220,9 +222,10 @@ export function ReplayControls({
       aria-keyshortcuts="ArrowLeft ArrowRight Space"
       tabIndex={-1}
     >
-      <ReplayMoveStrip {...{ frame, historical, showRecorded, onToggleRecorded }} why={(explanation || reanalysis) && (
+      <ReplayMoveStrip {...{ frame, historical, showRecorded, onToggleRecorded }} why={reserveWhy && (
         <button type="button" className="button secondary replay-why" data-move-preview-action
-          aria-controls={whyOpen ? explanationId : undefined} aria-expanded={whyOpen}
+          disabled={!showWhy} aria-hidden={!showWhy || undefined}
+          aria-controls={showWhy && whyOpen ? explanationId : undefined} aria-expanded={whyOpen}
           onClick={() => {
             if (whyOpen && alternativePreview) onToggleAlternative();
             if (whyOpen && reanalysis?.pending) reanalysis.reset();

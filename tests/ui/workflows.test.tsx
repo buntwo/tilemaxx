@@ -2547,6 +2547,27 @@ test("replay uses compact labels for recorded exchanges", async () => {
   expect(strip.getByText("Exch 4")).toBeTruthy();
 });
 
+test("the replay strip reserves the Why slot through passes and exchanges", async () => {
+  const played = replayFixture();
+  const passed = recordBoardlessTurn(played, "you", { kind: "pass" });
+  remote.games[0] = { ...recordBoardlessTurn(passed, "opponent", { kind: "exchange", count: 2 }), revision: 1 };
+  history.replaceState(null, "", "/games/g?move=2");
+  const user = await start();
+  const replay = within(await screen.findByRole("group", { name: "Game replay" }));
+  const strip = within(replay.getByRole("status"));
+  expect(strip.getByRole("button", { name: "Why?" })).toBeTruthy();
+
+  for (const label of ["Pass", "Exch 2"]) {
+    await user.click(replay.getByRole("button", { name: "Next move" }));
+    expect(strip.getByText(label)).toBeTruthy();
+    expect(strip.getByText("0 pts").parentElement?.classList.contains("replay-move-result")).toBe(true);
+    expect(strip.queryByRole("button", { name: "Why?" })).toBeNull();
+    const why = strip.getByText<HTMLButtonElement>("Why?");
+    expect(why.disabled).toBe(true);
+    expect(why.getAttribute("aria-hidden")).toBe("true");
+  }
+});
+
 test.each([false, true])("game options export the saved game offline during replay (archived=%s)", async (archived) => {
   const base = replayFixture();
   const earlier = { ...remote.dictionaries[0], id: "earlier", name: "Earlier words", builtin: false };

@@ -7030,6 +7030,8 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   padding: 1px 6px;
   font-size: 12px;
 }
+/* Keep the score column in place on turns without an explanation. */
+.replay-why[aria-hidden="true"] { visibility: hidden; }
 .replay-why[aria-expanded="true"] { background: var(--soft); }
 @container (max-width: 255px) {
   .replay-move-strip {
