@@ -49,7 +49,9 @@ import { getTileCounts, TILE_SYMBOLS } from "../../shared/tile-pool";
 import {
   parallelEndgame,
   parallelOpponentEndgame,
+  type ExactEndgameContinuation,
   type ExactEndgameRequest,
+  type OpponentEndgameResult,
   type OpponentEndgameRequest,
 } from "../../src/parallel-opponent-endgame";
 import {
@@ -8777,9 +8779,10 @@ test("the filled search button follows the active turn in the endgame", async ()
   expect(endgame().classList.contains("secondary")).toBe(true);
 });
 
-test.each([false, true])("Solve opens exact lines for our turn from the move header (phone %s)", async (phone) => {
-  remote.games[0] = { ...playBeforeRefill(), rack: "DSD" };
+test.each([false, true])("Solve previews and plays an exact move using the full rack (phone %s)", async (phone) => {
+  remote.games[0] = { ...playBeforeRefill(), rack: "DSD", excludedRackSlots: [0, 2] };
   const requests: ExactEndgameRequest[] = [];
+  let solved: OpponentEndgameResult | undefined;
   const lexicon = new Lexicon(opponentEndgameWords);
   class ExactEndgameWorker extends SolverWorker {
     postMessage(request: SolverRequest | ExactEndgameRequest) {
@@ -8788,9 +8791,10 @@ test.each([false, true])("Solve opens exact lines for our turn from the move hea
         return;
       }
       requests.push(request);
-      void parallelEndgame(lexicon, request, 1, () => {}).then((result) =>
-        this.onmessage?.({ data: { result } }),
-      );
+      void parallelEndgame(lexicon, request, 1, () => {}).then((result) => {
+        solved = result;
+        this.onmessage?.({ data: { result } });
+      });
     }
   }
   vi.stubGlobal("Worker", ExactEndgameWorker);
@@ -8810,6 +8814,53 @@ test.each([false, true])("Solve opens exact lines for our turn from the move hea
   expect(current().rack).toBe("DSD");
   await user.click(panel.getByRole("button", { name: "Close your endgame" }));
   expect(document.activeElement).toBe(possible().getByRole("button", { name: "Solve" }));
+  await user.click(possible().getByRole("button", { name: "Solve" }));
+  const exact = within(await screen.findByRole("region", { name: "Your endgame" }));
+  const ranked = within(exact.getByRole("list", { name: /Your moves sorted by swing/ }));
+  const index = solved!.lines.findIndex((line) => line.line[0]?.tiles.some(({ letter }) => letter === "D"));
+  const played = solved!.lines[index].line[0]!;
+  await user.click(ranked.getAllByRole("button")[index]);
+  await user.click(exact.getByRole("button", { name: `Play ${played.word}` }));
+  expect(current().trackedMoves?.at(-1)?.word).toBe(played.word);
+  for (const { index, letter } of played.tiles) expect(current().board[index]).toBe(letter);
+  expect(current().rack).toBe(played.leave);
+});
+
+test.each(["opponent", "you"] as const)("a partial endgame solve continues in the same worker for %s", async (player) => {
+  remote.games[0] = { ...playBeforeRefill(), rack: "DSD" };
+  let active: SolverWorker | undefined;
+  const requests: (ExactEndgameRequest | ExactEndgameContinuation)[] = [];
+  vi.stubGlobal("Worker", class extends SolverWorker {
+    postMessage(request: SolverRequest | ExactEndgameRequest | ExactEndgameContinuation) {
+      if (request.kind === "continue-exact-endgame") {
+        expect(this).toBe(active);
+        requests.push(request);
+      } else if (request.kind === "solve-own-endgame" || request.kind === "solve-opponent-endgame") {
+        active = this;
+        requests.push(request);
+      } else super.postMessage(request);
+    }
+  });
+  const user = await start();
+  const possible = within(screen.getByRole("region", { name: "Possible moves" }));
+  if (player === "you") await user.click(possible.getByRole("button", { name: "Find moves" }));
+  await user.click(await possible.findByRole("button", { name: player === "you" ? /^Solve$/ : /^Solve endgame$/ }));
+
+  act(() => active?.onmessage?.({ data: { result: { checked: 1, total: 2, lines: [], batches: [] } } }));
+  const title = player === "you" ? "Your endgame" : "Opponent endgame";
+  const partial = within(screen.getByRole("region", { name: title }));
+  expect(partial.getByText(/Checked 1 of 2 options/)).toBeTruthy();
+  expect(active?.terminate).toHaveBeenCalledTimes(0);
+  await user.click(partial.getByRole("button", { name: "Continue search" }));
+  expect(requests.map(({ kind }) => kind)).toEqual([
+    player === "you" ? "solve-own-endgame" : "solve-opponent-endgame", "continue-exact-endgame",
+  ]);
+  const pending = within(screen.getByRole("region", { name: `${title} search` }));
+  expect(pending.getByText("1 / 2 options checked")).toBeTruthy();
+
+  act(() => active?.onmessage?.({ data: { result: { checked: 2, total: 2, lines: [], batches: [] } } }));
+  expect(screen.queryByRole("button", { name: "Continue search" })).toBeNull();
+  expect(active?.terminate).toHaveBeenCalledOnce();
 });
 
 test.each([false, true])("after the last draw, Solve endgame previews opponent lines without playing (phone %s)", async (phone) => {
@@ -8856,6 +8907,7 @@ test.each([false, true])("after the last draw, Solve endgame previews opponent l
   await user.click(solve);
 
   const result = within(await screen.findByRole("region", { name: "Opponent endgame" }));
+  expect(result.queryByRole("button", { name: /^Play / })).toBeNull();
   expect(result.getByRole("heading", { name: "Opponent endgame" }).previousElementSibling
     ?.querySelector(".lucide-swords")).toBeTruthy();
   const list = result.getByRole("list", { name: /sorted by swing for you/ });

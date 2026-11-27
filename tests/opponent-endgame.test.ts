@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { endgameAfterRefill } from "../shared/endgame-refill";
+import { rackPoints } from "../shared/endgame";
 import { Lexicon } from "../shared/lexicon";
 import { undo } from "../shared/model";
 import { exactEndgameRoot, opponentEndgameLine, replyEndgameLine } from "../shared/reply-analysis";
@@ -10,7 +11,7 @@ import {
   type CandidateRequest,
   type CandidateResult,
 } from "../src/candidate-analysis-jobs";
-import { parallelEndgame, parallelOpponentEndgame } from "../src/parallel-opponent-endgame";
+import { createExactEndgameSearch, parallelEndgame, parallelOpponentEndgame } from "../src/parallel-opponent-endgame";
 import {
   opponentEndgameWords,
   playBeforeRefill,
@@ -173,6 +174,48 @@ test("the same worker pool ranks our openings and skips completed exact roots", 
   const serial = await parallelEndgame(lexicon, position, 1, () => {});
   assert.deepEqual(result.lines.map((line) => line.line[0]?.id), serial.lines.map((line) => line.line[0]?.id));
   assert.deepEqual(result.lines.map(({ spread, points }) => [spread, points]), serial.lines.map(({ spread, points }) => [spread, points]));
+});
+
+test("continuing either exact search gives only unfinished openings more time", async () => {
+  const game = { ...playBeforeRefill(), rack: "DSD" };
+  const lexicon = new Lexicon(opponentEndgameWords);
+  for (const firstPlayer of ["you", "opponent"] as const) {
+    const position = { ...game, ...endgameAfterRefill(game)!, firstPlayer };
+    const [rack, other] = firstPlayer === "you" ? [game.rack, position.opponentRack] : [position.opponentRack, game.rack];
+    const goOutBonus = 2 * rackPoints(other, game.template.rules);
+    const openings = solve(lexicon, game.board, rack, game.template);
+    const priority = (move: (typeof openings)[number]) => move.score + (move.leave ? 0 : goOutBonus);
+    const timedOut = openings.sort((a, b) => priority(b) - priority(a)).slice(0, 2).map(({ id }) => id);
+    const continued: (string | undefined)[] = [];
+    const createWorker = () => {
+      const analyze = createCandidateAnalyzer(lexicon);
+      const worker = {
+        onmessage: undefined as ((event: { data: CandidateResult }) => void) | undefined,
+        postMessage({ job }: CandidateRequest) {
+          assert.equal(job.kind, "opponent-endgame");
+          let result: CandidateResult;
+          if (job.timeLimitMs === 5_000 && job.move && timedOut.includes(job.move.id)) {
+            result = { kind: "limit", message: "Timed out", elapsed: 5_000 };
+          } else {
+            if (job.timeLimitMs === 15_000) continued.push(job.move?.id);
+            result = analyze(job);
+          }
+          queueMicrotask(() => worker.onmessage?.({ data: result }));
+        },
+        terminate() {},
+      };
+      return worker as unknown as Worker;
+    };
+    const search = createExactEndgameSearch(lexicon, position, 2, createWorker);
+    const partial = await search.run(() => {});
+    assert.equal(partial.checked, partial.total - timedOut.length);
+    const resumed = await search.run(() => {});
+    const fresh = await parallelEndgame(lexicon, position, 1, () => {});
+    assert.deepEqual(continued, timedOut);
+    assert.equal(resumed.checked, partial.total);
+    assert.deepEqual(resumed.lines, fresh.lines);
+    assert.deepEqual(resumed.batches.map(({ checked }) => checked), [partial.checked, resumed.total]);
+  }
 });
 
 test("our exact solver observes the Crossplay final-turn setting", async () => {

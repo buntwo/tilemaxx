@@ -30,6 +30,8 @@ export default function OpponentEndgameResults({
   phoneLayout,
   onClose,
   onPreview,
+  onPlay,
+  onContinueSearch,
 }: {
   game: Game;
   opponentRack: string;
@@ -39,6 +41,8 @@ export default function OpponentEndgameResults({
   phoneLayout: boolean;
   onClose: () => void;
   onPreview: (move: Move | null) => void;
+  onPlay?: (move: Move) => void;
+  onContinueSearch: () => void;
 }) {
   const [selected, setSelected] = useState<EndgameLine>();
   const detailId = useId();
@@ -70,13 +74,14 @@ export default function OpponentEndgameResults({
   const complete = result.checked === result.total;
   const yourTurn = firstPlayer === "you";
   const title = yourTurn ? "Your endgame" : "Opponent endgame";
+  const selectedMove = selected?.line[0];
   return (
     <section
       className="results-panel panel with-reply-column with-endgame-estimates opponent-endgame"
       aria-label={title}
       ref={panel}
     >
-      <header className="results-title">
+      <header className="results-title possible-moves-title">
         <div className="heading-with-icon">
           <CalculationIndicator active={false} idleIcon={<Swords />} />
           <h2>{title}</h2>
@@ -95,10 +100,15 @@ export default function OpponentEndgameResults({
       </header>
       <p className="opponent-endgame-note">{yourTurn ? "You play next" : "Opponent plays next"}</p>
       {!complete && (
-        <p className="opponent-endgame-note" role="status">
-          Search limit reached. Checked {result.checked.toLocaleString()} of{" "}
-          {result.total.toLocaleString()} options.
-        </p>
+        <div className="endgame-search-limit">
+          <p className="opponent-endgame-note" role="status">
+            Search limit reached. Checked {result.checked.toLocaleString()} of{" "}
+            {result.total.toLocaleString()} options.
+          </p>
+          <button type="button" className="button secondary" onClick={onContinueSearch}>
+            Continue search
+          </button>
+        </div>
       )}
       {result.lines.length > 0 ? (
         <>
@@ -224,12 +234,20 @@ export default function OpponentEndgameResults({
           aria-label={yourTurn ? "Your reply details" : "Opponent reply details"}
           data-move-preview-action
         >
-          <h3 className="optimal-reply-title">
-            <span>Reply details</span>
-            <span className="optimal-reply-badge">
-              <Check size={13} aria-hidden="true" /> Exact line
-            </span>
-          </h3>
+          <div className="endgame-line-heading">
+            <h3 className="optimal-reply-title">
+              <span>Reply details</span>
+              <span className="optimal-reply-badge">
+                <Check size={13} aria-hidden="true" /> Exact line
+              </span>
+            </h3>
+            {yourTurn && onPlay && selectedMove && (
+              <button type="button" className="button primary" aria-label={`Play ${selectedMove.word}`}
+                onClick={() => onPlay(selectedMove)}>
+                Play
+              </button>
+            )}
+          </div>
           <OptimalReplyDetails
             game={game}
             line={selected}

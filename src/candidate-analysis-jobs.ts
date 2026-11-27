@@ -83,6 +83,7 @@ export type CandidateJob =
       move: Move | null;
       deadline: number;
       minimumSpread?: number;
+      timeLimitMs?: number;
     }
   | {
       kind: "board-bingo";
@@ -266,7 +267,7 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
               lexicon,
               job.position,
               job.move,
-              Math.min(5_000, remaining),
+              Math.min(job.timeLimitMs ?? 5_000, remaining),
               job.minimumSpread,
             ),
           };

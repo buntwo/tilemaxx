@@ -307,7 +307,7 @@ export default function Results({
   optionsButtonRef?: Ref<HTMLElement>;
   onPreview: (m: Move | null, analysis?: boolean, player?: Player, explanation?: StyleExplanation) => void;
   phoneLayout?: boolean;
-  onPlay: (m: Move, options?: { styleExplanation?: StyleExplanation }) => void;
+  onPlay: (m: Move, options?: { styleExplanation?: StyleExplanation; useRackMarks?: boolean }) => void;
   onSolve: (reload?: boolean) => void;
   onCancelSearch: () => void;
   onCloseResults: () => void;
@@ -1149,12 +1149,14 @@ export default function Results({
           phoneLayout={phoneLayout}
           onClose={closeEndgame}
           onPreview={(move) => onPreview(move, true, firstPlayer)}
+          onPlay={firstPlayer === "you" && !squareFilter?.disabled ? (move) => onPlay(move, { useRackMarks: false }) : undefined}
+          onContinueSearch={exactEndgame.continueSearch}
         />
       );
     }
     return (
       <section className="results-panel panel" aria-label={`${title} search`}>
-        <header className="results-title">
+        <header className="results-title possible-moves-title">
           <div className="heading-with-icon">
             <CalculationIndicator
               active={endgameSearch.pending}

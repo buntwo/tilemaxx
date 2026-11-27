@@ -7,6 +7,7 @@ import { useGameCalculation } from "./components/GameCalculations";
 import type {
   OpponentEndgameMessage,
   OpponentEndgameProgress,
+  ExactEndgameContinuation,
   ExactEndgameRequest,
   OpponentEndgameResult,
 } from "./parallel-opponent-endgame";
@@ -22,6 +23,7 @@ export function useExactEndgame(
 ) {
   const [search, setSearch] = useState<{ key: string; firstPlayer: Player; value: Search }>();
   const active = useRef<Worker | null>(null);
+  const continueRun = useRef<(() => void) | null>(null);
   const matching = search?.key === key ? search : undefined;
   const current = matching?.value;
   useGameCalculation(!!current?.pending);
@@ -29,6 +31,7 @@ export function useExactEndgame(
   function stop() {
     active.current?.terminate();
     active.current = null;
+    continueRun.current = null;
   }
 
   useEffect(() => {
@@ -41,7 +44,8 @@ export function useExactEndgame(
     stop();
     const firstPlayer = position.firstPlayer ?? "opponent";
     const publish = (value: Search) => setSearch({ key, firstPlayer, value });
-    const startedAt = performance.now();
+    let startedAt = performance.now();
+    let elapsed = 0;
     publish({ pending: true });
     try {
       const worker = new Worker(
@@ -57,19 +61,28 @@ export function useExactEndgame(
           publish({ pending: true, progress: data.progress });
           return;
         }
-        stop();
-        publish(
-          "result" in data
-            ? {
-                pending: false,
-                result: data.result,
-                timing: {
-                  total: performance.now() - startedAt,
-                  batches: data.result.batches,
-                },
-              }
-            : { pending: false, error: data.error },
-        );
+        if (!("result" in data)) {
+          stop();
+          publish({ pending: false, error: data.error });
+          return;
+        }
+        const { result } = data;
+        elapsed += performance.now() - startedAt;
+        if (result.checked === result.total) stop();
+        else {
+          continueRun.current = () => {
+            continueRun.current = null;
+            startedAt = performance.now();
+            publish({ pending: true, progress: { checked: result.checked, total: result.total } });
+            try {
+              worker.postMessage({ kind: "continue-exact-endgame" } satisfies ExactEndgameContinuation);
+            } catch {
+              stop();
+              publish({ pending: false, error: "Could not continue the endgame search." });
+            }
+          };
+        }
+        publish({ pending: false, result, timing: { total: elapsed, batches: result.batches } });
       };
       worker.onerror = () => {
         if (active.current !== worker) return;
@@ -98,6 +111,7 @@ export function useExactEndgame(
     current,
     firstPlayer: matching?.firstPlayer,
     start,
+    continueSearch: () => continueRun.current?.(),
     close() {
       stop();
       setSearch(undefined);

@@ -5,7 +5,8 @@ import { createPlayerProfiles } from "../shared/player-profiles";
 import { loadProfileVocabulary } from "./word-frequencies";
 import { createEndgamePrecompute } from "./endgame-precompute";
 import {
-  parallelEndgame,
+  createExactEndgameSearch,
+  type ExactEndgameContinuation,
   type ExactEndgameRequest,
   type OpponentEndgameMessage,
 } from "./parallel-opponent-endgame";
@@ -18,6 +19,7 @@ let dictionary: { id: string; lexicon: Lexicon; words: string[] } | undefined;
 let endgames:
   | { key: string; pool: ReturnType<typeof createEndgamePrecompute> }
   | undefined;
+let exactEndgame: ReturnType<typeof createExactEndgameSearch> | undefined;
 
 async function words(url: string) {
   return parseWords((await loadWordList(url)).text);
@@ -82,6 +84,7 @@ self.onmessage = async (
   event: MessageEvent<
     | EndgamePrecomputeRequest
     | ExactEndgameRequest
+    | ExactEndgameContinuation
     | (AnalysisRequest & { dictionaryId: string })
   >,
 ) => {
@@ -96,16 +99,21 @@ self.onmessage = async (
       const post = (message: OpponentEndgameMessage) =>
         self.postMessage(message);
       try {
-        const { dictionaryId, workerLimit, kind, ...position } = request;
-        const { lexicon } = await loadDictionary(dictionaryId);
-        const result = await parallelEndgame(
-          lexicon,
-          { ...position, firstPlayer: kind === "solve-own-endgame" ? "you" : "opponent" },
-          workerLimit,
-          (progress) => post({ progress }),
-        );
+        if (request.kind !== "continue-exact-endgame") {
+          const { dictionaryId, workerLimit, kind, ...position } = request;
+          const { lexicon } = await loadDictionary(dictionaryId);
+          exactEndgame = createExactEndgameSearch(
+            lexicon,
+            { ...position, firstPlayer: kind === "solve-own-endgame" ? "you" : "opponent" },
+            workerLimit,
+          );
+        }
+        if (!exactEndgame) throw new Error("This endgame search is no longer active.");
+        const result = await exactEndgame.run((progress) => post({ progress }));
+        if (result.checked === result.total) exactEndgame = undefined;
         post({ result });
       } catch (error) {
+        exactEndgame = undefined;
         post({
           error:
             error instanceof Error
