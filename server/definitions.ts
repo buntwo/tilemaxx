@@ -4,10 +4,11 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { promisify } from "node:util";
 import { gunzip } from "node:zlib";
-import type {
-  DefinitionLanguage,
-  DefinitionLookup,
-  WordDefinition,
+import {
+  definitionTileKey,
+  type DefinitionLanguage,
+  type DefinitionLookup,
+  type WordDefinition,
 } from "../shared/definitions";
 import { decodeWordFrequencies, wordFrequencyUrl } from "../shared/word-familiarity";
 
@@ -32,19 +33,6 @@ export function createDefinitionFrequencyLookup(root: string) {
 
 export function definitionIndexPath(dataDir: string) {
   return join(dataDir, "definitions", "definitions.sqlite");
-}
-
-export function definitionSpelling(word: string) {
-  return word.trim().normalize("NFC").toLowerCase().replaceAll("’", "'");
-}
-
-export function definitionTileKey(word: string) {
-  const key = definitionSpelling(word)
-    .replaceAll("œ", "oe")
-    .replaceAll("æ", "ae")
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "");
-  return /^[a-z]{2,25}$/.test(key) ? key : null;
 }
 
 export function openDefinitionIndex(path: string) {

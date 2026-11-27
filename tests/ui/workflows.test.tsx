@@ -5487,6 +5487,52 @@ test.each(["phone", "tablet", "desktop"])(
   },
 );
 
+test("Word lists looks up English and French definitions only on submission", async () => {
+  const original = game();
+  remote.games[0] = { ...original, revision: 1, template: { ...original.template, rules: "scrabble-fr" } };
+  const request = fetch;
+  const lookup = vi.fn(async (url: string, options?: RequestInit) => {
+    if (!url.startsWith("/api/definitions?")) return request(url, options);
+    const query = new URLSearchParams(url.split("?")[1]);
+    const entries = query.get("language") === "fr" ? [{
+      spelling: "cœur", headword: "cœur", glosses: ["heart"], partOfSpeech: "noun",
+      sourceUrl: "https://en.wiktionary.org/wiki/c%C5%93ur#French",
+    }] : [];
+    return new Response(JSON.stringify({ available: true, entries: [entries] }));
+  });
+  vi.stubGlobal("fetch", lookup);
+  const requests = () => lookup.mock.calls.map(([url]) => url).filter((url) => url.startsWith("/api/definitions?"));
+  const user = await start();
+  await user.click(navLink("Word lists"));
+  const dialog = within(screen.getByRole("dialog", { name: "Word lists" }));
+  const section = within(dialog.getByRole("region", { name: "Definition lookup" }));
+  const input = section.getByRole("textbox", { name: "Word" });
+  const language = section.getByRole("combobox", { name: "Language" });
+  const submit = section.getByRole("button", { name: "Look up" });
+  expect(language).toHaveProperty("value", "fr");
+  expect(submit).toHaveProperty("disabled", true);
+
+  await user.type(input, "cœur");
+  expect(requests()).toEqual([]);
+  await user.keyboard("{Enter}");
+  expect(await section.findByText("heart")).toBeTruthy();
+  expect(section.getByRole("link", { name: "cœur" }).getAttribute("href")).toContain("#French");
+  expect(requests()).toEqual(["/api/definitions?language=fr&word=COEUR"]);
+
+  await user.selectOptions(language, "en");
+  expect(section.queryByText("heart")).toBeNull();
+  expect(requests()).toHaveLength(1);
+  await user.click(submit);
+  expect(await section.findByText("No definition found.")).toBeTruthy();
+  expect(requests().at(-1)).toBe("/api/definitions?language=en&word=COEUR");
+
+  await user.clear(input);
+  await user.type(input, "two words");
+  await user.click(submit);
+  expect(section.getByText("Enter one word with 2–25 letters.")).toBeTruthy();
+  expect(requests()).toHaveLength(2);
+});
+
 test("word lists confirm removal, display a conflict and update the game selector", async () => {
   remote.dictionaries.push({
     id: "house",

@@ -2546,13 +2546,13 @@ label + label {
   padding: 10px 12px;
   overflow-wrap: anywhere;
 }
-:is(.definition-tooltip, .definition-sheet) :is(p, dl, dd) { margin: 0; }
-:is(.definition-tooltip, .definition-sheet) dt { font-weight: 700; }
-:is(.definition-tooltip, .definition-sheet) dt a {
+:is(.definition-tooltip, .definition-sheet, .word-definition-result) :is(p, dl, dd) { margin: 0; }
+:is(.definition-tooltip, .definition-sheet, .word-definition-result) dt { font-weight: 700; }
+:is(.definition-tooltip, .definition-sheet, .word-definition-result) dt a {
   color: inherit;
   text-underline-offset: 2px;
 }
-:is(.definition-tooltip, .definition-sheet) i,
+:is(.definition-tooltip, .definition-sheet, .word-definition-result) i,
 .definition-muted,
 .definition-heading span { color: var(--muted); }
 .definition-word + .definition-word {
@@ -2560,7 +2560,7 @@ label + label {
   margin-top: 8px;
   padding-top: 8px;
 }
-:is(.definition-tooltip, .definition-sheet) .definition-heading {
+:is(.definition-tooltip, .definition-sheet, .word-definition-result) .definition-heading {
   display: flex;
   align-items: baseline;
   gap: 7px;
@@ -3627,6 +3627,28 @@ label + label {
   flex: none;
   width: 40px;
   height: 40px;
+}
+.word-definition-lookup {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.word-definition-lookup form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 8px;
+  margin-top: 8px;
+}
+.word-definition-lookup label + label { margin-top: 0; }
+.word-definition-result {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.word-definition-result:not(:empty) { margin-top: 10px; }
+@media (max-width: 380px) {
+  .word-definition-lookup form { grid-template-columns: minmax(0, 1fr) auto; }
+  .word-definition-lookup label:first-child { grid-column: 1 / -1; }
 }
 .import-box {
   padding: 20px;

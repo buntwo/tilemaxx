@@ -243,7 +243,6 @@ function DefinitionSheet({
   locked: boolean;
   onClose: () => void;
 }) {
-  const result = useDefinitionLookup(language, selection.words);
   return (
     <Modal
       title={selection.title}
@@ -255,25 +254,30 @@ function DefinitionSheet({
       closeDisabled={locked}
     >
       <div aria-live="polite" inert={locked}>
-        <DefinitionContent
-          language={language}
-          words={selection.words}
-          result={result}
-        />
+        <DefinitionResults language={language} words={selection.words} />
       </div>
     </Modal>
   );
 }
 
+export function DefinitionResults({ language, words }: {
+  language: DefinitionLanguage;
+  words?: TargetWord[];
+}) {
+  const result = useDefinitionLookup(language, words);
+  return words ? <DefinitionContent language={language} words={words} result={result} /> : null;
+}
+
 function useDefinitionLookup(
   language: DefinitionLanguage,
-  words: TargetWord[],
+  words: TargetWord[] | undefined,
 ) {
   const [response, setResponse] = useState<{
     words: TargetWord[];
     lookup?: DefinitionLookup;
   }>();
   useEffect(() => {
+    if (!words) return;
     const request = new AbortController();
     const query = new URLSearchParams({ language });
     for (const { word } of words) query.append("word", word);

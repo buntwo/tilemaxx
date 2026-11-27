@@ -19,6 +19,19 @@ export interface DefinitionLookup {
   wordFrequencyZipf?: (number | null)[];
 }
 
+export function definitionSpelling(word: string) {
+  return word.trim().normalize("NFC").toLowerCase().replaceAll("’", "'");
+}
+
+export function definitionTileKey(word: string) {
+  const key = definitionSpelling(word)
+    .replaceAll("œ", "oe")
+    .replaceAll("æ", "ae")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  return /^[a-z]{2,25}$/.test(key) ? key : null;
+}
+
 export function definitionLanguageForRules(
   rules: Rules,
 ): DefinitionLanguage | undefined {

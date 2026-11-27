@@ -5,13 +5,12 @@ import { Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createGunzip } from "node:zlib";
 import type { DatabaseSync } from "node:sqlite";
-import type { DefinitionLanguage } from "../shared/definitions";
 import {
-  definitionIndexPath,
   definitionSpelling,
   definitionTileKey,
-  openDefinitionIndex,
-} from "./definitions";
+  type DefinitionLanguage,
+} from "../shared/definitions";
+import { definitionIndexPath, openDefinitionIndex } from "./definitions";
 
 const sources = [
   { stem: "en", word: "en", gloss: "en", format: "wiktextract" },
