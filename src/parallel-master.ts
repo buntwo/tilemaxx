@@ -10,6 +10,7 @@ import type { Move } from "../shared/model";
 import type { HunterProgress, HunterSummary } from "./parallel-bingo-hunter";
 import { createCandidatePool } from "./candidate-analysis-pool";
 import type { CandidateJob } from "./candidate-analysis-jobs";
+import { styleCandidate, styleEvaluation } from "../shared/style-explanation";
 
 const now = () => performance.timeOrigin + performance.now();
 
@@ -66,6 +67,8 @@ export function createMasterSession(
       action.move ? [{ move: action.move, utility }] : [],
     );
     const [best] = rankingsToShow;
+    const passRecommended = !!(done && best && !best.action.move);
+    const other = ranked[0];
     return {
       ranked,
       summary: {
@@ -74,7 +77,12 @@ export function createMasterSession(
         canContinue: !done,
         finalistsRefined:
           !!endgames?.size || (best?.utility.samples ?? 0) > screenCount,
-        passRecommended: !!(done && best && !best.action.move),
+        passRecommended,
+        passExplanation: passRecommended ? {
+          kind: "pass", style: "master", provisional: limited,
+          evaluation: styleEvaluation({ ...best.utility, rank: 1 }),
+          alternative: other && styleCandidate(other.move, { ...other.utility, rank: 2 }),
+        } : undefined,
       } satisfies HunterSummary,
     };
   }

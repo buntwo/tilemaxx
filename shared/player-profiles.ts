@@ -133,6 +133,10 @@ export type ProfileUtility = {
   goingOut: number;
   endgame?: number;
   lookahead?: number;
+  modeledReply?: number;
+  modeledFollowUp?: number;
+  lookaheadDeals?: number;
+  selection?: "winning-rack-out" | "known-rack";
   defense?: number;
   premiumLane?: number;
 };
@@ -583,6 +587,7 @@ export function createPlayerProfiles(
       const finalists = [...slate.values()];
       if (finishing && !finalists.includes(finishing)) finalists.push(finishing);
       if (finishing && scoreSpread !== undefined && scoreSpread + finishing.value > 0) {
+        if (finishing.utility) finishing.utility.selection = "winning-rack-out";
         order = [finishing, ...order.filter(({ move }) => move.id !== finishing.move.id)];
       } else if (finishing || scoreSpread !== undefined) {
         const outcomes = (rackOutCheck ??= createProfileRackOut(lexicon, template))(
@@ -600,6 +605,7 @@ export function createPlayerProfiles(
             }
             return entry;
           });
+          if (ranked[0]?.utility) ranked[0].utility.selection = "known-rack";
           order = [...ranked, ...order.filter(({ move }) => !byMove.has(move.id))];
         }
       }

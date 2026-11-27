@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { parallelOpponentEndgame } from "../src/parallel-opponent-endgame";
-import { createBingoHunterSession } from "../src/parallel-bingo-hunter";
+import { createBingoHunterSession, type HunterSummary } from "../src/parallel-bingo-hunter";
 import { createMasterSession } from "../src/parallel-master";
 import { RackBingoIndex, checkBoardBingo } from "../shared/bingo-odds";
 import { validEndgameStreak } from "../shared/endgame";
@@ -35,6 +35,7 @@ import {
   REFINED_TRIALS,
 } from "../shared/move-analysis";
 import { MoveResultIndex } from "../shared/move-results";
+import { explainStyleExchange, explainStylePlay, styleCandidate } from "../shared/style-explanation";
 import { analyzeOpponentPolicy } from "../shared/opponent-policy";
 import { optimizeExchange } from "../shared/optimal-exchange";
 import {
@@ -373,7 +374,7 @@ export async function analyzePosition(
       profileScorelessTurns: settings.scorelessTurns,
       profileScoreSpread: scoreSpread,
     };
-    let styleSummary;
+    let styleSummary: Omit<HunterSummary, "canContinue"> & { incomplete: boolean } | undefined;
     let exchangeAdvice: PlayerExchangeAdvice | undefined;
     if (style && !isSimulatedStyle(style)) {
       const positionKey = `${board.join(".")}:${rackComposition(position.rack)}`;
@@ -484,19 +485,24 @@ export async function analyzePosition(
       endgameId,
       rackOdds,
     });
-    const rows = page.rows.slice(offset - page.offset).map((move) => ({
-      ...move,
-      scoreRank: page.scoreRanks[move.id],
-      utility: page.utilities?.[move.id],
-      estimate: page.endgame?.[move.id],
-      bingoDrawChance: rackOdds?.byLeave[move.leave],
-      breakdown: scorePlacement(
-        board,
-        placeTiles(board, move),
-        template,
-        move.direction,
-      ),
-    }));
+    const passExplanation = styleSummary?.passExplanation;
+    const rows = page.rows.slice(offset - page.offset).map((move) => {
+      const utility = page.utilities?.[move.id];
+      const explanation = style && utility && explainStylePlay(
+        style, styleCandidate(move, utility), page.styleLeaders ?? [],
+        styleSummary && (styleSummary.incomplete || styleSummary.limited),
+      );
+      const preferred = passExplanation ? "pass" as const : exchangeAdvice ? "exchange" as const : undefined;
+      return {
+        ...move,
+        scoreRank: page.scoreRanks[move.id],
+        utility,
+        styleExplanation: explanation && (preferred ? { ...explanation, recommended: false, preferred } : explanation),
+        estimate: page.endgame?.[move.id],
+        bingoDrawChance: rackOdds?.byLeave[move.leave],
+        breakdown: scorePlacement(board, placeTiles(board, move), template, move.direction),
+      };
+    });
     return {
       rows,
       offset,
@@ -510,6 +516,8 @@ export async function analyzePosition(
       styleSummary,
       styleChoice: page.styleChoice?.move,
       exchangeAdvice,
+      exchangeExplanation: exchangeAdvice && explainStyleExchange(exchangeAdvice, position.rack, exchangeAdvice.slots),
+      passExplanation,
     };
   }
   if (operation.kind === "premium-defense")
@@ -557,7 +565,8 @@ export async function analyzePosition(
         seed: profileWordHash(`${board.join(".")}:${rackComposition(position.rack)}`),
         playerSeed: operation.seed,
       }, operation.move ? find(operation.move) : undefined);
-      return { advice: result.exchange };
+      const advice = result.exchange;
+      return { advice, styleExplanation: advice && explainStyleExchange(advice, position.rack, advice.slots) };
     }
     const { comparison, advice } = screenPlayerExchange({
       ...settings,
@@ -572,7 +581,8 @@ export async function analyzePosition(
         profiles(root, lexicon, template),
         comparison,
       );
-    return { advice: sampled ? sampled.advice : advice };
+    const selected = sampled ? sampled.advice : advice;
+    return { advice: selected, styleExplanation: selected && explainStyleExchange(selected, position.rack, selected.slots) };
   }
 
   if (solo)

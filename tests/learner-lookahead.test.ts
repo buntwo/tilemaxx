@@ -212,7 +212,9 @@ test("Learner recommends a simulated exchange with a clear edge over a spotted p
     step = work.next();
   }
   assert.equal(count, 8 + LEARNER_EXCHANGE_DEALS);
-  assert.deepEqual(step.value.exchange, {
+  const { comparedPlacement, ...exchange } = step.value.exchange!;
+  assert.equal(comparedPlacement?.word, "OU");
+  assert.deepEqual(exchange, {
     slots: [0, 1, 2, 3, 4, 5, 6],
     profile: "learner",
     comparedWith: { word: "OU", score: 4 },

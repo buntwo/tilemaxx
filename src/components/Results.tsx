@@ -93,6 +93,7 @@ import {
 } from "../move-timing";
 import MoveTimingButton from "./MoveTimingButton";
 import type { ShortlistEntry } from "../../shared/move-shortlist";
+import { explainStylePlay, styleCandidate, stylePlacement, type StyleExplanation } from "../../shared/style-explanation";
 import {
   coversRequiredSquares,
   defaultSortDescending,
@@ -302,9 +303,9 @@ export default function Results({
     onToggle: () => void;
   };
   optionsButtonRef?: Ref<HTMLElement>;
-  onPreview: (m: Move | null, analysis?: boolean, player?: Player) => void;
+  onPreview: (m: Move | null, analysis?: boolean, player?: Player, explanation?: StyleExplanation) => void;
   phoneLayout?: boolean;
-  onPlay: (m: Move) => void;
+  onPlay: (m: Move, options?: { styleExplanation?: StyleExplanation }) => void;
   onSolve: (reload?: boolean) => void;
   onCancelSearch: () => void;
   onCloseResults: () => void;
@@ -798,6 +799,37 @@ export default function Results({
       ? { profile, utility, checksDefense: !analysisGame?.solo && !hunterSelected && bagSize > 0 }
       : undefined;
   });
+  function explain(move: Move): StyleExplanation | undefined {
+    if (!profile) return;
+    const utility = page.utilities?.[move.id];
+    const ceiling = hunterResult?.ceilings?.find((setup) => setup.move.id === move.id);
+    const played = utility ? styleCandidate(move, utility) : ceiling && {
+      move: stylePlacement(move),
+      evaluation: {
+        factors: {
+          "Play points now": move.score,
+          "Next-turn bingo chance": ceiling.chance * 100,
+          "Highest bingo found": ceiling.bingo.score,
+        },
+        samples: ceiling.cases,
+        exact: ceiling.exact,
+      },
+    };
+    if (!played) return;
+    return explainStylePlay(profile, played, page.styleLeaders ?? [],
+      !!hunterResult && (hunterResult.limited || (!!hunterResult.canContinue && !hunterResult.ceilingPass)));
+  }
+  function previewCandidate(move: Move, analysis?: boolean) {
+    const explanation = analysis ? undefined : explain(move);
+    if (explanation) onPreview(move, analysis, undefined, explanation);
+    else if (analysis !== undefined) onPreview(move, analysis);
+    else onPreview(move);
+  }
+  function playCandidate(move: Move) {
+    const explanation = explain(move);
+    if (explanation) onPlay(move, { styleExplanation: explanation });
+    else onPlay(move);
+  }
   const total = shortlistActive ? filteredShortlist.length : page.total;
   const displayedTotal = shortlistActive ? total : page.displayedTotal;
   const hiddenMoves = total - displayedTotal;
@@ -918,7 +950,7 @@ export default function Results({
       }
     }
     setLocked((current) => (current === move.id ? null : move.id));
-    onPreview(move);
+    previewCandidate(move);
   }
   function column(
     label: string,
@@ -1547,7 +1579,7 @@ export default function Results({
           )}
           {!!hunterResult?.ceilings?.length && (
             <HighCeilingSetups setups={hunterResult.ceilings} selected={locked}
-              onPreview={togglePin} onPlay={(move) => { setLocked(null); onPlay(move); }} />
+              onPreview={togglePin} onPlay={(move) => { setLocked(null); playCandidate(move); }} />
           )}
           <div className="result-columns">
             <div className="result-word-heading">
@@ -1737,7 +1769,7 @@ export default function Results({
                     }}
                     onPointerEnter={(e) => {
                       if (locked || histogramSelection || !canHoverWithMouse(e.pointerType)) return;
-                      onPreview(m, analyzing);
+                      previewCandidate(m, analyzing);
                       if (
                         !analyzing &&
                         searchId !== undefined &&
@@ -1773,7 +1805,7 @@ export default function Results({
                         pointer.current = e.pointerType;
                       }}
                       onFocus={() => {
-                        if (!locked && !histogramSelection) onPreview(m, analyzing);
+                        if (!locked && !histogramSelection) previewCandidate(m, analyzing);
                       }}
                       onKeyDown={(event) => {
                         if (analyzing || event.key.toLowerCase() !== "p")
@@ -1793,10 +1825,10 @@ export default function Results({
                           locked === m.id
                         ) {
                           setLocked(null);
-                          onPlay(m);
+                          playCandidate(m);
                         } else {
                           setLocked(m.id);
-                          onPreview(m);
+                          previewCandidate(m);
                         }
                       }}
                     >

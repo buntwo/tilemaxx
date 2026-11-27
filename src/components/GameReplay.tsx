@@ -1,14 +1,20 @@
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
+  useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { gameScoreTotals, scoreHistoryMoves, type GameScoreSummary } from "../../shared/game-scoring";
 import type { ReplayFrame } from "../../shared/game-replay";
 import type { Game, GameScoring } from "../../shared/model";
-import { recordedMoveDetails, trackedTurnLabel } from "../../shared/notation";
+import { moveLocation, moveNotation, recordedMoveDetails, trackedTurnLabel } from "../../shared/notation";
+import type { StylePlacement } from "../../shared/style-explanation";
+import ReplayMoveExplanation from "./ReplayMoveExplanation";
 import { ScorePlayers } from "./GameScores";
 import MoveWord from "./MoveWord";
 import ScoreChart from "./ScoreChart";
@@ -16,12 +22,13 @@ import { RackTileFace } from "./TileFace";
 import TrackedMoveHistory from "./TrackedMoveHistory";
 
 function ReplayMoveStrip({
-  frame, historical, showRecorded, onToggleRecorded,
+  frame, historical, showRecorded, onToggleRecorded, why,
 }: {
   frame: ReplayFrame;
   historical: boolean;
   showRecorded: boolean;
   onToggleRecorded: () => void;
+  why?: ReactNode;
 }) {
   const { board, position, template } = frame;
   const move = historical ? frame.move : undefined;
@@ -58,6 +65,7 @@ function ReplayMoveStrip({
             <strong>{move.score} pts</strong>
             {details?.location && <span>{details.location}</span>}
           </div>
+          {why}
         </>
       ) : (
         <span className="replay-strip-status">
@@ -80,6 +88,10 @@ export function ReplayControls({
   historical,
   showRecorded,
   onToggleRecorded,
+  alternativePreview,
+  canPreviewAlternative,
+  onToggleAlternative,
+  detailsTarget,
   playing,
   seek,
   togglePlay,
@@ -94,12 +106,35 @@ export function ReplayControls({
   historical: boolean;
   showRecorded: boolean;
   onToggleRecorded: () => void;
+  alternativePreview?: StylePlacement;
+  canPreviewAlternative: boolean;
+  onToggleAlternative: () => void;
+  detailsTarget?: HTMLElement | null;
   playing: boolean;
   seek: (index: number, replace?: boolean) => void;
   togglePlay: () => void;
   close: () => void;
 }) {
   const controls = useRef<HTMLDivElement>(null);
+  const explanationId = useId();
+  const [whyOpen, setWhyOpen] = useState(false);
+  const explanation = historical ? frame.move?.styleExplanation : undefined;
+  const details = (
+    <>
+      {alternativePreview && (
+        <div className="replay-alternative-status" role="status">
+          Alternative · {moveNotation(alternativePreview, frame.template.size, frame.board)}
+          {" · "}{moveLocation(alternativePreview)} {alternativePreview.direction}
+          {" · "}{alternativePreview.score} pts
+        </div>
+      )}
+      {explanation && whyOpen && (
+        <ReplayMoveExplanation key={index} id={explanationId} explanation={explanation}
+          position={frame.position} template={frame.template} canPreview={canPreviewAlternative}
+          previewing={!!alternativePreview} onPreview={onToggleAlternative} />
+      )}
+    </>
+  );
   const scrub = useRef<{ changed: boolean } | null>(null);
   const pointDigits = useMemo(
     () => frames.reduce((width, { move }) => Math.max(width, String(move?.score ?? 0).length), 2),
@@ -129,7 +164,14 @@ export function ReplayControls({
       aria-keyshortcuts="ArrowLeft ArrowRight Space"
       tabIndex={-1}
     >
-      <ReplayMoveStrip {...{ frame, historical, showRecorded, onToggleRecorded }} />
+      <ReplayMoveStrip {...{ frame, historical, showRecorded, onToggleRecorded }} why={explanation && (
+        <button type="button" className="button secondary replay-why" data-move-preview-action
+          aria-controls={whyOpen ? explanationId : undefined} aria-expanded={whyOpen}
+          onClick={() => {
+            if (whyOpen && alternativePreview) onToggleAlternative();
+            setWhyOpen(!whyOpen);
+          }}>Why?</button>
+      )} />
       <div className="board-replay-actions">
         <div className="board-replay-transport">
           <button
@@ -204,6 +246,7 @@ export function ReplayControls({
           <span>{Math.min(index, recordedCount)} / {recordedCount}</span>
         </span>
       </div>
+      {detailsTarget ? createPortal(details, detailsTarget) : details}
     </div>
   );
 }

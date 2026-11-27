@@ -75,6 +75,44 @@ test("programmatic access is disabled until configured", async (t) => {
   assert.equal((await fetch(url + "/api/state/index")).status, 200);
 });
 
+test("profile analysis explanations persist through play, undo, redo and archive", async (t) => {
+  const { store, endpoint } = await fixture(t);
+  const list = store.importDictionary("WOW24", "AT\nCAT\nCATS\nACT\n");
+  const [initial] = store.state().games;
+  const game = store.saveGame({ ...initial, rack: "CATS", dictionaryId: list.id })!;
+  const response = await endpoint("/analysis", {
+    position: { gameId: game.id, revision: game.revision },
+    operation: { kind: "moves", style: "learner" },
+  });
+  const result = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(result));
+  const { tiles, direction, styleExplanation } = result.rows[0];
+  assert.equal(styleExplanation.kind, "play");
+  assert.equal(styleExplanation.recommended, true);
+  assert.ok(styleExplanation.alternative.move.tiles.length);
+  const play = { action: "play", tiles, direction, styleExplanation };
+  const action = (position: Game, command: object) =>
+    endpoint(`/games/${game.id}/actions`, { revision: position.revision, command });
+  const invalid = await action(game, {
+    ...play, styleExplanation: { ...styleExplanation, played: styleExplanation.alternative },
+  });
+  assert.equal(invalid.status, 422);
+  async function apply(position: Game, command: object): Promise<Game> {
+    const result = await action(position, command);
+    const body = await result.json();
+    assert.equal(result.status, 200, JSON.stringify(body));
+    return body;
+  }
+  const played = await apply(game, play);
+  assert.deepEqual(played.trackedMoves?.at(-1)?.styleExplanation, styleExplanation);
+  const undone = await apply(played, { action: "undo" });
+  assert.equal(undone.trackedMoves?.length, 0);
+  const redone = await apply(undone, { action: "redo" });
+  assert.deepEqual(redone.trackedMoves?.at(-1)?.styleExplanation, styleExplanation);
+  await apply(redone, { action: "archive" });
+  assert.deepEqual(store.getGame(game.id)?.archivedState?.trackedMoves?.at(-1)?.styleExplanation, styleExplanation);
+});
+
 test("the API records passes and exchanges and undoes them with the original rack", async (t) => {
   const { endpoint, store } = await fixture(t);
   const profile = store.createProfile("Turn recording test");

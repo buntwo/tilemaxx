@@ -165,6 +165,7 @@ export function useMoveResults(
     head,
     profileHead: page?.profileHead,
     profileTiming: page?.profileTiming,
+    styleLeaders: page?.styleLeaders,
     start: Math.max(start, slice?.offset ?? 0),
     visible,
     scoreRanks: page?.scoreRanks,

@@ -27,6 +27,7 @@ import type { Move } from "../shared/model";
 import { randomGenerator } from "../shared/move-analysis";
 import { profileWordHash } from "../shared/player-profiles";
 import { rackComposition } from "../shared/rack-entry";
+import type { StyleExplanation } from "../shared/style-explanation";
 import type { CandidateJob } from "./candidate-analysis-jobs";
 import { createCandidatePool } from "./candidate-analysis-pool";
 import { createBingoCeilingSearch } from "./parallel-bingo-ceilings";
@@ -40,6 +41,7 @@ export type HunterProgress = HunterStageProgress & { stage: number };
 export type HunterSummary = {
   checked: number;
   passRecommended?: boolean;
+  passExplanation?: StyleExplanation;
   limited: boolean;
   canContinue?: boolean;
   finalistsRefined?: boolean;

@@ -1,4 +1,5 @@
 import { isSimulatedStyle } from "../shared/simulated-styles";
+import { explainStyleExchange, type StyleExplanation } from "../shared/style-explanation";
 import { Activity, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ImagePlus,
@@ -299,6 +300,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     move: Move;
     analysis: boolean;
     player: Player;
+    explanation?: { value: StyleExplanation; position: string };
   } | null>(null);
   const preview = movePreview?.move ?? null;
   const [formName, setFormName] = useState(""),
@@ -351,6 +353,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const trial = gameReplay.trial;
   const boardUnavailable = historical && !replay?.frame.board;
   const recordedPreview = replay?.showRecorded ? replay.frame.position : undefined;
+  const alternativePreview = replay?.alternativePreview;
   const replayDrawShelf = replay?.frames.some(({ draw }) => draw !== undefined) ?? false;
   const game = gameReplay.position ?? savedGame;
   const squareFilter = useMoveSquareFilter(workspace === "games" ? game : undefined);
@@ -407,6 +410,9 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     exchangeSeed,
   );
   const exchangeAdvice = moveListNavigation.view === "style" ? styleExchange.advice : solver.exchangeAdvice;
+  const recommendedPass = playingStyle === "master" && moveListNavigation.view === "style"
+    ? solver.masterPass(exchangeSearch, replyAnalysis.bagSize, replyAnalysis.scorelessTurns, replyAnalysis.opponentHasFinalTurn)
+    : undefined;
   const activeFlight =
     workspace === "games" && flight?.destination === signature
       ? flight
@@ -765,7 +771,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   function commitBoardTurn(player: Player, action: BoardlessTurn) {
     if (!game) return false;
     try {
-      const next = recordBoardlessTurn(game, player, action);
+      const explanation = player === "you" && !historical
+        ? action.kind === "pass" ? recommendedPass :
+          "slots" in action && exchangeAdvice && "profile" in exchangeAdvice
+            ? explainStyleExchange(exchangeAdvice, game.rack, action.slots) : undefined
+        : undefined;
+      const next = recordBoardlessTurn(game, player, action, explanation);
       const recorded = next.past.at(-1);
       if (recorded?.player === "you" && recorded.action?.kind === "exchange") {
         rackRefill.current = { position: positionSignature(next), from: document.activeElement };
@@ -819,17 +830,21 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     move: Move | null,
     analysis = false,
     player: Player = "you",
+    explanation?: StyleExplanation,
   ) {
     if (enteringOwnPlay) return;
     if (move) gameReplay.hideRecorded();
     if (move && narrowLayout && player === "you") moveReview.open();
-    setPreview(move ? { move, analysis, player } : null);
+    setPreview(move ? {
+      move, analysis, player, explanation: explanation && { value: explanation, position: signature },
+    } : null);
   }
   function play(
     move: Move,
-    { useRackMarks = true, correction }: {
+    { useRackMarks = true, correction, styleExplanation }: {
       useRackMarks?: boolean;
       correction?: OwnPlayRackCorrection;
+      styleExplanation?: StyleExplanation;
     } = {},
   ) {
     if (!game || activeFlight || boardLocked) return;
@@ -838,7 +853,16 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         game, correction, replyAnalysis.bagConfirmed ? replyAnalysis.bagSize : undefined,
       );
       const bagSize = corrected?.bagSize ?? replyAnalysis.bagSize;
-      const next = corrected?.game ?? playTrackedMove(game, move, bagSize, useRackMarks);
+      const previewExplanation = movePreview?.move === move && movePreview.explanation?.position === signature
+        ? movePreview.explanation.value : undefined;
+      let decision = historical ? undefined : styleExplanation ?? previewExplanation;
+      if (decision?.style !== playingStyle || moveListNavigation.view !== "style") decision = undefined;
+      if (decision?.kind === "play") {
+        if (recommendedPass) decision = { ...decision, recommended: false, preferred: "pass" };
+        else if (exchangeAdvice && "profile" in exchangeAdvice)
+          decision = { ...decision, recommended: false, preferred: "exchange" };
+      }
+      const next = corrected?.game ?? playTrackedMove(game, move, bagSize, useRackMarks, decision);
       const rackPosition = useRackMarks
         ? game
         : { ...game, excludedRackSlots: undefined, requiredRackSlots: undefined };
@@ -925,7 +949,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     data.dictionaries.find(({ id }) => id === game?.dictionaryId)?.name,
   ].filter(Boolean).join(" · ");
   const opponentTurn = replay?.frame.move?.player === "opponent";
-  const replayScores = game && (replay?.showRecorded ? replay.frame.scores : {
+  const replayScores = game && ((replay?.showRecorded || alternativePreview) ? replay.frame.scores : {
     you: game.scoring?.[opponentTurn ? "opponent" : "you"].points ?? 0,
     opponent: game.scoring?.[opponentTurn ? "you" : "opponent"].points ?? 0,
   });
@@ -1408,11 +1432,12 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               drawShelf={replayDrawShelf}
               resizeDisabled={!!activeFlight}
               warnings={boardWarnings}
-              board={<section
+              board={(replayDetails) => <section
                 ref={boardPanel}
                 aria-label="Game board"
                 aria-description={boardTurns.label}
                 className="board-panel panel"
+                data-alternative-preview={!!alternativePreview || undefined}
                 data-replay={historical || undefined}
                 data-turn={boardTurns.player}
                 data-turn-border={preferences.boardTurnBorder}
@@ -1456,8 +1481,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   skipPlayedTiles={preferences.skipPlayedTiles}
                   phoneLayout={narrowLayout}
                   hideHelp
-                  preview={boardLocked ? null : activeFlight?.move ?? preview ?? recordedPreview ?? null}
-                  previewPlayer={activeFlight ? "you" : movePreview?.player ?? (recordedPreview ? replay?.frame.move?.player : undefined)}
+                  preview={boardLocked ? null : activeFlight?.move ?? preview ?? alternativePreview ?? recordedPreview ?? null}
+                  previewPlayer={activeFlight ? "you" : movePreview?.player ?? ((alternativePreview || recordedPreview) ? replay?.frame.move?.player : undefined)}
                   definePreview={historical}
                   readOnly={boardLocked}
                   displayBoard={activeFlight?.before.board}
@@ -1566,6 +1591,15 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   <ReplayControls
                     {...replay}
                     archived={!!savedGame?.archived}
+                    detailsTarget={replayDetails}
+                    onToggleAlternative={() => {
+                      setPreview(null);
+                      setOwnPlay(undefined);
+                      if (moveReview.showing) moveReview.dismiss();
+                      replay.toggleAlternative();
+                      if (!alternativePreview)
+                        boardPanel.current?.querySelector(".board-entry")?.scrollIntoView?.({ block: "nearest" });
+                    }}
                     onToggleRecorded={() => {
                       setPreview(null);
                       setOwnPlay(undefined);
@@ -1607,7 +1641,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   exchangeScorelessTurns={replyAnalysis.scorelessTurns}
                   opponentRack={historical && !trial ? "" : replyAnalysis.opponentRack}
                   preview={
-                    recordedPreview ?? (preferences.highlightRackPreview && movePreview?.player !== "opponent" ? preview : null)
+                    recordedPreview ?? alternativePreview ?? (preferences.highlightRackPreview && movePreview?.player !== "opponent" ? preview : null)
                   }
                   flyingRack={activeFlight}
                   replayFrame={historical && (!trial || boardUnavailable) ? replay?.frame : undefined}

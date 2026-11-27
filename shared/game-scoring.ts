@@ -30,6 +30,7 @@ import {
   type TurnPosition,
 } from "./model";
 import { recordedMoveNotation } from "./notation";
+import type { StyleExplanation } from "./style-explanation";
 import { rackLetters, rackSlotsForMove, reorderRack } from "./rack-entry";
 import { endgameOpponentRack, unseenTiles } from "./tile-pool";
 import { PRESETS } from "./presets";
@@ -914,6 +915,7 @@ export function recordBoardlessTurn(
   game: Game,
   player: Player,
   action: BoardlessTurn,
+  styleExplanation?: StyleExplanation,
 ): Game {
   if (!tracksScores(game) || game.archived || game.scoring?.end)
     throw new Error("Turn recording is available in an active game with score tracking on.");
@@ -970,7 +972,7 @@ export function recordBoardlessTurn(
       dictionaryId: previous.dictionaryId,
       premiums: previous.template.premiums,
       tiles: [],
-    }, action),
+    }, action, styleExplanation),
     scoring: addScore(previous.scoring ?? emptyScoring(), player, { word, score: 0, bingo: false }),
   };
 }
@@ -1223,12 +1225,14 @@ export function playTrackedMove(
   move: Move,
   bagSize?: number,
   useRackMarks = true,
+  styleExplanation?: StyleExplanation,
 ): Game {
   if (displayedGameScoring(game)?.end) {
     if (game.archived) return applyMove(game, move, undefined, useRackMarks);
     throw new Error("This game has ended. Use Undo to continue.");
   }
-  if (!tracksScores(game)) return applyMove(game, move, undefined, useRackMarks);
+  if (!tracksScores(game))
+    return applyMove(game, move, styleExplanation ? "you" : undefined, useRackMarks, styleExplanation);
   const previous = recordOpponentPlay(game);
   if (!game.archived && previous.scoring?.end)
     throw new Error("This game has ended. Use Undo to continue.");
@@ -1243,7 +1247,7 @@ export function playTrackedMove(
         : "Tilemaxx couldn't tell how to score the new board tiles. If you entered multiple opponent moves, undo to the first play and use Record opponent move under Game scores before entering the next. For other board edits, fix the entry or choose Keep as correction.",
     );
   }
-  const result = applyMove(previous, move, "you", useRackMarks);
+  const result = applyMove(previous, move, "you", useRackMarks, styleExplanation);
   const scoring = addScore(previous.scoring ?? emptyScoring(), "you", {
     word: move.word,
     score: move.score,
@@ -1500,6 +1504,9 @@ export function correctTrackedMove(
     ...previous,
     ...change,
     at: previous?.at ?? new Date().toISOString(),
+    ...(previous?.styleExplanation && (previous.word !== change.word ||
+      previous.score !== change.score || previous.player !== change.player)
+      && { styleExplanation: undefined }),
   });
 
   // A screenshot import or clearing the board resets the score while retaining the log.

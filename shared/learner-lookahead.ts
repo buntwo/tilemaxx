@@ -20,6 +20,7 @@ import { learnerAppeal } from "./player-profile-sampling";
 import { rackComposition, splitRack } from "./rack-entry";
 import { createSolverFactory, SearchLimitError } from "./solver";
 import { unseenTiles } from "./tile-pool";
+import { stylePlacement } from "./style-explanation";
 
 const DEALS = 8;
 export const LEARNER_EXCHANGE_DEALS = 32;
@@ -65,6 +66,8 @@ function rankPlacements(
       lookahead,
       appeal: learnerAppeal(adjustedUtility, halfLife),
       adjustedUtility,
+      modeledReply: outcomes[index].reduce((sum, { reply }) => sum + reply, 0) / DEALS,
+      modeledFollowUp: outcomes[index].reduce((sum, { followUp }) => sum + followUp, 0) / DEALS,
     };
   });
   const picked = alternatives.reduce((best, entry) =>
@@ -80,12 +83,15 @@ function rankPlacements(
     ranked.map((row) => {
       const adjustment = adjustments.get(row.move.id);
       if (!adjustment) return row;
-      const { lookahead, appeal } = adjustment;
+      const { lookahead, appeal, modeledReply, modeledFollowUp } = adjustment;
       return {
         move: row.move,
         utility: {
           ...row.utility,
           lookahead,
+          modeledReply,
+          modeledFollowUp,
+          lookaheadDeals: DEALS,
           appeal,
           total: row.utility.total + lookahead,
         },
@@ -275,6 +281,7 @@ export function createLearnerLookahead(
           exchange: {
             ...learnerSwap.advice,
             comparedWith: { word: move.word, score: move.score },
+            comparedPlacement: stylePlacement(move),
             edge,
           },
         };

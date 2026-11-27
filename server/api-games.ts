@@ -40,6 +40,7 @@ import { basePremiums, importBoard } from "../shared/screenshot";
 import { unseenTiles } from "../shared/tile-pool";
 import { CLEARED_BOARD } from "../shared/score-recovery";
 import { defaultDictionary } from "../shared/dictionaries";
+import { sameStylePlacement, type StyleExplanation } from "../shared/style-explanation";
 import { ApiError } from "./api-error";
 import type { createStore } from "./store";
 import {
@@ -51,6 +52,7 @@ import {
   premiums,
   rack,
   rackSlots,
+  styleExplanationSchema,
 } from "./validation";
 
 type Store = ReturnType<typeof createStore>;
@@ -107,6 +109,7 @@ const action = z.discriminatedUnion("action", [
     useRackMarks: z.boolean().default(true),
     confirmedLeave: rack.optional(),
     bagSize: z.number().int().nonnegative().optional(),
+    styleExplanation: styleExplanationSchema.optional(),
   }),
   z.strictObject({
     action: z.literal("record-opponent"),
@@ -115,12 +118,14 @@ const action = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("record-pass"),
     player: z.enum(["you", "opponent"]),
+    styleExplanation: styleExplanationSchema.optional(),
   }),
   z.discriminatedUnion("player", [
     z.strictObject({
       action: z.literal("record-exchange"),
       player: z.literal("you"),
       slots: exchangeSlots,
+      styleExplanation: styleExplanationSchema.optional(),
     }),
     z.strictObject({
       action: z.literal("record-exchange"),
@@ -167,6 +172,17 @@ export const newGameRequest = z.strictObject({
   trackScores: z.boolean().default(true),
   creationToken,
 });
+
+function validateStyleAlternative(game: Game, explanation?: StyleExplanation) {
+  const other = explanation?.alternative?.move;
+  if (!other) return;
+  const { placement, missing } = prepareOwnPlay(game, editedBoard(game, other.tiles, true), other.direction);
+  if (!placement || missing.size || !sameStylePlacement(placement, other) ||
+    !rackSlotsForMove(game, other.tiles) ||
+    placement.word !== other.word || placement.score !== other.score ||
+    placement.row !== other.row || placement.col !== other.col || placement.direction !== other.direction)
+    throw new ApiError(422, "The style alternative does not match this position.");
+}
 
 function editedBoard(
   game: Game,
@@ -270,6 +286,8 @@ function applyAction(game: Game, command: z.infer<typeof action>): Game {
         ? total
         : Math.max(0, total - game.template.rackSize);
       if (command.confirmedLeave !== undefined) {
+        if (command.styleExplanation)
+          throw new ApiError(422, "Analyze the corrected rack before attaching a style explanation.");
         const correction = prepareOwnPlayRackCorrection(
           game,
           placement,
@@ -302,22 +320,44 @@ function applyAction(game: Game, command: z.infer<typeof action>): Game {
       const bag = command.bagSize ?? minimumBag;
       if (bag < minimumBag || bag > total)
         throw new ApiError(422, "Bag size disagrees with the entered tiles.");
-      return playTrackedMove(game, placement, bag, withMarks);
+      const explanation = command.styleExplanation;
+      if (explanation) {
+        if (explanation.kind !== "play" || explanation.played.move.word !== placement.word ||
+          explanation.played.move.score !== placement.score ||
+          explanation.played.move.direction !== placement.direction ||
+          explanation.played.move.row !== placement.row || explanation.played.move.col !== placement.col ||
+          !sameStylePlacement(explanation.played.move, placement))
+          throw new ApiError(422, "The style explanation does not match this play.");
+        validateStyleAlternative(game, explanation);
+      }
+      return playTrackedMove(game, placement, bag, withMarks, explanation);
     }
     case "record-opponent":
       return command.forSearch
         ? recordOpponentPlayForSearch(game)
         : recordOpponentPlay(game);
-    case "record-pass":
-      return recordBoardlessTurn(game, command.player, { kind: "pass" });
-    case "record-exchange":
+    case "record-pass": {
+      const explanation = command.styleExplanation;
+      if (explanation && (explanation.kind !== "pass" || command.player !== "you"))
+        throw new ApiError(422, "The style explanation does not match this pass.");
+      validateStyleAlternative(game, explanation);
+      return recordBoardlessTurn(game, command.player, { kind: "pass" }, explanation);
+    }
+    case "record-exchange": {
+      const explanation = command.player === "you" ? command.styleExplanation : undefined;
+      if (explanation && (explanation.kind !== "exchange" || command.player !== "you" ||
+        [...explanation.tiles].sort().join("") !== command.slots.map((slot) => game.rack[slot]).sort().join("")))
+        throw new ApiError(422, "The style explanation does not match this exchange.");
+      validateStyleAlternative(game, explanation);
       return recordBoardlessTurn(
         game,
         command.player,
         command.player === "you"
           ? { kind: "exchange", slots: command.slots }
           : { kind: "exchange", count: command.count },
+        explanation,
       );
+    }
     case "reopen-opponent":
       return reopenSearchRecordedOpponentPlay(game);
     case "keep-board-correction":

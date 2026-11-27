@@ -2,6 +2,9 @@ import { z } from "zod";
 import { validateCrop } from "../shared/screenshot";
 import { MAX_TILE_COUNT, TILE_SYMBOLS } from "../shared/tile-pool";
 import { MAX_GAME_NOTES, RULE_NAMES } from "../shared/model";
+import { PLAYER_PROFILES } from "../shared/player-profiles";
+import { SIMULATED_STYLES } from "../shared/simulated-styles";
+import { sameStylePlacement, STYLE_FACTORS } from "../shared/style-explanation";
 export const nameSchema = z.string().trim().min(1).max(80);
 export const cell = z.string().regex(/^[a-zA-Z]?$/);
 const premium = z.enum(["", "DL", "TL", "QL", "DW", "TW", "QW"]);
@@ -171,6 +174,48 @@ const boardlessTurn = z.union([
   }),
 ]).optional();
 const moveServerVersion = z.string().max(40).regex(/^\d+\.\d+\.\d+$/).optional();
+const styleEvaluation = z.object({
+  factors: z.partialRecord(z.enum(STYLE_FACTORS), z.number()),
+  rank: z.number().int().positive().optional(),
+  total: z.number().optional(),
+  modeledReply: z.number().nonnegative().optional(),
+  modeledFollowUp: z.number().nonnegative().optional(),
+  samples: z.number().int().nonnegative().optional(),
+  exact: z.boolean().optional(),
+  selection: z.enum(["winning-rack-out", "known-rack"]).optional(),
+});
+const styleCandidate = z.object({
+  move: z.object({
+    word: z.string().regex(/^[A-Z]{2,25}$/),
+    row: z.number().int().min(0).max(24),
+    col: z.number().int().min(0).max(24),
+    direction: z.enum(["across", "down"]),
+    score: z.number().int().nonnegative(),
+    tiles: z.array(z.object({
+      index: z.number().int().min(0).max(624),
+      letter: z.string().regex(/^[A-Za-z]$/),
+    })).min(1).max(10).refine((tiles) => new Set(tiles.map(({ index }) => index)).size === tiles.length),
+    leave: rack,
+  }),
+  evaluation: styleEvaluation,
+});
+const explanationFields = {
+  style: z.enum([...PLAYER_PROFILES, ...SIMULATED_STYLES]),
+  alternative: styleCandidate.optional(),
+  provisional: z.boolean().optional(),
+};
+export const styleExplanationSchema = z.discriminatedUnion("kind", [
+  z.object({
+    ...explanationFields, kind: z.literal("play"), played: styleCandidate, recommended: z.boolean(),
+    preferred: z.enum(["pass", "exchange"]).optional(),
+  }),
+  z.object({
+    ...explanationFields, kind: z.literal("exchange"),
+    tiles: z.string().regex(/^[A-Z?]{1,10}$/), problem: z.enum(["balance", "duplicates", "awkward", "leave"]),
+    edge: z.number().optional(),
+  }),
+  z.object({ ...explanationFields, kind: z.literal("pass"), evaluation: styleEvaluation.optional() }),
+]);
 const trackedMoves = z
   .array(
     z.object({
@@ -182,6 +227,7 @@ const trackedMoves = z
       at: z.string().max(50),
       serverVersion: moveServerVersion,
       review,
+      styleExplanation: styleExplanationSchema.optional(),
     }),
   )
   .optional();
@@ -201,6 +247,7 @@ const historySchema = z.object({
   scoring: scoringSchema.optional(),
   trackedMoves,
   review,
+  styleExplanation: styleExplanationSchema.optional(),
   at: z.string().max(50),
   serverVersion: moveServerVersion,
 });
@@ -288,8 +335,24 @@ export const gameSchema = gameProgress
         new Set(position.tiles.map((tile) => tile.index)).size ===
           position.tiles.length);
     const validTurn = ({
-      action, bingo, player, review: position, score,
-    }: Pick<z.infer<typeof historySchema>, "action" | "bingo" | "player" | "review" | "score">, label: string) => {
+      action, bingo, player, review: position, score, styleExplanation,
+    }: Pick<z.infer<typeof historySchema>, "action" | "bingo" | "player" | "review" | "score" | "styleExplanation">, label: string) => {
+      if (styleExplanation) {
+        if (!player || !position || styleExplanation.kind !== (action?.kind ?? "play")) return false;
+        const other = styleExplanation.alternative?.move;
+        if (other && (other.row >= g.template.size || other.col >= g.template.size ||
+          other.tiles.some(({ index }) => index >= size || position.board[index] !== "") ||
+          other.leave.length > g.template.rackSize)) return false;
+        if (styleExplanation.kind === "play") {
+          const { move } = styleExplanation.played;
+          if (move.word !== label || move.score !== score || !sameStylePlacement(move, position) ||
+            move.row >= g.template.size || move.col >= g.template.size || move.leave.length > g.template.rackSize)
+            return false;
+        }
+        if (styleExplanation.kind === "exchange" && action?.kind === "exchange" && "slots" in action &&
+          [...styleExplanation.tiles].sort().join("") !== action.slots.map((slot) => position.rack?.[slot]).sort().join(""))
+          return false;
+      }
       if (!action) return validReview(position);
       if (!player || (g.solo && player !== "you") || !position || score !== 0 || bingo ||
           label !== (action.kind === "pass" ? "PASS" : "EXCHANGE") || !validReview(position, true))

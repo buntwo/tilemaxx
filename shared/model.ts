@@ -1,4 +1,5 @@
 import { rackAfterMove } from "./rack-entry";
+import type { StyleExplanation } from "./style-explanation";
 
 export type Premium = "" | "DL" | "TL" | "QL" | "DW" | "TW" | "QW";
 export const RULE_NAMES = {
@@ -66,6 +67,7 @@ export interface TrackedMove {
   // The server build that first stored this turn, when known.
   serverVersion?: string;
   review?: TurnPosition;
+  styleExplanation?: StyleExplanation;
 }
 export interface TurnPosition {
   board: Board;
@@ -134,6 +136,7 @@ export interface HistoryEntry extends Position {
   // Only score-log edits need to snapshot the whole log for undo and redo.
   trackedMoves?: TrackedMove[];
   review?: TurnPosition;
+  styleExplanation?: StyleExplanation;
   at: string;
   serverVersion?: string;
 }
@@ -466,6 +469,7 @@ function trackedMove(
       score: entry.score,
       ...(bingo !== undefined && { bingo }),
       ...(entry.review && { review: entry.review }),
+      ...(entry.styleExplanation && { styleExplanation: entry.styleExplanation }),
       ...(entry.action && { action: entry.action }),
       ...(entry.serverVersion && { serverVersion: entry.serverVersion }),
       at: entry.at,
@@ -507,6 +511,7 @@ export function remember(
   bingo?: boolean,
   review?: TurnPosition,
   action?: BoardlessTurn,
+  styleExplanation?: StyleExplanation,
 ): Pick<Game, "past" | "future" | "trackedMoves"> {
   const entry: HistoryEntry = {
     board: [...game.board],
@@ -519,6 +524,7 @@ export function remember(
     bingo,
     review,
     ...(action && { action }),
+    ...(styleExplanation && { styleExplanation }),
     scoring: game.scoring,
     at: new Date().toISOString(),
   };
@@ -535,6 +541,7 @@ export function applyMove(
   move: Move,
   player?: Player,
   useRackMarks = true,
+  styleExplanation?: StyleExplanation,
 ): Game {
   const board = [...game.board];
   for (const tile of move.tiles) {
@@ -564,6 +571,8 @@ export function applyMove(
             direction: move.direction,
           }
         : undefined,
+      undefined,
+      player ? styleExplanation : undefined,
     ),
     board,
     rack: useRackMarks ? rackAfterMove(game, move.tiles, move.leave) : move.leave,
@@ -610,6 +619,7 @@ export function undo(game: Game): Game {
         bingo: trackedMove(step, game.scoring)?.bingo,
         ...(step.action && { action: step.action }),
         review: step.review,
+        ...(step.styleExplanation && { styleExplanation: step.styleExplanation }),
         scoring: game.scoring,
         trackedMoves: step.trackedMoves && trackedMoveHistory(game),
         ...(step.serverVersion && { serverVersion: step.serverVersion }),
@@ -655,6 +665,7 @@ export function redo(game: Game): Game {
         bingo: move?.bingo,
         ...(step.action && { action: step.action }),
         review: step.review,
+        ...(step.styleExplanation && { styleExplanation: step.styleExplanation }),
         scoring: game.scoring,
         trackedMoves: step.trackedMoves && trackedMoveHistory(game),
         ...(step.serverVersion && { serverVersion: step.serverVersion }),

@@ -11,6 +11,7 @@ import {
 } from "./player-profiles";
 import { rackComposition, splitRack } from "./rack-entry";
 import { prepareSolver, SearchLimitError } from "./solver";
+import { stylePlacement, type StylePlacement } from "./style-explanation";
 import { unseenTiles } from "./tile-pool";
 
 export interface PlayerExchangePosition extends Position {
@@ -27,6 +28,7 @@ export interface PlayerExchangeAdvice {
   slots: number[];
   profile: PlayerProfile;
   comparedWith?: Pick<Move, "word" | "score">;
+  comparedPlacement?: StylePlacement;
   problem: RackProblem;
   edge?: number;
 }
@@ -185,6 +187,7 @@ function adviceFor(
     slots: swap.slots,
     profile,
     comparedWith: move && { word: move.word, score: move.score },
+    ...(move && { comparedPlacement: stylePlacement(move) }),
     problem,
     edge,
   };

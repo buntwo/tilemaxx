@@ -385,6 +385,79 @@ test("All moves and Shortlist share the selected playing style as their return v
   expect(picker).toHaveProperty("value", "learner");
 });
 
+test.each([1200, 390])("replay restores a saved style explanation and previews the exact alternative at %ipx", async (width) => {
+  class ExplainingWorker extends SolverWorker {
+    postMessage(request: SolverRequest) {
+      if (request.kind === "page" && request.query.profile === "learner") {
+        const result = this.results.get(request.searchId);
+        if (result) {
+          const played = result.moves.find(({ word, direction }) => word === "CAT" && direction === "across")!;
+          const other = result.moves.find(({ word, direction }) => word === "CATS" && direction === "down")!;
+          result.setProfile(request.query, [played, other].map((move, index) => ({
+            move,
+            utility: {
+              total: index ? 11 : 12, points: move.score * 0.85, premium: 0.4,
+              visibility: 1, appeal: 2, leave: index ? 0 : 1.2, goingOut: 0,
+              premiumLane: index ? -2.4 : -1.15, lookahead: index ? 0 : 1.25,
+              modeledReply: index ? 30 : 22, modeledFollowUp: 28, lookaheadDeals: 8,
+            },
+          })));
+        }
+      }
+      super.postMessage(request);
+    }
+  }
+  vi.stubGlobal("Worker", ExplainingWorker);
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: width > 400 && query === "(any-hover: hover)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  shellWidth = width;
+  const user = userEvent.setup();
+  const mounted = render(<App />);
+  await screen.findByRole("heading", { name: /First game/ });
+  await typeRack(user, "CATS");
+  await user.keyboard("{Enter}");
+  await user.selectOptions(await screen.findByRole("combobox", { name: "Playing style" }), "learner");
+  const row = await screen.findByRole("button", { name: /^CAT, .*playing style rank 1/ });
+  await user.click(row);
+  if (!current().trackedMoves?.length) await user.click(cell("Play"));
+  const decision = current().trackedMoves?.[0].styleExplanation;
+  expect(decision).toMatchObject({
+    style: "learner", kind: "play", recommended: true, alternative: { move: { word: "CATS" } },
+  });
+  await act(() => store.flush());
+  expect(remote.games[0].trackedMoves?.[0].styleExplanation).toMatchObject({ style: "learner" });
+  const id = current().id;
+  mounted.unmount();
+  history.replaceState(null, "", `/games/${id}?move=1`);
+  render(<App />);
+  await user.click(await screen.findByRole("button", { name: "Why?" }));
+  const why = within(screen.getByRole("region", { name: "Why this move?" }));
+  expect(why.getByText(/cut the modeled reply by 8/)).toBeTruthy();
+  await user.click(why.getByText("Style breakdown"));
+  expect(why.getByText("1.25").classList.contains("value-good")).toBe(true);
+  expect(why.getByText("-1.15").classList.contains("value-bad")).toBe(true);
+  const alternative = why.getByRole("button", { name: /^Preview alternative CATS at .* down/ });
+  const ghosts = () => Array.from(document.querySelectorAll(".board-entry .ghost")).length;
+  expect(ghosts()).toBe(3);
+  const before = current().board;
+  await user.click(alternative);
+  expect(alternative.getAttribute("aria-pressed")).toBe("true");
+  expect(ghosts()).toBe(4);
+  expect(document.querySelector(".board-panel")?.hasAttribute("data-alternative-preview")).toBe(true);
+  expect(current().board).toEqual(before);
+  expect(location.search).toBe("?move=1");
+  await user.keyboard("{Escape}");
+  expect(ghosts()).toBe(3);
+  expect(location.search).toBe("?move=1");
+  await user.click(alternative);
+  await user.click(cell("Preview recorded move CAT"));
+  expect(ghosts()).toBe(3);
+  expect(alternative.getAttribute("aria-pressed")).toBe("false");
+});
+
 test("Resample style changes the draw and keeps the current solve and vocabulary", async () => {
   let solves = 0;
   const requests: Extract<SolverRequest, { kind: "page" }>[] = [];

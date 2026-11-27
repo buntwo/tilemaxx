@@ -10,6 +10,7 @@ import { gameReplayTimeline, hasRecordedMoves, replayGamePosition } from "../sha
 import {
   boardWordsAt,
   emptyScoring,
+  playTrackedMove,
   recordBoardlessTurn,
   reviewTurns,
   scorePlacement,
@@ -27,6 +28,9 @@ import { PRESETS } from "../shared/presets";
 import { splitRack } from "../shared/rack-entry";
 import { getTileCounts, TILE_SYMBOLS } from "../shared/tile-pool";
 import { gameSchema } from "../server/validation";
+import { Lexicon } from "../shared/lexicon";
+import { solvePosition } from "../shared/solver";
+import { explainStyleExchange, explainStylePlay, styleCandidate, stylePlacement } from "../shared/style-explanation";
 
 function gameWithMoves(trackedMoves: TrackedMove[]): Game {
   return {
@@ -61,6 +65,28 @@ test("replay keeps pass boards and exchange tiles and draws after archiving", ()
   assert.deepEqual(frames[3].move?.action, { kind: "exchange" });
   assert.equal(frames[3].move?.score, 0);
   assert.ok(summarizeGame(archived).fullMoveHistory);
+});
+
+test("style decisions are replayable for a play with scoring paused and a suggested exchange", () => {
+  const game = { ...gameWithMoves([]), rack: "CATS" };
+  const [played, alternative] = solvePosition(new Lexicon(["CAT", "CATS"]), game, game.template);
+  const style = styleCandidate(played, {
+    rank: 1, total: 8, points: 8, premium: 0, leave: 0, goingOut: 0, visibility: 1, appeal: 1,
+  });
+  const decision = explainStylePlay("strong", style, []);
+  const untracked = playTrackedMove({ ...game, trackScores: false }, played, undefined, true, decision);
+  assert.equal(untracked.scoring, undefined);
+  assert.deepEqual(gameReplayTimeline(gameSchema.parse(untracked)).frames[1].move?.styleExplanation, decision);
+
+  const slots = [0, 1];
+  const exchange = explainStyleExchange({
+    profile: "learner", slots, problem: "balance",
+    comparedWith: { word: alternative.word, score: alternative.score },
+    comparedPlacement: stylePlacement(alternative),
+  }, game.rack, slots)!;
+  const recorded = recordBoardlessTurn(game, "you", { kind: "exchange", slots }, exchange);
+  const archived = gameSchema.parse(archiveForReview(recorded));
+  assert.deepEqual(gameReplayTimeline(archived).frames[1].move?.styleExplanation, exchange);
 });
 
 test("replay accumulates each player's recorded stats through the selected move and honors a scoring reset", () => {

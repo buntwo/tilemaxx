@@ -20,6 +20,10 @@ export function formatUtility(value: number) {
   return utilityNumber.format(value);
 }
 
+export function formatStyleWeight(value: number) {
+  return weightNumber.format(value);
+}
+
 type UtilityDetails = {
   profile: MoveStyle;
   utility: MoveUtility;
@@ -197,7 +201,7 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
             (value || show) && (
               <li className="score-breakdown-line" key={label}>
                 <span>{label}</span>
-                <span className={tone}>{formatUtility(value || 0)}</span>
+                <span className={tone ?? scoreTone(value)}>{formatUtility(value || 0)}</span>
               </li>
             ),
         )}

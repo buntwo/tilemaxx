@@ -10,6 +10,7 @@ import type { PlayerExchangeAdvice } from "./player-exchange";
 import type { RankedSoloMove, SoloStyleUtility } from "./solo-styles";
 import type { HunterUtility, RankedHunterMove } from "./bingo-hunter";
 import { compileMoveWordFilter } from "./move-word-filter";
+import { styleCandidate, type StyleCandidate } from "./style-explanation";
 
 export type MoveStyle = PlayerProfile | SimulatedStyle;
 export type CalculationSpan = { start: number; end: number };
@@ -109,6 +110,7 @@ export interface MovePage {
   scoreRanks: Record<string, number>;
   profileHead?: Move[];
   profileTiming?: CalculationSpan;
+  styleLeaders?: readonly StyleCandidate[];
   styleChoice?: { move?: Move; exchange?: StyleExchange };
   utilities?: Record<string, MoveUtility>;
   endgame?: Record<string, EndgameEstimate>;
@@ -250,6 +252,7 @@ export class MoveResultIndex {
     key: string;
     moves: readonly Move[];
     ranked: readonly RankedMove[];
+    leaders: StyleCandidate[];
     ranks: Map<string, number>;
     timing?: CalculationSpan;
     exchange?: StyleExchange;
@@ -306,10 +309,20 @@ export class MoveResultIndex {
     timing?: CalculationSpan,
     exchange?: StyleExchange,
   ) {
+    const leading = ranked.slice(0, 3).map(({ move, utility }, index) =>
+      styleCandidate(move, { ...utility, rank: index + 1 }),
+    );
+    const [first, ...other] = leading;
+    // Learner promotes its winner but leaves the other finalists in sampled order.
+    if (first?.evaluation.modeledReply !== undefined)
+      other.sort((a, b) =>
+        Number(b.evaluation.modeledReply !== undefined) - Number(a.evaluation.modeledReply !== undefined) ||
+        (b.evaluation.total ?? 0) - (a.evaluation.total ?? 0));
     const order = {
       key: profileQueryKey(query),
       moves: ranked.map(({ move }) => move),
       ranked,
+      leaders: first ? [first, ...other] : [],
       ranks: new Map(ranked.map(({ move }, index) => [move.id, index + 1])),
       timing,
       exchange,
@@ -396,6 +409,7 @@ export class MoveResultIndex {
       head: moves.slice(0, MOVE_HEAD_SIZE),
       profileHead: ranked?.moves.slice(0, MOVE_HEAD_SIZE),
       profileTiming: ranked?.timing,
+      styleLeaders: ranked?.leaders,
       rows,
       scoreRanks: Object.fromEntries(
         rows.map(({ id }) => [id, this.scoreRanks.get(id)!]),

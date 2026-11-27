@@ -49,7 +49,7 @@ export function GameBoardColumn({
   live: boolean;
   drawShelf: boolean;
   resizeDisabled: boolean;
-  board: ReactNode;
+  board: (replayDetails: HTMLDivElement | null) => ReactNode;
   warnings: ReactNode;
   rack: (details: HTMLDivElement | null) => ReactNode;
 }) {
@@ -57,6 +57,7 @@ export function GameBoardColumn({
   const [savedInset, setSavedInset] = useState(readBoardInset);
   const [maxInset, setMaxInset] = useState(RACK_WIDTH);
   const [details, setDetails] = useState<HTMLDivElement | null>(null);
+  const [replayDetails, setReplayDetails] = useState<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
     const element = column.current;
     if (!phone || !element) return;
@@ -87,7 +88,7 @@ export function GameBoardColumn({
         "--phone-divider-range": `${dividerMax - rackWidth}px`,
       } as CSSProperties : undefined}
     >
-      {board}
+      {board(phone ? replayDetails : null)}
       {phone && (
         <input
           className="phone-rack-divider"
@@ -111,6 +112,7 @@ export function GameBoardColumn({
       {phone && (
         <>
           {warnings}
+          <div className="phone-replay-details" ref={setReplayDetails} />
           <div className="phone-rack-details" ref={setDetails} />
         </>
       )}

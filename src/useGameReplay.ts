@@ -11,6 +11,7 @@ type Session = {
   index: number;
   playing: boolean;
   showRecorded: boolean;
+  showAlternative?: boolean;
   trial?: Game;
   returnFocus: HTMLElement | null;
 };
@@ -64,6 +65,7 @@ export function useGameReplay(
       index: next,
       playing: next < last,
       showRecorded: true,
+      showAlternative: false,
     } : undefined);
     setMove(next <= recordedCount ? next : undefined, true);
   });
@@ -108,6 +110,7 @@ export function useGameReplay(
       index,
       playing: false,
       showRecorded: index > 0,
+      showAlternative: false,
       trial: undefined,
     });
     setMove(index <= recordedCount ? index : undefined, replace);
@@ -120,6 +123,7 @@ export function useGameReplay(
       index,
       playing: !current.playing,
       showRecorded: true,
+      showAlternative: false,
       trial: undefined,
     });
     setMove(index);
@@ -128,16 +132,27 @@ export function useGameReplay(
     if (current?.playing) setSession({ ...current, playing: false });
   }
   function hideRecorded() {
-    if (current && (current.playing || current.showRecorded))
-      setSession({ ...current, playing: false, showRecorded: false });
+    if (current && (current.playing || current.showRecorded || current.showAlternative))
+      setSession({ ...current, playing: false, showRecorded: false, showAlternative: false });
   }
   function toggleRecorded() {
     if (current && historical && !trial && frame?.position)
-      setSession({ ...current, playing: false, showRecorded: !current.showRecorded });
+      setSession({ ...current, playing: false, showRecorded: !current.showRecorded, showAlternative: false });
+  }
+  const alternative = frame?.move?.styleExplanation?.alternative?.move;
+  const board = frame?.board;
+  const canPreviewAlternative = !!(historical && !trial && board && alternative &&
+    alternative.tiles.every(({ index }) => board[index] === ""));
+  function toggleAlternative() {
+    if (!current || !canPreviewAlternative) return;
+    setSession({
+      ...current, playing: false, showAlternative: !current.showAlternative,
+      showRecorded: !!current.showAlternative && !!frame?.position,
+    });
   }
   function updateTrial(game: Game) {
     if (!current || !historical || position?.id !== game.id) return;
-    setSession({ ...current, playing: false, showRecorded: false, trial: game });
+    setSession({ ...current, playing: false, showRecorded: false, showAlternative: false, trial: game });
   }
   function backToTurn() {
     if (current?.trial)
@@ -155,7 +170,8 @@ export function useGameReplay(
     )) return;
     if (event.key === "Escape" && historical) {
       event.preventDefault();
-      if (trial) backToTurn();
+      if (current?.showAlternative) toggleAlternative();
+      else if (trial) backToTurn();
       else close();
     } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
@@ -195,9 +211,12 @@ export function useGameReplay(
       historical,
       playing,
       showRecorded: current.showRecorded && !trial,
+      alternativePreview: canPreviewAlternative && current.showAlternative ? alternative : undefined,
+      canPreviewAlternative,
       seek,
       togglePlay,
       toggleRecorded,
+      toggleAlternative,
       close,
     },
   };

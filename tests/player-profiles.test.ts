@@ -544,9 +544,10 @@ test("fast picking agrees with full ranked results on a two-blank rack", () => {
       assert.equal(fast.move?.id, full.considered?.[0]?.move.id);
       assert.deepEqual(fast.suggestions, full.considered?.slice(0, 3).map(({ move }) => move));
       for (const { utility } of full.considered ?? []) {
-        const { total, visibility, appeal, ...factors } = utility;
+        const { total, visibility, appeal, points, premium, leave, goingOut } = utility;
         assert.ok(visibility > 0 && visibility <= 1 && appeal > 0);
-        const sum = Object.values(factors).reduce((a, b) => a + b, 0);
+        const sum = points + premium + leave + goingOut +
+          (utility.defense ?? 0) + (utility.premiumLane ?? 0) + (utility.endgame ?? 0) + (utility.lookahead ?? 0);
         assert.ok(Math.abs(total - sum) < 1e-8);
       }
     }

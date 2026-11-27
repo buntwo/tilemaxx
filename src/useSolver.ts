@@ -542,8 +542,21 @@ export function useSolver(positionKey: string, game: Game | undefined) {
     [query],
   );
 
+  const masterPass = useRef<{
+    searchId: number;
+    bagSize: number;
+    scorelessTurns: HunterOptions["scorelessTurns"];
+    opponentHasFinalTurn: HunterOptions["opponentHasFinalTurn"];
+    explanation: NonNullable<Extract<SolverMessage, { kind: "bingo-hunter" }>["summary"]>["passExplanation"];
+  }>(undefined);
   const runBingoHunter = useCallback<RunBingoHunter>(async (searchId, options, signal, progress) => {
     const result = await query({ kind: "bingo-hunter", searchId, ...options }, signal, progress);
+    if (!signal.aborted && result?.kind === "bingo-hunter" && options.style === "master") {
+      const { bagSize, scorelessTurns, opponentHasFinalTurn } = options;
+      masterPass.current = {
+        searchId, bagSize, scorelessTurns, opponentHasFinalTurn, explanation: result.summary?.passExplanation,
+      };
+    }
     return result?.kind === "bingo-hunter" ? result : undefined;
   }, [query]);
 
@@ -633,6 +646,12 @@ export function useSolver(positionKey: string, game: Game | undefined) {
     shortlist,
     rankEndgame,
     runBingoHunter,
+    masterPass(searchId: number | undefined, bagSize: number, scorelessTurns: number | undefined, opponentHasFinalTurn?: boolean) {
+      const saved = masterPass.current;
+      if (saved && saved.searchId === searchId && saved.bagSize === bagSize &&
+        saved.scorelessTurns === scorelessTurns && saved.opponentHasFinalTurn === opponentHasFinalTurn)
+        return saved.explanation;
+    },
     runBoardOdds,
     finishTiming,
     cancelBoardOdds: stopBoardOdds,

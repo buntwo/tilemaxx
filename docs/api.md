@@ -126,6 +126,13 @@ letters are assigned blanks. In a rack, `?` is an unassigned blank and `.`
 is an empty slot. Manual board and play entry can transcribe plays from another
 game. Use the word checker or move generation to validate dictionary membership.
 
+To preserve a playing-style decision in replay, include the move row’s
+`styleExplanation` in the `play` command for the analyzed game revision. For a
+recommended pass or exchange, send the analysis response’s `passExplanation` or
+`exchangeExplanation` as `styleExplanation` in the corresponding record command.
+The `exchange-advice` operation also returns its recommendation as
+`styleExplanation`. Replay uses the saved decision and alternative placement.
+
 Passes and exchanges require an active game with score tracking enabled.
 They follow the same turn order as the web app. A valid pending opponent
 placement is recorded first when you pass or exchange after it. Use the
