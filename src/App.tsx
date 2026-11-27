@@ -65,6 +65,8 @@ import {
   rackTileRects,
 } from "./components/tile-motion";
 import { useReplyAnalysis } from "./useReplyAnalysis";
+import type { SavedExactEndgame, SolvedMoveOptions } from "./useOpponentEndgame";
+import { MOVE_CACHE_LIMIT } from "../shared/move-results";
 import { rackComposition, splitRack } from "../shared/rack-entry";
 import { playOwnMoveWithRackCorrection, type OwnPlayRackCorrection } from "../shared/own-play";
 import BoardStudio from "./components/BoardStudio";
@@ -297,13 +299,14 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     saved("tilemaxx:theme") || (saved("tilewise:theme") === "light" ? "light" : "dark"),
   );
   const [preferences, setPreferences] = preferenceState;
-  const [movePreview, setPreview] = useState<{
+  const [movePreview, setPreview] = useState<({
     move: Move;
     analysis: boolean;
     player: Player;
-    useRackMarks?: boolean;
     explanation?: { value: StyleExplanation; position: string };
-  } | null>(null);
+  } & SolvedMoveOptions) | null>(null);
+  const solvedEndgameHistory = useRef(new globalThis.Map<string, SavedExactEndgame>());
+  const [restoredEndgame, setRestoredEndgame] = useState<SavedExactEndgame>();
   const preview = movePreview?.move ?? null;
   const [formName, setFormName] = useState(""),
     [formBusy, setFormBusy] = useState(false);
@@ -620,6 +623,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     return () => clearTimeout(timer);
   }, [toast]);
   function update(next: Game) {
+    setRestoredEndgame(undefined);
     if (historical) gameReplay.updateTrial(next);
     else updateSavedGame(next);
   }
@@ -661,13 +665,22 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       (boardPanel.current?.contains(active) || rackPanel.current?.contains(active)))
       active.blur();
   }
+  function endgameUndoKey(after: Game, beforeSignature: string) {
+    return JSON.stringify([after.archived, historical ? replay?.index : null,
+      after.past.at(-1)?.at, beforeSignature, positionSignature(after)]);
+  }
   function undoGame() {
     if (boardLocked || !game?.past.length) return;
     const previous = undo(game);
     const previousSignature = positionSignature(previous);
     if (previousSignature !== signature)
       solver.restoreOnUndo(previousSignature);
+    const restored = solvedEndgameHistory.current.get(endgameUndoKey(game, previousSignature));
     update(previous);
+    if (restored) {
+      moveReview.open();
+      setRestoredEndgame(restored);
+    }
   }
   function redoGame() {
     if (boardLocked || !game?.future.length) return;
@@ -837,19 +850,18 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     analysis = false,
     player: Player = "you",
     explanation?: StyleExplanation,
-    { useRackMarks }: { useRackMarks?: boolean } = {},
+    options: SolvedMoveOptions = {},
   ) {
     if (enteringOwnPlay) return;
     if (move) gameReplay.hideRecorded();
     if (move && narrowLayout && player === "you") moveReview.open();
     setPreview(move ? {
-      move, analysis, player, useRackMarks, explanation: explanation && { value: explanation, position: signature },
+      move, analysis, player, ...options, explanation: explanation && { value: explanation, position: signature },
     } : null);
   }
   function play(
     move: Move,
-    { useRackMarks = true, correction, styleExplanation }: {
-      useRackMarks?: boolean;
+    { useRackMarks = true, correction, styleExplanation, solvedEndgame }: SolvedMoveOptions & {
       correction?: OwnPlayRackCorrection;
       styleExplanation?: StyleExplanation;
     } = {},
@@ -870,6 +882,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           decision = { ...decision, recommended: false, preferred: "exchange" };
       }
       const next = corrected?.game ?? playTrackedMove(game, move, bagSize, useRackMarks, decision);
+      if (solvedEndgame) {
+        const saved = solvedEndgameHistory.current;
+        const key = endgameUndoKey(next, signature);
+        saved.delete(key);
+        saved.set(key, solvedEndgame);
+        if (saved.size > MOVE_CACHE_LIMIT) saved.delete(saved.keys().next().value!);
+      }
       const rackPosition = useRackMarks
         ? game
         : { ...game, excludedRackSlots: undefined, requiredRackSlots: undefined };
@@ -1590,7 +1609,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                         data-move-preview-action
                         type="button"
                         disabled={boardLocked || !preview || !!activeFlight}
-                        onClick={() => preview && play(preview, { useRackMarks: movePreview?.useRackMarks })}
+                        onClick={() => movePreview && play(movePreview.move, movePreview)}
                       >
                         <span className="button primary">Play</span>
                       </button>
@@ -1731,6 +1750,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   hasRack={hasPlayableRack}
                   analysisGame={game}
                   analysisKey={signature}
+                  restoredEndgame={restoredEndgame}
+                  clearRestoredEndgame={setRestoredEndgame}
                   replyAnalysis={replyAnalysis}
                   replyEnabled={!game.solo}
                   rackOdds={solver.rackOdds}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { OpponentEndgameTiming } from "./move-timing";
 import type { ExactEndgamePosition } from "../shared/reply-analysis";
 import type { EndgameLine } from "../shared/endgame";
@@ -7,19 +7,33 @@ import { useGameCalculation } from "./components/GameCalculations";
 import type {
   OpponentEndgameMessage,
   OpponentEndgameProgress,
+  ExactEndgameCheckpoint,
   ExactEndgameContinuation,
   ExactEndgameRequest,
+  ExactEndgameResume,
   OpponentEndgameResult,
 } from "./parallel-opponent-endgame";
 
+type FinishedSearch = {
+  pending: false;
+  result: OpponentEndgameResult;
+  timing: OpponentEndgameTiming;
+  request: ExactEndgameRequest;
+  checkpoint?: ExactEndgameCheckpoint;
+};
 type Search =
   | { pending: true; progress?: OpponentEndgameProgress }
-  | { pending: false; result: OpponentEndgameResult; timing: OpponentEndgameTiming }
+  | FinishedSearch
   | { pending: false; error: string };
+
+export type SavedExactEndgame = { key: string; firstPlayer: Player; value: FinishedSearch };
+export type SolvedMoveOptions = { useRackMarks?: boolean; solvedEndgame?: SavedExactEndgame };
 
 export function useExactEndgame(
   key: string | undefined,
   workerLimit: number,
+  restore?: SavedExactEndgame,
+  clearRestore?: (value: undefined) => void,
 ) {
   const [search, setSearch] = useState<{ key: string; firstPlayer: Player; value: Search }>();
   const active = useRef<Worker | null>(null);
@@ -34,19 +48,25 @@ export function useExactEndgame(
     continueRun.current = null;
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setSearch(undefined);
     return stop;
   }, [key]);
 
-  function start(position: ExactEndgamePosition, dictionaryId: string, cachedLines?: EndgameLine[]) {
+  useLayoutEffect(() => {
+    if (!restore || restore.key !== key) return;
+    setSearch(restore);
+    clearRestore?.(undefined);
+  }, [key, restore, clearRestore]);
+
+  function run(request: ExactEndgameRequest, restored?: FinishedSearch) {
     if (key === undefined) return;
     stop();
-    const firstPlayer = position.firstPlayer ?? "opponent";
+    const firstPlayer = request.kind === "solve-own-endgame" ? "you" : "opponent";
     const publish = (value: Search) => setSearch({ key, firstPlayer, value });
     let startedAt = performance.now();
-    let elapsed = 0;
-    publish({ pending: true });
+    let elapsed = restored?.timing.total ?? 0;
+    publish({ pending: true, progress: restored && { checked: restored.result.checked, total: restored.result.total } });
     try {
       const worker = new Worker(
         new URL("./analysis.worker.ts", import.meta.url),
@@ -82,7 +102,7 @@ export function useExactEndgame(
             }
           };
         }
-        publish({ pending: false, result, timing: { total: elapsed, batches: result.batches } });
+        publish({ pending: false, result, timing: { total: elapsed, batches: result.batches }, request, checkpoint: data.checkpoint });
       };
       worker.onerror = () => {
         if (active.current !== worker) return;
@@ -92,12 +112,9 @@ export function useExactEndgame(
           error: "The endgame search stopped unexpectedly.",
         });
       };
-      const request = { ...position, dictionaryId, workerLimit };
-      worker.postMessage(firstPlayer === "you" ? {
-        ...request, kind: "solve-own-endgame", cachedLines,
-      } satisfies ExactEndgameRequest : {
-        ...request, kind: "solve-opponent-endgame",
-      } satisfies ExactEndgameRequest);
+      worker.postMessage(restored?.checkpoint ? {
+        kind: "resume-exact-endgame", request, checkpoint: restored.checkpoint,
+      } satisfies ExactEndgameResume : request);
     } catch {
       stop();
       publish({
@@ -110,8 +127,17 @@ export function useExactEndgame(
   return {
     current,
     firstPlayer: matching?.firstPlayer,
-    start,
-    continueSearch: () => continueRun.current?.(),
+    savedResult: matching && current && "result" in current ? { ...matching, value: current } : undefined,
+    start(position: ExactEndgamePosition, dictionaryId: string, cachedLines?: EndgameLine[]) {
+      const request = { ...position, dictionaryId, workerLimit };
+      run(position.firstPlayer === "you" ? { ...request, kind: "solve-own-endgame", cachedLines }
+        : { ...request, kind: "solve-opponent-endgame" });
+    },
+    continueSearch() {
+      if (continueRun.current) continueRun.current();
+      else if (current && "result" in current && current.checkpoint)
+        run({ ...current.request, workerLimit }, current);
+    },
     close() {
       stop();
       setSearch(undefined);

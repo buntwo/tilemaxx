@@ -74,7 +74,7 @@ import OpponentEndgameResults, {
 } from "./OpponentEndgameResults";
 import { ComputeWorkerLimit } from "./ComputeWorkerLimit";
 import { computeWorkerLimit } from "../compute-workers";
-import { useExactEndgame } from "../useOpponentEndgame";
+import { useExactEndgame, type SavedExactEndgame, type SolvedMoveOptions } from "../useOpponentEndgame";
 import { useGameCalculating } from "./GameCalculations";
 import { formatUtility, useMoveScoreTooltip } from "./MoveScoreTooltip";
 import PremiumDefense, {
@@ -258,6 +258,8 @@ export default function Results({
   hasRack,
   analysisGame,
   analysisKey,
+  restoredEndgame,
+  clearRestoredEndgame,
   replyAnalysis,
   replyEnabled = !!analysisGame,
   rackOdds: calculatedRackOdds,
@@ -310,16 +312,18 @@ export default function Results({
     analysis?: boolean,
     player?: Player,
     explanation?: StyleExplanation,
-    options?: { useRackMarks?: boolean },
+    options?: SolvedMoveOptions,
   ) => void;
   phoneLayout?: boolean;
-  onPlay: (m: Move, options?: { styleExplanation?: StyleExplanation; useRackMarks?: boolean }) => void;
+  onPlay: (m: Move, options?: SolvedMoveOptions & { styleExplanation?: StyleExplanation }) => void;
   onSolve: (reload?: boolean) => void;
   onCancelSearch: () => void;
   onCloseResults: () => void;
   hasRack: boolean;
   analysisGame?: Game;
   analysisKey?: string;
+  restoredEndgame?: SavedExactEndgame;
+  clearRestoredEndgame?: (value: undefined) => void;
   replyAnalysis: ReturnType<typeof useReplyAnalysis>;
   replyEnabled?: boolean;
   rackOdds?: RackOdds;
@@ -373,7 +377,7 @@ export default function Results({
           replyAnalysis.opponentHasFinalTurn,
         ])
       : undefined;
-  const exactEndgame = useExactEndgame(endgameKey, workerLimit);
+  const exactEndgame = useExactEndgame(endgameKey, workerLimit, restoredEndgame, clearRestoredEndgame);
   const endgameSearch = exactEndgame.current;
   const ownSolveButton = useRef<HTMLButtonElement>(null);
   const restoreSolveFocus = useRef(false);
@@ -1146,6 +1150,7 @@ export default function Results({
     const title = firstPlayer === "you" ? "Your endgame" : "Opponent endgame";
     if ("result" in endgameSearch) {
       const canPlay = firstPlayer === "you" && !squareFilter?.disabled;
+      const moveOptions = { useRackMarks: false, solvedEndgame: canPlay ? exactEndgame.savedResult : undefined };
       return (
         <OpponentEndgameResults
           game={analysisGame}
@@ -1155,9 +1160,12 @@ export default function Results({
           firstPlayer={firstPlayer}
           phoneLayout={phoneLayout}
           onClose={closeEndgame}
-          onPreview={(move) => onPreview(move, !canPlay, firstPlayer, undefined, { useRackMarks: false })}
-          onPlay={canPlay ? (move) => onPlay(move, { useRackMarks: false }) : undefined}
-          onContinueSearch={exactEndgame.continueSearch}
+          onPreview={(move) => onPreview(move, !canPlay, firstPlayer, undefined, moveOptions)}
+          onPlay={canPlay ? (move) => onPlay(move, moveOptions) : undefined}
+          onContinueSearch={() => {
+            onPreview(null);
+            exactEndgame.continueSearch();
+          }}
         />
       );
     }

@@ -176,7 +176,7 @@ test("the same worker pool ranks our openings and skips completed exact roots", 
   assert.deepEqual(result.lines.map(({ spread, points }) => [spread, points]), serial.lines.map(({ spread, points }) => [spread, points]));
 });
 
-test("continuing either exact search gives only unfinished openings more time", async () => {
+test("restoring either exact search gives only unfinished openings more time", async () => {
   const game = { ...playBeforeRefill(), rack: "DSD" };
   const lexicon = new Lexicon(opponentEndgameWords);
   for (const firstPlayer of ["you", "opponent"] as const) {
@@ -209,7 +209,10 @@ test("continuing either exact search gives only unfinished openings more time", 
     const search = createExactEndgameSearch(lexicon, position, 2, createWorker);
     const partial = await search.run(() => {});
     assert.equal(partial.checked, partial.total - timedOut.length);
-    const resumed = await search.run(() => {});
+    const checkpoint = structuredClone(search.checkpoint());
+    assert.equal(checkpoint.unfinished.length, timedOut.length);
+    const restored = createExactEndgameSearch(lexicon, position, 2, createWorker, checkpoint);
+    const resumed = await restored.run(() => {});
     const fresh = await parallelEndgame(lexicon, position, 1, () => {});
     assert.deepEqual(continued, timedOut);
     assert.equal(resumed.checked, partial.total);

@@ -47,10 +47,12 @@ import type { EndgamePrecomputeRequest } from "../../src/useEndgameLines";
 import { simulateExchange } from "../../shared/exchange";
 import { getTileCounts, TILE_SYMBOLS } from "../../shared/tile-pool";
 import {
+  createExactEndgameSearch,
   parallelEndgame,
   parallelOpponentEndgame,
   type ExactEndgameContinuation,
   type ExactEndgameRequest,
+  type ExactEndgameResume,
   type OpponentEndgameResult,
   type OpponentEndgameRequest,
 } from "../../src/parallel-opponent-endgame";
@@ -8842,6 +8844,69 @@ test.each(["click", "tap again", "board play"] as const)("Solve previews and pla
   expect(current().trackedMoves?.at(-1)?.word).toBe(played.word);
   for (const { index, letter } of played.tiles) expect(current().board[index]).toBe(letter);
   expect(current().rack).toBe(played.leave);
+});
+
+test.each([false, true])("Undo reopens a solve after playing out (partial %s)", async (partial) => {
+  const position = playBeforeRefill();
+  remote.games[0] = {
+    ...position,
+    rack: "S",
+    scoring: emptyScoring(),
+    template: {
+      ...position.template,
+      tileCounts: { ...position.template.tileCounts, D: 0 },
+    },
+  };
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(any-hover: hover)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const lexicon = new Lexicon(opponentEndgameWords);
+  const searches: (ExactEndgameRequest | ExactEndgameResume)[] = [];
+  vi.stubGlobal("Worker", class extends SolverWorker {
+    postMessage(message: SolverRequest | ExactEndgameRequest | ExactEndgameResume) {
+      if (message.kind === "solve-own-endgame") {
+        searches.push(message);
+        const move = solve(lexicon, message.board, message.rack, message.template).find(({ word }) => word === "CATS")!;
+        const line = replyEndgameLine(lexicon, { ...message, bagSize: 0 }, move, Infinity);
+        const search = createExactEndgameSearch(lexicon, { ...message, cachedLines: partial ? [line!] : undefined }, 1);
+        void search.run(() => {}, partial ? 0 : undefined).then((result) => {
+          this.onmessage?.({ data: { result, checkpoint: partial ? search.checkpoint() : undefined } });
+        });
+      } else if (message.kind === "resume-exact-endgame") {
+        searches.push(message);
+        const search = createExactEndgameSearch(lexicon, message.request, 1, undefined, message.checkpoint);
+        void search.run(() => {}).then((result) => this.onmessage?.({ data: { result } }));
+      } else if (message.kind !== "solve-opponent-endgame") super.postMessage(message);
+    }
+  });
+  const user = await start();
+  const possible = within(screen.getByRole("region", { name: "Possible moves" }));
+  await user.click(possible.getByRole("button", { name: "Find moves" }));
+  await user.click(await possible.findByRole("button", { name: "Solve" }));
+  const panel = () => within(screen.getByRole("region", { name: "Your endgame" }));
+  await screen.findByRole("region", { name: "Your endgame" });
+  const rows = () => within(panel().getByRole("list", { name: /Your moves sorted by swing/ })).getAllByRole("button");
+  const ranked = rows().map((row) => row.textContent);
+  const progress = panel().queryByText(/Search limit reached/)?.textContent;
+  expect(Boolean(progress)).toBe(partial);
+
+  await user.click(rows().find((row) => row.querySelector(".result-letters")?.textContent?.includes("CATS"))!);
+  expect(current().rack).toBe("");
+  expect(screen.getByRole("heading", { name: "Game over" })).toBeTruthy();
+  await user.click(cell("Dismiss result"));
+  await user.click(cell("Undo"));
+  expect(current().rack).toBe("S");
+  expect(rows().map((row) => row.textContent)).toEqual(ranked);
+  expect(panel().queryByText(/Search limit reached/)?.textContent).toBe(progress);
+  expect(searches.map(({ kind }) => kind)).toEqual(["solve-own-endgame"]);
+
+  if (partial) {
+    await user.click(panel().getByRole("button", { name: "Continue search" }));
+    expect(searches[1]).toMatchObject({ kind: "resume-exact-endgame", checkpoint: { runs: 1, best: [{ line: expect.anything() }] } });
+    await waitFor(() => expect(panel().queryByText(/Search limit reached/)).toBeNull());
+  } else expect(panel().queryByRole("button", { name: "Continue search" })).toBeNull();
 });
 
 test.each(["opponent", "you"] as const)("a partial endgame solve continues in the same worker for %s", async (player) => {

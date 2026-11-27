@@ -7,6 +7,7 @@ import { createEndgamePrecompute } from "./endgame-precompute";
 import {
   createExactEndgameSearch,
   type ExactEndgameContinuation,
+  type ExactEndgameResume,
   type ExactEndgameRequest,
   type OpponentEndgameMessage,
 } from "./parallel-opponent-endgame";
@@ -85,6 +86,7 @@ self.onmessage = async (
     | EndgamePrecomputeRequest
     | ExactEndgameRequest
     | ExactEndgameContinuation
+    | ExactEndgameResume
     | (AnalysisRequest & { dictionaryId: string })
   >,
 ) => {
@@ -100,18 +102,23 @@ self.onmessage = async (
         self.postMessage(message);
       try {
         if (request.kind !== "continue-exact-endgame") {
-          const { dictionaryId, workerLimit, kind, ...position } = request;
+          const resume = request.kind === "resume-exact-endgame" ? request : undefined;
+          const initial = request.kind === "resume-exact-endgame" ? request.request : request;
+          const { dictionaryId, workerLimit, kind, ...position } = initial;
           const { lexicon } = await loadDictionary(dictionaryId);
           exactEndgame = createExactEndgameSearch(
             lexicon,
             { ...position, firstPlayer: kind === "solve-own-endgame" ? "you" : "opponent" },
             workerLimit,
+            undefined,
+            resume?.checkpoint,
           );
         }
         if (!exactEndgame) throw new Error("This endgame search is no longer active.");
         const result = await exactEndgame.run((progress) => post({ progress }));
-        if (result.checked === result.total) exactEndgame = undefined;
-        post({ result });
+        const checkpoint = result.checked === result.total ? undefined : exactEndgame.checkpoint();
+        if (!checkpoint) exactEndgame = undefined;
+        post({ result, checkpoint });
       } catch (error) {
         exactEndgame = undefined;
         post({

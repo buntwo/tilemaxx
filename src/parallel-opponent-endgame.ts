@@ -37,10 +37,21 @@ export type ExactEndgameRequest = OpponentEndgameRequest | (ExactEndgameSearch &
   workerLimit: number;
 });
 export type ExactEndgameContinuation = { kind: "continue-exact-endgame" };
+export type ExactEndgameCheckpoint = {
+  unfinished: number[];
+  best: { index: number; line: EndgameLine }[];
+  batches: EndgameBatchTiming[];
+  runs: number;
+};
+export type ExactEndgameResume = {
+  kind: "resume-exact-endgame";
+  request: ExactEndgameRequest;
+  checkpoint: ExactEndgameCheckpoint;
+};
 
 export type OpponentEndgameMessage =
   | { progress: OpponentEndgameProgress }
-  | { result: OpponentEndgameResult }
+  | { result: OpponentEndgameResult; checkpoint?: ExactEndgameCheckpoint }
   | { error: string };
 
 export function createExactEndgameSearch(
@@ -48,6 +59,7 @@ export function createExactEndgameSearch(
   { cachedLines, ...position }: ExactEndgameSearch,
   workerLimit: number,
   createWorker?: () => Worker,
+  checkpoint?: ExactEndgameCheckpoint,
 ) {
   const started = performance.now();
   const { board, opponentRack, template, rack } = position;
@@ -60,10 +72,16 @@ export function createExactEndgameSearch(
   moves.sort((a, b) => priority(b) - priority(a));
   const roots = [...moves.slice(0, 4), null, ...moves.slice(4)];
   const unfinished = new Map(roots.map((move, order) => [move ? order : roots.length, move]));
-  const best: { index: number; line: EndgameLine }[] = [];
-  const batches: EndgameBatchTiming[] = [];
+  const best = checkpoint?.best.slice() ?? [];
+  const batches = checkpoint?.batches.slice() ?? [];
   const checked = () => roots.length - unfinished.size;
-  let runs = 0;
+  let runs = checkpoint?.runs ?? 0;
+  if (checkpoint) {
+    const remaining = new Set(checkpoint.unfinished);
+    for (const index of unfinished.keys()) {
+      if (!remaining.has(index)) unfinished.delete(index);
+    }
+  }
 
   function finishRoot(index: number, line?: EndgameLine) {
     unfinished.delete(index);
@@ -73,7 +91,7 @@ export function createExactEndgameSearch(
     if (best.length > RESULT_COUNT) best.pop();
   }
 
-  if (yourTurn && cachedLines?.length) {
+  if (!checkpoint && yourTurn && cachedLines?.length) {
     const cached = new Map(cachedLines.map((line) => [line.line[0]?.id, line] as const));
     for (const [index, move] of unfinished) {
       if (!move) continue;
@@ -92,6 +110,9 @@ export function createExactEndgameSearch(
   }
 
   return {
+    checkpoint(): ExactEndgameCheckpoint {
+      return { unfinished: [...unfinished.keys()], best: [...best], batches: [...batches], runs };
+    },
     async run(
       onProgress: (progress: OpponentEndgameProgress) => void,
       timeLimitMs?: number,
