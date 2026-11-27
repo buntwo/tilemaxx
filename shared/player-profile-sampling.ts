@@ -1,9 +1,19 @@
 import type { Board, Move } from "./model";
+import { promoteLearnerRegions, type RackCue } from "./learner-attention";
 
 const seedRange = 2 ** 32;
 const areaWidth = 3;
 const appealScale = 25;
 export const DEFAULT_PROFILE_APPEAL = 48;
+const LEARNER_APPEAL_HALF_LIFE = 3;
+
+export function learnerAppeal(value: number) {
+  return Math.min(Number.MAX_VALUE, 2 ** ((value - appealScale) / LEARNER_APPEAL_HALF_LIFE));
+}
+
+export function learnerLogAppeal(value: number) {
+  return ((value - appealScale) / LEARNER_APPEAL_HALF_LIFE) * Math.LN2;
+}
 
 export function mixProfileSeed(value: number) {
   value = Math.imul(value ^ (value >>> 16), 0x7feb352d);
@@ -26,20 +36,20 @@ export function profileAttention(
   focus: number,
   hookAttention: number,
   seed: number,
+  rackCues?: () => readonly RackCue[],
 ) {
   // Offset the partition each turn so a lane isn't always split at the same cell.
   const columns = Math.ceil((size + areaWidth - 1) / areaWidth);
   const rowOffset = mixProfileSeed(seed ^ 0x61c88647) % areaWidth;
   const colOffset = mixProfileSeed(seed ^ 0x3c6ef372) % areaWidth;
+  const regionOf = (cell: number) =>
+    Math.floor((Math.floor(cell / size) + rowOffset) / areaWidth) * columns +
+    Math.floor((cell % size + colOffset) / areaWidth);
   const areas = new Map<number, { cells: number[]; salience: number }>();
   for (let cell = 0; cell < board.length; cell++) {
     if (board[cell] || !neighbors[cell].some((neighbor) => board[neighbor]))
       continue;
-    const row = Math.floor(cell / size);
-    const col = cell % size;
-    const area =
-      Math.floor((row + rowOffset) / areaWidth) * columns +
-      Math.floor((col + colOffset) / areaWidth);
+    const area = regionOf(cell);
     const prominence = (0.35 + hookAttention) * salience[cell];
     const entry = areas.get(area);
     if (entry) {
@@ -52,6 +62,7 @@ export function profileAttention(
   // The solver already restricts opening placements to the center.
   if (!areas.size) return undefined;
   const ordered = Array.from(areas, ([area, { cells, salience }]) => ({
+    area,
     cells,
     priority:
       mixProfileSeed(seed ^ Math.imul(area + 1, 0x85ebca6b)) / seedRange +
@@ -62,8 +73,11 @@ export function profileAttention(
     ordered.length,
     Math.max(1, Math.round(focus * ordered.length)),
   );
-  for (let index = 0; index < count; index++)
-    for (const cell of ordered[index].cells) selected[cell] = 1;
+  const chosen = ordered.slice(0, count);
+  if (rackCues && count < ordered.length)
+    promoteLearnerRegions(ordered, chosen, rackCues(), regionOf);
+  for (const region of chosen)
+    for (const cell of region.cells) selected[cell] = 1;
   return selected;
 }
 
@@ -78,16 +92,18 @@ export function profileAppeal(value: number, strength: number) {
 
 type WeightedPlacement = { move: Move; weight: number };
 
-function drawPriority(seed: number, weight: number) {
+function drawPriority(seed: number, weight: number, logWeights: boolean) {
   // Exponential clocks order a weighted draw without replacement.
   const draw = (mixProfileSeed(seed) + 0.5) / seedRange;
-  return -Math.log(draw) / weight;
+  const clock = -Math.log(draw);
+  return logWeights ? Math.log(clock) - weight : clock / weight;
 }
 
 export function sampleProfilePlacements<T extends WeightedPlacement>(
   entries: readonly T[],
   seed: number,
   limit: number,
+  logWeights = false,
 ) {
   if (!entries.length) return [];
   const weights = new Map<string, number>();
@@ -104,7 +120,7 @@ export function sampleProfilePlacements<T extends WeightedPlacement>(
   for (const [word, weight] of weights) {
     const idea = {
       word,
-      priority: drawPriority(seed ^ profileWordHash(word) ^ 0xb7e15162, weight),
+      priority: drawPriority(seed ^ profileWordHash(word) ^ 0xb7e15162, weight, logWeights),
     };
     if (limit > 3) {
       ideas.push(idea);
@@ -131,6 +147,7 @@ export function sampleProfilePlacements<T extends WeightedPlacement>(
     const priority = drawPriority(
       seed ^ profileWordHash(id) ^ 0x243f6a88,
       entry.weight,
+      logWeights,
     );
     const placement = { entry, priority };
     const previous = chosen.get(word);

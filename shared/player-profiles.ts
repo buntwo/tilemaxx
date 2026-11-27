@@ -1,4 +1,5 @@
 import { rackPoints } from "./endgame";
+import { learnerRackCues } from "./learner-attention";
 import type { Lexicon } from "./lexicon";
 import {
   isBingo,
@@ -14,6 +15,8 @@ import {
 } from "./player-profile-endgame";
 import {
   DEFAULT_PROFILE_APPEAL,
+  learnerAppeal,
+  learnerLogAppeal,
   mixProfileSeed,
   profileAppeal,
   profileAttention,
@@ -26,6 +29,7 @@ import {
   learnerWordProbability,
   type EnglishProfileVocabulary,
 } from "./profile-vocabulary";
+import { splitRack } from "./rack-entry";
 import { choose, getTileCounts, unseenTiles } from "./tile-pool";
 import {
   createWordDifficulty,
@@ -317,6 +321,13 @@ export function createPlayerProfiles(
     if (profile === "casual" && english && !casualWords && !englishVocabulary)
       throw new Error("The Casual word list could not be loaded.");
     const preset = presets[profile];
+    const isLearner = profile === "learner";
+    const liveLearner = isLearner && options.learnerSlate;
+    const appealFor = isLearner
+      ? learnerLogAppeal
+      : (value: number) => profileAppeal(value, sampling.appeal);
+    const selectionWeight = (visibility: number, appeal: number) =>
+      isLearner ? Math.log(visibility) + appeal : visibility * appeal;
     const { bagSize, board, seed, playerSeed, rack, solo, scorelessTurns } =
       position;
     const emptyBag = bagSize === 0 && template.rules !== "crossplay";
@@ -373,6 +384,10 @@ export function createPlayerProfiles(
       preset.focus * sampling.coverage,
       preset.hookAttention,
       seed,
+      liveLearner
+        ? () => learnerRackCues(board, template, splitRack(position).available,
+            (spelling) => lexicon.has(spelling) && knows(wordData(spelling, profile)))
+        : undefined,
     );
     const crossVisibility = Math.exp(-preset.cross);
     for (const move of moves) {
@@ -458,12 +473,12 @@ export function createPlayerProfiles(
         leave = estimate;
       }
       const value = base + leave + goingOut;
-      const appeal = profileAppeal(value, sampling.appeal);
+      const appeal = appealFor(value);
       const entry: Candidate = {
         move,
         value,
         visibility,
-        weight: visibility * appeal,
+        weight: selectionWeight(visibility, appeal),
       };
       if (options.all)
         entry.utility = {
@@ -471,7 +486,7 @@ export function createPlayerProfiles(
           points,
           premium: premiumBonus,
           visibility,
-          appeal,
+          appeal: isLearner ? learnerAppeal(value) : appeal,
           leave,
           goingOut,
         };
@@ -509,11 +524,11 @@ export function createPlayerProfiles(
     }
 
     function updateAppeal(entry: Candidate) {
-      const appeal = profileAppeal(entry.value, sampling.appeal);
-      entry.weight = entry.visibility * appeal;
+      const appeal = appealFor(entry.value);
+      entry.weight = selectionWeight(entry.visibility, appeal);
       if (entry.utility) {
         entry.utility.total = entry.value;
-        entry.utility.appeal = appeal;
+        entry.utility.appeal = isLearner ? learnerAppeal(entry.value) : appeal;
       }
     }
 
@@ -559,15 +574,18 @@ export function createPlayerProfiles(
         }
       }
     }
-    const limit = options.all ? candidates.length : options.topThree ? 3 : 1;
-    const order = sampleProfilePlacements(candidates, seed, limit);
+    const compareLearner = liveLearner && !solo && bagSize > 0;
+    const limit = options.all ? candidates.length : options.topThree || compareLearner ? 3 : 1;
+    const order = sampleProfilePlacements(candidates, seed, limit, isLearner);
     const first = order[0];
     const move = first?.move;
-    const learnerSlate = options.learnerSlate && profile === "learner" &&
-      first && !solo && bagSize > 0
-        ? [first, ...shortlist.filter(({ move }) => move.word !== first.move.word)]
-            .slice(0, preset.finalists)
-        : undefined;
+    let learnerSlate: Candidate[] | undefined;
+    if (compareLearner && first) {
+      learnerSlate = [];
+      for (const entry of order.slice(0, preset.finalists))
+        if (!learnerSlate.some(({ move }) => move.word === entry.move.word))
+          learnerSlate.push(entry);
+    }
     if (topReason === "found" && move?.id !== rawFirst) topReason = "rank";
     return {
       move,

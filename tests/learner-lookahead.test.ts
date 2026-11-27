@@ -10,6 +10,7 @@ import {
   createPlayerProfiles,
   profileWordHash,
 } from "../shared/player-profiles";
+import { learnerAppeal } from "../shared/player-profile-sampling";
 import { PRESETS } from "../shared/presets";
 import { solvePosition } from "../shared/solver";
 
@@ -79,11 +80,9 @@ function fixture() {
 
 test("Learner compares three visible words with eight shared deals and can change its recommendation", () => {
   const { position, evaluate, ranked, slate } = fixture();
-  assert.equal(ranked[0].move.word, "CART");
-  assert.deepEqual(
-    slate.map(({ move }) => move.word),
-    ["CART", "CARTS", "ACT"],
-  );
+  assert.equal(slate.length, 3);
+  assert.equal(new Set(slate.map(({ move }) => move.word)).size, 3);
+  assert.deepEqual(slate.map(({ move }) => move), ranked.slice(0, 3).map(({ move }) => move));
   assert.equal(slate[0].move, ranked[0].move);
 
   const steps = evaluate(
@@ -100,14 +99,22 @@ test("Learner compares three visible words with eight shared deals and can chang
   }
 
   assert.equal(comparisons, 24);
-  assert.equal(result.value.ranked[0].move.word, "ACT");
   const first = result.value.ranked[0];
+  assert.notEqual(first.move.id, ranked[0].move.id);
+  const evaluated = result.value.ranked.filter(({ utility }) => utility.lookahead !== undefined);
+  const best = evaluated.reduce((winner, entry) =>
+    entry.utility.total > winner.utility.total ||
+      (entry.utility.total === winner.utility.total && entry.move.score > winner.move.score)
+      ? entry
+      : winner,
+  );
+  assert.equal(first, best);
   const prior = ranked.find(({ move }) => move.id === first.move.id)!;
-  assert.ok(first.utility.lookahead! > 0);
   assert.equal(
     first.utility.total,
     prior.utility.total + first.utility.lookahead!,
   );
+  assert.equal(first.utility.appeal, learnerAppeal(first.utility.total));
   assert.deepEqual(
     result.value.ranked
       .filter(({ utility }) => utility.lookahead !== undefined)
@@ -131,7 +138,7 @@ test("Learner checks the swap on 32 deals and reuses the first eight placement o
   assert.equal(count, 3 * 8 + LEARNER_EXCHANGE_DEALS);
   assert.equal(LEARNER_EXCHANGE_DEALS, 32);
   assert.equal(step.value.exchange, undefined);
-  assert.equal(step.value.ranked[0].move.word, "CARTS");
+  assert.equal(step.value.ranked[0].move.word, "CART");
 });
 
 test("Learner recommends a simulated exchange with a clear edge over a spotted play", () => {
@@ -186,7 +193,7 @@ test("Learner recommends a simulated exchange with a clear edge over a spotted p
     profile: "learner",
     comparedWith: { word: "OU", score: 4 },
     problem: "balance",
-    edge: 4.5625,
+    edge: 4.125,
   });
   assert.equal(
     evaluate(position, decision.considered!, decision.learnerSlate!, 0).next()

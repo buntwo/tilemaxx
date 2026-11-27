@@ -14,11 +14,7 @@ import {
   type ProfilePosition,
   type RankedProfileMove,
 } from "./player-profiles";
-import {
-  DEFAULT_PROFILE_APPEAL,
-  profileAppeal,
-  sampleProfilePlacements,
-} from "./player-profile-sampling";
+import { learnerAppeal } from "./player-profile-sampling";
 import { rackComposition, splitRack } from "./rack-entry";
 import { createSolverFactory, SearchLimitError } from "./solver";
 import { unseenTiles } from "./tile-pool";
@@ -46,7 +42,6 @@ function rankPlacements(
   ranked: readonly RankedProfileMove[],
   slate: readonly LearnerCandidate[],
   outcomes: readonly MasterOutcome[][],
-  seed: number,
 ) {
   const horizons = outcomes.map(
     (deals) =>
@@ -61,18 +56,20 @@ function rankPlacements(
   );
   const alternatives = slate.map((entry, index) => {
     const lookahead = TACTICAL_WEIGHT * (horizons[index] - horizons[0]);
-    const appeal = profileAppeal(
-      entry.value + lookahead,
-      DEFAULT_PROFILE_APPEAL,
-    );
+    const adjustedUtility = entry.value + lookahead;
     return {
       move: entry.move,
       lookahead,
-      appeal,
-      weight: entry.visibility * appeal,
+      appeal: learnerAppeal(adjustedUtility),
+      adjustedUtility,
     };
   });
-  const picked = sampleProfilePlacements(alternatives, seed, 1)[0].move;
+  const picked = alternatives.reduce((best, entry) =>
+    entry.adjustedUtility > best.adjustedUtility ||
+      (entry.adjustedUtility === best.adjustedUtility && entry.move.score > best.move.score)
+      ? entry
+      : best,
+  ).move;
   const adjustments = new Map(
     alternatives.map((entry) => [entry.move.id, entry]),
   );
@@ -129,7 +126,7 @@ export function createLearnerLookahead(
     reference?: Move,
   ): Generator<void, LearnerLookahead, void> {
     let ranked = original;
-    const { board, rack, bagSize, playerSeed, seed } = position;
+    const { board, rack, bagSize, playerSeed } = position;
     if (position.solo || !Number.isInteger(bagSize) || bagSize <= 0)
       return { ranked };
 
@@ -213,7 +210,7 @@ export function createLearnerLookahead(
       }
       if (performance.now() >= deadline) return { ranked };
       if (rankTactically)
-        ranked = rankPlacements(ranked, slate, outcomes, seed);
+        ranked = rankPlacements(ranked, slate, outcomes);
       const { advice, learnerSwap } = initialScreen ?? screen(ranked[0]?.move);
       if (!learnerSwap) return { ranked, exchange: advice };
 
