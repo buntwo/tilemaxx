@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { OpponentEndgameTiming } from "./move-timing";
-import type { OpponentEndgamePosition } from "../shared/reply-analysis";
+import type { ExactEndgamePosition } from "../shared/reply-analysis";
+import type { EndgameLine } from "../shared/endgame";
+import type { Player } from "../shared/model";
 import { useGameCalculation } from "./components/GameCalculations";
 import type {
   OpponentEndgameMessage,
   OpponentEndgameProgress,
-  OpponentEndgameRequest,
+  ExactEndgameRequest,
   OpponentEndgameResult,
 } from "./parallel-opponent-endgame";
 
@@ -14,13 +16,14 @@ type Search =
   | { pending: false; result: OpponentEndgameResult; timing: OpponentEndgameTiming }
   | { pending: false; error: string };
 
-export function useOpponentEndgame(
+export function useExactEndgame(
   key: string | undefined,
   workerLimit: number,
 ) {
-  const [search, setSearch] = useState<{ key: string; value: Search }>();
+  const [search, setSearch] = useState<{ key: string; firstPlayer: Player; value: Search }>();
   const active = useRef<Worker | null>(null);
-  const current = search?.key === key ? search?.value : undefined;
+  const matching = search?.key === key ? search : undefined;
+  const current = matching?.value;
   useGameCalculation(!!current?.pending);
 
   function stop() {
@@ -33,10 +36,11 @@ export function useOpponentEndgame(
     return stop;
   }, [key]);
 
-  function start(position: OpponentEndgamePosition, dictionaryId: string) {
+  function start(position: ExactEndgamePosition, dictionaryId: string, cachedLines?: EndgameLine[]) {
     if (key === undefined) return;
     stop();
-    const publish = (value: Search) => setSearch({ key, value });
+    const firstPlayer = position.firstPlayer ?? "opponent";
+    const publish = (value: Search) => setSearch({ key, firstPlayer, value });
     const startedAt = performance.now();
     publish({ pending: true });
     try {
@@ -72,26 +76,27 @@ export function useOpponentEndgame(
         stop();
         publish({
           pending: false,
-          error: "The opponent endgame stopped unexpectedly.",
+          error: "The endgame search stopped unexpectedly.",
         });
       };
-      worker.postMessage({
-        kind: "solve-opponent-endgame",
-        ...position,
-        dictionaryId,
-        workerLimit,
-      } satisfies OpponentEndgameRequest);
+      const request = { ...position, dictionaryId, workerLimit };
+      worker.postMessage(firstPlayer === "you" ? {
+        ...request, kind: "solve-own-endgame", cachedLines,
+      } satisfies ExactEndgameRequest : {
+        ...request, kind: "solve-opponent-endgame",
+      } satisfies ExactEndgameRequest);
     } catch {
       stop();
       publish({
         pending: false,
-        error: "Could not start the opponent endgame search.",
+        error: "Could not start the endgame search.",
       });
     }
   }
 
   return {
     current,
+    firstPlayer: matching?.firstPlayer,
     start,
     close() {
       stop();

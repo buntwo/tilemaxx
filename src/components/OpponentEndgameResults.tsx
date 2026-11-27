@@ -1,10 +1,11 @@
 import { moveLocation } from "../../shared/notation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { definitionLanguageForRules } from "../../shared/definitions";
-import { Check, ChevronUp, LoaderCircle, Swords, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, LoaderCircle, Swords, X } from "lucide-react";
 import type { EndgameLine } from "../../shared/endgame";
 import { scoreTotalsAtPosition } from "../../shared/game-scoring";
-import { isBingo, type Game, type Move } from "../../shared/model";
+import { isBingo, type Game, type Move, type Player } from "../../shared/model";
+import { rackLetters } from "../../shared/rack-entry";
 import type {
   OpponentEndgameProgress,
   OpponentEndgameResult,
@@ -25,6 +26,7 @@ export default function OpponentEndgameResults({
   opponentRack,
   result,
   timing,
+  firstPlayer,
   phoneLayout,
   onClose,
   onPreview,
@@ -33,6 +35,7 @@ export default function OpponentEndgameResults({
   opponentRack: string;
   result: OpponentEndgameResult;
   timing: OpponentEndgameTiming;
+  firstPlayer: Player;
   phoneLayout: boolean;
   onClose: () => void;
   onPreview: (move: Move | null) => void;
@@ -65,16 +68,18 @@ export default function OpponentEndgameResults({
   }
   const totals = scoreTotalsAtPosition(game);
   const complete = result.checked === result.total;
+  const yourTurn = firstPlayer === "you";
+  const title = yourTurn ? "Your endgame" : "Opponent endgame";
   return (
     <section
       className="results-panel panel with-reply-column with-endgame-estimates opponent-endgame"
-      aria-label="Opponent endgame"
+      aria-label={title}
       ref={panel}
     >
       <header className="results-title">
         <div className="heading-with-icon">
           <CalculationIndicator active={false} idleIcon={<Swords />} />
-          <h2>Opponent endgame</h2>
+          <h2>{title}</h2>
           {!!result.lines.length && (
             <span className="count-badge">{result.lines.length}</span>
           )}
@@ -82,13 +87,13 @@ export default function OpponentEndgameResults({
         <button
           className="icon-button results-close opponent-endgame-close"
           type="button"
-          aria-label="Close opponent endgame"
+          aria-label={yourTurn ? "Close your endgame" : "Close opponent endgame"}
           onClick={onClose}
         >
           <X size={16} aria-hidden="true" />
         </button>
       </header>
-      <p className="opponent-endgame-note">Opponent plays next</p>
+      <p className="opponent-endgame-note">{yourTurn ? "You play next" : "Opponent plays next"}</p>
       {!complete && (
         <p className="opponent-endgame-note" role="status">
           Search limit reached. Checked {result.checked.toLocaleString()} of{" "}
@@ -101,19 +106,19 @@ export default function OpponentEndgameResults({
             <span className="result-word-heading">WORD</span>
             <span className="result-points-heading">PTS</span>
             <span className="result-reply-heading opponent-swing-heading">
-              SWING <ChevronUp size={10} />
+              SWING {yourTurn ? <ChevronDown size={10} /> : <ChevronUp size={10} />}
             </span>
             <span className="result-leave-heading">LEAVE</span>
             <span className="result-position-heading">POS</span>
           </div>
           <ol
             className="opponent-endgame-moves"
-            aria-label="Opponent moves sorted by swing for you, ascending"
+            aria-label={yourTurn ? "Your moves sorted by swing for you, descending" : "Opponent moves sorted by swing for you, ascending"}
           >
             {result.lines.map((line, index) => {
               const move = line.line[0];
               const length = endgameLength(line);
-              const leave = move ? move.leave : opponentRack;
+              const leave = move?.leave ?? (yourTurn ? rackLetters(game.rack) : opponentRack);
               const bingo = !!move && isBingo(game.template, move.tiles.length);
               const margin =
                 totals && totals.you - totals.opponent + line.spread;
@@ -202,7 +207,7 @@ export default function OpponentEndgameResults({
       <footer className="results-foot">
         {result.lines.length > 0 && (
           <span>
-            Select an opponent move to preview its line
+            {yourTurn ? "Select a move to preview its line" : "Select an opponent move to preview its line"}
             {definitions.touch
               ? " · hold a word to define"
               : definitions.mouse
@@ -216,7 +221,7 @@ export default function OpponentEndgameResults({
         <section
           className="inline-reply"
           id={detailId}
-          aria-label="Opponent reply details"
+          aria-label={yourTurn ? "Your reply details" : "Opponent reply details"}
           data-move-preview-action
         >
           <h3 className="optimal-reply-title">
@@ -229,7 +234,7 @@ export default function OpponentEndgameResults({
             game={game}
             line={selected}
             opponentRack={opponentRack}
-            firstPlayer="opponent"
+            firstPlayer={firstPlayer}
             definitions={definitions}
           />
         </section>
@@ -242,14 +247,16 @@ export default function OpponentEndgameResults({
 export function OpponentEndgamePending({
   progress,
   onCancel,
+  firstPlayer,
 }: {
   progress?: OpponentEndgameProgress;
   onCancel: () => void;
+  firstPlayer: Player;
 }) {
   return (
     <div className="results-empty">
       <LoaderCircle className="spin" size={30} aria-hidden="true" />
-      <h3 role="status">Solving opponent endgame…</h3>
+      <h3 role="status">{firstPlayer === "you" ? "Solving your endgame…" : "Solving opponent endgame…"}</h3>
       {progress && (
         <p>
           {progress.checked.toLocaleString()} /{" "}

@@ -74,7 +74,7 @@ import OpponentEndgameResults, {
 } from "./OpponentEndgameResults";
 import { ComputeWorkerLimit } from "./ComputeWorkerLimit";
 import { computeWorkerLimit } from "../compute-workers";
-import { useOpponentEndgame } from "../useOpponentEndgame";
+import { useExactEndgame } from "../useOpponentEndgame";
 import { useGameCalculating } from "./GameCalculations";
 import { formatUtility, useMoveScoreTooltip } from "./MoveScoreTooltip";
 import PremiumDefense, {
@@ -357,29 +357,49 @@ export default function Results({
     (!replyAnalysis.crossplay || !replyAnalysis.opponentHasFinalTurn);
   const emptyRackMessage = "Your rack is empty. There’s no opponent endgame to solve.";
   const highlightEndgame = opponentTurn && !resultSet && !!opponentPosition && !emptyRackEndgame;
-  const opponentKey =
+  const endgameKey =
     opponentPosition && !emptyRackEndgame && analysisKey
       ? JSON.stringify([
           analysisKey,
           opponentPosition.opponentRack,
           opponentPosition.scorelessTurns,
+          scorelessTurns,
+          replyAnalysis.opponentHasFinalTurn,
         ])
       : undefined;
-  const opponent = useOpponentEndgame(opponentKey, workerLimit);
-  const opponentSearch = opponent.current;
-  function startOpponentEndgame() {
+  const exactEndgame = useExactEndgame(endgameKey, workerLimit);
+  const endgameSearch = exactEndgame.current;
+  const ownSolveButton = useRef<HTMLButtonElement>(null);
+  const restoreSolveFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (!endgameSearch && restoreSolveFocus.current) {
+      restoreSolveFocus.current = false;
+      ownSolveButton.current?.focus({ preventScroll: true });
+    }
+  }, [endgameSearch]);
+  function startEndgame(firstPlayer: Player) {
     if (!analysisGame || !opponentPosition || emptyRackEndgame) return;
     const { board, rack, template, dictionaryId } = analysisGame;
     setLocked(null);
     setInspectedReply(undefined);
     setAnalyzing(false);
     onPreview(null);
-    opponent.start({ board, rack, template, ...opponentPosition }, dictionaryId);
+    const position = { board, rack, template, ...opponentPosition };
+    if (firstPlayer === "you") {
+      const cached = replyAnalysis.cachedEndgameLines;
+      exactEndgame.start({
+        ...position, firstPlayer, scorelessTurns,
+        opponentHasFinalTurn: replyAnalysis.opponentHasFinalTurn,
+      }, dictionaryId, cached && Array.from(cached.values()));
+    } else {
+      exactEndgame.start(position, dictionaryId);
+    }
   }
 
-  function closeOpponentEndgame() {
+  function closeEndgame() {
+    restoreSolveFocus.current = exactEndgame.firstPlayer === "you";
     onPreview(null);
-    opponent.close();
+    exactEndgame.close();
   }
   const scroller = useRef<HTMLDivElement>(null),
     pinnedRow = useRef<HTMLDivElement>(null),
@@ -877,7 +897,7 @@ export default function Results({
   );
   const sharedDefinitions = useMoveDefinitionContext();
   const localDefinitions = useMoveDefinitions(
-    !sharedDefinitions && showList && !opponentSearch
+    !sharedDefinitions && showList && !endgameSearch
       ? definitionLanguageForRules(bingoRules.rules)
       : undefined,
     definitionPosition,
@@ -1039,7 +1059,7 @@ export default function Results({
       aria-label="Solve endgame"
       title={emptyRackEndgame ? emptyRackMessage : "Solve endgame"}
       disabled={emptyRackEndgame}
-      onClick={startOpponentEndgame}
+      onClick={() => startEndgame("opponent")}
     >
       <Swords size={16} aria-hidden="true" />
       <span>Solve endgame</span>
@@ -1115,41 +1135,45 @@ export default function Results({
       Resample style
     </button>
   );
-  if (analysisGame && opponentPosition && opponentSearch) {
-    if ("result" in opponentSearch) {
+  if (analysisGame && opponentPosition && endgameSearch && exactEndgame.firstPlayer) {
+    const firstPlayer = exactEndgame.firstPlayer;
+    const title = firstPlayer === "you" ? "Your endgame" : "Opponent endgame";
+    if ("result" in endgameSearch) {
       return (
         <OpponentEndgameResults
           game={analysisGame}
           opponentRack={opponentPosition.opponentRack}
-          result={opponentSearch.result}
-          timing={opponentSearch.timing}
+          result={endgameSearch.result}
+          timing={endgameSearch.timing}
+          firstPlayer={firstPlayer}
           phoneLayout={phoneLayout}
-          onClose={closeOpponentEndgame}
-          onPreview={(move) => onPreview(move, true, "opponent")}
+          onClose={closeEndgame}
+          onPreview={(move) => onPreview(move, true, firstPlayer)}
         />
       );
     }
     return (
-      <section className="results-panel panel" aria-label="Opponent endgame search">
+      <section className="results-panel panel" aria-label={`${title} search`}>
         <header className="results-title">
           <div className="heading-with-icon">
             <CalculationIndicator
-              active={opponentSearch.pending}
+              active={endgameSearch.pending}
               idleIcon={<Swords />}
             />
-            <h2>Opponent endgame</h2>
+            <h2>{title}</h2>
           </div>
         </header>
-        {opponentSearch.pending ? (
+        {endgameSearch.pending ? (
           <OpponentEndgamePending
-            progress={opponentSearch.progress}
-            onCancel={closeOpponentEndgame}
+            progress={endgameSearch.progress}
+            firstPlayer={firstPlayer}
+            onCancel={closeEndgame}
           />
         ) : (
           <div className="results-empty">
-            <h3>Couldn’t solve the opponent endgame</h3>
-            <p className="error" role="alert">{opponentSearch.error}</p>
-            <button type="button" className="button secondary" onClick={closeOpponentEndgame}>
+            <h3>{firstPlayer === "you" ? "Couldn’t solve your endgame" : "Couldn’t solve the opponent endgame"}</h3>
+            <p className="error" role="alert">{endgameSearch.error}</p>
+            <button type="button" className="button secondary" onClick={closeEndgame}>
               Back
             </button>
           </div>
@@ -1243,6 +1267,13 @@ export default function Results({
                 onClick={() => toggleView("all")}
               >
                 {phoneLayout ? <List size={16} aria-hidden="true" /> : "All moves"}
+              </button>
+            )}
+            {endgameKey && replyAnalysis.unseenPool && analysisGame && rackLetters(analysisGame.rack) && (
+              <button type="button" className="icon-button move-all-toggle move-all-toggle-text"
+                ref={ownSolveButton} title="Solve your endgame exactly" data-move-preview-action
+                onClick={() => startEndgame("you")}>
+                Solve
               </button>
             )}
             {playingStyleControl}

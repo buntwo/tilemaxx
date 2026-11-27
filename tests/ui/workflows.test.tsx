@@ -47,7 +47,9 @@ import type { EndgamePrecomputeRequest } from "../../src/useEndgameLines";
 import { simulateExchange } from "../../shared/exchange";
 import { getTileCounts, TILE_SYMBOLS } from "../../shared/tile-pool";
 import {
+  parallelEndgame,
   parallelOpponentEndgame,
+  type ExactEndgameRequest,
   type OpponentEndgameRequest,
 } from "../../src/parallel-opponent-endgame";
 import {
@@ -1013,7 +1015,7 @@ test("an empty-bag analysis can be rerun with a higher endgame budget", async ()
   expect(screen.queryByRole("spinbutton", { name: /Endgame budget/ })).toBeNull();
 });
 
-test("the first six endgame moves report progress and update Analyze with exact lines for matching settings", async () => {
+test("the first three endgame moves report progress and update Analyze with exact lines for matching settings", async () => {
   const lexicon = new Lexicon([
     "AT",
     "CAT",
@@ -1027,7 +1029,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
   let background:
     | { worker: SolverWorker; request: EndgamePrecomputeRequest }
     | undefined;
-  let firstSix: string[] = [];
+  let firstThree: string[] = [];
   let rankings = 0;
   class EndgameWorker extends SolverWorker {
     postMessage(
@@ -1077,7 +1079,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
           ),
         );
         expect(ranking.checked).toBeGreaterThan(6);
-        firstSix = ranking.head.slice(0, 6).map(({ id }) => id);
+        firstThree = ranking.head.slice(0, 3).map(({ id }) => id);
         queueMicrotask(() =>
           this.onmessage?.({
             data: { kind: "endgame", id: request.id, ranking },
@@ -1104,11 +1106,11 @@ test("the first six endgame moves report progress and update Analyze with exact 
   );
   await user.click(screen.getAllByRole("button", { name: "Find moves" })[0]);
   await waitFor(() =>
-    expect(background?.request.moves.map(({ id }) => id)).toEqual(firstSix),
+    expect(background?.request.moves.map(({ id }) => id)).toEqual(firstThree),
   );
   const { worker, request } = background!;
   const [first, second] = request.moves;
-  expect(await screen.findByText("Solving exact lines · 0/6 checked")).toBeTruthy();
+  expect(await screen.findByText("Solving exact lines · 0/3 checked")).toBeTruthy();
   const spinner = document.querySelector(".calculation-indicator")!;
   expect(spinner.getAttribute("data-phase")).toBe("active");
   expect(
@@ -1120,7 +1122,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
       data: { id: request.id, moveId: first.id, line, elapsed: 17 },
     }),
   );
-  expect(screen.getByText("Solving exact lines · 1/6 checked")).toBeTruthy();
+  expect(screen.getByText("Solving exact lines · 1/3 checked")).toBeTruthy();
   await chooseMoveOption(user, "Analyze");
   const rows = within(screen.getByLabelText("Suggested moves")).getAllByRole(
     "button",
@@ -1170,7 +1172,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
       });
     worker.onmessage?.({ data: { id: request.id, done: true } });
   });
-  const finished = screen.getByText("2/6 exact lines ready · 4 hit a limit");
+  const finished = screen.getByText("2/3 exact lines ready · 1 hit a limit");
   expect(finished.getAttribute("title")).toContain(timeLimit);
   await waitFor(() => expect(spinner.textContent).toBe(""));
   await user.click(
@@ -1185,7 +1187,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
     timing.getByRole("region", { name: "Individual endgame solves" }),
   );
   expect(attempts.getAllByText("Limit reached", { exact: false })).toHaveLength(
-    4,
+    1,
   );
   expect(
     attempts.getByText("17 ms").previousElementSibling?.textContent,
@@ -1193,7 +1195,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
   expect(
     attempts.getByText("30 ms").previousElementSibling?.textContent,
   ).toContain(second.word);
-  expect(attempts.getAllByText("5.00 s")).toHaveLength(4);
+  expect(attempts.getAllByText("5.00 s")).toHaveLength(1);
   await user.click(timing.getByRole("button", { name: "Close dialog" }));
 
   const resume = screen.getByRole("button", { name: "Run another 10 seconds" });
@@ -1207,10 +1209,10 @@ test("the first six endgame moves report progress and update Analyze with exact 
   expect(
     screen.queryByRole("button", { name: "Run another 10 seconds" }),
   ).toBeNull();
-  expect(screen.getByText("Solving exact lines · 2/6 checked")).toBeTruthy();
+  expect(screen.getByText("Solving exact lines · 2/3 checked")).toBeTruthy();
   // A late completion from the previous slice must not overwrite this run.
   act(() => worker.onmessage?.({ data: { id: request.id, done: true } }));
-  expect(screen.getByText("Solving exact lines · 2/6 checked")).toBeTruthy();
+  expect(screen.getByText("Solving exact lines · 2/3 checked")).toBeTruthy();
   act(() => {
     for (const move of continued.moves)
       worker.onmessage?.({
@@ -1227,7 +1229,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
     screen.getByRole("button", { name: "Run another 10 seconds" }),
   ).toBeTruthy();
   expect(
-    screen.getByText("2/6 exact lines ready · 4 hit a limit"),
+    screen.getByText("2/3 exact lines ready · 1 hit a limit"),
   ).toBeTruthy();
   await user.click(
     screen.getByRole("button", { name: "Run another 10 seconds" }),
@@ -1246,7 +1248,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
       });
     worker.onmessage?.({ data: { id: repeated.id, done: true } });
   });
-  expect(screen.getByText("6/6 exact lines ready")).toBeTruthy();
+  expect(screen.getByText("3/3 exact lines ready")).toBeTruthy();
   expect(
     screen.queryByRole("button", { name: "Run another 10 seconds" }),
   ).toBeNull();
@@ -1265,7 +1267,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
   );
   expect(screen.queryByText(/exact lines ready/)).toBeNull();
   await user.click(screen.getByRole("button", { name: "Find moves" }));
-  expect(await screen.findByText("6/6 exact lines ready")).toBeTruthy();
+  expect(await screen.findByText("3/3 exact lines ready")).toBeTruthy();
   expect(rankings).toBe(1);
   expect(background?.request).toBe(repeated);
 
@@ -8773,6 +8775,41 @@ test("the filled search button follows the active turn in the endgame", async ()
   await user.click(board.getByRole("button", { name: "Pass" }));
   expect(find().classList.contains("primary")).toBe(true);
   expect(endgame().classList.contains("secondary")).toBe(true);
+});
+
+test.each([false, true])("Solve opens exact lines for our turn from the move header (phone %s)", async (phone) => {
+  remote.games[0] = { ...playBeforeRefill(), rack: "DSD" };
+  const requests: ExactEndgameRequest[] = [];
+  const lexicon = new Lexicon(opponentEndgameWords);
+  class ExactEndgameWorker extends SolverWorker {
+    postMessage(request: SolverRequest | ExactEndgameRequest) {
+      if (request.kind !== "solve-own-endgame") {
+        if (request.kind !== "solve-opponent-endgame") super.postMessage(request);
+        return;
+      }
+      requests.push(request);
+      void parallelEndgame(lexicon, request, 1, () => {}).then((result) =>
+        this.onmessage?.({ data: { result } }),
+      );
+    }
+  }
+  vi.stubGlobal("Worker", ExactEndgameWorker);
+  const user = await start(phone ? 390 : 1200);
+  const possible = () => within(screen.getByRole("region", { name: "Possible moves" }));
+  await user.click(possible().getByRole("button", { name: "Find moves" }));
+  const solve = await possible().findByRole("button", { name: "Solve" });
+  expect(solve.previousElementSibling).toBe(possible().getByRole("button", { name: "All moves" }));
+  await user.click(solve);
+  expect(requests[0]).toMatchObject({ rack: "DSD", opponentRack: "AOT", firstPlayer: "you" });
+  const panel = within(await screen.findByRole("region", { name: "Your endgame" }));
+  expect(panel.getByText("You play next")).toBeTruthy();
+  const list = within(panel.getByRole("list", { name: /Your moves sorted by swing for you, descending/ }));
+  await user.click(list.getAllByRole("button")[0]);
+  const line = within(panel.getByRole("table", { name: "Optimal endgame line" }));
+  expect(line.getAllByText(/^You/).length).toBeGreaterThan(0);
+  expect(current().rack).toBe("DSD");
+  await user.click(panel.getByRole("button", { name: "Close your endgame" }));
+  expect(document.activeElement).toBe(possible().getByRole("button", { name: "Solve" }));
 });
 
 test.each([false, true])("after the last draw, Solve endgame previews opponent lines without playing (phone %s)", async (phone) => {

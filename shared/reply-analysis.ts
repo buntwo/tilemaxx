@@ -603,6 +603,11 @@ export type OpponentEndgamePosition = Pick<
   "board" | "rack" | "template" | "scorelessTurns"
 > & { opponentRack: string };
 
+export type ExactEndgamePosition = OpponentEndgamePosition & {
+  firstPlayer?: "you" | "opponent";
+  opponentHasFinalTurn?: boolean;
+};
+
 export function opponentEndgameLine(
   lexicon: Lexicon,
   position: OpponentEndgamePosition,
@@ -610,23 +615,36 @@ export function opponentEndgameLine(
   timeLimitMs: number,
   minimumSpread?: number,
 ): EndgameLine | undefined {
+  return exactEndgameRoot(lexicon, position, candidate, timeLimitMs, minimumSpread);
+}
+
+export function exactEndgameRoot(
+  lexicon: Lexicon,
+  position: ExactEndgamePosition,
+  candidate: Move | null,
+  timeLimitMs: number,
+  minimumSpread?: number,
+): EndgameLine | undefined {
   const { board, template, rack, opponentRack } = position;
+  const yourTurn = position.firstPlayer === "you";
+  const [firstRack, secondRack] = yourTurn
+    ? [rackLetters(rack), opponentRack]
+    : [opponentRack, rackLetters(rack)];
   const result = searchEmptyBagCandidate(
     board,
     candidate,
-    candidate?.leave ?? opponentRack,
-    rackLetters(rack),
+    candidate?.leave ?? firstRack,
+    secondRack,
     template,
     position,
     endgameSearch(lexicon, template),
     placeTiles,
     { timeLimitMs, positionLimit: Infinity, minimumSpread },
   );
-  if (result) {
-    return {
-      line: result.line,
-      spread: -result.spread || 0,
-      points: { you: result.points.opponent, opponent: result.points.you },
-    };
-  }
+  if (!result || yourTurn) return result;
+  return {
+    line: result.line,
+    spread: -result.spread || 0,
+    points: { you: result.points.opponent, opponent: result.points.you },
+  };
 }

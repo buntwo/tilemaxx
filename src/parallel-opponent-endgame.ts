@@ -1,8 +1,8 @@
 import { rackPoints, type EndgameLine } from "../shared/endgame";
 import type { Lexicon } from "../shared/lexicon";
 import type { Move } from "../shared/model";
-import { rackLetters } from "../shared/rack-entry";
-import type { OpponentEndgamePosition } from "../shared/reply-analysis";
+import { rackComposition, rackLetters } from "../shared/rack-entry";
+import type { ExactEndgamePosition, OpponentEndgamePosition } from "../shared/reply-analysis";
 import { solve } from "../shared/solver";
 import type { CandidateJob, CandidateResult } from "./candidate-analysis-jobs";
 import { createCandidatePool } from "./candidate-analysis-pool";
@@ -29,14 +29,22 @@ export type OpponentEndgameRequest = OpponentEndgamePosition & {
   workerLimit: number;
 };
 
+type ExactEndgameSearch = ExactEndgamePosition & { cachedLines?: EndgameLine[] };
+
+export type ExactEndgameRequest = OpponentEndgameRequest | (ExactEndgameSearch & {
+  kind: "solve-own-endgame";
+  dictionaryId: string;
+  workerLimit: number;
+});
+
 export type OpponentEndgameMessage =
   | { progress: OpponentEndgameProgress }
   | { result: OpponentEndgameResult }
   | { error: string };
 
-export async function parallelOpponentEndgame(
+export async function parallelEndgame(
   lexicon: Lexicon,
-  position: OpponentEndgamePosition,
+  { cachedLines, ...position }: ExactEndgameSearch,
   workerLimit: number,
   onProgress: (progress: OpponentEndgameProgress) => void,
   createWorker?: () => Worker,
@@ -44,8 +52,11 @@ export async function parallelOpponentEndgame(
 ): Promise<OpponentEndgameResult> {
   const deadline = performance.now() + timeLimitMs;
   const { board, opponentRack, template, rack } = position;
-  const goOutBonus = 2 * rackPoints(rackLetters(rack), template.rules);
-  const moves = solve(lexicon, board, opponentRack, template);
+  const yourTurn = position.firstPlayer === "you";
+  const perspective = yourTurn ? 1 : -1;
+  const yourRack = rackLetters(rack);
+  const goOutBonus = 2 * rackPoints(yourTurn ? opponentRack : yourRack, template.rules);
+  const moves = solve(lexicon, board, yourTurn ? yourRack : opponentRack, template);
   const priority = (move: Move) => move.score + (move.leave ? 0 : goOutBonus);
   moves.sort((a, b) => priority(b) - priority(a));
   const roots = [...moves.slice(0, 4), null, ...moves.slice(4)];
@@ -78,7 +89,7 @@ export async function parallelOpponentEndgame(
     const fifth = best[RESULT_COUNT - 1];
     if (fifth) {
       // A later root has to beat the fifth line outright to displace it.
-      return -fifth.line.spread + Number(job.index > fifth.index);
+      return perspective * fifth.line.spread + Number(job.index > fifth.index);
     }
     return -Infinity;
   }
@@ -97,12 +108,12 @@ export async function parallelOpponentEndgame(
       throw new Error(
         result.kind === "error"
           ? result.message
-          : "Unexpected opponent endgame result.",
+          : "Unexpected endgame result.",
       );
     checked++;
     if (result.line) {
       best.push({ index: job.index, line: result.line });
-      best.sort((a, b) => a.line.spread - b.line.spread || a.index - b.index);
+      best.sort((a, b) => perspective * (b.line.spread - a.line.spread) || a.index - b.index);
       if (best.length > RESULT_COUNT) best.pop();
     }
     if (checked % TIMING_BATCH_SIZE === 0) finishBatch();
@@ -111,7 +122,17 @@ export async function parallelOpponentEndgame(
 
   try {
     progress();
-    await pool.run(jobs, receive, prepare);
+    const cached = new Map(yourTurn ? cachedLines?.map((line) => [line.line[0]?.id, line] as const) : undefined);
+    const remaining = jobs.filter((job) => {
+      if (!job.move) return true;
+      const line = cached.get(job.move.id);
+      const root = line?.line[0];
+      if (!line || !root || root.score !== job.move.score || rackComposition(root.leave) !== rackComposition(job.move.leave))
+        return true;
+      receive(job, { kind: "opponent-endgame", line });
+      return false;
+    });
+    await pool.run(remaining, receive, prepare);
     // A root that initially ran out of time may be cheap to rule out once
     // other workers have established a stronger fifth line.
     const retry = limited.filter(
@@ -130,3 +151,5 @@ export async function parallelOpponentEndgame(
     pool.close();
   }
 }
+
+export { parallelEndgame as parallelOpponentEndgame };

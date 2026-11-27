@@ -5,9 +5,9 @@ import { createPlayerProfiles } from "../shared/player-profiles";
 import { loadProfileVocabulary } from "./word-frequencies";
 import { createEndgamePrecompute } from "./endgame-precompute";
 import {
-  parallelOpponentEndgame,
+  parallelEndgame,
+  type ExactEndgameRequest,
   type OpponentEndgameMessage,
-  type OpponentEndgameRequest,
 } from "./parallel-opponent-endgame";
 import type {
   EndgamePrecomputeMessage,
@@ -81,7 +81,7 @@ async function precomputeEndgames(request: EndgamePrecomputeRequest) {
 self.onmessage = async (
   event: MessageEvent<
     | EndgamePrecomputeRequest
-    | OpponentEndgameRequest
+    | ExactEndgameRequest
     | (AnalysisRequest & { dictionaryId: string })
   >,
 ) => {
@@ -96,11 +96,11 @@ self.onmessage = async (
       const post = (message: OpponentEndgameMessage) =>
         self.postMessage(message);
       try {
-        const { dictionaryId, workerLimit, kind: _, ...position } = request;
+        const { dictionaryId, workerLimit, kind, ...position } = request;
         const { lexicon } = await loadDictionary(dictionaryId);
-        const result = await parallelOpponentEndgame(
+        const result = await parallelEndgame(
           lexicon,
-          position,
+          { ...position, firstPlayer: kind === "solve-own-endgame" ? "you" : "opponent" },
           workerLimit,
           (progress) => post({ progress }),
         );
@@ -110,7 +110,7 @@ self.onmessage = async (
           error:
             error instanceof Error
               ? error.message
-              : "The opponent endgame stopped unexpectedly.",
+              : "The endgame search stopped unexpectedly.",
         });
       }
     }

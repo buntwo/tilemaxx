@@ -16,12 +16,12 @@ import {
   type OpponentPolicyResult,
 } from "../shared/opponent-policy";
 import {
-  opponentEndgameLine,
+  exactEndgameRoot,
   REPLY_SUMMARY_TIME_MS,
   createReplyEndgameSession,
   ReplySearchLimitError,
   summarizeReplyBoard,
-  type OpponentEndgamePosition,
+  type ExactEndgamePosition,
   type ReplyPosition,
   type ReplySearchLimit,
   type sampleReplyRacks,
@@ -79,7 +79,7 @@ export type CandidateJob =
   | (CandidateMove & { kind: "endgame"; timeLimitMs?: 5_000 | 10_000 })
   | {
       kind: "opponent-endgame";
-      position: OpponentEndgamePosition;
+      position: ExactEndgamePosition;
       move: Move | null;
       deadline: number;
       minimumSpread?: number;
@@ -257,12 +257,12 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
           if (remaining <= 0)
             return {
               kind: "limit",
-              message: "The opponent endgame reached its time limit.",
+              message: "The endgame reached its time limit.",
               elapsed: 0,
             };
           return {
             kind: "opponent-endgame",
-            line: opponentEndgameLine(
+            line: exactEndgameRoot(
               lexicon,
               job.position,
               job.move,

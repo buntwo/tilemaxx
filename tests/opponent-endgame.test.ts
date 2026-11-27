@@ -3,14 +3,14 @@ import { test } from "node:test";
 import { endgameAfterRefill } from "../shared/endgame-refill";
 import { Lexicon } from "../shared/lexicon";
 import { undo } from "../shared/model";
-import { opponentEndgameLine } from "../shared/reply-analysis";
+import { exactEndgameRoot, opponentEndgameLine, replyEndgameLine } from "../shared/reply-analysis";
 import { solve } from "../shared/solver";
 import {
   createCandidateAnalyzer,
   type CandidateRequest,
   type CandidateResult,
 } from "../src/candidate-analysis-jobs";
-import { parallelOpponentEndgame } from "../src/parallel-opponent-endgame";
+import { parallelEndgame, parallelOpponentEndgame } from "../src/parallel-opponent-endgame";
 import {
   opponentEndgameWords,
   playBeforeRefill,
@@ -133,6 +133,63 @@ test("the worker pool ranks five exact opponent lines against all plays and pass
     0,
   );
   assert.deepEqual(exhausted, { checked: 0, total: roots.length, lines: [], batches: [] });
+});
+
+test("the same worker pool ranks our openings and skips completed exact roots", async () => {
+  const game = { ...playBeforeRefill(), rack: "DSD" };
+  const lexicon = new Lexicon(opponentEndgameWords);
+  const position = { ...game, ...endgameAfterRefill(game)!, firstPlayer: "you" as const, bagSize: 0 };
+  const moves = solve(lexicon, position.board, position.rack, position.template);
+  assert.ok(moves.length > 5);
+  const exact = moves.map((move) => replyEndgameLine(lexicon, position, move, 1_000));
+  const pass = exactEndgameRoot(lexicon, position, null, 1_000)!;
+  const expected = [...exact, pass].map(({ spread }) => spread).sort((a, b) => b - a).slice(0, 5);
+  const cachedLines = exact.slice(0, 3);
+  const queued: (string | undefined)[] = [];
+  const createWorker = () => {
+    const analyze = createCandidateAnalyzer(lexicon);
+    const worker = {
+      onmessage: undefined as ((event: { data: CandidateResult }) => void) | undefined,
+      postMessage({ job }: CandidateRequest) {
+        assert.equal(job.kind, "opponent-endgame");
+        queued.push(job.move?.id);
+        queueMicrotask(() => worker.onmessage?.({ data: analyze(job) }));
+      },
+      terminate() {},
+    };
+    return worker as unknown as Worker;
+  };
+
+  const result = await parallelEndgame(lexicon, { ...position, cachedLines }, 2, () => {}, createWorker);
+  assert.equal(result.total, moves.length + 1);
+  assert.equal(result.checked, result.total);
+  assert.equal(queued.length, result.total - cachedLines.length);
+  assert.ok(queued.includes(undefined));
+  for (const line of cachedLines) assert.ok(!queued.includes(line.line[0]?.id));
+  assert.deepEqual(result.lines.map(({ spread }) => spread), expected);
+  for (const line of result.lines)
+    assert.equal(line.spread, line.points.you - line.points.opponent);
+
+  const serial = await parallelEndgame(lexicon, position, 1, () => {});
+  assert.deepEqual(result.lines.map((line) => line.line[0]?.id), serial.lines.map((line) => line.line[0]?.id));
+  assert.deepEqual(result.lines.map(({ spread, points }) => [spread, points]), serial.lines.map(({ spread, points }) => [spread, points]));
+});
+
+test("our exact solver observes the Crossplay final-turn setting", async () => {
+  const game = playBeforeRefill();
+  const lexicon = new Lexicon(opponentEndgameWords);
+  const position = {
+    ...game, template: { ...game.template, rules: "crossplay" as const },
+    rack: "DSD", opponentRack: "AOT", scorelessTurns: 0,
+    firstPlayer: "you" as const, opponentHasFinalTurn: false,
+  };
+  const result = await parallelEndgame(lexicon, position, 1, () => {});
+  assert.equal(result.checked, result.total);
+  assert.ok(result.lines.length);
+  for (const line of result.lines) {
+    assert.equal(line.line.length, 1);
+    assert.deepEqual(line.points, { you: line.line[0]?.score ?? 0, opponent: 0 });
+  }
 });
 
 test("opponent timing groups every 500 completed options and the last partial batch", async () => {
