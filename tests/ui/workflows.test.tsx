@@ -2667,6 +2667,32 @@ test("game links restore replay and review turns, and stepping works with browse
   expect(location.search).toBe("");
 });
 
+test("archived replay updates the move link without adding browser history entries", async () => {
+  remote.games.push(archiveGame({ ...replayFixture(), id: "archived-replay", name: "Archived replay" }));
+  const user = await start();
+  await user.click(navLink("Archived games"));
+  await user.selectOptions(screen.getByRole("combobox", { name: "Sort by" }), "opponent");
+  const archiveLink = location.href;
+  await user.click(screen.getByRole("button", { name: /^Archived replay/ }));
+  const slider = await screen.findByRole("slider", { name: "Replay moves" });
+  expect(slider.getAttribute("aria-valuetext")).toBe("Final board");
+
+  await user.click(cell("Previous move"));
+  expect(location.search).toBe("?move=2");
+  fireEvent.change(slider, { target: { value: "0" } });
+  expect(location.search).toBe("?move=0");
+  fireEvent.change(slider, { target: { value: "1" } });
+  expect(location.search).toBe("?move=1");
+
+  history.back();
+  const sort = await screen.findByRole("combobox", { name: "Sort by" });
+  expect(sort).toHaveProperty("value", "opponent");
+  expect(location.href).toBe(archiveLink);
+  history.forward();
+  await screen.findByRole("button", { name: "Preview recorded move CAT" });
+  expect(location.pathname + location.search).toBe("/games/archived-replay?move=1");
+});
+
 test("archive and sidebar links restore selections while typed search text stays local", async () => {
   remote.games.push(archiveGame({ ...game(), id: "archive", name: "Archive opponent" }));
   remote.templates.push({ ...PRESETS[0], id: "mini", builtin: false, name: "Mini board" });

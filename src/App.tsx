@@ -346,7 +346,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     workspace === "games" ? savedGame : undefined,
     !dialog && !(sidebarOverlay && sidebarDrawerOpen),
     route.move,
-    (move, replace) => navigate({ ...route, gameId, move, review: undefined }, replace),
+    (move, replace) => navigate(
+      { ...route, gameId, move, review: undefined },
+      savedGame?.archived || replace,
+    ),
   );
   const replay = gameReplay.active;
   const historical = gameReplay.historical;
