@@ -5487,7 +5487,7 @@ test.each(["phone", "tablet", "desktop"])(
   },
 );
 
-test("Word lists looks up English and French definitions only on submission", async () => {
+test("Word list checker looks up English and French definitions only on submission", async () => {
   const original = game();
   remote.games[0] = { ...original, revision: 1, template: { ...original.template, rules: "scrabble-fr" } };
   const request = fetch;
@@ -5504,9 +5504,14 @@ test("Word lists looks up English and French definitions only on submission", as
   const requests = () => lookup.mock.calls.map(([url]) => url).filter((url) => url.startsWith("/api/definitions?"));
   const user = await start();
   await user.click(navLink("Word lists"));
-  const dialog = within(screen.getByRole("dialog", { name: "Word lists" }));
-  const section = within(dialog.getByRole("region", { name: "Definition lookup" }));
-  const input = section.getByRole("textbox", { name: "Word" });
+  const lists = within(screen.getByRole("dialog", { name: "Word lists" }));
+  expect(lists.queryByRole("region", { name: "Definition lookup" })).toBeNull();
+  await user.click(lists.getByRole("button", { name: "Close dialog" }));
+
+  await user.click(navLink("Word list checker"));
+  const checker = within(screen.getByRole("dialog", { name: "Word list checker" }));
+  const section = within(checker.getByRole("region", { name: "Definition lookup" }));
+  const input = section.getByRole("textbox", { name: "Word to define" });
   const language = section.getByRole("combobox", { name: "Language" });
   const submit = section.getByRole("button", { name: "Look up" });
   expect(language).toHaveProperty("value", "fr");

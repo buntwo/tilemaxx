@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CircleCheck, CircleX, Upload } from "lucide-react";
+import { definitionTileKey, type DefinitionLanguage } from "../../shared/definitions";
 import type { Dictionary } from "../../shared/model";
 import type {
   WordListCheckReply,
   WordListCheckRequest,
   WordListSource,
 } from "../word-list-checker.worker";
+import { DefinitionResults } from "./DefinitionTooltip";
 import Modal from "./Modal";
 
 type Check = {
@@ -17,11 +19,13 @@ type Check = {
 export default function WordListChecker({
   dictionaries,
   selectedId,
+  definitionLanguage = "en",
   onSelectList,
   onClose,
 }: {
   dictionaries: Dictionary[];
   selectedId?: string;
+  definitionLanguage?: DefinitionLanguage;
   onSelectList: (id: string) => void;
   onClose: () => void;
 }) {
@@ -203,6 +207,53 @@ export default function WordListChecker({
           )}
         </div>
       </form>
+      <WordDefinitionLookup initialLanguage={definitionLanguage} />
     </Modal>
+  );
+}
+
+function WordDefinitionLookup({ initialLanguage }: { initialLanguage: DefinitionLanguage }) {
+  const [input, setInput] = useState("");
+  const [language, setLanguage] = useState(initialLanguage);
+  const [words, setWords] = useState<{ word: string }[]>();
+  const [invalid, setInvalid] = useState(false);
+
+  return (
+    <section className="word-definition-lookup" aria-label="Definition lookup">
+      <h3>Definition lookup</h3>
+      <form onSubmit={(event) => {
+        event.preventDefault();
+        const word = definitionTileKey(input);
+        setInvalid(!word);
+        setWords(word ? [{ word: word.toUpperCase() }] : undefined);
+      }}>
+        <label>
+          Word to define
+          <input type="text" value={input} autoComplete="off" autoCorrect="off"
+            autoCapitalize="none" spellCheck={false} enterKeyHint="search"
+            aria-invalid={invalid || undefined}
+            onChange={(event) => {
+              setInput(event.currentTarget.value);
+              setInvalid(false);
+              setWords(undefined);
+            }} />
+        </label>
+        <label>
+          Language
+          <select value={language} onChange={(event) => {
+            setLanguage(event.currentTarget.value as DefinitionLanguage);
+            setWords(undefined);
+          }}>
+            <option value="en">English</option>
+            <option value="fr">French</option>
+          </select>
+        </label>
+        <button type="submit" className="button secondary" disabled={!input.trim()}>Look up</button>
+      </form>
+      <div className="word-definition-result" aria-live="polite">
+        {invalid && <p>Enter one word with 2–25 letters.</p>}
+        <DefinitionResults language={language} words={words} />
+      </div>
+    </section>
   );
 }

@@ -2112,7 +2112,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         <WordLists
           dictionaries={data.dictionaries}
           selectedId={savedGame?.dictionaryId}
-          definitionLanguage={savedGame && definitionLanguageForRules(savedGame.template.rules)}
           onClose={closeTool}
           onNotify={notify}
         />
@@ -2156,6 +2155,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         <WordListChecker
           dictionaries={data.dictionaries}
           selectedId={route.wordList ?? game?.dictionaryId}
+          definitionLanguage={savedGame && definitionLanguageForRules(savedGame.template.rules)}
           onSelectList={(wordList) => navigate({ ...route, wordList })}
           onClose={closeTool}
         />
