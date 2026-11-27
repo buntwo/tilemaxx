@@ -5275,8 +5275,8 @@ label + label {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 3px 5px;
-  min-height: 44px;
-  padding-top: 8px;
+  min-height: 32px;
+  padding-block: 4px;
   cursor: pointer;
   font-size: clamp(10px, calc(5cqi - 4.5px), 12px);
   font-variant-numeric: tabular-nums;
@@ -6559,7 +6559,6 @@ label + label {
 .phone-board-column > :is(.board-warnings, .phone-rack-details) { grid-column: 1 / -1; }
 .phone-rack-details:not(:empty) { padding-inline: 6px; }
 .phone-rack-details .tile-pool { margin-top: 4px; }
-.phone-rack-details .tile-pool summary { padding-top: 3px; }
 .phone-board-column .with-board-history .direct-entry-status {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -7246,7 +7245,6 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .compact-game .rack-panel .rack-tools summary { min-height: 25px; }
 .compact-game .rack-panel .rack-exchange-advice { min-height: 25px; }
 .compact-game .rack-panel .tile-pool { margin-top: 5px; }
-.compact-game .rack-panel .tile-pool summary { padding-top: 5px; }
 
 .compact-game .result-scroll {
   --desktop-move-list-height: calc(6 * var(--move-row-height));
