@@ -277,6 +277,44 @@ test("profiles value shedding awkward duplicates and keeping flexible leaves", (
   assert.ok(profileLeaveValue("SST") > profileLeaveValue("IIT"));
 });
 
+test("live Learner compares six plays throughout, while Casual widens when the bag empties", () => {
+  const words = ["ANT", "ART", "ATE", "EAR", "EAT", "RAN", "RAT", "SAT", "SEA", "TAN", "TAR", "TEA", "TEN"];
+  const rack = "AENRSTU";
+  const template = {
+    ...PRESETS[0],
+    tileCounts: Object.fromEntries(
+      TILE_SYMBOLS.map((letter) => [letter, Number((rack + "Z").includes(letter))]),
+    ),
+  };
+  const board = emptyBoard(template.size);
+  const lexicon = new Lexicon(words);
+  const vocabulary = new Map(words.map((word) => [word, packFamiliarity(9_000)]));
+  const choose = createPlayerProfiles(lexicon, template, new Map(), undefined, vocabulary);
+  const moves = solve(lexicon, board, rack, template);
+  const position = { board, rack, bagSize: 1, seed: 0, playerSeed: 0 };
+  const live = { learnerSlate: true };
+
+  for (const [profile, size] of [["casual", 3], ["learner", 6]] as const) {
+    const withDraws = choose(moves, profile, position, live).learnerSlate!;
+    assert.equal(new Set(withDraws.map(({ move }) => move.word)).size, size);
+    assert.deepEqual(
+      withDraws.map(({ move }) => move.id),
+      choose(moves, profile, position, { ...live, all: true }).learnerSlate!.map(({ move }) => move.id),
+    );
+
+    const empty = { ...position, bagSize: 0 };
+    const sampled = choose(moves, profile, empty, { ...live, all: true }).considered!;
+    const expected = sampled.slice(0, 6).map(({ move }) => move).sort((a, b) =>
+      (b.score - 0.65 * rackPoints(b.leave, template.rules)) -
+      (a.score - 0.65 * rackPoints(a.leave, template.rules)));
+    const tracked = { ...empty, scoreSpread: 30 };
+    const ranked = choose(moves, profile, tracked, { ...live, all: true }).considered!;
+    assert.deepEqual(ranked.slice(0, 6).map(({ move }) => move.id), expected.map(({ id }) => id));
+    assert.equal(choose(moves, profile, tracked, live).move?.id, expected[0].id);
+    assert.equal(choose(moves, profile, tracked, { topThree: true }).suggestions?.length, 3);
+  }
+});
+
 test("Casual and Learner block winning rack-outs they know with the tracked score", () => {
   const board = emptyBoard(5);
   board[8] = "I";

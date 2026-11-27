@@ -564,7 +564,12 @@ export function createPlayerProfiles(
       }
     }
     const compareLearner = liveLearner && !solo && bagSize > 0;
-    const limit = options.all ? candidates.length : options.topThree || compareLearner || opponent ? 3 : 1;
+    const comparisonLimit = profile === "learner" || emptyBag ? 6 : 3;
+    const limit = options.all
+      ? candidates.length
+      : compareLearner || opponent
+        ? comparisonLimit
+        : options.topThree ? 3 : 1;
     let order = sampleProfilePlacements(candidates, seed, limit, isLearner);
     if (opponent && halfLife !== undefined) {
       const focusedOut = moves.reduce<Move | undefined>((best, move) =>
@@ -582,7 +587,7 @@ export function createPlayerProfiles(
       const slate = new Map<string, Candidate>();
       for (const entry of order) {
         if (!slate.has(entry.move.word)) slate.set(entry.move.word, entry);
-        if (slate.size === preset.finalists) break;
+        if (slate.size === comparisonLimit) break;
       }
       const finalists = [...slate.values()];
       if (finishing && !finalists.includes(finishing)) finalists.push(finishing);
@@ -619,7 +624,7 @@ export function createPlayerProfiles(
     let learnerSlate: Candidate[] | undefined;
     if (compareLearner && first) {
       learnerSlate = [];
-      for (const entry of order.slice(0, preset.finalists))
+      for (const entry of order.slice(0, comparisonLimit))
         if (!learnerSlate.some(({ move }) => move.word === entry.move.word))
           learnerSlate.push(entry);
     }

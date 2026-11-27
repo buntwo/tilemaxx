@@ -78,11 +78,11 @@ function fixture() {
   };
 }
 
-test("Learner compares three visible words with eight shared deals and can change its recommendation", () => {
+test("Learner compares six visible words with eight shared deals and can change its recommendation", () => {
   const { position, evaluate, ranked, slate } = fixture();
-  assert.equal(slate.length, 3);
-  assert.equal(new Set(slate.map(({ move }) => move.word)).size, 3);
-  assert.deepEqual(slate.map(({ move }) => move), ranked.slice(0, 3).map(({ move }) => move));
+  assert.equal(slate.length, 6);
+  assert.equal(new Set(slate.map(({ move }) => move.word)).size, 6);
+  assert.deepEqual(slate.map(({ move }) => move), ranked.slice(0, 6).map(({ move }) => move));
   assert.equal(slate[0].move, ranked[0].move);
 
   const steps = evaluate(
@@ -98,7 +98,7 @@ test("Learner compares three visible words with eight shared deals and can chang
     result = steps.next();
   }
 
-  assert.equal(comparisons, 24);
+  assert.equal(comparisons, 48);
   const first = result.value.ranked[0];
   assert.notEqual(first.move.id, ranked[0].move.id);
   const evaluated = result.value.ranked.filter(({ utility }) => utility.lookahead !== undefined);
@@ -160,7 +160,7 @@ test("Learner checks the swap on 32 deals and reuses the first eight placement o
     count++;
     step = steps.next();
   }
-  assert.equal(count, 3 * 8 + LEARNER_EXCHANGE_DEALS);
+  assert.equal(count, slate.length * 8 + LEARNER_EXCHANGE_DEALS);
   assert.equal(LEARNER_EXCHANGE_DEALS, 32);
   assert.equal(step.value.exchange, undefined);
   assert.equal(step.value.ranked[0].move.word, "CART");
