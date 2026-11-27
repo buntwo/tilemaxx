@@ -8779,8 +8779,14 @@ test("the filled search button follows the active turn in the endgame", async ()
   expect(endgame().classList.contains("secondary")).toBe(true);
 });
 
-test.each([false, true])("Solve previews and plays an exact move using the full rack (phone %s)", async (phone) => {
+test.each(["click", "tap again", "board play"] as const)("Solve previews and plays an exact move using %s", async (activation) => {
+  const phone = activation !== "click";
   remote.games[0] = { ...playBeforeRefill(), rack: "DSD", excludedRackSlots: [0, 2] };
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: !phone && query === "(any-hover: hover)",
+    addEventListener() {},
+    removeEventListener() {},
+  }));
   const requests: ExactEndgameRequest[] = [];
   let solved: OpponentEndgameResult | undefined;
   const lexicon = new Lexicon(opponentEndgameWords);
@@ -8808,7 +8814,14 @@ test.each([false, true])("Solve previews and plays an exact move using the full 
   const panel = within(await screen.findByRole("region", { name: "Your endgame" }));
   expect(panel.getByText("You play next")).toBeTruthy();
   const list = within(panel.getByRole("list", { name: /Your moves sorted by swing for you, descending/ }));
-  await user.click(list.getAllByRole("button")[0]);
+  const row = list.getAllByRole("button")[0];
+  const tap = (target: HTMLElement) => user.pointer([{ keys: "[TouchA]", target }, { keys: "[/TouchA]" }]);
+  if (phone) await tap(row);
+  else {
+    await user.hover(row);
+    expect(document.querySelector(".board-entry .ghost")).toBeTruthy();
+    fireEvent.contextMenu(row);
+  }
   const line = within(panel.getByRole("table", { name: "Optimal endgame line" }));
   expect(line.getAllByText(/^You/).length).toBeGreaterThan(0);
   expect(current().rack).toBe("DSD");
@@ -8819,8 +8832,13 @@ test.each([false, true])("Solve previews and plays an exact move using the full 
   const ranked = within(exact.getByRole("list", { name: /Your moves sorted by swing/ }));
   const index = solved!.lines.findIndex((line) => line.line[0]?.tiles.some(({ letter }) => letter === "D"));
   const played = solved!.lines[index].line[0]!;
-  await user.click(ranked.getAllByRole("button")[index]);
-  await user.click(exact.getByRole("button", { name: `Play ${played.word}` }));
+  const candidate = ranked.getAllByRole("button")[index];
+  if (phone) {
+    await tap(candidate);
+    expect(current().rack).toBe("DSD");
+    if (activation === "tap again") await tap(candidate);
+    else await tap(within(screen.getByRole("region", { name: "Game board" })).getByRole("button", { name: "Play" }));
+  } else await user.click(candidate);
   expect(current().trackedMoves?.at(-1)?.word).toBe(played.word);
   for (const { index, letter } of played.tiles) expect(current().board[index]).toBe(letter);
   expect(current().rack).toBe(played.leave);

@@ -301,6 +301,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     move: Move;
     analysis: boolean;
     player: Player;
+    useRackMarks?: boolean;
     explanation?: { value: StyleExplanation; position: string };
   } | null>(null);
   const preview = movePreview?.move ?? null;
@@ -836,12 +837,13 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     analysis = false,
     player: Player = "you",
     explanation?: StyleExplanation,
+    { useRackMarks }: { useRackMarks?: boolean } = {},
   ) {
     if (enteringOwnPlay) return;
     if (move) gameReplay.hideRecorded();
     if (move && narrowLayout && player === "you") moveReview.open();
     setPreview(move ? {
-      move, analysis, player, explanation: explanation && { value: explanation, position: signature },
+      move, analysis, player, useRackMarks, explanation: explanation && { value: explanation, position: signature },
     } : null);
   }
   function play(
@@ -1588,7 +1590,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                         data-move-preview-action
                         type="button"
                         disabled={boardLocked || !preview || !!activeFlight}
-                        onClick={() => preview && play(preview)}
+                        onClick={() => preview && play(preview, { useRackMarks: movePreview?.useRackMarks })}
                       >
                         <span className="button primary">Play</span>
                       </button>

@@ -58,7 +58,7 @@ import { scoreTotalsAtPosition } from "../../shared/game-scoring";
 import { type BoardOddsResult, type RackOdds } from "../../shared/bingo-odds";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import { endgameLength } from "../endgame-line-format";
-import { canHoverWithMouse } from "../move-preview";
+import { canHoverWithMouse, shouldPlayMove } from "../move-preview";
 import { definitionLanguageForRules } from "../../shared/definitions";
 import { useMoveDefinitions } from "./useMoveDefinitions";
 import { DefinitionWord, useMoveDefinitionContext } from "./MoveDefinitions";
@@ -305,7 +305,13 @@ export default function Results({
     onToggle: () => void;
   };
   optionsButtonRef?: Ref<HTMLElement>;
-  onPreview: (m: Move | null, analysis?: boolean, player?: Player, explanation?: StyleExplanation) => void;
+  onPreview: (
+    move: Move | null,
+    analysis?: boolean,
+    player?: Player,
+    explanation?: StyleExplanation,
+    options?: { useRackMarks?: boolean },
+  ) => void;
   phoneLayout?: boolean;
   onPlay: (m: Move, options?: { styleExplanation?: StyleExplanation; useRackMarks?: boolean }) => void;
   onSolve: (reload?: boolean) => void;
@@ -1139,6 +1145,7 @@ export default function Results({
     const firstPlayer = exactEndgame.firstPlayer;
     const title = firstPlayer === "you" ? "Your endgame" : "Opponent endgame";
     if ("result" in endgameSearch) {
+      const canPlay = firstPlayer === "you" && !squareFilter?.disabled;
       return (
         <OpponentEndgameResults
           game={analysisGame}
@@ -1148,8 +1155,8 @@ export default function Results({
           firstPlayer={firstPlayer}
           phoneLayout={phoneLayout}
           onClose={closeEndgame}
-          onPreview={(move) => onPreview(move, true, firstPlayer)}
-          onPlay={firstPlayer === "you" && !squareFilter?.disabled ? (move) => onPlay(move, { useRackMarks: false }) : undefined}
+          onPreview={(move) => onPreview(move, !canPlay, firstPlayer, undefined, { useRackMarks: false })}
+          onPlay={canPlay ? (move) => onPlay(move, { useRackMarks: false }) : undefined}
           onContinueSearch={exactEndgame.continueSearch}
         />
       );
@@ -1856,10 +1863,7 @@ export default function Results({
                           return;
                         }
                         if (histogramSelection) setInspectedReply(undefined);
-                        if (
-                          (e.detail > 0 && canHoverWithMouse(pointer.current)) ||
-                          locked === m.id
-                        ) {
+                        if (shouldPlayMove(e.detail, pointer.current, locked === m.id)) {
                           setLocked(null);
                           playCandidate(m);
                         } else {

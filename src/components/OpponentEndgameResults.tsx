@@ -13,7 +13,7 @@ import type {
 import type { OpponentEndgameTiming } from "../move-timing";
 import { finalMarginLabel, scoreTone, signedPoints } from "../score-tone";
 import { endgameLength } from "../endgame-line-format";
-import { canHoverWithMouse } from "../move-preview";
+import { canHoverWithMouse, shouldPlayMove } from "../move-preview";
 import CalculationIndicator from "./CalculationIndicator";
 import MoveTimingButton from "./MoveTimingButton";
 import { BingoBadge, MoveLetters } from "./MoveWord";
@@ -45,6 +45,7 @@ export default function OpponentEndgameResults({
   onContinueSearch: () => void;
 }) {
   const [selected, setSelected] = useState<EndgameLine>();
+  const pointer = useRef("mouse");
   const detailId = useId();
   const definitionPosition = useMemo(() => ({ result, selected }), [result, selected]);
   const sharedDefinitions = useMoveDefinitionContext();
@@ -74,7 +75,6 @@ export default function OpponentEndgameResults({
   const complete = result.checked === result.total;
   const yourTurn = firstPlayer === "you";
   const title = yourTurn ? "Your endgame" : "Opponent endgame";
-  const selectedMove = selected?.line[0];
   return (
     <section
       className="results-panel panel with-reply-column with-endgame-estimates opponent-endgame"
@@ -148,7 +148,14 @@ export default function OpponentEndgameResults({
                       if (move && !selected && canHoverWithMouse(event.pointerType))
                         onPreview(null);
                     }}
-                    onClick={() => toggleSelection(line)}
+                    onPointerDown={(event) => { pointer.current = event.pointerType; }}
+                    onClick={(event) => {
+                      if (move && onPlay && shouldPlayMove(event.detail, pointer.current, selected === line)) {
+                        onPlay(move);
+                      } else {
+                        toggleSelection(line);
+                      }
+                    }}
                     onContextMenu={(event) => {
                       event.preventDefault();
                       if (!definitions.ownsContextMenu(event.target))
@@ -215,7 +222,15 @@ export default function OpponentEndgameResults({
         </div>
       )}
       <footer className="results-foot">
-        {result.lines.length > 0 && (
+        {result.lines.length > 0 && (onPlay ? (
+          <>
+            <span className="hover-hint">Hover to preview · right-click to pin/unpin · click to play</span>
+            <span className="tap-hint">
+              Tap to preview · tap again to play
+              {definitions.touch && " · hold the word to define"}
+            </span>
+          </>
+        ) : (
           <span>
             {yourTurn ? "Select a move to preview its line" : "Select an opponent move to preview its line"}
             {definitions.touch
@@ -224,7 +239,7 @@ export default function OpponentEndgameResults({
                 ? " · hover over a word to define"
                 : ""}
           </span>
-        )}
+        ))}
         <MoveTimingButton timing={timing} />
       </footer>
       {selected && (
@@ -234,20 +249,12 @@ export default function OpponentEndgameResults({
           aria-label={yourTurn ? "Your reply details" : "Opponent reply details"}
           data-move-preview-action
         >
-          <div className="endgame-line-heading">
-            <h3 className="optimal-reply-title">
-              <span>Reply details</span>
-              <span className="optimal-reply-badge">
-                <Check size={13} aria-hidden="true" /> Exact line
-              </span>
-            </h3>
-            {yourTurn && onPlay && selectedMove && (
-              <button type="button" className="button primary" aria-label={`Play ${selectedMove.word}`}
-                onClick={() => onPlay(selectedMove)}>
-                Play
-              </button>
-            )}
-          </div>
+          <h3 className="optimal-reply-title">
+            <span>Reply details</span>
+            <span className="optimal-reply-badge">
+              <Check size={13} aria-hidden="true" /> Exact line
+            </span>
+          </h3>
           <OptimalReplyDetails
             game={game}
             line={selected}
