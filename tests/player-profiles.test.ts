@@ -73,7 +73,7 @@ test("nearest common legal spellings cover substitutions, deletions, insertions,
   );
 });
 
-test("Casual and Learner apply the same vocabulary to main words and crosses", () => {
+test("Casual and Learner gate main words and crosses with their own familiarity rules", () => {
   const template = PRESETS[0];
   const lexicon = new Lexicon(["IT", "ITS", "SIT"]);
   const choose = createPlayerProfiles(
@@ -85,7 +85,7 @@ test("Casual and Learner apply the same vocabulary to main words and crosses", (
       ["SIT", 4],
     ]),
     { coverage: 4, appeal: 12 },
-    new Map([["SIT", packFamiliarity(8_000)], ["AS", packFamiliarity(8_000)]]),
+    new Map([["SIT", packFamiliarity(9_000)], ["AS", packFamiliarity(9_000)]]),
   );
   const board = emptyBoard(template.size);
   board[82] = "I";
@@ -120,7 +120,7 @@ test("Casual rolls once per game spelling for both main words and crosses", () =
   const board = emptyBoard(template.size);
   const rack = "ABCATN?";
   const vocabulary = new Map([
-    ["BAT", packFamiliarity(7_500)], ["CAT", packFamiliarity(9_000)], ["CATNAP", packFamiliarity(9_900)],
+    ["BAT", packFamiliarity(8_750)], ["CAT", packFamiliarity(9_000)], ["CATNAP", packFamiliarity(9_900)],
   ]);
   const choose = createPlayerProfiles(
     lexicon, template, new Map(), { coverage: 4, appeal: 0 }, vocabulary,
@@ -135,7 +135,7 @@ test("Casual rolls once per game spelling for both main words and crosses", () =
   for (let playerSeed = 0; playerSeed < 256; playerSeed++) {
     const position = { board, rack, bagSize: 70, seed: 0, playerSeed };
     const knowsBat = !!choose([bat], "casual", position).move;
-    assert.equal(!!choose([bat], "learner", position).move, knowsBat);
+    assert.equal(choose([bat], "learner", position).move, bat);
     assert.equal(!!choose([catWithBat], "casual", { ...position, seed: 67 }).move, knowsBat);
     assert.equal(choose([cat], "casual", position).move, cat);
     if (knowsBat) known++;
@@ -211,7 +211,7 @@ test("late Casual and Learner favor familiar main words and crosses", () => {
     template,
     new Map([["CAT", 5], ["COT", 1.21], ["AT", 5], ["OT", 1.21]]),
     undefined,
-    new Map(Array.from(lexicon.words(), (word) => [word, packFamiliarity(8_000)])),
+    new Map(Array.from(lexicon.words(), (word) => [word, packFamiliarity(9_000)])),
   );
   const legal = solve(lexicon, board, rack, template);
   const cat = legal.find((move) => move.word === "CAT" && move.direction === "across")!;
@@ -608,7 +608,7 @@ test("a localized search can miss familiar plays in a different part of the boar
   const lexicon = new Lexicon(words);
   const frequencies = new Map(words.map((word) => [word, 5]));
   const moves = solve(lexicon, board, rack, template);
-  const knownWords = new Map(words.map((word) => [word, packFamiliarity(8_000)]));
+  const knownWords = new Map(words.map((word) => [word, packFamiliarity(9_000)]));
   const local = createPlayerProfiles(lexicon, template, frequencies, { coverage: 0.5, appeal: 0 }, knownWords);
   const broad = createPlayerProfiles(lexicon, template, frequencies, { coverage: 4, appeal: 0 }, knownWords);
   const position = { board, rack, bagSize: 50, seed: 37, playerSeed: 17 };

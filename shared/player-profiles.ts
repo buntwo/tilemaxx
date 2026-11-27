@@ -25,6 +25,7 @@ import {
 } from "./player-profile-sampling";
 import { profileLeaveValue } from "./rack-leave";
 import {
+  casualWordProbability,
   learnerWordProbability,
   type EnglishProfileVocabulary,
 } from "./profile-vocabulary";
@@ -39,7 +40,7 @@ export { profileWordHash } from "./player-profile-sampling";
 
 export const PLAYER_PROFILES = ["casual", "learner", "strong"] as const;
 export type PlayerProfile = (typeof PLAYER_PROFILES)[number];
-export const LEARNER_HALF_LIFE = { casual: 5, learner: 3 } as const;
+export const LEARNER_HALF_LIFE = { casual: 10, learner: 3 } as const;
 export type LearnerStyle = keyof typeof LEARNER_HALF_LIFE;
 export function usesLearnerPolicy(profile: string | undefined): profile is LearnerStyle {
   return profile === "casual" || profile === "learner";
@@ -161,7 +162,7 @@ export function createPlayerProfiles(
   englishVocabulary?: EnglishProfileVocabulary,
 ) {
   const difficulty = createWordDifficulty(lexicon, frequencies);
-  const english = wordFrequencyLanguage(template.rules) === "en";
+  const vocabulary = wordFrequencyLanguage(template.rules) === "en" ? englishVocabulary : undefined;
   const counts = getTileCounts(template);
   const bagTiles = Object.values(counts).reduce((sum, count) => sum + count, 0);
   const bingoLength = minimumBingoTiles(template);
@@ -192,12 +193,12 @@ export function createPlayerProfiles(
     string,
     {
       hash: number;
-      data: Partial<Record<Model, WordProfile>>;
+      data: Partial<Record<PlayerProfile, WordProfile>>;
       difficulty?: number;
       study?: number;
     }
   >();
-  function wordData(word: string, model: Model) {
+  function wordData(word: string, policy: PlayerProfile) {
     const spelling = word.toUpperCase();
     let wordInfo = wordCache.get(spelling);
     if (!wordInfo) {
@@ -207,14 +208,20 @@ export function createPlayerProfiles(
       };
       wordCache.set(spelling, wordInfo);
     }
-    const cached = wordInfo.data[model];
+    const cached = wordInfo.data[policy];
     if (cached) return cached;
-    if (english && model === "learner" && englishVocabulary)
-      return (wordInfo.data.learner = {
+    if (vocabulary && usesLearnerPolicy(policy)) {
+      const entry = vocabulary.get(spelling);
+      const chance = policy === "casual"
+        ? casualWordProbability(entry)
+        : learnerWordProbability(spelling, entry);
+      return (wordInfo.data[policy] = {
         hash: wordInfo.hash,
-        knowledge: learnerWordProbability(spelling, englishVocabulary.get(spelling)) * scale,
+        knowledge: chance * scale,
         recall: 1,
       });
+    }
+    const model = policy === "strong" ? "strong" : "learner";
     const preset = presets[model];
     const study = preset.study
       ? (wordInfo.study ??= studyPriority(spelling))
@@ -290,6 +297,7 @@ export function createPlayerProfiles(
     if (!moves.length)
       return { bingoFound: false, considered: options.all ? [] : undefined };
     const model = profile === "strong" ? "strong" : "learner";
+    const vocabularyPolicy = vocabulary ? profile : model;
     const preset = presets[model];
     const halfLife = usesLearnerPolicy(profile) ? LEARNER_HALF_LIFE[profile] : undefined;
     const isLearner = halfLife !== undefined;
@@ -356,7 +364,7 @@ export function createPlayerProfiles(
       seed,
       liveLearner
         ? () => learnerRackCues(board, template, splitRack(position).available,
-            (spelling) => lexicon.has(spelling) && knows(wordData(spelling, model)))
+            (spelling) => lexicon.has(spelling) && knows(wordData(spelling, vocabularyPolicy)))
         : undefined,
     );
     const crossVisibility = Math.exp(-preset.cross);
@@ -368,10 +376,10 @@ export function createPlayerProfiles(
         reject("placement");
         continue;
       }
-      const word = wordData(move.word, model);
+      const word = wordData(move.word, vocabularyPolicy);
       if (
         !knows(word) ||
-        move.crosses.some((cross) => !knows(wordData(cross, model)))
+        move.crosses.some((cross) => !knows(wordData(cross, vocabularyPolicy)))
       ) {
         reject("vocabulary");
         continue;

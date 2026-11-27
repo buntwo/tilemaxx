@@ -184,7 +184,7 @@ test("packed vocabulary is compressed, checks dictionary content, and revalidate
   assert.equal(mismatch.status, 409);
 });
 
-test("server-side Casual and Learner see the same words", async (t) => {
+test("server-side Casual uses its higher familiarity cutoff", async (t) => {
   const { store, endpoint } = await fixture(t);
   const profile = store.createProfile("Vocabulary test");
   const list = store.importDictionary("Vocabulary test", "AT\nQAT\n");
@@ -212,11 +212,11 @@ test("server-side Casual and Learner see the same words", async (t) => {
     assert.equal(result.status, 200, JSON.stringify(payload));
     return new Set<string>(payload.rows.map((row: { word: string }) => row.word));
   }
-  assert.deepEqual(await words("casual"), new Set(["AT", "QAT"]));
+  assert.deepEqual(await words("casual"), new Set(["AT"]));
   assert.deepEqual(await words("learner"), new Set(["AT", "QAT"]));
 });
 
-test("both Learner policies agree with their own 32-deal exchange advice", async (t) => {
+test("move rankings and exchange advice use each style's known options", async (t) => {
   const { store, endpoint } = await fixture(t);
   const list = store.importDictionary(
     "WOW24",
@@ -238,14 +238,20 @@ test("both Learner policies agree with their own 32-deal exchange advice", async
     assert.equal(result.status, 200, JSON.stringify(payload));
     return payload;
   }
-  for (const style of ["casual", "learner"] as const) {
-    const { styleChoice, exchangeAdvice } = await analyze(style, "moves");
-    assert.equal(styleChoice.word, "OU");
-    if (style === "learner") assert.ok(exchangeAdvice.edge > 2);
-    if (exchangeAdvice) assert.equal(exchangeAdvice.profile, style);
-    assert.deepEqual((await analyze(style, "exchange-advice")).advice, exchangeAdvice);
-    assert.deepEqual((await analyze(style, "exchange-advice", styleChoice.id)).advice, exchangeAdvice);
-  }
+  const learner = await analyze("learner", "moves");
+  assert.equal(learner.styleChoice.word, "OU");
+  assert.ok(learner.exchangeAdvice.edge > 2);
+  assert.deepEqual((await analyze("learner", "exchange-advice")).advice, learner.exchangeAdvice);
+  assert.deepEqual(
+    (await analyze("learner", "exchange-advice", learner.styleChoice.id)).advice,
+    learner.exchangeAdvice,
+  );
+
+  const casual = await analyze("casual", "moves");
+  assert.equal(casual.styleChoice, undefined);
+  assert.equal(casual.exchangeAdvice.profile, "casual");
+  assert.equal(casual.exchangeAdvice.comparedWith, undefined);
+  assert.deepEqual((await analyze("casual", "exchange-advice")).advice, casual.exchangeAdvice);
 });
 
 test("bearer and browser credentials protect both API surfaces", async (t) => {

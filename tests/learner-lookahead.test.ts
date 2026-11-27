@@ -126,10 +126,10 @@ test("Learner compares three visible words with eight shared deals and can chang
   assert.equal(prior.utility.lookahead, undefined);
 });
 
-test("Casual uses the Learner move pool and looks ahead with a five-point half-life", () => {
+test("Casual samples three finalists and looks ahead with a ten-point half-life", () => {
   const { position, choose, moves, ranked } = fixture();
   const casual = choose(moves, "casual", position, { all: true, learnerSlate: true });
-  assert.equal(LEARNER_HALF_LIFE.casual, 5);
+  assert.equal(LEARNER_HALF_LIFE.casual, 10);
   assert.deepEqual(casual.considered!.map(({ move }) => move.id).sort(), ranked.map(({ move }) => move.id).sort());
   assert.equal(casual.learnerSlate!.length, 3);
   assert.equal(new Set(casual.learnerSlate!.map(({ move }) => move.word)).size, 3);
@@ -148,7 +148,7 @@ test("Casual uses the Learner move pool and looks ahead with a five-point half-l
   assert.equal(evaluated.length, 3);
   assert.equal(next.value.ranked[0].utility.total, Math.max(...evaluated.map(({ utility }) => utility.total)));
   for (const { utility } of evaluated)
-    assert.equal(utility.appeal, learnerAppeal(utility.total, 5));
+    assert.equal(utility.appeal, learnerAppeal(utility.total, 10));
 });
 
 test("Learner checks the swap on 32 deals and reuses the first eight placement outcomes", () => {
