@@ -91,7 +91,7 @@ const vocabulary = createProfileVocabularySource(process.cwd(), () => ({
   csw: installed("CSW24"),
 }));
 const englishVocabulary = decodeProfileVocabulary((await vocabulary(resolve(source))).bytes, words);
-const profiles = createPlayerProfiles(dict, template, frequencies, undefined, undefined, englishVocabulary);
+const profiles = createPlayerProfiles(dict, template, frequencies, undefined, englishVocabulary);
 const { result, ms } = medianMs(
   () =>
     analyzeMoves(

@@ -19,6 +19,7 @@ import {
 import type { createStore } from "./store";
 import type { ProfileVocabularySource } from "./profile-vocabulary";
 import { gameWordLanguage } from "../shared/model";
+import { usesLearnerPolicy } from "../shared/player-profiles";
 import {
   gameSchema,
   screenshotExampleSchema,
@@ -58,9 +59,9 @@ export function createProgrammaticRouter(
         const operation = input.operation;
         const style = operation.kind === "moves" ? operation.style
           : operation.kind === "compare" ? operation.opponent
-          : operation.kind === "exchange-advice" && operation.style === "learner" ? "learner"
+          : operation.kind === "exchange-advice" ? operation.style
           : undefined;
-        if (style === "casual" || style === "learner")
+        if (usesLearnerPolicy(style))
           input = { ...input, profileVocabulary: (await vocabulary(input.dictionary.file)).bytes };
       }
       const result = await compute(input, controller.signal);

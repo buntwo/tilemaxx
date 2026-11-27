@@ -8,9 +8,11 @@ import {
   type PlayerExchangeAdvice,
 } from "./player-exchange";
 import {
+  LEARNER_HALF_LIFE,
   profileWordHash,
   type createPlayerProfiles,
   type LearnerCandidate,
+  type LearnerStyle,
   type ProfilePosition,
   type RankedProfileMove,
 } from "./player-profiles";
@@ -42,6 +44,7 @@ function rankPlacements(
   ranked: readonly RankedProfileMove[],
   slate: readonly LearnerCandidate[],
   outcomes: readonly MasterOutcome[][],
+  halfLife: number,
 ) {
   const horizons = outcomes.map(
     (deals) =>
@@ -60,7 +63,7 @@ function rankPlacements(
     return {
       move: entry.move,
       lookahead,
-      appeal: learnerAppeal(adjustedUtility),
+      appeal: learnerAppeal(adjustedUtility, halfLife),
       adjustedUtility,
     };
   });
@@ -115,6 +118,7 @@ export function createLearnerLookahead(
   lexicon: Lexicon,
   template: BoardTemplate,
   choose: ReturnType<typeof createPlayerProfiles>,
+  profile: LearnerStyle = "learner",
 ) {
   const factory = createSolverFactory(lexicon, template, true);
   const policy = { reply: 1, leaf: 1, followUp: FOLLOW_UP_WEIGHT };
@@ -136,7 +140,7 @@ export function createLearnerLookahead(
       scorelessTurns: position.scorelessTurns ?? 0,
     };
     const screen = (move?: Move) =>
-      screenPlayerExchange({ ...state, profile: "learner", move });
+      screenPlayerExchange({ ...state, profile, move });
     const rankTactically = !reference && slate.length >= 2;
     const initialScreen = rankTactically
       ? undefined
@@ -171,7 +175,7 @@ export function createLearnerLookahead(
       rack,
       bagSize,
     ) =>
-      choose(moves, "learner", {
+      choose(moves, profile, {
         board,
         rack,
         bagSize,
@@ -210,7 +214,7 @@ export function createLearnerLookahead(
       }
       if (performance.now() >= deadline) return { ranked };
       if (rankTactically)
-        ranked = rankPlacements(ranked, slate, outcomes);
+        ranked = rankPlacements(ranked, slate, outcomes, LEARNER_HALF_LIFE[profile]);
       const { advice, learnerSwap } = initialScreen ?? screen(ranked[0]?.move);
       if (!learnerSwap) return { ranked, exchange: advice };
 

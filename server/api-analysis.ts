@@ -44,9 +44,9 @@ import {
 } from "../shared/player-exchange";
 import {
   createPlayerProfiles,
-  lateProfileFamiliarityWeight,
   profileWordHash,
-  type PlayerProfile,
+  usesLearnerPolicy,
+  type LearnerStyle,
   type ProfilePosition,
 } from "../shared/player-profiles";
 import { checkPremiumDefense } from "../shared/premium-defense";
@@ -86,22 +86,16 @@ function profiles(
   root: string,
   lexicon: Lexicon,
   template: Request["position"]["template"],
-  profile: PlayerProfile,
-  bagSize = 0,
   vocabulary?: EnglishProfileVocabulary,
 ) {
   const language = wordFrequencyLanguage(template.rules);
   const read = (path: string) =>
     gunzipSync(readFileSync(join(root, "public", path)));
-  const casual = language === "en" && profile === "casual";
-  const frequencies = casual && !lateProfileFamiliarityWeight(bagSize, template.rackSize)
-    ? new Map<string, number>()
-    : decodeWordFrequencies(read(wordFrequencyUrl(language)), language);
+  const frequencies = decodeWordFrequencies(read(wordFrequencyUrl(language)), language);
   return createPlayerProfiles(
     lexicon,
     template,
     frequencies,
-    undefined,
     undefined,
     vocabulary,
   );
@@ -127,15 +121,16 @@ function forecastLearner(
   lexicon: Lexicon,
   template: Request["position"]["template"],
   choose: ReturnType<typeof createPlayerProfiles>,
+  style: LearnerStyle,
   moves: readonly Move[],
   position: ProfilePosition,
   reference?: Move,
 ) {
-  const { considered, learnerSlate } = reference ? {} : choose(moves, "learner", position, {
+  const { considered, learnerSlate } = reference ? {} : choose(moves, style, position, {
     all: true,
     learnerSlate: true,
   });
-  const forecast = createLearnerLookahead(lexicon, template, choose);
+  const forecast = createLearnerLookahead(lexicon, template, choose, style);
   const work = forecast(position, considered ?? [], learnerSlate ?? [], undefined, reference);
   let step = work.next();
   while (!step.done) step = work.next();
@@ -384,9 +379,9 @@ export async function analyzePosition(
         playerSeed: seed,
         solo: solo ? true as const : undefined,
       };
-      const choose = profiles(root, lexicon, template, style, bagSize, vocabulary);
-      if (style === "learner") {
-        const result = forecastLearner(lexicon, template, choose, moves, profilePosition);
+      const choose = profiles(root, lexicon, template, vocabulary);
+      if (usesLearnerPolicy(style)) {
+        const result = forecastLearner(lexicon, template, choose, style, moves, profilePosition);
         index.setProfile(profileQuery, result.ranked);
         exchangeAdvice = result.exchange;
       } else {
@@ -549,9 +544,9 @@ export async function analyzePosition(
           ),
       };
     }
-    if (operation.style === "learner" && !solo) {
-      const choose = profiles(root, lexicon, template, "learner", bagSize, vocabulary);
-      const result = forecastLearner(lexicon, template, choose, moves, {
+    if (usesLearnerPolicy(operation.style) && !solo) {
+      const choose = profiles(root, lexicon, template, vocabulary);
+      const result = forecastLearner(lexicon, template, choose, operation.style, moves, {
         ...settings,
         solo: undefined,
         seed: profileWordHash(`${board.join(".")}:${rackComposition(position.rack)}`),
@@ -569,7 +564,7 @@ export async function analyzePosition(
       comparison &&
       samplePlayerExchange(
         lexicon,
-        profiles(root, lexicon, template, operation.style),
+        profiles(root, lexicon, template),
         comparison,
       );
     return { advice: sampled ? sampled.advice : advice };
@@ -597,7 +592,7 @@ export async function analyzePosition(
         endgameBudgetMultiplier: operation.endgameBudgetMultiplier,
       },
       operation.opponent &&
-        profiles(root, lexicon, template, operation.opponent, 0, vocabulary),
+        profiles(root, lexicon, template, vocabulary),
     );
   }
 

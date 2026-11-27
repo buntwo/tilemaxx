@@ -11,12 +11,14 @@ import {
   sampleProfilePlacements,
 } from "../shared/player-profile-sampling";
 import type { Move } from "../shared/model";
+import { LEARNER_HALF_LIFE } from "../shared/player-profiles";
 import { PRESETS } from "../shared/presets";
 
 test("Learner appeal doubles every three utility points", () => {
   for (const utility of [-2, 10, 22, 25, 46]) {
-    assert.equal(learnerAppeal(utility + 3), 2 * learnerAppeal(utility));
-    assert.equal(learnerAppeal(utility - 3), learnerAppeal(utility) / 2);
+    const halfLife = LEARNER_HALF_LIFE.learner;
+    assert.equal(learnerAppeal(utility + 3, halfLife), 2 * learnerAppeal(utility, halfLife));
+    assert.equal(learnerAppeal(utility - 3, halfLife), learnerAppeal(utility, halfLife) / 2);
   }
 });
 
@@ -24,14 +26,14 @@ test("the Learner draw can distinguish utility on custom boards with very high s
   const candidates = [
     {
       move: { id: "first", word: "FIRST" } as Move,
-      weight: learnerLogAppeal(4_000),
+      weight: learnerLogAppeal(4_000, LEARNER_HALF_LIFE.learner),
     },
     {
       move: { id: "second", word: "SECOND" } as Move,
-      weight: learnerLogAppeal(4_200),
+      weight: learnerLogAppeal(4_200, LEARNER_HALF_LIFE.learner),
     },
   ];
-  assert.equal(learnerAppeal(4_200), Number.MAX_VALUE);
+  assert.equal(learnerAppeal(4_200, LEARNER_HALF_LIFE.learner), Number.MAX_VALUE);
   for (let seed = 0; seed < 20; seed++)
     assert.equal(
       sampleProfilePlacements(candidates, seed, 1, true)[0],

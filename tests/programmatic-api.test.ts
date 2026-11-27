@@ -11,7 +11,7 @@ import { emptyBoard, type Game } from "../shared/model";
 import { parseWords } from "../shared/lexicon";
 import { PRESETS } from "../shared/presets";
 import {
-  casualWordProbability, decodeProfileVocabulary, learnerWordProbability,
+  decodeProfileVocabulary, learnerWordProbability,
   profileDictionaryRevision, profileVocabularyUrl,
 } from "../shared/profile-vocabulary";
 
@@ -165,8 +165,6 @@ test("packed vocabulary is compressed, checks dictionary content, and revalidate
   const firstTag = original.headers.get("etag")!;
   assert.ok(firstTag);
   const originalScores = decodeProfileVocabulary(new Uint8Array(await original.arrayBuffer()), words);
-  assert.ok(casualWordProbability(originalScores.get("ABASE")) < 0.02);
-  assert.equal(casualWordProbability(originalScores.get("EWW")), 1);
   assert.equal(learnerWordProbability("EWW", originalScores.get("EWW")), 1);
   assert.equal(learnerWordProbability("QIS", originalScores.get("QIS")), 1);
   assert.ok(learnerWordProbability("TUI", originalScores.get("TUI")) < 0.01);
@@ -186,7 +184,7 @@ test("packed vocabulary is compressed, checks dictionary content, and revalidate
   assert.equal(mismatch.status, 409);
 });
 
-test("server-side Casual and Learner share the game dictionary but use different knowledge rules", async (t) => {
+test("server-side Casual and Learner see the same words", async (t) => {
   const { store, endpoint } = await fixture(t);
   const profile = store.createProfile("Vocabulary test");
   const list = store.importDictionary("Vocabulary test", "AT\nQAT\n");
@@ -214,11 +212,11 @@ test("server-side Casual and Learner share the game dictionary but use different
     assert.equal(result.status, 200, JSON.stringify(payload));
     return new Set<string>(payload.rows.map((row: { word: string }) => row.word));
   }
-  assert.deepEqual(await words("casual"), new Set(["AT"]));
+  assert.deepEqual(await words("casual"), new Set(["AT", "QAT"]));
   assert.deepEqual(await words("learner"), new Set(["AT", "QAT"]));
 });
 
-test("Learner moves and exchange advice report the same 32-deal recommendation", async (t) => {
+test("both Learner policies agree with their own 32-deal exchange advice", async (t) => {
   const { store, endpoint } = await fixture(t);
   const list = store.importDictionary(
     "WOW24",
@@ -231,20 +229,23 @@ test("Learner moves and exchange advice report the same 32-deal recommendation",
     board: emptyBoard(PRESETS[0].size),
     rack: "EIOOOUU",
   };
-  async function analyze(kind: string, move?: string) {
+  async function analyze(style: "casual" | "learner", kind: string, move?: string) {
     const result = await endpoint("/analysis", {
       position,
-      operation: { kind, style: "learner", seed: 0, ...(move && { move }) },
+      operation: { kind, style, seed: 0, ...(move && { move }) },
     });
     const payload = await result.json();
     assert.equal(result.status, 200, JSON.stringify(payload));
     return payload;
   }
-  const { styleChoice, exchangeAdvice } = await analyze("moves");
-  assert.equal(styleChoice.word, "OU");
-  assert.ok(exchangeAdvice.edge > 2);
-  assert.deepEqual((await analyze("exchange-advice")).advice, exchangeAdvice);
-  assert.deepEqual((await analyze("exchange-advice", styleChoice.id)).advice, exchangeAdvice);
+  for (const style of ["casual", "learner"] as const) {
+    const { styleChoice, exchangeAdvice } = await analyze(style, "moves");
+    assert.equal(styleChoice.word, "OU");
+    if (style === "learner") assert.ok(exchangeAdvice.edge > 2);
+    if (exchangeAdvice) assert.equal(exchangeAdvice.profile, style);
+    assert.deepEqual((await analyze(style, "exchange-advice")).advice, exchangeAdvice);
+    assert.deepEqual((await analyze(style, "exchange-advice", styleChoice.id)).advice, exchangeAdvice);
+  }
 });
 
 test("bearer and browser credentials protect both API surfaces", async (t) => {

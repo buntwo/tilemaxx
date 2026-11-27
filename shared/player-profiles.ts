@@ -25,7 +25,6 @@ import {
 } from "./player-profile-sampling";
 import { profileLeaveValue } from "./rack-leave";
 import {
-  casualWordProbability,
   learnerWordProbability,
   type EnglishProfileVocabulary,
 } from "./profile-vocabulary";
@@ -40,6 +39,11 @@ export { profileWordHash } from "./player-profile-sampling";
 
 export const PLAYER_PROFILES = ["casual", "learner", "strong"] as const;
 export type PlayerProfile = (typeof PLAYER_PROFILES)[number];
+export const LEARNER_HALF_LIFE = { casual: 5, learner: 3 } as const;
+export type LearnerStyle = keyof typeof LEARNER_HALF_LIFE;
+export function usesLearnerPolicy(profile: string | undefined): profile is LearnerStyle {
+  return profile === "casual" || profile === "learner";
+}
 export const PLAYER_PROFILE_LABELS: Record<PlayerProfile, string> = {
   casual: "Casual",
   learner: "Learner",
@@ -47,25 +51,6 @@ export const PLAYER_PROFILE_LABELS: Record<PlayerProfile, string> = {
 };
 
 const presets = {
-  casual: {
-    focus: 0.32,
-    hookAttention: 0.1,
-    vocabulary: 0.18,
-    study: 0,
-    vertical: 0.85,
-    bingo: 0.2,
-    blank: 0.55,
-    secondBlank: 0.10,
-    lateFamiliarity: 0.9,
-    score: 0.6,
-    premium: 3,
-    cross: 1.5,
-    leave: 0.27,
-    premiumLane: 1,
-    endRack: 0.35,
-    finish: 3,
-    finalists: 3,
-  },
   learner: {
     focus: 0.38,
     hookAttention: 0,
@@ -107,8 +92,10 @@ const presets = {
     finalists: 5,
   },
 };
+type Model = keyof typeof presets;
+const models = ["learner", "strong"] as const;
 
-export function lateProfileFamiliarityWeight(bagSize: number, rackSize: number) {
+function lateProfileFamiliarityWeight(bagSize: number, rackSize: number) {
   return Math.max(0, 1 - bagSize / rackSize);
 }
 
@@ -171,7 +158,6 @@ export function createPlayerProfiles(
   template: BoardTemplate,
   frequencies: ReadonlyMap<string, number>,
   sampling: ProfileSampling = defaultSampling,
-  casualWords?: ReadonlySet<string>,
   englishVocabulary?: EnglishProfileVocabulary,
 ) {
   const difficulty = createWordDifficulty(lexicon, frequencies);
@@ -206,16 +192,13 @@ export function createPlayerProfiles(
     string,
     {
       hash: number;
-      data: Partial<Record<PlayerProfile, WordProfile>>;
+      data: Partial<Record<Model, WordProfile>>;
       difficulty?: number;
       study?: number;
     }
   >();
-  function wordData(word: string, profile: PlayerProfile) {
+  function wordData(word: string, model: Model) {
     const spelling = word.toUpperCase();
-    const useCasualVocabulary = english && profile === "casual";
-    if (useCasualVocabulary && !englishVocabulary && !casualWords?.has(spelling))
-      return undefined;
     let wordInfo = wordCache.get(spelling);
     if (!wordInfo) {
       wordInfo = {
@@ -224,38 +207,26 @@ export function createPlayerProfiles(
       };
       wordCache.set(spelling, wordInfo);
     }
-    const cached = wordInfo.data[profile];
+    const cached = wordInfo.data[model];
     if (cached) return cached;
-    if (useCasualVocabulary) {
-      const chance = englishVocabulary
-        ? casualWordProbability(englishVocabulary.get(spelling))
-        : 1;
-      return (wordInfo.data.casual = {
-        hash: wordInfo.hash,
-        knowledge: chance * scale,
-        recall: 1,
-      });
-    }
-    if (english && profile === "learner" && englishVocabulary)
+    if (english && model === "learner" && englishVocabulary)
       return (wordInfo.data.learner = {
         hash: wordInfo.hash,
         knowledge: learnerWordProbability(spelling, englishVocabulary.get(spelling)) * scale,
         recall: 1,
       });
-    const preset = presets[profile];
+    const preset = presets[model];
     const study = preset.study
       ? (wordInfo.study ??= studyPriority(spelling))
       : 0;
     const baseDifficulty = (wordInfo.difficulty ??= difficulty(spelling).difficulty);
     const adjusted = baseDifficulty * (1 - preset.study * study);
-    return (wordInfo.data[profile] = {
+    return (wordInfo.data[model] = {
       hash: wordInfo.hash,
       knowledge:
         Math.min(
           Math.exp(-0.72 * preset.vocabulary * adjusted),
-          profile !== "casual" && spelling.length === 2
-            ? presets[profile].shortWords
-            : 1,
+          spelling.length === 2 ? preset.shortWords : 1,
         ) * scale,
       recall: Math.exp(-0.28 * preset.vocabulary * adjusted),
     });
@@ -269,16 +240,16 @@ export function createPlayerProfiles(
 
   const { size, premiums } = template;
   const lengthChance = Object.fromEntries(
-    PLAYER_PROFILES.map((profile) => [
+    models.map((profile) => [
       profile,
       Array.from(
         { length: template.rackSize + 1 },
         (_, tiles) => presets[profile].bingo ** (Math.max(0, tiles - 5) / 2),
       ),
     ]),
-  ) as Record<PlayerProfile, number[]>;
+  ) as Record<Model, number[]>;
   const blankChance = Object.fromEntries(
-    PLAYER_PROFILES.map((profile) => [
+    models.map((profile) => [
       profile,
       Array.from(
         { length: template.rackSize + 1 },
@@ -286,7 +257,7 @@ export function createPlayerProfiles(
           * presets[profile].secondBlank ** Math.max(0, blanks - 1),
       ),
     ]),
-  ) as Record<PlayerProfile, number[]>;
+  ) as Record<Model, number[]>;
   const salience = premiums.map((premium) =>
     premium === "TW" || premium === "TL" || premium === "QW" || premium === "QL"
       ? 1
@@ -318,13 +289,13 @@ export function createPlayerProfiles(
   ): ProfileDecision => {
     if (!moves.length)
       return { bingoFound: false, considered: options.all ? [] : undefined };
-    if (profile === "casual" && english && !casualWords && !englishVocabulary)
-      throw new Error("The Casual word list could not be loaded.");
-    const preset = presets[profile];
-    const isLearner = profile === "learner";
+    const model = profile === "strong" ? "strong" : "learner";
+    const preset = presets[model];
+    const halfLife = usesLearnerPolicy(profile) ? LEARNER_HALF_LIFE[profile] : undefined;
+    const isLearner = halfLife !== undefined;
     const liveLearner = isLearner && options.learnerSlate;
     const appealFor = isLearner
-      ? learnerLogAppeal
+      ? (value: number) => learnerLogAppeal(value, halfLife)
       : (value: number) => profileAppeal(value, sampling.appeal);
     const selectionWeight = (visibility: number, appeal: number) =>
       isLearner ? Math.log(visibility) + appeal : visibility * appeal;
@@ -335,7 +306,7 @@ export function createPlayerProfiles(
       * lateProfileFamiliarityWeight(bagSize, template.rackSize);
     // Give Learner more credit for the whole leave while there are tiles to draw.
     const learnerLeaveBoost =
-      profile === "learner" ? Math.min(1, bagSize / template.rackSize) : 0;
+      isLearner ? Math.min(1, bagSize / template.rackSize) : 0;
     const pool =
       !solo && emptyBag && profile === "strong"
         ? unseenTiles(position, template)
@@ -365,8 +336,7 @@ export function createPlayerProfiles(
     let topReason: ProfileDecision["topReason"];
     const rawFirst = options.metrics ? moves[0].id : undefined;
 
-    function knows(data: WordProfile | undefined) {
-      if (!data) return false;
+    function knows(data: WordProfile) {
       if (data.knowledge === scale) return true;
       let result = knownWords.get(data);
       if (result === undefined) {
@@ -386,7 +356,7 @@ export function createPlayerProfiles(
       seed,
       liveLearner
         ? () => learnerRackCues(board, template, splitRack(position).available,
-            (spelling) => lexicon.has(spelling) && knows(wordData(spelling, profile)))
+            (spelling) => lexicon.has(spelling) && knows(wordData(spelling, model)))
         : undefined,
     );
     const crossVisibility = Math.exp(-preset.cross);
@@ -398,11 +368,10 @@ export function createPlayerProfiles(
         reject("placement");
         continue;
       }
-      const word = wordData(move.word, profile);
+      const word = wordData(move.word, model);
       if (
-        !word ||
         !knows(word) ||
-        move.crosses.some((cross) => !knows(wordData(cross, profile)))
+        move.crosses.some((cross) => !knows(wordData(cross, model)))
       ) {
         reject("vocabulary");
         continue;
@@ -414,8 +383,8 @@ export function createPlayerProfiles(
         long &&
         mixProfileSeed(word.hash ^ seed) >=
           scale *
-            lengthChance[profile][move.tiles.length] *
-            blankChance[profile][move.blanks]
+            lengthChance[model][move.tiles.length] *
+            blankChance[model][move.blanks]
       ) {
         reject("recall");
         continue;
@@ -432,7 +401,7 @@ export function createPlayerProfiles(
       const recall = simpleExtension
         ? 1
         : word.recall *
-          (long ? 1 : blankChance[profile][move.blanks]) *
+          (long ? 1 : blankChance[model][move.blanks]) *
           (move.direction === "down" && move.word.length > 2
             ? preset.vertical
             : 1);
@@ -486,7 +455,7 @@ export function createPlayerProfiles(
           points,
           premium: premiumBonus,
           visibility,
-          appeal: isLearner ? learnerAppeal(value) : appeal,
+          appeal: isLearner ? learnerAppeal(value, halfLife) : appeal,
           leave,
           goingOut,
         };
@@ -528,7 +497,7 @@ export function createPlayerProfiles(
       entry.weight = selectionWeight(entry.visibility, appeal);
       if (entry.utility) {
         entry.utility.total = entry.value;
-        entry.utility.appeal = isLearner ? learnerAppeal(entry.value) : appeal;
+        entry.utility.appeal = isLearner ? learnerAppeal(entry.value, halfLife) : appeal;
       }
     }
 

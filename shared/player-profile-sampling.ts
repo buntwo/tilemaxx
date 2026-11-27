@@ -5,14 +5,12 @@ const seedRange = 2 ** 32;
 const areaWidth = 3;
 const appealScale = 25;
 export const DEFAULT_PROFILE_APPEAL = 48;
-const LEARNER_APPEAL_HALF_LIFE = 3;
-
-export function learnerAppeal(value: number) {
-  return Math.min(Number.MAX_VALUE, 2 ** ((value - appealScale) / LEARNER_APPEAL_HALF_LIFE));
+export function learnerAppeal(value: number, halfLife: number) {
+  return Math.min(Number.MAX_VALUE, 2 ** ((value - appealScale) / halfLife));
 }
 
-export function learnerLogAppeal(value: number) {
-  return ((value - appealScale) / LEARNER_APPEAL_HALF_LIFE) * Math.LN2;
+export function learnerLogAppeal(value: number, halfLife: number) {
+  return ((value - appealScale) / halfLife) * Math.LN2;
 }
 
 export function mixProfileSeed(value: number) {

@@ -15,23 +15,30 @@ import { loadProfileVocabulary, loadWordFrequencies } from "../src/word-frequenc
 const dictionary = { id: "test-english", words: ["BAT", "CAT"] };
 const vocabularyUrl = profileVocabularyUrl(dictionary.id, profileDictionaryRevision(dictionary.words));
 
-test("English Casual lazily loads the shared vocabulary independently of wordfreq", async (context) => {
+test("Casual and Learner share cached English frequency and vocabulary assets", async (context) => {
   const paths: string[] = [];
+  const english = wordFrequencyUrl("en");
+  let failed = false;
   context.mock.method(globalThis, "fetch", async (url: string) => {
     paths.push(url);
-    return paths.length === 1
-      ? new Response("<!DOCTYPE html><h1>Unavailable</h1>")
-      : new Response(packProfileVocabulary(dictionary.words, word =>
-          packFamiliarity(word === "CAT" ? 9_000 : 8_999),
-        ).slice().buffer);
+    if (url === english) return new Response(readFileSync(`public${url}`));
+    if (!failed) {
+      failed = true;
+      return new Response("<!DOCTYPE html><h1>Unavailable</h1>");
+    }
+    return new Response(packProfileVocabulary(dictionary.words, word =>
+      packFamiliarity(word === "CAT" ? 9_000 : 8_999),
+    ).slice().buffer);
   });
   await assert.rejects(loadProfileVocabulary("scrabble", dictionary, "casual"), /does not match/);
   const [frequencies, words] = await loadProfileVocabulary("scrabble", dictionary, "casual");
-  assert.equal(frequencies.size, 0);
+  assert.equal(frequencies.get("SPATULA"), 2.86);
   assert.equal(words?.get("CAT"), 9_000);
   assert.equal(words?.get("BAT"), 8_999);
-  assert.equal((await loadProfileVocabulary("crossplay", dictionary, "casual"))[1], words);
-  assert.deepEqual(paths, [vocabularyUrl, vocabularyUrl]);
+  const learner = await loadProfileVocabulary("crossplay", dictionary, "learner");
+  assert.equal(learner[0], frequencies);
+  assert.equal(learner[1], words);
+  assert.deepEqual(paths, [english, vocabularyUrl, vocabularyUrl]);
 });
 
 test("accent folding merges tile spellings at their highest frequency", () => {
@@ -68,7 +75,7 @@ test("familiarity uses the saved ruleset and caches each language independently"
   const retry = loadWordFrequencies("lexulous-it");
   assert.equal(loadWordFrequencies("lexulous-it"), retry);
   assert.equal((await english).get("SPATULA"), 2.86);
-  const [lateFrequencies, casualWords] = await loadProfileVocabulary("scrabble", dictionary, "casual", true);
+  const [lateFrequencies, casualWords] = await loadProfileVocabulary("scrabble", dictionary, "casual");
   assert.equal(lateFrequencies, await english);
   assert.equal((await loadProfileVocabulary("scrabble", dictionary, "learner"))[1], casualWords);
   assert.equal((await loadProfileVocabulary("scrabble", dictionary, "strong"))[1], undefined);
@@ -76,7 +83,6 @@ test("familiarity uses the saved ruleset and caches each language independently"
   assert.equal((await french).get("FENETRE"), 4.52);
   assert.equal((await retry).get("MANGIARE"), 5.01);
   assert.deepEqual(paths, [
-    wordFrequencyUrl("en"),
     wordFrequencyUrl("fr"),
     italian,
     italian,

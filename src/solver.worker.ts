@@ -30,7 +30,7 @@ import {
   type EndgameEstimate,
 } from "../shared/endgame-estimate";
 import type { SolverMessage, SolverRequest } from "./solver-messages";
-import { createPlayerProfiles, lateProfileFamiliarityWeight, profileWordHash, type PlayerProfile } from "../shared/player-profiles";
+import { createPlayerProfiles, profileWordHash, usesLearnerPolicy, type PlayerProfile } from "../shared/player-profiles";
 import { createLearnerLookahead } from "../shared/learner-lookahead";
 import { loadProfileVocabulary } from "./word-frequencies";
 import { rackComposition } from "../shared/rack-entry";
@@ -79,16 +79,14 @@ async function prepareProfile(
   const { profileBagSize: bagSize = 0, profileSeed: playerSeed = 0, profileSample = 0 } = query;
   const { position, lexicon } = result;
   const { template } = position;
-  const needsCasualFrequencies = profile === "casual"
-    && lateProfileFamiliarityWeight(bagSize, template.rackSize) > 0;
   const [frequencies, vocabulary] = await loadProfileVocabulary(
-    template.rules, { id: position.dictionaryId, words: result.words }, profile, needsCasualFrequencies,
+    template.rules, { id: position.dictionaryId, words: result.words }, profile,
   );
   if (!current()) return;
 
-  const templateKey = JSON.stringify([template, profile, needsCasualFrequencies]);
+  const templateKey = JSON.stringify([template, profile]);
   if (models?.lexicon !== lexicon || models.templateKey !== templateKey) {
-    models = { lexicon, templateKey, choose: createPlayerProfiles(lexicon, template, frequencies, undefined, undefined, vocabulary) };
+    models = { lexicon, templateKey, choose: createPlayerProfiles(lexicon, template, frequencies, undefined, vocabulary) };
   }
   const positionKey = `${position.board.join(".")}:${rackComposition(position.rack)}`;
   const seed = profileWordHash(profileSample ? `${positionKey}:${profileSample}` : positionKey);
@@ -96,15 +94,15 @@ async function prepareProfile(
     ...position, bagSize, seed, playerSeed, scorelessTurns: query.profileScorelessTurns,
   };
   const { considered, learnerSlate } = models.choose(result.moves, profile, profilePosition, {
-    all: true, learnerSlate: profile === "learner",
+    all: true, learnerSlate: usesLearnerPolicy(profile),
   });
 
-  if (profile !== "learner") {
+  if (!usesLearnerPolicy(profile)) {
     result.setProfile(query, considered ?? [], { start, end: timingNow() });
     return;
   }
 
-  const evaluate = models.learner ??= createLearnerLookahead(lexicon, template, models.choose);
+  const evaluate = models.learner ??= createLearnerLookahead(lexicon, template, models.choose, profile);
   const steps = evaluate(profilePosition, considered ?? [], learnerSlate ?? []);
   let slice = performance.now();
   let step = steps.next();

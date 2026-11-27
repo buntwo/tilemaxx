@@ -264,7 +264,7 @@ test("compare mode selects moves without playing and switches model without reru
       runs++;
       const words = ["AT", "CAT", "CATS", "ACT", "DOG", "RAT", "ART", "TAR"];
       const lexicon = new Lexicon(words);
-      const choose = createPlayerProfiles(lexicon, request.template, new Map(words.map((word) => [word, 4])), undefined, new Set(words));
+      const choose = createPlayerProfiles(lexicon, request.template, new Map(words.map((word) => [word, 4])));
       const result = analyzeMoves(lexicon, { ...request, trials: 8 }, choose);
       queueMicrotask(() => this.onmessage?.({ data: { result } }));
     }
@@ -8344,6 +8344,12 @@ test("style exchanges replace general advice and ignore stale worker replies", a
             slots: [4], profile: "learner", problem: "awkward", edge: 7,
             comparedWith: { word: move.word, score: move.score },
           },
+        } : request.query.profile === "casual" ? {
+          rack: "CATSUVW",
+          advice: {
+            slots: [4, 5], profile: "casual", problem: "awkward",
+            comparedWith: { word: move.word, score: move.score },
+          },
         } : undefined);
       }
       if (["solve", "page", "shortlist", "endgame", "discard", "cancel"].includes(request.kind))
@@ -8382,7 +8388,7 @@ test("style exchanges replace general advice and ignore stale worker replies", a
   await act(() => slow?.onmessage?.({ data: { result: { slots: [6], profile: "strong", edge: 5 } } }));
   expect(header.queryByRole("button", { name: "Swap W" })).toBeNull();
   expect(header.getByRole("button", { name: "Swap V · +6 pts" })).toBeTruthy();
-  expect(styles).toEqual(["casual", "strong"]);
+  expect(styles).toEqual(["strong"]);
 });
 
 test("a new search after playing starts with highest points", async () => {

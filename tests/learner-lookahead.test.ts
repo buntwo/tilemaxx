@@ -7,7 +7,7 @@ import {
 import { Lexicon } from "../shared/lexicon";
 import { emptyBoard } from "../shared/model";
 import {
-  createPlayerProfiles,
+  createPlayerProfiles, LEARNER_HALF_LIFE,
   profileWordHash,
 } from "../shared/player-profiles";
 import { learnerAppeal } from "../shared/player-profile-sampling";
@@ -114,7 +114,7 @@ test("Learner compares three visible words with eight shared deals and can chang
     first.utility.total,
     prior.utility.total + first.utility.lookahead!,
   );
-  assert.equal(first.utility.appeal, learnerAppeal(first.utility.total));
+  assert.equal(first.utility.appeal, learnerAppeal(first.utility.total, LEARNER_HALF_LIFE.learner));
   assert.deepEqual(
     result.value.ranked
       .filter(({ utility }) => utility.lookahead !== undefined)
@@ -124,6 +124,31 @@ test("Learner compares three visible words with eight shared deals and can chang
   );
   assert.equal(result.value.ranked.length, ranked.length);
   assert.equal(prior.utility.lookahead, undefined);
+});
+
+test("Casual uses the Learner move pool and looks ahead with a five-point half-life", () => {
+  const { position, choose, moves, ranked } = fixture();
+  const casual = choose(moves, "casual", position, { all: true, learnerSlate: true });
+  assert.equal(LEARNER_HALF_LIFE.casual, 5);
+  assert.deepEqual(casual.considered!.map(({ move }) => move.id).sort(), ranked.map(({ move }) => move.id).sort());
+  assert.equal(casual.learnerSlate!.length, 3);
+  assert.equal(new Set(casual.learnerSlate!.map(({ move }) => move.word)).size, 3);
+  const used = new Set<string>();
+  const lexicon = new Lexicon([...new Set(moves.map((move) => move.word))]);
+  const wrapped: typeof choose = (...args) => {
+    used.add(args[1]);
+    return choose(...args);
+  };
+  const forecast = createLearnerLookahead(lexicon, PRESETS[0], wrapped, "casual");
+  const work = forecast({ ...position, requiredRackSlots: [0] }, casual.considered!, casual.learnerSlate!, Infinity);
+  let next = work.next();
+  while (!next.done) next = work.next();
+  assert.deepEqual([...used], ["casual"]);
+  const evaluated = next.value.ranked.filter(({ utility }) => utility.lookahead !== undefined);
+  assert.equal(evaluated.length, 3);
+  assert.equal(next.value.ranked[0].utility.total, Math.max(...evaluated.map(({ utility }) => utility.total)));
+  for (const { utility } of evaluated)
+    assert.equal(utility.appeal, learnerAppeal(utility.total, 5));
 });
 
 test("Learner checks the swap on 32 deals and reuses the first eight placement outcomes", () => {
@@ -161,7 +186,6 @@ test("Learner recommends a simulated exchange with a clear edge over a spotted p
     lexicon,
     template,
     new Map(),
-    undefined,
     undefined,
     new Map(words.map((word) => [word, 9_000])),
   );

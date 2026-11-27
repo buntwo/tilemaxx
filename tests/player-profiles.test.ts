@@ -73,43 +73,44 @@ test("nearest common legal spellings cover substitutions, deletions, insertions,
   );
 });
 
-test("Casual accepts only listed main words and crosses across vocabulary seeds", () => {
+test("Casual and Learner apply the same vocabulary to main words and crosses", () => {
   const template = PRESETS[0];
-  const lexicon = new Lexicon(["QI", "QIS", "SIT"]);
+  const lexicon = new Lexicon(["IT", "ITS", "SIT"]);
   const choose = createPlayerProfiles(
     lexicon,
     template,
     new Map([
-      ["QI", 4],
-      ["QIS", 4],
+      ["IT", 4],
+      ["ITS", 4],
       ["SIT", 4],
     ]),
     { coverage: 4, appeal: 12 },
-    new Set(["SIT", "AS"]),
+    new Map([["SIT", packFamiliarity(8_000)], ["AS", packFamiliarity(8_000)]]),
   );
   const board = emptyBoard(template.size);
-  board[82] = "Q";
-  board[97] = "I";
+  board[82] = "I";
+  board[97] = "T";
   const moves = solve(lexicon, board, "SIT", template);
   const hook = moves.find(
-    (move) => move.word === "SIT" && move.crosses.includes("QIS"),
+    (move) => move.word === "SIT" && move.crosses.includes("ITS"),
   )!;
   assert.ok(hook);
-  const decision = (word: Move, seed: number, playerSeed: number) =>
-    choose([word], "casual", {
+  const known = { ...hook, crosses: ["as"] };
+  const extension = moves.find((move) => move.word === "ITS")!;
+  assert.ok(extension);
+  for (const profile of ["casual", "learner"] as const) {
+    const decision = (word: Move, seed: number) => choose([word], profile, {
       board,
       rack: "SIT",
       bagSize: 65,
       seed,
-      playerSeed,
+      playerSeed: seed,
     });
-  const known = { ...hook, crosses: ["as"] };
-  const extension = moves.find((move) => move.word === "QIS")!;
-  assert.ok(extension);
-  for (const seed of [0, 61, 495]) {
-    assert.equal(decision(known, seed, seed).move, known);
-    assert.equal(decision(hook, seed, seed).move, undefined);
-    assert.equal(decision(extension, seed, seed).move, undefined);
+    for (const seed of [0, 61, 495]) {
+      assert.equal(decision(known, seed).move, known);
+      assert.equal(decision(hook, seed).move, undefined);
+      assert.equal(decision(extension, seed).move, undefined);
+    }
   }
 });
 
@@ -119,10 +120,10 @@ test("Casual rolls once per game spelling for both main words and crosses", () =
   const board = emptyBoard(template.size);
   const rack = "ABCATN?";
   const vocabulary = new Map([
-    ["BAT", packFamiliarity(8_500)], ["CAT", packFamiliarity(9_000)], ["CATNAP", packFamiliarity(9_900)],
+    ["BAT", packFamiliarity(7_500)], ["CAT", packFamiliarity(9_000)], ["CATNAP", packFamiliarity(9_900)],
   ]);
   const choose = createPlayerProfiles(
-    lexicon, template, new Map(), { coverage: 4, appeal: 0 }, undefined, vocabulary,
+    lexicon, template, new Map(), { coverage: 4, appeal: 0 }, vocabulary,
   );
   const moves = solve(lexicon, board, rack, template);
   const bat = moves.find((move) => move.word === "BAT")!;
@@ -134,11 +135,12 @@ test("Casual rolls once per game spelling for both main words and crosses", () =
   for (let playerSeed = 0; playerSeed < 256; playerSeed++) {
     const position = { board, rack, bagSize: 70, seed: 0, playerSeed };
     const knowsBat = !!choose([bat], "casual", position).move;
+    assert.equal(!!choose([bat], "learner", position).move, knowsBat);
     assert.equal(!!choose([catWithBat], "casual", { ...position, seed: 67 }).move, knowsBat);
     assert.equal(choose([cat], "casual", position).move, cat);
     if (knowsBat) known++;
   }
-  assert.ok(known > 40 && known < 88, `BAT was known in ${known} of 256 games`);
+  assert.ok(known > 95 && known < 160, `BAT was known in ${known} of 256 games`);
 });
 
 test("vertical fluency rises with experience for the same known word", () => {
@@ -146,7 +148,7 @@ test("vertical fluency rises with experience for the same known word", () => {
   const board = emptyBoard(template.size);
   const rack = "CAT";
   const lexicon = new Lexicon(["CAT"]);
-  const choose = createPlayerProfiles(lexicon, template, new Map([["CAT", 4]]), undefined, new Set(["CAT"]));
+  const choose = createPlayerProfiles(lexicon, template, new Map([["CAT", 4]]));
   const moves = solve(lexicon, board, rack, template);
   const [across, down] = (["across", "down"] as const).map(
     (direction) => moves.find((move) => move.direction === direction)!,
@@ -158,7 +160,8 @@ test("vertical fluency rises with experience for the same known word", () => {
     const visibility = (move: Move) => considered!.find((entry) => entry.move === move)!.utility.visibility;
     return visibility(down) / visibility(across);
   });
-  assert.ok(ratios[0] < ratios[1] && ratios[1] < ratios[2]);
+  assert.equal(ratios[0], ratios[1]);
+  assert.ok(ratios[1] < ratios[2]);
 });
 
 test("word-list practice helps learners recall short words at equal corpus familiarity", () => {
@@ -191,7 +194,7 @@ test("English Casual vocabulary applies only in English games", () => {
   const rack = "SI";
   const [move] = solve(lexicon, board, rack, preset);
   const choices = [preset, templateForLanguage(preset, "fr"), templateForLanguage(preset, "it")]
-    .map((template) => createPlayerProfiles(lexicon, template, frequencies, undefined, new Set()));
+    .map((template) => createPlayerProfiles(lexicon, template, frequencies, undefined, new Map()));
   const position = { board, rack, bagSize: 50, seed: 0, playerSeed: 0 };
   assert.equal(choices[0]([move], "casual", position).move, undefined);
   for (const choose of choices.slice(1))
@@ -208,7 +211,7 @@ test("late Casual and Learner favor familiar main words and crosses", () => {
     template,
     new Map([["CAT", 5], ["COT", 1.21], ["AT", 5], ["OT", 1.21]]),
     undefined,
-    new Set(lexicon.words()),
+    new Map(Array.from(lexicon.words(), (word) => [word, packFamiliarity(8_000)])),
   );
   const legal = solve(lexicon, board, rack, template);
   const cat = legal.find((move) => move.word === "CAT" && move.direction === "across")!;
@@ -253,8 +256,7 @@ test("Casual and Learner penalize a second blank much more than the first", () =
   const moves = solve(lexicon, board, rack, template).filter(
     (move) => move.word === "CAT" && move.direction === "across",
   );
-  const choose = createPlayerProfiles(lexicon, template, new Map([["CAT", 5]]),
-    undefined, new Set(lexicon.words()));
+  const choose = createPlayerProfiles(lexicon, template, new Map([["CAT", 5]]));
   for (const profile of PLAYER_PROFILES) {
     const result = choose(moves, profile, { board, rack, bagSize: 20, seed: 0, playerSeed: 0 }, { all: true });
     const visibility = [0, 1, 2].map((count) =>
@@ -280,7 +282,7 @@ test("Learner gives the whole leave more weight, fading the boost as the bag emp
   const board = emptyBoard(template.size);
   const lexicon = new Lexicon(["CAT"]);
   const choose = createPlayerProfiles(
-    lexicon, template, new Map([["CAT", 5]]), undefined, new Set(["CAT"]),
+    lexicon, template, new Map([["CAT", 5]]),
   );
   for (const rack of ["CATER?", "CATQVW"]) {
     const [move] = solve(lexicon, board, rack, template).filter(({ blanks }) => !blanks);
@@ -298,7 +300,7 @@ test("Learner gives the whole leave more weight, fading the boost as the bag emp
     check(leaveAt("learner", 7), 0.98 * quality);
     check(leaveAt("learner", 3), (0.56 + 0.42 * 3 / 7) * quality);
     check(leaveAt("learner", 0), -0.65 * rackPoints(move.leave, template.rules));
-    check(leaveAt("casual", 50), 0.27 * quality);
+    check(leaveAt("casual", 50), leaveAt("learner", 50));
     check(leaveAt("strong", 50), 0.85 * quality);
   }
 });
@@ -323,7 +325,6 @@ test("only Strong uses known-rack lookahead to adjust a close empty-bag choice",
   const moves = solve(lexicon, board, rack, template);
   const create = () => createPlayerProfiles(
     lexicon, template, new Map(words.map((word) => [word, 5])),
-    undefined, new Set(words),
   );
   const choose = create();
   const clock = context.mock.method(performance, "now", () => 0);
@@ -428,8 +429,6 @@ test("Analyze produces the three modeled replies with the real shared picker", (
     lexicon,
     template,
     new Map(Array.from(lexicon.words(), (word) => [word, 4])),
-    undefined,
-    new Set(lexicon.words()),
   );
   const [forecast] = analyzeMoves(
     lexicon,
@@ -467,8 +466,6 @@ test("fast picking agrees with full ranked results on a two-blank rack", () => {
     lexicon,
     template,
     new Map(Array.from(lexicon.words(), (word) => [word, 4])),
-    undefined,
-    new Set(lexicon.words()),
   );
   const board = emptyBoard(template.size);
   const rack = "AIRST??";
@@ -510,7 +507,6 @@ test("Casual and Learner use the same lane penalty, with Strong imposing a large
     template,
     new Map(words.map((word) => [word, 4])),
     { coverage: 4, appeal: 12 },
-    new Set(words),
   );
   const legal = solve(lexicon, board, rack, template);
   const opening = legal.find(
@@ -612,7 +608,7 @@ test("a localized search can miss familiar plays in a different part of the boar
   const lexicon = new Lexicon(words);
   const frequencies = new Map(words.map((word) => [word, 5]));
   const moves = solve(lexicon, board, rack, template);
-  const knownWords = new Set(words);
+  const knownWords = new Map(words.map((word) => [word, packFamiliarity(8_000)]));
   const local = createPlayerProfiles(lexicon, template, frequencies, { coverage: 0.5, appeal: 0 }, knownWords);
   const broad = createPlayerProfiles(lexicon, template, frequencies, { coverage: 4, appeal: 0 }, knownWords);
   const position = { board, rack, bagSize: 50, seed: 37, playerSeed: 17 };

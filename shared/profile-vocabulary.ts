@@ -87,10 +87,6 @@ function familiarityProbability(
     : 2 ** (Math.min(0, score - cutoff) / halfLife);
 }
 
-export function casualWordProbability(entry: number | undefined) {
-  return familiarityProbability(entry, 9_000, 250);
-}
-
 export function learnerWordProbability(
   spelling: string,
   entry: number | undefined,

@@ -31,7 +31,7 @@ export function useStyleExchange(
     !game.requiredRackSlots?.length &&
     bagSize >= minimumExchangeBag(game.template, 1);
   const key =
-    eligible && choice && !choice.exchange && profile && searchId !== undefined
+    eligible && choice && !choice.exchange && profile === "strong" && searchId !== undefined
       ? JSON.stringify([
           positionKey,
           searchId,

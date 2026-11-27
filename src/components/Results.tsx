@@ -791,7 +791,7 @@ export default function Results({
   }, (move) => {
     const utility = page.utilities?.[move.id];
     return profile && utility
-      ? { profile, utility, checksDefense: !analysisGame?.solo && profile !== "casual" && !hunterSelected && bagSize > 0 }
+      ? { profile, utility, checksDefense: !analysisGame?.solo && !hunterSelected && bagSize > 0 }
       : undefined;
   });
   const total = shortlistActive ? filteredShortlist.length : page.total;

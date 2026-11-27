@@ -43,33 +43,15 @@ test("casual and learner exchange a poor rack using heuristics and keep held til
   }
 });
 
-test("casual can keep one copy of useful duplicates in a large swap", () => {
-  const profile = "casual" as const;
-  for (const [rack, held, expectedSwap, expectedKeep] of [
-    ["AAAEEET", [], "AAEE", "AET"],
-    ["EEETAAA", [], "AAEE", "AET"],
-    ["AAAEEET", [0], "AAEEE", "AT"],
-  ] as const) {
-    const position = fixture(rack, [...held]);
-    const result = screenPlayerExchange({ ...position, profile });
-    assert.ok(result.advice);
-    assert.equal(result.comparison, undefined);
-    const { slots } = result.advice;
-    assert.equal(
-      slots
-        .map((slot) => rack[slot])
-        .sort()
-        .join(""),
-      expectedSwap,
-    );
-    assert.equal(
-      [...rack]
-        .filter((_, slot) => !slots.includes(slot))
-        .sort()
-        .join(""),
-      expectedKeep,
-    );
-    assert.ok(held.every((slot) => !slots.includes(slot)));
+test("Casual and Learner screen the same duplicate-heavy exchanges", () => {
+  for (const position of [fixture("AAAEEET"), fixture("EEETAAA"), fixture("AAAEEET", [0])]) {
+    const casual = screenPlayerExchange({ ...position, profile: "casual" });
+    const learner = screenPlayerExchange({ ...position, profile: "learner" });
+    assert.ok(casual.advice && learner.advice);
+    assert.deepEqual({ ...casual.advice, profile: "learner" }, learner.advice);
+    assert.equal(casual.learnerSwap?.keep, learner.learnerSwap?.keep);
+    assert.equal(casual.learnerSwap?.returned, learner.learnerSwap?.returned);
+    assert.ok(position.excludedRackSlots?.every((slot) => !casual.advice!.slots.includes(slot)) ?? true);
   }
 });
 

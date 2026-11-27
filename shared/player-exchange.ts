@@ -5,6 +5,7 @@ import type { Board, BoardTemplate, Move, Position } from "./model";
 import { placeTiles, randomGenerator, sampleTiles } from "./move-analysis";
 import {
   profileWordHash,
+  usesLearnerPolicy,
   type createPlayerProfiles,
   type PlayerProfile,
 } from "./player-profiles";
@@ -54,16 +55,7 @@ export const PLAYER_EXCHANGE_SAMPLES = 16;
 const FORECAST_BUDGET_MS = 1_500;
 const LEARNER_MIN_HEURISTIC_EDGE = -5;
 const vowels = "AEIOU";
-const scoreGate = { casual: 14, learner: 24, strong: 24 };
-const casualWeights: Record<string, number> = {
-  Q: -6,
-  V: -3,
-  W: -2.5,
-  U: -1.5,
-  J: -1.5,
-  "?": 6,
-  S: 2,
-};
+const scoreGate = 24;
 const learnerWeights: Record<string, number> = {
   Q: -7,
   V: -3.5,
@@ -101,9 +93,8 @@ function rackQuality(
   { tiles, total, totals }: ReturnType<typeof unseenTiles>,
   rank: number,
   maxDraw: number,
-  casual: boolean,
 ) {
-  const weights = casual ? casualWeights : learnerWeights;
+  const weights = learnerWeights;
   const target = Math.round((3 * rank) / 7);
   const vowelProbabilities = [[1]];
   // A random refill from the hidden bag is a marginal sample of the unseen pool.
@@ -128,7 +119,7 @@ function rackQuality(
         (cost, chance, drawn) =>
           cost +
           chance *
-            (casual ? 3.6 : 3.2) *
+            3.2 *
             Math.max(0, Math.abs(kept + drawn - target) - 0.5) ** 1.65,
         0,
       ),
@@ -157,81 +148,11 @@ function rackQuality(
       const copies = kept[symbol] ?? 0;
       const extra =
         copies + draw * proportion - (copies ? 1 : 1 - unseen[draw]);
-      value -= extra * (symbol === "S" ? 0.8 : casual ? 2.8 : 3.2);
+      value -= extra * (symbol === "S" ? 0.8 : 3.2);
     }
-    if (!casual && kept.Q && kept.U) value += 2.5;
+    if (kept.Q && kept.U) value += 2.5;
     return value;
   };
-}
-
-function casualSwaps(rack: string, slots: number[], maxDraw: number) {
-  const count = vowelCount(rack);
-  const full = rack.length;
-  const seen: Record<string, number> = {};
-  const priority: Record<string, number> = {
-    Q: 4,
-    V: 3.6,
-    W: 3.1,
-    U: 1.5,
-    J: 1.5,
-    "?": -90,
-    S: -45,
-  };
-  const order = slots
-    .map((slot) => {
-      const letter = rack[slot];
-      const duplicate = !!seen[letter];
-      seen[letter] = (seen[letter] ?? 0) + 1;
-      const vowel = vowels.includes(letter);
-      const balance =
-        count > Math.ceil((4 * full) / 7)
-          ? vowel
-            ? 3.5
-            : -1.5
-          : count < Math.ceil((2 * full) / 7)
-            ? vowel
-              ? -7
-              : 3.5
-            : 0;
-      return {
-        slot,
-        value:
-          (priority[letter] ?? 0) +
-          balance +
-          (duplicate ? 3 : 0) -
-          (letter === "Q" && rack.includes("U") ? 1.5 : 0),
-      };
-    })
-    .sort((a, b) => b.value - a.value);
-  const preferred = Math.max(1, order.filter(({ value }) => value >= 3).length);
-  const sizes = new Set([
-    Math.min(preferred, maxDraw),
-    Math.min(preferred + 1, maxDraw),
-  ]);
-  const candidates = [...sizes].map((size) =>
-    order
-      .slice(0, size)
-      .map(({ slot }) => slot)
-      .sort((a, b) => a - b),
-  );
-  const first = candidates[0];
-  const rackCounts = letterCounts(rack);
-  const returned = letterCounts(first.map((slot) => rack[slot]).join(""));
-  // A big swap can discard every copy of a common letter. Compare one
-  // smaller swap that keeps a copy when the rack would otherwise lose it.
-  const keepOne = new Set(
-    Object.entries(returned)
-      .filter(
-        ([letter, count]) =>
-          count > 1 &&
-          count === rackCounts[letter] &&
-          "AENRST".includes(letter),
-      )
-      .map(([letter]) => letter),
-  );
-  if (keepOne.size)
-    candidates.push(first.filter((slot) => !keepOne.delete(rack[slot])));
-  return candidates;
 }
 
 function* subsets(slots: readonly number[], maxDraw: number) {
@@ -286,7 +207,7 @@ export function screenPlayerExchange(
     rack.length !== template.rackSize ||
     rack.includes(".") ||
     bagSize < minimumExchangeBag(template, 1) ||
-    (move && move.score > scoreGate[profile])
+    (move && move.score > scoreGate)
   )
     return {};
   const unseen = unseenTiles(position, template);
@@ -305,18 +226,14 @@ export function screenPlayerExchange(
   if (!maxDraw) return {};
 
   const { held } = splitRack(position);
-  const casual = profile === "casual";
   const grade = rackQuality(
     unseen,
     rack.length,
     Math.min(bagSize, rack.length),
-    casual,
   );
   const seen = new Set<string>();
   const choices: Swap[] = [];
-  for (const marked of casual
-    ? casualSwaps(rack, slots, maxDraw)
-    : subsets(slots, maxDraw)) {
+  for (const marked of subsets(slots, maxDraw)) {
     const returned = marked.map((slot) => rack[slot]).join("");
     const keep = [...rack].filter((_, slot) => !marked.includes(slot)).join("");
     const key = rackComposition(keep);
@@ -336,10 +253,10 @@ export function screenPlayerExchange(
   const delta = move
     ? first.quality -
       grade(move.leave, Math.min(bagSize, move.tiles.length)) -
-      move.score * (casual ? 0.8 : 1)
+      move.score
     : Infinity;
   const advice = delta > 1.5 ? adviceFor(position, first) : undefined;
-  if (profile === "learner" && move && delta >= LEARNER_MIN_HEURISTIC_EDGE)
+  if (usesLearnerPolicy(profile) && move && delta >= LEARNER_MIN_HEURISTIC_EDGE)
     return {
       advice,
       learnerSwap: {

@@ -120,7 +120,7 @@ self.onmessage = async (
     const dictionary = await loadDictionary(request.dictionaryId);
     const { lexicon } = dictionary;
     const [frequencies, vocabulary] = await loadProfileVocabulary(request.template.rules, dictionary);
-    const profiles = createPlayerProfiles(lexicon, request.template, frequencies, undefined, undefined, vocabulary);
+    const profiles = createPlayerProfiles(lexicon, request.template, frequencies, undefined, vocabulary);
     const result = analyzeMoves(lexicon, request, profiles, (progress) => {
       self.postMessage({ progress });
     });

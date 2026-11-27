@@ -4,7 +4,7 @@ import type { EndgameEstimate } from "./endgame-estimate";
 import { isBingo, type BingoRules, type Move } from "./model";
 import { leaveValue } from "./move-analysis";
 import { shortlistMoves } from "./move-shortlist";
-import type { PlayerProfile, ProfileUtility, RankedProfileMove } from "./player-profiles";
+import { usesLearnerPolicy, type PlayerProfile, type ProfileUtility, type RankedProfileMove } from "./player-profiles";
 import type { MasterUtility } from "./master-evaluation";
 import type { PlayerExchangeAdvice } from "./player-exchange";
 import type { RankedSoloMove, SoloStyleUtility } from "./solo-styles";
@@ -80,7 +80,7 @@ export function styleScorelessTurns(
   bagSize: number,
   scorelessTurns: number | undefined,
 ) {
-  if ((profile === "learner" && bagSize > 0) || (profile === "strong" && bagSize === 0))
+  if ((usesLearnerPolicy(profile) && bagSize > 0) || (profile === "strong" && bagSize === 0))
     return scorelessTurns;
 }
 

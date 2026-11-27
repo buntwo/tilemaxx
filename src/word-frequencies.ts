@@ -45,12 +45,10 @@ export function loadProfileVocabulary(
   rules: Rules,
   dictionary: ProfileDictionary,
   profile?: PlayerProfile,
-  needsCasualFrequencies = false,
 ) {
   const english = wordFrequencyLanguage(rules) === "en";
   return Promise.all([
-    english && profile === "casual" && !needsCasualFrequencies
-      ? new Map<string, number>() : loadWordFrequencies(rules),
+    loadWordFrequencies(rules),
     english && profile !== "strong" ? loadDictionaryVocabulary(dictionary) : undefined,
   ]);
 }
