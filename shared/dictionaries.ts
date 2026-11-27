@@ -1,5 +1,6 @@
 import type { Dictionary, Rules } from "./model";
 import type { GameLanguage } from "./presets";
+import type { DefinitionLanguage } from "./definitions";
 
 export const grammalecteDownloadName = "fr.d61940ba";
 
@@ -14,6 +15,16 @@ const ukEnglish = /\b(?:collins|sowpods|csw\d*|uk english)\b/i;
 const usEnglish = /\b(?:us english|nwl\d*|twl\d*|wow24)\b/i;
 const lexulous = /\blexulous\b/i;
 const wordfeud = /(?:^|[^a-z])word[-_ ]?feud(?=$|[^a-z])/i;
+
+export function dictionaryDefinitionLanguage({ id, name }: Dictionary): DefinitionLanguage | undefined {
+  const labels = [id, name];
+  if (labels.some((label) => italian.test(label))) return undefined;
+  if (labels.some((label) => french.test(label) || isGrammalecte(label))) return "fr";
+  if (id === "enable" || id === "wordnik" || labels.some((label) =>
+    ukEnglish.test(label) || usEnglish.test(label) || /\benglish\b/i.test(label)
+  )) return "en";
+  return undefined;
+}
 
 export function defaultDictionary(
   dictionaries: readonly Dictionary[],

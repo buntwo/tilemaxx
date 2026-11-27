@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { CircleCheck, CircleX, Upload } from "lucide-react";
-import { definitionTileKey, type DefinitionLanguage } from "../../shared/definitions";
+import { definitionTileKey } from "../../shared/definitions";
+import { dictionaryDefinitionLanguage } from "../../shared/dictionaries";
 import type { Dictionary } from "../../shared/model";
 import type {
   WordListCheckReply,
@@ -19,13 +20,11 @@ type Check = {
 export default function WordListChecker({
   dictionaries,
   selectedId,
-  definitionLanguage = "en",
   onSelectList,
   onClose,
 }: {
   dictionaries: Dictionary[];
   selectedId?: string;
-  definitionLanguage?: DefinitionLanguage;
   onSelectList: (id: string) => void;
   onClose: () => void;
 }) {
@@ -44,6 +43,10 @@ export default function WordListChecker({
   const listName = local?.name ?? dictionary?.name;
   const current = check?.source === source ? check : undefined;
   const result = current?.result;
+  const language = !local && dictionary ? dictionaryDefinitionLanguage(dictionary) : undefined;
+  const definitionWords = useMemo(() => {
+    if (current?.result === "found" || current?.result === "missing") return [{ word: current.word }];
+  }, [current]);
 
   useEffect(() => () => worker.current?.instance.terminate(), []);
 
@@ -55,12 +58,12 @@ export default function WordListChecker({
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!source || result === "checking") return;
-    const word = input.trim().toUpperCase();
+    const word = (language ? definitionTileKey(input) ?? "" : input.trim()).toUpperCase();
     if (!/^[A-Z]{2,25}$/.test(word)) {
       setCheck({
         source,
         word,
-        result: { error: "Enter one word with 2–25 letters from A to Z." },
+        result: { error: language ? "Enter one word with 2–25 letters." : "Enter one word with 2–25 letters from A to Z." },
       });
       return;
     }
@@ -207,53 +210,11 @@ export default function WordListChecker({
           )}
         </div>
       </form>
-      <WordDefinitionLookup initialLanguage={definitionLanguage} />
+      {language && (
+        <div className="word-definition-result" aria-live="polite">
+          <DefinitionResults language={language} words={definitionWords} onlyAvailable />
+        </div>
+      )}
     </Modal>
-  );
-}
-
-function WordDefinitionLookup({ initialLanguage }: { initialLanguage: DefinitionLanguage }) {
-  const [input, setInput] = useState("");
-  const [language, setLanguage] = useState(initialLanguage);
-  const [words, setWords] = useState<{ word: string }[]>();
-  const [invalid, setInvalid] = useState(false);
-
-  return (
-    <section className="word-definition-lookup" aria-label="Definition lookup">
-      <h3>Definition lookup</h3>
-      <form onSubmit={(event) => {
-        event.preventDefault();
-        const word = definitionTileKey(input);
-        setInvalid(!word);
-        setWords(word ? [{ word: word.toUpperCase() }] : undefined);
-      }}>
-        <label>
-          Word to define
-          <input type="text" value={input} autoComplete="off" autoCorrect="off"
-            autoCapitalize="none" spellCheck={false} enterKeyHint="search"
-            aria-invalid={invalid || undefined}
-            onChange={(event) => {
-              setInput(event.currentTarget.value);
-              setInvalid(false);
-              setWords(undefined);
-            }} />
-        </label>
-        <label>
-          Language
-          <select value={language} onChange={(event) => {
-            setLanguage(event.currentTarget.value as DefinitionLanguage);
-            setWords(undefined);
-          }}>
-            <option value="en">English</option>
-            <option value="fr">French</option>
-          </select>
-        </label>
-        <button type="submit" className="button secondary" disabled={!input.trim()}>Look up</button>
-      </form>
-      <div className="word-definition-result" aria-live="polite">
-        {invalid && <p>Enter one word with 2–25 letters.</p>}
-        <DefinitionResults language={language} words={words} />
-      </div>
-    </section>
   );
 }

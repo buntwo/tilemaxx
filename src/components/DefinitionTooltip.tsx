@@ -260,11 +260,13 @@ function DefinitionSheet({
   );
 }
 
-export function DefinitionResults({ language, words }: {
+export function DefinitionResults({ language, words, onlyAvailable = false }: {
   language: DefinitionLanguage;
   words?: TargetWord[];
+  onlyAvailable?: boolean;
 }) {
   const result = useDefinitionLookup(language, words);
+  if (onlyAvailable && !result?.lookup?.available) return null;
   return words ? <DefinitionContent language={language} words={words} result={result} /> : null;
 }
 

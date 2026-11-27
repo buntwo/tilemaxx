@@ -3628,27 +3628,14 @@ label + label {
   width: 40px;
   height: 40px;
 }
-.word-definition-lookup {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
-.word-definition-lookup form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: end;
-  gap: 8px;
-  margin-top: 8px;
-}
-.word-definition-lookup label + label { margin-top: 0; }
 .word-definition-result {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
-.word-definition-result:not(:empty) { margin-top: 10px; }
-@media (max-width: 380px) {
-  .word-definition-lookup form { grid-template-columns: minmax(0, 1fr) auto; }
-  .word-definition-lookup label:first-child { grid-column: 1 / -1; }
+.word-definition-result:not(:empty) {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
 }
 .import-box {
   padding: 20px;

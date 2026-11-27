@@ -136,7 +136,6 @@ import {
   undo,
 } from "../shared/model";
 import { recentOpponentNames } from "../shared/game-index";
-import { definitionLanguageForRules } from "../shared/definitions";
 import { archiveForReview, resumeFinishedGame } from "../shared/archive-history";
 
 type Dialog =
@@ -2155,7 +2154,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
         <WordListChecker
           dictionaries={data.dictionaries}
           selectedId={route.wordList ?? game?.dictionaryId}
-          definitionLanguage={savedGame && definitionLanguageForRules(savedGame.template.rules)}
           onSelectList={(wordList) => navigate({ ...route, wordList })}
           onClose={closeTool}
         />

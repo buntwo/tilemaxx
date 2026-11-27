@@ -5487,55 +5487,75 @@ test.each(["phone", "tablet", "desktop"])(
   },
 );
 
-test("Word list checker looks up English and French definitions only on submission", async () => {
-  const original = game();
-  remote.games[0] = { ...original, revision: 1, template: { ...original.template, rules: "scrabble-fr" } };
+test("Word list checker automatically defines the checked word for the selected supported list", async () => {
+  const base = remote.dictionaries[0];
+  remote.dictionaries.push(
+    { ...base, id: "french-list", name: "Grammalecte 7.7", builtin: false },
+    { ...base, id: "english-list", name: "CSW24", builtin: false },
+  );
+  class CheckerWorker extends SolverWorker {
+    postMessage(request: SolverRequest | WordListCheckRequest) {
+      if (!("source" in request)) return super.postMessage(request);
+      const { id, source, word } = request;
+      queueMicrotask(() => this.onmessage?.({ data: { id, found: source === "french-list" && word === "COEUR" } }));
+    }
+  }
+  vi.stubGlobal("Worker", CheckerWorker);
   const request = fetch;
   const lookup = vi.fn(async (url: string, options?: RequestInit) => {
     if (!url.startsWith("/api/definitions?")) return request(url, options);
     const query = new URLSearchParams(url.split("?")[1]);
-    const entries = query.get("language") === "fr" ? [{
+    const word = query.get("word");
+    const entries = word === "COEUR" && query.get("language") === "fr" ? [{
       spelling: "cœur", headword: "cœur", glosses: ["heart"], partOfSpeech: "noun",
       sourceUrl: "https://en.wiktionary.org/wiki/c%C5%93ur#French",
+    }] : word === "CAT" ? [{
+      spelling: "cat", headword: "cat", glosses: ["A domestic feline."], partOfSpeech: "noun",
     }] : [];
-    return new Response(JSON.stringify({ available: true, entries: [entries] }));
+    return new Response(JSON.stringify({ available: word !== "DOG", entries: [entries] }));
   });
   vi.stubGlobal("fetch", lookup);
   const requests = () => lookup.mock.calls.map(([url]) => url).filter((url) => url.startsWith("/api/definitions?"));
-  const user = await start();
-  await user.click(navLink("Word lists"));
-  const lists = within(screen.getByRole("dialog", { name: "Word lists" }));
-  expect(lists.queryByRole("region", { name: "Definition lookup" })).toBeNull();
-  await user.click(lists.getByRole("button", { name: "Close dialog" }));
 
+  const user = await start();
   await user.click(navLink("Word list checker"));
   const checker = within(screen.getByRole("dialog", { name: "Word list checker" }));
-  const section = within(checker.getByRole("region", { name: "Definition lookup" }));
-  const input = section.getByRole("textbox", { name: "Word to define" });
-  const language = section.getByRole("combobox", { name: "Language" });
-  const submit = section.getByRole("button", { name: "Look up" });
-  expect(language).toHaveProperty("value", "fr");
-  expect(submit).toHaveProperty("disabled", true);
+  const list = checker.getByRole("combobox", { name: "Word list" });
+  const input = checker.getByRole("textbox", { name: "Word" });
+  const status = checker.getByRole("status");
+  const submit = checker.getByRole("button", { name: "Check word" });
+  expect(checker.getAllByRole("textbox")).toEqual([input]);
+  expect(checker.getAllByRole("combobox")).toEqual([list]);
 
+  await user.selectOptions(list, "french-list");
   await user.type(input, "cœur");
   expect(requests()).toEqual([]);
   await user.keyboard("{Enter}");
-  expect(await section.findByText("heart")).toBeTruthy();
-  expect(section.getByRole("link", { name: "cœur" }).getAttribute("href")).toContain("#French");
+  expect(await checker.findByText("heart")).toBeTruthy();
+  expect(status.textContent).toContain("COEUR is in Grammalecte 7.7.");
+  expect(checker.getByRole("link", { name: "cœur" }).getAttribute("href")).toContain("#French");
   expect(requests()).toEqual(["/api/definitions?language=fr&word=COEUR"]);
 
-  await user.selectOptions(language, "en");
-  expect(section.queryByText("heart")).toBeNull();
+  await user.selectOptions(list, "english-list");
+  expect(checker.queryByText("heart")).toBeNull();
+  await user.clear(input);
+  await user.type(input, "cat");
   expect(requests()).toHaveLength(1);
   await user.click(submit);
-  expect(await section.findByText("No definition found.")).toBeTruthy();
-  expect(requests().at(-1)).toBe("/api/definitions?language=en&word=COEUR");
+  expect(await checker.findByText("A domestic feline.")).toBeTruthy();
+  expect(status.textContent).toContain("CAT is absent from CSW24.");
+  expect(requests().at(-1)).toBe("/api/definitions?language=en&word=CAT");
 
   await user.clear(input);
-  await user.type(input, "two words");
+  await user.type(input, "dog{Enter}");
+  expect(requests().at(-1)).toBe("/api/definitions?language=en&word=DOG");
+  expect(checker.queryByText(/definitions unavailable/i)).toBeNull();
+  expect(checker.queryByText("A domestic feline.")).toBeNull();
+
+  await user.selectOptions(list, "test");
   await user.click(submit);
-  expect(section.getByText("Enter one word with 2–25 letters.")).toBeTruthy();
-  expect(requests()).toHaveLength(2);
+  expect(status.textContent).toContain("DOG is absent from Test words.");
+  expect(requests()).toHaveLength(3);
 });
 
 test("word lists confirm removal, display a conflict and update the game selector", async () => {
