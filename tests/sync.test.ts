@@ -5,6 +5,7 @@ import {
   archiveGame,
   emptyBoard,
   newGameFromSettings,
+  remember,
   type Game,
 } from "../shared/model";
 import {
@@ -94,6 +95,36 @@ test("editing during an in-flight save preserves newer input and advances its re
     assert.equal(client.snapshot.games.g.rack, "CATS");
     assert.equal(client.snapshot.games.g.startedAt, startedAt);
     assert.equal(client.snapshot.data!.games[0].revision, 2);
+  } finally {
+    cleanup();
+  }
+});
+test("server move versions survive normal saves and merge into a newer pending draft", async () => {
+  const { client, game, cleanup } = setup();
+  try {
+    const draft = { ...game, ...remember(game, "PASS", 0, "you", false) };
+    const stamped = {
+      ...draft,
+      revision: 1,
+      past: draft.past.map((entry) => ({ ...entry, serverVersion: "0.3.149" })),
+      trackedMoves: draft.trackedMoves?.map((move) => ({ ...move, serverVersion: "0.3.149" })),
+    };
+    let finish!: (r: Response) => void;
+    globalThis.fetch = async () => new Promise<Response>((resolve) => (finish = resolve));
+    client.update(draft);
+    const saving = client.flush();
+    client.update({ ...draft, rack: "CAT" });
+    finish(response(stamped));
+    await saving;
+    const newer = client.drafts.get(game.id)!;
+    assert.equal(newer.rack, "CAT");
+    assert.equal(newer.board, game.board);
+    assert.equal(newer.past[0].serverVersion, "0.3.149");
+    assert.equal(newer.trackedMoves?.[0].serverVersion, "0.3.149");
+    globalThis.fetch = async () => response({ ...stamped, rack: "CAT", revision: 2 });
+    await client.flush();
+    assert.equal(client.snapshot.games.g.board, game.board);
+    assert.equal(client.snapshot.games.g.trackedMoves?.[0].serverVersion, "0.3.149");
   } finally {
     cleanup();
   }

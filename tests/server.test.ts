@@ -10,8 +10,8 @@ import { createApp } from "../server/app";
 import { archiveForReview } from "../shared/archive-history";
 import { gameReplayTimeline } from "../shared/game-replay";
 import { BoardEditHistory } from "../shared/board-entry";
-import { archiveGame, emptyBoard, remember, type AppState, type Game } from "../shared/model";
-import { emptyScoring, gameScoreTotals, playTrackedMove } from "../shared/game-scoring";
+import { archiveGame, emptyBoard, redo, remember, undo, type AppState, type Game } from "../shared/model";
+import { correctTrackedMove, emptyScoring, gameScoreTotals, playTrackedMove, setScoreTracking } from "../shared/game-scoring";
 import { Lexicon } from "../shared/lexicon";
 import { solve } from "../shared/solver";
 import { TILE_SYMBOLS } from "../shared/tile-pool";
@@ -399,17 +399,92 @@ test("the store persists recovered refill evidence on both archival paths", () =
     const played = { ...playTrackedMove(ready, move), rack: "EINSAOU" };
     const first = store.saveGame(played)!;
     const archived = store.saveGame(archiveGame(first))!;
-    const another = store.createGame(played);
+    const another = store.createGame(first);
     const result = store.archiveAndStartNewGame(another.id, another.revision, "2026-01-01");
     assert.equal(result.status, "created");
     if (result.status !== "created") return;
     for (const id of [archived.id, result.archived.id]) {
       const saved = store.getGame(id)!;
       assert.deepEqual(saved.archivedState?.past, []);
-      assert.deepEqual(saved.archivedState?.trackedMoves, played.trackedMoves);
+      assert.deepEqual(saved.archivedState?.trackedMoves, first.trackedMoves);
       assert.deepEqual(saved.archivedState?.replayRecovery?.[0]?.draw, { tiles: "AOU", count: 3 });
       assert.equal(gameReplayTimeline(saved).frames[1].afterRack, "AEINOSU");
     }
+  } finally {
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("move server versions are authoritative and stay in live and archived API snapshots", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-move-versions-"));
+  const store = createStore(dir, process.cwd());
+  const server = createApp(store).listen(0, "127.0.0.1");
+  t.after(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const { port } = server.address() as { port: number };
+  const [seed] = store.state().games;
+  const initial = store.createGame({
+    ...seed,
+    rack: "CATEINS",
+    trackedMoves: [
+      { player: "you", word: "AS", score: 2, at: "2025-01-01T00:00:00.000Z" },
+      { player: "opponent", word: "AT", score: 2, at: "2025-01-01T00:00:01.000Z", serverVersion: "0.3.51" },
+    ],
+  });
+  const base = `http://127.0.0.1:${port}/api`;
+  const put = (game: Game) => fetch(`${base}/games/${game.id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(game),
+  });
+  const move = solve(new Lexicon(["CAT"]), initial.board, initial.rack, initial.template)[0];
+  const draft = playTrackedMove(initial, move, 86);
+  draft.trackedMoves!.at(-1)!.serverVersion = "9.9.9";
+  draft.past.at(-1)!.serverVersion = "9.9.9";
+  const savedResponse = await put(draft);
+  assert.equal(savedResponse.status, 200);
+  const saved: Game = await savedResponse.json();
+  assert.deepEqual(saved.trackedMoves!.map((move) => move.serverVersion), [undefined, "0.3.51", version]);
+  assert.equal(saved.past.at(-1)!.serverVersion, version);
+  assert.equal((await put(draft)).status, 409);
+
+  const undoSaved = store.saveGame(undo(saved))!;
+  assert.equal(undoSaved.future.at(-1)?.serverVersion, version);
+  const redone = store.saveGame(redo(undoSaved))!;
+  assert.deepEqual(redone.trackedMoves, saved.trackedMoves);
+  const corrected = store.saveGame(correctTrackedMove(redone, 1, { player: "you", word: "IT", score: 3 }, false))!;
+  assert.equal(corrected.trackedMoves![1].serverVersion, "0.3.51");
+  const archived = store.saveGame(archiveForReview(corrected))!;
+  assert.equal(archived.archivedState!.trackedMoves!.at(-1)!.serverVersion, version);
+
+  const live: Game = await (await fetch(`${base}/games/${archived.id}`)).json();
+  const snapshot = await (await fetch(`${base}/debug/games/${archived.id}`)).json();
+  assert.equal(snapshot.serverVersion, version);
+  assert.deepEqual(snapshot.game, live);
+  assert.deepEqual(live.trackedMoves!.map((move) => move.serverVersion), [undefined, "0.3.51", version]);
+  assert.deepEqual(live.archivedState!.trackedMoves, live.trackedMoves);
+});
+
+test("version provenance follows a reconstructed score log and leaves old history unknown", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tilemaxx-recovered-move-versions-"));
+  const store = createStore(dir, process.cwd());
+  try {
+    const [seed] = store.state().games;
+    const ready = { ...seed, rack: "CATEINS", trackScores: false };
+    const move = solve(new Lexicon(["CAT"]), ready.board, ready.rack, ready.template)[0];
+    const untracked = playTrackedMove(ready, move, 86);
+    const active = store.saveGame(untracked)!;
+    const recovered = store.saveGame(setScoreTracking(active, true))!;
+    assert.equal(recovered.trackedMoves?.[0]?.serverVersion, version);
+    const old = store.createGame(untracked);
+    const recoveredOld = store.saveGame(setScoreTracking(old, true))!;
+    assert.equal(recoveredOld.trackedMoves?.[0]?.word, "CAT");
+    assert.equal(recoveredOld.trackedMoves?.[0]?.serverVersion, undefined);
   } finally {
     store.db.close();
     rmSync(dir, { recursive: true, force: true });

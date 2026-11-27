@@ -4,6 +4,7 @@ import { once } from "node:events";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { version } from "../version.json";
 import { createApp } from "../server/app";
 import { createStore } from "../server/store";
 import { emptyBoard, type Game } from "../shared/model";
@@ -100,6 +101,7 @@ test("the API records passes and exchanges and undoes them with the original rac
   });
   const pass = { action: "record-pass", player: "opponent" };
   const passed = await apply(rack, pass);
+  assert.equal(passed.trackedMoves?.at(-1)?.serverVersion, version);
   assert.deepEqual(passed.trackedMoves?.map(({ player, action, score }) =>
     ({ player, action, score })), [{ player: "opponent", action: { kind: "pass" }, score: 0 }]);
   assert.equal(passed.rack, rack.rack);
@@ -113,6 +115,7 @@ test("the API records passes and exchanges and undoes them with the original rac
   assert.equal((await request(passed, { ...ownExchange, slots: [1] })).status, 422);
   assert.equal((await request(passed, { ...ownExchange, slots: [0, 0] })).status, 422);
   const exchanged = await apply(passed, { ...ownExchange, slots: [0, 3] });
+  assert.equal(exchanged.trackedMoves?.at(-1)?.serverVersion, version);
   assert.deepEqual(exchanged.trackedMoves?.at(-1)?.action, { kind: "exchange", slots: [0, 3] });
   assert.equal(exchanged.rack, "IARC");
   assert.deepEqual(exchanged.excludedRackSlots, [2]);

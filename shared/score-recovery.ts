@@ -300,6 +300,7 @@ function replayedMove(
     score: play.score,
     bingo: play.bingo,
     at: entry.at,
+    ...(entry.serverVersion && { serverVersion: entry.serverVersion }),
     review: {
       board: base.map((tile, i) => (tile ? board[i] : "")),
       ...(player === "you" && {

@@ -170,6 +170,7 @@ const boardlessTurn = z.union([
     count: exchangeCount.optional(),
   }),
 ]).optional();
+const moveServerVersion = z.string().max(40).regex(/^\d+\.\d+\.\d+$/).optional();
 const trackedMoves = z
   .array(
     z.object({
@@ -179,6 +180,7 @@ const trackedMoves = z
       bingo: z.boolean().optional(),
       action: boardlessTurn,
       at: z.string().max(50),
+      serverVersion: moveServerVersion,
       review,
     }),
   )
@@ -200,6 +202,7 @@ const historySchema = z.object({
   trackedMoves,
   review,
   at: z.string().max(50),
+  serverVersion: moveServerVersion,
 });
 const savedBoardWordScores = z.object({
   board: z.string().max(625).regex(/^[a-zA-Z.]+$/),

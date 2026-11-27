@@ -15,6 +15,7 @@ import {
 } from "./game-cache";
 import { readOfflineGame, removeOfflineGame } from "./offline-games";
 import { correctSuperLexulousCenter } from "../shared/game-scoring";
+import { carrySavedMoveVersions } from "../shared/move-server-versions";
 import {
   summarizeGame,
   type GameIndex,
@@ -543,7 +544,7 @@ export class GameStore {
             // from an older offline draft with undo history the server removed.
             this.finishDraft(newArchive
               ? saved
-              : {
+              : carrySavedMoveVersions({
                   ...saved,
                   board: submitted.board,
                   scoring: submitted.scoring,
@@ -552,14 +553,14 @@ export class GameStore {
                   trackedMoves: submitted.trackedMoves,
                   excludedRackSlots: submitted.excludedRackSlots,
                   requiredRackSlots: submitted.requiredRackSlots,
-                });
+                }, saved));
           } else {
-            const newer = {
+            const newer = carrySavedMoveVersions({
               ...this.drafts.get(id)!,
               revision: saved.revision,
               startedAt: saved.startedAt,
               updatedAt: saved.updatedAt,
-            };
+            }, saved);
             this.confirmGame(saved);
             this.drafts.set(id, newer);
             this.replace(newer);

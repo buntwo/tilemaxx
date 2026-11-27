@@ -63,6 +63,8 @@ export interface TrackedMove {
   bingo?: boolean;
   action?: BoardlessTurn;
   at: string;
+  // The server build that first stored this turn, when known.
+  serverVersion?: string;
   review?: TurnPosition;
 }
 export interface TurnPosition {
@@ -133,6 +135,7 @@ export interface HistoryEntry extends Position {
   trackedMoves?: TrackedMove[];
   review?: TurnPosition;
   at: string;
+  serverVersion?: string;
 }
 export type SavedBoardWordScores = {
   board: string;
@@ -464,6 +467,7 @@ function trackedMove(
       ...(bingo !== undefined && { bingo }),
       ...(entry.review && { review: entry.review }),
       ...(entry.action && { action: entry.action }),
+      ...(entry.serverVersion && { serverVersion: entry.serverVersion }),
       at: entry.at,
     };
 }
@@ -608,6 +612,7 @@ export function undo(game: Game): Game {
         review: step.review,
         scoring: game.scoring,
         trackedMoves: step.trackedMoves && trackedMoveHistory(game),
+        ...(step.serverVersion && { serverVersion: step.serverVersion }),
         at: step.at,
       },
     ],
@@ -652,6 +657,7 @@ export function redo(game: Game): Game {
         review: step.review,
         scoring: game.scoring,
         trackedMoves: step.trackedMoves && trackedMoveHistory(game),
+        ...(step.serverVersion && { serverVersion: step.serverVersion }),
         at: step.at,
       },
     ],

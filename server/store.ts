@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { join, basename } from "node:path";
 import { randomUUID } from "node:crypto";
+import { version } from "../version.json";
 import { compactArchivedHistory, saveArchiveReplay } from "../shared/archive-history";
 import type { DefinitionLanguage } from "../shared/definitions";
 import {
@@ -46,6 +47,7 @@ import {
 } from "../shared/dictionaries";
 import { type z } from "zod";
 import { type screenshotExampleSchema } from "./validation";
+import { mapMoveServerVersions, moveServerVersions } from "../shared/move-server-versions";
 
 const removingSuffix = ".tilemaxx-removing";
 
@@ -239,9 +241,6 @@ export function createStore(directory: string, root: string) {
     const row = db.prepare("SELECT data FROM games WHERE id=?").get(id);
     return row ? (JSON.parse(row.data as string) as Game) : undefined;
   };
-  const savedArchiveStatus = db.prepare(
-    "SELECT json_extract(data, '$.archived') AS archived FROM games WHERE id=? AND revision=?",
-  );
   const profiles = (): Profile[] =>
     db
       .prepare(
@@ -313,13 +312,17 @@ export function createStore(directory: string, root: string) {
   }
   function writeGame(
     game: Game,
-    updatedAt = new Date().toISOString(),
+    { updatedAt = new Date().toISOString(), stampMoves = false }:
+      { updatedAt?: string; stampMoves?: boolean } = {},
   ): Game | undefined {
-    const previous = game.archived
-      ? savedArchiveStatus.get(game.id, game.revision)
-      : undefined;
+    const previous = getGame(game.id);
+    if (!previous || previous.revision !== game.revision) return undefined;
+    const versions = stampMoves ? moveServerVersions(previous) : undefined;
+    const recorded = versions
+      ? mapMoveServerVersions(game, ({ at }) => versions.has(at) ? versions.get(at) : version)
+      : game;
     const saved = correctSuperLexulousCenter({
-      ...(previous?.archived === 0 ? prepareNewArchive(game) : game),
+      ...(recorded.archived && !previous.archived ? prepareNewArchive(recorded) : recorded),
       revision: game.revision + 1,
       updatedAt,
     });
@@ -353,7 +356,7 @@ export function createStore(directory: string, root: string) {
       if (db.prepare("PRAGMA user_version").get()?.user_version !== 1) return;
       for (const game of games()) {
         const updated = backfillGameResult(game);
-        if (updated !== game) writeGame(updated, game.updatedAt);
+        if (updated !== game) writeGame(updated, { updatedAt: game.updatedAt });
       }
       db.exec("PRAGMA user_version=2");
     });
@@ -367,7 +370,7 @@ export function createStore(directory: string, root: string) {
       for (const row of superLexulousSaves.all()) {
         const game = JSON.parse(row.data as string) as Game;
         const updated = correctSuperLexulousCenter(game);
-        if (updated !== game) writeGame(updated, game.updatedAt);
+        if (updated !== game) writeGame(updated, { updatedAt: game.updatedAt });
       }
       db.exec("PRAGMA user_version=3");
     });
@@ -408,7 +411,7 @@ export function createStore(directory: string, root: string) {
         for (const { id } of archivedGames) {
           const game = getGame(id as string)!;
           const compacted = compactArchivedHistory(game);
-          if (compacted !== game && !writeGame(compacted, game.updatedAt)) {
+          if (compacted !== game && !writeGame(compacted, { updatedAt: game.updatedAt })) {
             throw new Error("Could not update archived game history.");
           }
         }
@@ -536,7 +539,7 @@ export function createStore(directory: string, root: string) {
       });
     },
     saveGame(game: Game): Game | undefined {
-      return transaction(() => writeGame(game));
+      return transaction(() => writeGame(game, { stampMoves: true }));
     },
     archiveAndStartNewGame(id: string, revision: number, startedOn: string) {
       return transaction(() => {

@@ -78,6 +78,14 @@ For retryable creation, give `POST /games/new`, `POST /games`, copy or
 rematch a unique 32-character lowercase hex `creationToken`. Reuse the same
 token only when retrying the same creation request.
 
+Each newly recorded turn can be identified by `trackedMoves[].serverVersion`
+on a full game. The field records the server build that first saved the turn.
+For offline play it identifies the server at sync time. Older history with
+unknown provenance omits the field. Corrections and undo or redo preserve
+the original value. The same field is available under `game.trackedMoves`
+in `GET /api/debug/games/:id`, or under
+`game.archivedState.trackedMoves` for the original archived position.
+
 ## Play and edit a game
 
 Read the game, then send an action with the revision you read. On success the
