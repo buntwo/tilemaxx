@@ -6193,7 +6193,7 @@ label + label {
   white-space: nowrap;
 }
 .with-board-history .direct-entry-actions > .text-button { padding-inline: 4px; }
-.board-panel .direct-entry-actions > .board-define {
+.board-panel .board-define {
   min-width: 60px;
   min-height: var(--board-define-height);
   justify-content: center;
@@ -6204,7 +6204,7 @@ label + label {
 .direct-entry-actions > :is(.board-turn-actions + .board-define, .board-define + .board-undo) {
   margin-inline-start: calc(var(--board-tool-group-gap) - var(--board-action-gap));
 }
-.board-panel .direct-entry-actions > .board-define:hover:not(:disabled) { background: var(--soft); }
+.board-panel .board-define:hover:not(:disabled) { background: var(--soft); }
 .with-board-history .direct-entry-status {
   min-width: 0;
   padding-inline-start: 10px;
@@ -6772,7 +6772,7 @@ label + label {
   .board-control-label { display: none; }
   .board-define-cancel-icon { display: block; }
   .board-turn-button,
-  .board-panel .direct-entry-actions > .board-define {
+  .board-panel .board-define {
     width: var(--board-define-height);
     min-width: 0;
     padding-inline: 0;
@@ -6791,7 +6791,7 @@ label + label {
     white-space: nowrap;
   }
   .board-turn-button,
-  .board-panel .direct-entry-actions > .board-define,
+  .board-panel .board-define,
   .board-panel :is(.board-undo, .board-redo) { width: 20px; }
   .board-review-actions:has(.board-turn-actions) .board-review-play:disabled { display: none; }
 }

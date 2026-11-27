@@ -39,6 +39,7 @@ import { version } from "../version.json";
 import Brand, { BrandTile, updateFavicon } from "./components/Brand";
 import BoardHistoryControls from "./components/BoardHistoryControls";
 import BoardEntry, {
+  BoardDefineButton,
   BoardEntryHelp,
   type BoardEntryHandle,
   type DraftHistory,
@@ -1575,7 +1576,10 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                       )}
                     </span>
                     {boardTurns.controls}
-                    {boardModeHistory}
+                    <div className="board-mode-history">
+                      <BoardDefineButton disabled />
+                      {boardHistoryControls}
+                    </div>
                     {!movePreview?.analysis && (
                       <button
                         className="board-review-play"

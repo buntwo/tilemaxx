@@ -925,19 +925,7 @@ export function BoardInput({
           )}
           {turnActions}
           {(definitionLanguage || historyControls) && (
-            <button
-              type="button"
-              className="text-button board-define"
-              aria-label={defining ? "Cancel" : "Define"}
-              title={defining ? "Cancel" : "Define"}
-              disabled={!canDefine}
-              onClick={toggleDefine}
-            >
-              {defining
-                ? <X className="board-define-cancel-icon" size={15} aria-hidden="true" />
-                : <BookOpenText size={15} aria-hidden="true" />}
-              <span className="board-control-label">{defining ? "Cancel" : "Define"}</span>
-            </button>
+            <BoardDefineButton disabled={!canDefine} defining={defining} onClick={toggleDefine} />
           )}
           {historyControls}
         </div>
@@ -947,6 +935,23 @@ export function BoardInput({
       {historyControls && help}
       {definitions.popup}
     </div>
+  );
+}
+
+export function BoardDefineButton({ disabled, defining = false, onClick }: {
+  disabled: boolean;
+  defining?: boolean;
+  onClick?: () => void;
+}) {
+  const label = defining ? "Cancel" : "Define";
+  return (
+    <button type="button" className="text-button board-define" aria-label={label} title={label}
+      disabled={disabled} onClick={onClick}>
+      {defining
+        ? <X className="board-define-cancel-icon" size={15} aria-hidden="true" />
+        : <BookOpenText size={15} aria-hidden="true" />}
+      <span className="board-control-label">{label}</span>
+    </button>
   );
 }
 

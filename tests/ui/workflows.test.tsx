@@ -9023,6 +9023,27 @@ test("an active empty-bag game can solve with two partial racks and no refill hi
 });
 
 
+test("phone move review keeps Define visible and disabled until results close", async () => {
+  const base = { ...game(), rack: "CATS" };
+  const play = solve(new Lexicon(["CAT"]), base.board, base.rack, base.template)[0];
+  remote.games[0] = { ...playTrackedMove(base, play), revision: 1 };
+  const user = await start(390);
+  const board = screen.getByRole("region", { name: "Game board" });
+  const define = () => within(board).getByRole("button", { name: "Define" });
+  expect(define()).toHaveProperty("disabled", false);
+
+  const possible = within(screen.getByRole("region", { name: "Possible moves" }));
+  await user.click(possible.getByRole("button", { name: "Find moves" }));
+  const prompt = await within(board).findByText("Choose a move to preview");
+  const review = within(prompt.parentElement!);
+  const disabledDefine = review.getByRole("button", { name: "Define" });
+  expect(disabledDefine).toHaveProperty("disabled", true);
+  expect(disabledDefine.querySelector("svg")).toBeTruthy();
+
+  await user.click(possible.getByRole("button", { name: "Close possible moves" }));
+  expect(define()).toHaveProperty("disabled", false);
+});
+
 test.each([false, true])("closing Possible moves clears its preview and returns to Find moves (phone %s)", async (phone) => {
   const user = await start(phone ? 390 : 1200);
   await typeRack(user, "CATS");
