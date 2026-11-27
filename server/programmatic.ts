@@ -4,7 +4,7 @@ import { version } from "../version.json";
 import { archiveStatistics } from "../shared/archive-stats";
 import { correctSuperLexulousCenter, scoreTotalsAtPosition } from "../shared/game-scoring";
 import { ApiError } from "./api-error";
-import { createComputationRunner } from "./api-computation";
+import { createComputationRunner, type Computation } from "./api-computation";
 import {
   createGameCommands,
   gameActionRequest,
@@ -49,22 +49,22 @@ export function createProgrammaticRouter(
     if (!file) throw new ApiError(404, "Word list not found.");
     return { file };
   };
-  async function run(res: Response, input: Parameters<typeof compute>[0]) {
+  async function run(res: Response, input: Computation) {
     const controller = new AbortController();
     const cancel = () => controller.abort();
     res.once("close", cancel);
     try {
-      if (input.kind === "analysis" && "file" in input.dictionary &&
-          gameWordLanguage(input.position.template.rules) === "en") {
+      if (res.destroyed) return;
+      const result = await compute(controller.signal, async () => {
+        if (input.kind !== "analysis" || !("file" in input.dictionary) ||
+            gameWordLanguage(input.position.template.rules) !== "en") return input;
         const operation = input.operation;
-        const style = operation.kind === "moves" ? operation.style
-          : operation.kind === "compare" ? operation.opponent
-          : operation.kind === "exchange-advice" ? operation.style
-          : undefined;
-        if (usesLearnerPolicy(style))
-          input = { ...input, profileVocabulary: (await vocabulary(input.dictionary.file)).bytes };
-      }
-      const result = await compute(input, controller.signal);
+        const needsVocabulary = operation.kind === "compare" ? !!operation.opponent
+          : (operation.kind === "moves" || operation.kind === "exchange-advice") && usesLearnerPolicy(operation.style);
+        return needsVocabulary
+          ? { ...input, profileVocabulary: (await vocabulary(input.dictionary.file)).bytes }
+          : input;
+      });
       if (!controller.signal.aborted) res.json(result);
     } catch (error) {
       if (!controller.signal.aborted) throw error;

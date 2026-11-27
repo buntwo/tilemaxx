@@ -25,6 +25,7 @@ export function createGameExport(
   for (const position of [game, game.archivedState]) {
     if (!position) continue;
     includeMoves(position.trackedMoves);
+    for (const turn of position.replayRecovery ?? []) includeReview(turn?.position);
     for (const entry of [...position.past, ...position.future]) {
       includeReview(entry.review);
       includeMoves(entry.trackedMoves);

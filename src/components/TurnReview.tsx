@@ -57,7 +57,7 @@ export default function TurnReview({
   useEffect(() => {
     reset();
     setPreview(undefined);
-  }, [game.dictionaryId, reset, selected]);
+  }, [game, reset, selected]);
   const turn = selected === null ? undefined : turns[selected];
   const position = turn?.position;
   const template = position?.premiums

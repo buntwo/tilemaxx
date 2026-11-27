@@ -2696,6 +2696,12 @@ test("archive and sidebar links restore selections while typed search text stays
   expect(new URL(checkerLink).searchParams.get("list")).toBe("alternate");
   await user.type(checker.getByRole("textbox", { name: "Word" }), "CAT");
   expect(location.href).toBe(checkerLink);
+  await user.upload(checker.getByLabelText("Open word list file"), new File(["CAT\n"], "club.txt"));
+  expect(checker.getByRole("combobox", { name: "Word list" })).toHaveProperty("value", "");
+  history.back();
+  await waitFor(() => expect(checker.getByRole("combobox", { name: "Word list" })).toHaveProperty("value", "test"));
+  history.forward();
+  await waitFor(() => expect(checker.getByRole("combobox", { name: "Word list" })).toHaveProperty("value", "alternate"));
   await user.click(checker.getByRole("button", { name: "Close dialog" }));
   await waitFor(() => expect(location.href).toBe(archiveLink));
   history.go(2);

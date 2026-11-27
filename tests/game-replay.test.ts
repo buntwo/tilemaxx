@@ -6,6 +6,7 @@ import {
   resumeFinishedGame,
 } from "../shared/archive-history";
 import { summarizeGame } from "../shared/game-index";
+import { createGameExport } from "../shared/game-export";
 import { gameReplayTimeline, hasRecordedMoves, replayGamePosition } from "../shared/game-replay";
 import {
   boardWordsAt,
@@ -396,6 +397,12 @@ test("archive recovery retains a uniquely scored placement alongside score-only 
   assert.deepEqual(recovered?.tiles, [{ index: 114, letter: "S" }]);
   assert.equal(recovered?.direction, "across");
   assert.equal(archived.archivedState?.trackedMoves?.[1].review, undefined);
+  recovered!.dictionaryId = "recovered-list";
+  const listed = { id: "recovered-list", name: "Recovered list", builtin: false, count: 1, description: "Test list" };
+  assert.deepEqual(createGameExport(archived, [listed]).wordLists, [
+    { id: listed.id, name: listed.name, builtin: listed.builtin },
+  ]);
+  recovered!.dictionaryId = game.dictionaryId;
   for (const candidate of [archiveGame(game), gameSchema.parse(archived)]) {
     const frame = gameReplayTimeline(candidate).frames[2];
     assert.deepEqual(frame.position, recovered);

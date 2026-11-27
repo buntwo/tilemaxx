@@ -370,8 +370,8 @@ function recoverReplay(
   return { frames, scoreStart, recovery };
 }
 
-export function captureArchiveReplay(game: Game) {
-  const { recovery } = recoverReplay(game, true, game.replayRecovery);
+export function captureArchiveReplay(game: Game, useFinal = true) {
+  const { recovery } = recoverReplay(game, useFinal, game.replayRecovery);
   if (recovery.some((turn) => turn !== null)) return recovery;
 }
 

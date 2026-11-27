@@ -410,7 +410,8 @@ export function createStore(directory: string, root: string) {
         ).all();
         for (const { id } of archivedGames) {
           const game = getGame(id as string)!;
-          const compacted = compactArchivedHistory(game);
+          const hasUndo = game.past.length || game.archivedState?.past.length;
+          const compacted = compactArchivedHistory(hasUndo ? saveArchiveReplay(game) : game);
           if (compacted !== game && !writeGame(compacted, { updatedAt: game.updatedAt })) {
             throw new Error("Could not update archived game history.");
           }
@@ -421,6 +422,14 @@ export function createStore(directory: string, root: string) {
       db.close();
       throw error;
     }
+  }
+  if (db.prepare("PRAGMA user_version").get()?.user_version === 7) {
+    transaction(() => {
+      if (db.prepare("PRAGMA user_version").get()?.user_version !== 7) return;
+      // Archived summaries previously counted passes and exchanges as plays.
+      db.exec(`DELETE FROM game_summaries WHERE json_extract(data, '$.archived') = 1;
+        PRAGMA user_version=8;`);
+    });
   }
   return {
     db,

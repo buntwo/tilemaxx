@@ -1,15 +1,17 @@
-import { Worker as NodeWorker } from "node:worker_threads";
+import type { Worker as NodeWorker } from "node:worker_threads";
+import { startApiThread } from "./api-thread";
 
 export class CandidateWorker {
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: ((event: ErrorEvent) => void) | null = null;
   onmessageerror: ((event: MessageEvent) => void) | null = null;
   private worker: NodeWorker;
+  private terminating = false;
 
   constructor() {
-    this.worker = new NodeWorker(
+    this.worker = startApiThread(
       new URL("./api-candidate.worker.js", import.meta.url),
-      { execArgv: [] },
+      new URL("./api-candidate.worker.ts", import.meta.url),
     );
     this.worker.on("message", (data) =>
       this.onmessage?.({ data } as MessageEvent),
@@ -17,18 +19,22 @@ export class CandidateWorker {
     this.worker.on("messageerror", (error) =>
       this.onmessageerror?.({ data: error } as MessageEvent),
     );
-    this.worker.on("error", (error) =>
+    const fail = (error: Error) =>
       this.onerror?.({
         message: error.message,
         error,
         preventDefault() {},
-      } as ErrorEvent),
-    );
+      } as ErrorEvent);
+    this.worker.on("error", fail);
+    this.worker.on("exit", (code) => {
+      if (!this.terminating) fail(new Error(`Candidate worker exited with code ${code}.`));
+    });
   }
   postMessage(message: unknown) {
     this.worker.postMessage(message);
   }
   terminate() {
+    this.terminating = true;
     void this.worker.terminate();
   }
 }

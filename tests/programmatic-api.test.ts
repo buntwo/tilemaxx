@@ -6,10 +6,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { version } from "../version.json";
 import { createApp } from "../server/app";
+import { CandidateWorker } from "../server/api-worker-adapter";
 import { createStore } from "../server/store";
-import { emptyBoard, type BoardTemplate, type Game } from "../shared/model";
+import { emptyBoard, remember, type BoardTemplate, type Game } from "../shared/model";
 import { emptyScoring } from "../shared/game-scoring";
-import { parseWords } from "../shared/lexicon";
+import { Lexicon, parseWords } from "../shared/lexicon";
 import { PRESETS } from "../shared/presets";
 import { TILE_SYMBOLS } from "../shared/tile-pool";
 import {
@@ -75,6 +76,23 @@ test("programmatic access is disabled until configured", async (t) => {
   assert.equal((await fetch(url + "/api/state/index")).status, 200);
 });
 
+test("server candidate workers run directly from source", { timeout: 5000 }, async (t) => {
+  const worker = new CandidateWorker();
+  t.after(() => worker.terminate());
+  const template = PRESETS[0];
+  const result = await new Promise((resolve, reject) => {
+    worker.onmessage = (event) => resolve(event.data);
+    worker.onerror = (event) => reject(event.error);
+    worker.postMessage({
+      dictionary: new Lexicon(["CAT"]),
+      job: { kind: "policy-turn", key: "expired", deadline: 0,
+        input: { template, position: { board: emptyBoard(template.size), tiles: [] }, word: "CAT" },
+      },
+    });
+  });
+  assert.deepEqual(result, { kind: "policy-turn", policy: undefined });
+});
+
 test("profile analysis explanations persist through play, undo, redo and archive", async (t) => {
   const { store, endpoint } = await fixture(t);
   const list = store.importDictionary("WOW24", "AT\nCAT\nCATS\nACT\n");
@@ -109,8 +127,14 @@ test("profile analysis explanations persist through play, undo, redo and archive
   assert.equal(undone.trackedMoves?.length, 0);
   const redone = await apply(undone, { action: "redo" });
   assert.deepEqual(redone.trackedMoves?.at(-1)?.styleExplanation, styleExplanation);
-  await apply(redone, { action: "archive" });
-  assert.deepEqual(store.getGame(game.id)?.archivedState?.trackedMoves?.at(-1)?.styleExplanation, styleExplanation);
+  const correction = remember(redone, "Confirmed board correction");
+  correction.past[correction.past.length - 1].at = "9999-12-31T00:00:00.000Z";
+  const corrected = store.saveGame({ ...redone, ...correction })!;
+  const archived = await apply(corrected, { action: "archive" });
+  assert.deepEqual(archived.archivedState?.trackedMoves?.at(-1)?.styleExplanation, styleExplanation);
+  assert.equal(archived.archivedState?.replayRecovery?.[0]?.correctionAfter, true);
+  const unarchived = await apply(archived, { action: "unarchive" });
+  assert.equal(unarchived.replayRecovery?.[0]?.correctionAfter, true);
 });
 
 test("the API records passes and exchanges and undoes them with the original rack", async (t) => {

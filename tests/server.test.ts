@@ -817,8 +817,13 @@ test("archived undo migration rolls back on error, preserves replay, and runs on
     const [first, second, empty] = ["legacy-a", "legacy-b", "already-compact"].map(id =>
       store!.createGame({ ...active, archived: false }, id),
     );
-    const legacy = archiveGame(first);
-    const legacyWithoutSnapshot = { ...second, archived: true };
+    const withCorrection = (game: Game) => {
+      const history = remember(game, "Confirmed board correction");
+      history.past[history.past.length - 1].at = "9999-12-31T00:00:00.000Z";
+      return { ...game, ...history };
+    };
+    const legacy = archiveGame(withCorrection(first));
+    const legacyWithoutSnapshot = { ...withCorrection(second), archived: true };
     const alreadyCompact = archiveForReview(empty);
     const write = store.db.prepare("UPDATE games SET data=? WHERE id=?");
     for (const game of [legacy, legacyWithoutSnapshot, alreadyCompact]) {
@@ -847,7 +852,7 @@ test("archived undo migration rolls back on error, preserves replay, and runs on
     }
 
     store = createStore(dir, process.cwd());
-    assert.equal(store.db.prepare("PRAGMA user_version").get()?.user_version, 7);
+    assert.equal(store.db.prepare("PRAGMA user_version").get()?.user_version, 8);
     const persisted = (game: Game) => JSON.parse(JSON.stringify(game));
     assert.deepEqual(store.getGame(active.id), persisted(active));
     assert.deepEqual(store.getGame(alreadyCompact.id), persisted(alreadyCompact));
@@ -862,6 +867,8 @@ test("archived undo migration rolls back on error, preserves replay, and runs on
       assert.deepEqual(store.index().games.find(({ id }) => id === archived.id),
         JSON.parse(JSON.stringify(summarizeGame(archived))));
     }
+    assert.equal(store.getGame(legacy.id)?.archivedState?.replayRecovery?.[0]?.correctionAfter, true);
+    assert.equal(store.getGame(legacyWithoutSnapshot.id)?.replayRecovery?.[0]?.correctionAfter, true);
     const saved = store.db.prepare(gameRows).all();
     store.db.close();
     store = undefined;

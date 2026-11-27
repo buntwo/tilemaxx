@@ -1,6 +1,4 @@
-import { existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { Worker } from "node:worker_threads";
+import type { Worker } from "node:worker_threads";
 import type { z } from "zod";
 import type {
   analysisRequest,
@@ -10,6 +8,7 @@ import type {
 } from "./api-analysis-request";
 import type { Game } from "../shared/model";
 import { ApiError } from "./api-error";
+import { startApiThread } from "./api-thread";
 
 type Dictionary = { file: string } | { text: string };
 export type Computation =
@@ -38,7 +37,10 @@ const timeout = 210_000;
 
 export function createComputationRunner() {
   let active = 0;
-  return async (input: Computation, signal: AbortSignal) => {
+  return async (
+    signal: AbortSignal,
+    prepare: () => Computation | Promise<Computation>,
+  ) => {
     if (active >= concurrency)
       throw new ApiError(429, "Tilemaxx is busy. Retry in a few seconds.");
     signal.throwIfAborted();
@@ -47,16 +49,10 @@ export function createComputationRunner() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let cancel: (() => void) | undefined;
     try {
-      worker = existsSync(builtWorker)
-        ? new Worker(builtWorker, { workerData: input, execArgv: [] })
-        : new Worker(
-            'require("tsx/cjs"); require(require("node:worker_threads").workerData.entry);',
-            {
-              eval: true,
-              workerData: { ...input, entry: fileURLToPath(sourceWorker) },
-              execArgv: [],
-            },
-          );
+      const input = await prepare();
+      signal.throwIfAborted();
+      const thread = startApiThread(builtWorker, sourceWorker, input);
+      worker = thread;
       const reply = await new Promise<ComputationResult>((resolve, reject) => {
         cancel = () => reject(signal.reason);
         signal.addEventListener("abort", cancel, { once: true });
@@ -67,9 +63,9 @@ export function createComputationRunner() {
             ),
           timeout,
         );
-        worker!.once("message", resolve);
-        worker!.once("error", reject);
-        worker!.once("exit", (code) =>
+        thread.once("message", resolve);
+        thread.once("error", reject);
+        thread.once("exit", (code) =>
           reject(new Error(`Computation worker exited with code ${code}.`)),
         );
       });

@@ -9,6 +9,7 @@ import {
   type PlayerScore,
 } from "./model";
 import {
+  currentScoreStart,
   displayedGameScoring,
   summarizeGameScore,
   tracksScores,
@@ -135,8 +136,13 @@ function summarizeArchivedStats(
   const outcome = result === "win" || result === "loss" || result === "tie"
     ? result
     : undefined;
-  const plays = fullMoveHistory && tracksScores(position) && !scoring.incomplete &&
-    scoring.you.moves ? scoring.you : undefined;
+  let plays: PlayerScore | undefined;
+  if (fullMoveHistory && tracksScores(position) && !scoring.incomplete) {
+    const history = trackedMoveHistory(position);
+    const moves = history.slice(currentScoreStart(position, history))
+      .filter((move) => move.player === "you" && !move.action).length;
+    if (moves) plays = { ...scoring.you, moves };
+  }
   return {
     outcome: position.solo ? undefined : outcome,
     finalScore: score?.you,

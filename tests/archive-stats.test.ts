@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { archiveStatistics } from "../shared/archive-stats";
 import { summarizeGame } from "../shared/game-index";
-import { emptyScoring, playTrackedMove } from "../shared/game-scoring";
+import { emptyScoring, playTrackedMove, recordBoardlessTurn } from "../shared/game-scoring";
 import { Lexicon } from "../shared/lexicon";
 import { archiveGame, emptyBoard, type Game } from "../shared/model";
 import { PRESETS } from "../shared/presets";
@@ -115,4 +115,21 @@ test("cached archive summaries retain old final scores and ties without inventin
   assert.equal(total.averageMargin, 0);
   assert.equal(total.highScore, 290);
   assert.equal(total.averageBingos, undefined);
+});
+
+test("archive placement statistics exclude passes and exchanges", () => {
+  const solo = { ...base, solo: true as const };
+  const passed = recordBoardlessTurn(solo, "you", { kind: "pass" });
+  const exchanged = recordBoardlessTurn(passed, "you", { kind: "exchange", slots: [0] });
+  const [move] = solve(new Lexicon(["TIN"]), exchanged.board, exchanged.rack, exchanged.template);
+  const played = playTrackedMove(exchanged, move);
+  const finished = (game: Game) => summarizeGame(archiveGame({
+    ...game,
+    scoring: { ...game.scoring!, end: { manual: true, scores: { you: move.score, opponent: 0 } } },
+  }));
+  assert.equal(played.scoring?.you.moves, 3);
+  const summaries = [finished(exchanged), finished(played)];
+  assert.equal(summaries[0].archiveStats?.plays, undefined);
+  assert.equal(summaries[1].archiveStats?.plays?.moves, 1);
+  assert.equal(archiveStatistics(summaries).total.pointsPerPlay, move.score);
 });

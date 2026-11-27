@@ -395,6 +395,7 @@ function applyAction(game: Game, command: z.infer<typeof action>): Game {
             archived: false,
             archivedBoard: undefined,
             archivedState: undefined,
+            replayRecovery: game.archivedState?.replayRecovery ?? game.replayRecovery,
           }
         : game;
     case "restore-archived-position":

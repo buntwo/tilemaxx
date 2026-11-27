@@ -31,6 +31,7 @@ export default function WordListChecker({
   const [check, setCheck] = useState<Check>();
   const worker = useRef<{ source: WordListSource; instance: Worker }>(null);
   const requestId = useRef(0);
+  useEffect(() => setUsingFile(false), [selectedId]);
   const dictionary =
     dictionaries.find(({ id }) => id === selectedId) ??
     dictionaries[0];

@@ -124,7 +124,13 @@ export function resumeFinishedGame(game: Game): Game {
 
 export function saveArchiveReplay(game: Game): Game {
   const snapshot = game.archivedState;
-  if (!game.archived || !game.archivedBoard || !snapshot || snapshot.replayRecovery) return game;
+  if (!game.archived) return game;
+  if (!game.archivedBoard || !snapshot) {
+    if (game.replayRecovery) return game;
+    const replayRecovery = captureArchiveReplay(game, false);
+    return replayRecovery ? { ...game, replayRecovery } : game;
+  }
+  if (snapshot.replayRecovery) return game;
   const replayRecovery = captureArchiveReplay(restoreArchivedGame(game));
   return replayRecovery || game.replayRecovery
     ? { ...game, replayRecovery: undefined, archivedState: { ...snapshot, replayRecovery } }
