@@ -25,7 +25,7 @@ function ReplayMoveStrip({
 }) {
   const { board, position, template } = frame;
   const move = historical ? frame.move : undefined;
-  const details = move && recordedMoveDetails(move, position, template.size);
+  const details = move && !move.action ? recordedMoveDetails(move, position, template.size) : undefined;
   return (
     <div
       className="replay-move-strip"
@@ -39,7 +39,7 @@ function ReplayMoveStrip({
           <span className="replay-move-player">
             {move.player === "you" ? "You" : "Opp"}
           </span>
-          {move.action ? <strong className="last-play-word">{details?.notation}</strong> : <button
+          {move.action ? <strong className="last-play-word">{trackedTurnLabel(move, "compact")}</strong> : <button
             className="text-button replay-recorded-word last-play-word"
             type="button"
             disabled={!position}

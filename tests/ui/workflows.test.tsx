@@ -15,7 +15,7 @@ import App from "../../src/App";
 import OptimalExchange from "../../src/components/OptimalExchange";
 import { GameStore, store } from "../../src/store";
 import { BoardEditHistory } from "../../shared/board-entry";
-import { emptyScoring, playTrackedMove, recordOpponentPlay } from "../../shared/game-scoring";
+import { emptyScoring, playTrackedMove, recordBoardlessTurn, recordOpponentPlay } from "../../shared/game-scoring";
 import { summarizeGame } from "../../shared/game-index";
 import { PRESETS } from "../../shared/presets";
 import { importBoard } from "../../shared/screenshot";
@@ -2393,6 +2393,24 @@ function replayFixture(opponentBlank = false, ownRack = "CATEINS") {
     revision: 1,
   };
 }
+
+test("replay uses compact labels for recorded exchanges", async () => {
+  const own = recordBoardlessTurn({ ...game(), rack: "CATERS?" }, "you", { kind: "exchange", slots: [0, 1, 2] });
+  const counted = recordBoardlessTurn(own, "opponent", { kind: "exchange", count: 4 });
+  const pass = recordBoardlessTurn(counted, "you", { kind: "pass" });
+  remote.games[0] = { ...recordBoardlessTurn(pass, "opponent", { kind: "exchange" }), revision: 1 };
+  history.replaceState(null, "", "/games/g?move=4");
+  await start();
+  const replay = within(await screen.findByRole("group", { name: "Game replay" }));
+  const strip = within(replay.getByRole("status"));
+  const slider = replay.getByRole("slider", { name: "Replay moves" });
+  expect(strip.getByText("Exch")).toBeTruthy();
+  fireEvent.change(slider, { target: { value: "1" } });
+  expect(strip.getByText("Exch CAT")).toBeTruthy();
+  expect(slider.getAttribute("aria-valuetext")).toContain("Exchange CAT");
+  fireEvent.change(slider, { target: { value: "2" } });
+  expect(strip.getByText("Exch 4")).toBeTruthy();
+});
 
 test.each([false, true])("game options export the saved game offline during replay (archived=%s)", async (archived) => {
   const base = replayFixture();

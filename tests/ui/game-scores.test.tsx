@@ -268,7 +268,7 @@ test("Game scores labels passes and exchanges and carries forward both totals", 
   fireEvent(history, new Event("toggle"));
   const table = within(screen.getByRole("table", { name: "Tracked moves" }));
   for (const [move, player, total] of [
-    ["3: Exchange J C", "You", "24"],
+    ["3: Exchange JC", "You", "24"],
     ["4: Exchange · 3 tiles", "Opp", "18"],
     ["5: Pass", "You", "24"],
     ["6: Exchange · count unknown", "Opp", "18"],
@@ -290,7 +290,7 @@ test("Game scores labels passes and exchanges and carries forward both totals", 
   expect(chart.getByText("Exch").className).toBe("score-chart-action");
   fireEvent.change(cursor, { target: { value: "2" } });
   expect(cursor.getAttribute("aria-valuetext")).toBe(
-    "Moves 3–4. You 24 points, Exchange J C for 0 points. Opponent 18 points, Exchange · 3 tiles for 0 points",
+    "Moves 3–4. You 24 points, Exchange JC for 0 points. Opponent 18 points, Exchange · 3 tiles for 0 points",
   );
   expect(chart.getByText("Exch JC").className).toBe("score-chart-action");
   expect(chart.getByText("Exch 3").className).toBe("score-chart-action");

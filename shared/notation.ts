@@ -146,9 +146,8 @@ export function trackedTurnLabel(
   if ("slots" in action) {
     const tiles = action.slots.map((slot) => review?.rack?.[slot]).filter(Boolean);
     if (tiles.length === action.slots.length) {
-      return exchangeNotation === "compact"
-        ? `Exch ${tiles.join("")}`
-        : `Exchange ${tiles.join(" ")}`;
+      const label = exchangeNotation === "compact" ? "Exch" : "Exchange";
+      return `${label} ${tiles.join("")}`;
     }
   }
   const count = "slots" in action ? action.slots.length : action.count;

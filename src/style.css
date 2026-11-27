@@ -6953,20 +6953,29 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   color: var(--replay-player-color);
 }
 .replay-move-strip[data-player] .bingo-move-word { color: inherit; }
+.replay-move-strip::before {
+  /* Match the recorded word's line box so the label stays put without it. */
+  content: "\200b";
+  grid-area: label;
+}
+.replay-move-strip::before,
+.replay-recorded-word {
+  min-height: 24px;
+  padding-block: 3px;
+  font-size: 14px;
+}
 .replay-recorded-word[aria-pressed="true"] { background: var(--soft); }
 .replay-recorded-word {
   display: block;
   justify-self: start;
   min-width: 0;
   max-width: 100%;
-  min-height: 24px;
-  padding: 3px 4px;
+  padding-inline: 4px;
   border-radius: 6px;
   text-align: start;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
   line-height: inherit;
 }
 .replay-recorded-word:has(.bingo-badge) {
@@ -6987,6 +6996,7 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
     row-gap: 1px;
     padding-inline: 5px;
   }
+  .replay-move-strip::before { content: none; }
 }
 .replay-move-result {
   grid-area: result;
