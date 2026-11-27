@@ -45,7 +45,7 @@ import BoardEntry, {
   type DraftHistory,
 } from "./components/BoardEntry";
 import BoardFinishOverlay from "./components/BoardFinishOverlay";
-import LastPlay, { type LastPlayBag } from "./components/LastPlay";
+import LastPlay, { TileCountWarning, type LastPlayBag } from "./components/LastPlay";
 import { useGameFinish } from "./useGameFinish";
 import { useGameReplay } from "./useGameReplay";
 import { ReplayControls, ReplayScores } from "./components/GameReplay";
@@ -356,6 +356,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
   const historical = gameReplay.historical;
   const trial = gameReplay.trial;
   const boardUnavailable = historical && !replay?.frame.board;
+  const replayRackFrame = historical && (!trial || boardUnavailable) ? replay?.frame : undefined;
   const recordedPreview = replay?.showRecorded ? replay.frame.position : undefined;
   const alternativePreview = replay?.alternativePreview;
   const replayDrawShelf = replay?.frames.some(({ draw }) => draw !== undefined) ?? false;
@@ -1470,6 +1471,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                           gameReplay.backToTurn();
                         }}>Back to move {replay.index || 1}</button>
                       )}
+                      {(replayRackFrame?.bag?.invalid ?? replyAnalysis.invalid) && <TileCountWarning />}
                     </div>
                   </div>
                 ) : <LastPlay
@@ -1651,7 +1653,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                     recordedPreview ?? alternativePreview ?? (preferences.highlightRackPreview && movePreview?.player !== "opponent" ? preview : null)
                   }
                   flyingRack={activeFlight}
-                  replayFrame={historical && (!trial || boardUnavailable) ? replay?.frame : undefined}
+                  replayFrame={replayRackFrame}
                   recordedPreview={!!recordedPreview}
                   replayRackLayout={replay?.rackLayout}
                   drawShelf={replayDrawShelf}
@@ -1670,6 +1672,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
               ) : (
                 <Results
                   compact={compactGame}
+                  opponentTurn={boardTurns.player === "opponent"}
                   results={solver.results}
                   findMovesRequest={findMovesRequest}
                   playingStyle={playingStyle}

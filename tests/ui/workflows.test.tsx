@@ -2881,6 +2881,7 @@ test("replay always highlights opponent placements and exposes tile counts when 
   expect(partial.querySelectorAll(".move-preview")).toHaveLength(2);
   const bag = screen.getByRole("button", { name: /Unseen tiles, .*check tile counts/ });
   expect(bag.hasAttribute("data-overdrawn")).toBe(true);
+  expect(screen.getByRole("img", { name: "Tile count error" }).closest(".last-play-row")).toBeTruthy();
   await user.click(bag);
   expect(screen.getByText("Your rack wasn’t recorded. These counts include any tiles it held.")).toBeTruthy();
   const breakdown = screen.getByRole("list", { name: "Unseen tile counts" });
@@ -8144,16 +8145,21 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
   }
 });
 
-test("the bag warns about excess tiles and clears when the rack is fixed", async () => {
+test("the bag and top board strip warn about excess tiles until the rack is fixed", async () => {
   const board = remote.games[0].board;
   board.fill("U", 0, 4);
   remote.games[0].revision++;
   const user = await start();
   await waitFor(() => expect(current().revision).toBe(1));
   const bag = screen.getByRole("button", { name: /^Unseen tiles,/ });
+  const gameBoard = within(screen.getByRole("region", { name: "Game board" }));
+  const warning = () => gameBoard.queryByRole("img", { name: "Tile count error" });
   expect(bag.hasAttribute("data-overdrawn")).toBe(false);
+  expect(warning()).toBeNull();
   await typeRack(user, "UUA");
   expect(bag.getAttribute("data-overdrawn")).toBe("true");
+  expect(warning()?.closest(".last-play-row")?.lastElementChild).toBe(warning());
+  expect(warning()?.querySelector(".lucide-triangle-alert")).toBeTruthy();
   expect(bag.getAttribute("aria-label")).toContain("check tile counts");
   expect(
     screen
@@ -8182,6 +8188,7 @@ test("the bag warns about excess tiles and clears when the rack is fixed", async
   await user.click(rackTile(2));
   await user.keyboard("T");
   expect(bag.hasAttribute("data-overdrawn")).toBe(false);
+  expect(warning()).toBeNull();
   expect(bag.getAttribute("aria-label")).not.toContain("check tile counts");
   expect(pool.getByRole("listitem", { name: "U: 0 unseen" })).toBeTruthy();
 });
@@ -8740,6 +8747,24 @@ test.each([false, true])("the idle header collapses and its star still finds mov
   await user.click(panel.getByRole("button", { name: "Close possible moves" }));
   expect(intro().getAttribute("aria-expanded")).toBe("false");
   expect(document.activeElement).toBe(intro());
+});
+
+test("the filled search button follows the active turn in the endgame", async () => {
+  remote.games[0] = { ...playBeforeRefill(), rack: "DSD", scoring: emptyScoring() };
+  const user = await start();
+  const board = within(screen.getByRole("region", { name: "Game board" }));
+  const moves = within(screen.getByRole("region", { name: "Possible moves" }));
+  const find = () => moves.getByRole("button", { name: "Find moves" });
+  const endgame = () => moves.getByRole("button", { name: "Solve endgame" });
+
+  expect(find().classList.contains("primary")).toBe(true);
+  expect(endgame().classList.contains("secondary")).toBe(true);
+  await user.click(board.getByRole("button", { name: "Pass" }));
+  expect(find().classList.contains("secondary")).toBe(true);
+  expect(endgame().classList.contains("primary")).toBe(true);
+  await user.click(board.getByRole("button", { name: "Pass" }));
+  expect(find().classList.contains("primary")).toBe(true);
+  expect(endgame().classList.contains("secondary")).toBe(true);
 });
 
 test.each([false, true])("after the last draw, Solve endgame previews opponent lines without playing (phone %s)", async (phone) => {

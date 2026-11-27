@@ -233,6 +233,7 @@ export default function Results({
   onResampleStyle,
   navigation,
   compact = false,
+  opponentTurn = false,
   fetchPage,
   fetchShortlist,
   runBingoHunter,
@@ -278,6 +279,7 @@ export default function Results({
   onResampleStyle?: () => void;
   navigation: MoveListNavigation;
   compact?: boolean;
+  opponentTurn?: boolean;
   fetchPage: FetchMovePage;
   runBingoHunter?: RunBingoHunter;
   fetchShortlist: (
@@ -354,6 +356,7 @@ export default function Results({
     !rackLetters(analysisGame.rack) &&
     (!replyAnalysis.crossplay || !replyAnalysis.opponentHasFinalTurn);
   const emptyRackMessage = "Your rack is empty. There’s no opponent endgame to solve.";
+  const highlightEndgame = opponentTurn && !resultSet && !!opponentPosition && !emptyRackEndgame;
   const opponentKey =
     opponentPosition && !emptyRackEndgame && analysisKey
       ? JSON.stringify([
@@ -1031,7 +1034,7 @@ export default function Results({
   }
   const solveEndgame = opponentPosition && (
     <button
-      className="button secondary solve-endgame-action"
+      className={`button ${highlightEndgame ? "primary" : "secondary"} solve-endgame-action`}
       type="button"
       aria-label="Solve endgame"
       title={emptyRackEndgame ? emptyRackMessage : "Solve endgame"}
@@ -1424,7 +1427,7 @@ export default function Results({
           )}
           <div className="results-search-actions">
             <button
-              className="button primary"
+              className={`button ${highlightEndgame ? "secondary" : "primary"}`}
               type="button"
               onClick={() => onSolve()}
               ref={findMovesButton}

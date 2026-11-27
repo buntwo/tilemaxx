@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, TriangleAlert } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { lastRecordedBoardPlay } from "../../shared/game-scoring";
 import { moveLocation, trackedTurnLabel } from "../../shared/notation";
@@ -16,8 +16,17 @@ export type LastPlayBag = {
   unseenPool: ReturnType<typeof unseenTiles> | undefined;
 };
 
+export function TileCountWarning() {
+  return (
+    <span className="last-play-tile-warning" role="img" aria-label="Tile count error" title="Check tile counts">
+      <TriangleAlert size={14} aria-hidden="true" />
+    </span>
+  );
+}
+
 function BagStatus({ bagSize, bagConfirmed, unseenPool }: LastPlayBag) {
-  if (!unseenPool || unseenPool.excess.length) return null;
+  if (!unseenPool) return null;
+  if (unseenPool.excess.length) return <TileCountWarning />;
   const estimatedCount = !bagConfirmed && unseenPool.total > 0;
   const includesOpponentRack = bagSize < unseenPool.total;
   const title = [
@@ -71,9 +80,14 @@ export default function LastPlay({
   reserveSpace?: boolean;
 }) {
   const play = useMemo(() => lastRecordedBoardPlay(game), [game]);
-  if (!play) return reserveSpace
-    ? <div className="last-play-row" aria-hidden="true" />
-    : null;
+  if (!play) {
+    if (bag?.unseenPool?.excess.length) return (
+      <div className="last-play-lane">
+        <div className="last-play-row"><TileCountWarning /></div>
+      </div>
+    );
+    return reserveSpace ? <div className="last-play-row" aria-hidden="true" /> : null;
+  }
   const { move } = play;
   return (
     <LastPlayLane
