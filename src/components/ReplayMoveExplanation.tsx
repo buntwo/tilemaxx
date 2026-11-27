@@ -73,6 +73,25 @@ function explain(explanation: StyleExplanation, word: (candidate: StyleCandidate
   return `${style} preferred ${word(played)} for ${points(played.move.score)} over ${word(alternative)} for ${points(alternative.move.score)}.`;
 }
 
+function explainReanalysis(
+  explanation: StyleExplanation,
+  availablePlacement: boolean,
+  word: (candidate: StyleCandidate) => string,
+) {
+  if (explanation.kind !== "play") return explain(explanation, word);
+  const style = styleLabel(explanation);
+  const { preferred, played, alternative, recommended } = explanation;
+  if (recommended) return explain(explanation, word);
+  const rank = played.evaluation.rank;
+  const recorded = !availablePlacement ? "The current word list and rack settings excluded the recorded placement."
+    : rank === undefined ? "The recorded placement fell outside this run’s ranking."
+    : `This run ranked the recorded ${word(played)} #${rank}.`;
+  const result = preferred ? `${style} favored ${preferred === "pass" ? "passing" : "an exchange"} in this run.`
+    : alternative ? `${style} ranked ${word(alternative)} first in this run.`
+    : `${style} returned no ranked placement in this run.`;
+  return `${recorded} ${result}`;
+}
+
 function FactorValue({ label, value }: { label: string; value: number }) {
   const weight = label === "Visibility weight" || label === "Appeal multiplier";
   const unit = label === "Next-turn bingo chance" ? "%" : "";
@@ -80,7 +99,7 @@ function FactorValue({ label, value }: { label: string; value: number }) {
   return <dd className={weight ? undefined : scoreTone(value)}>{prefix}{weight ? formatStyleWeight(value) : formatUtility(value)}{unit}</dd>;
 }
 
-function StyleBreakdown({ evaluation, exchangeEdge }: { evaluation?: StyleEvaluation; exchangeEdge?: number }) {
+function StyleBreakdown({ evaluation, exchangeEdge, word }: { evaluation?: StyleEvaluation; exchangeEdge?: number; word?: string }) {
   const factors = { ...evaluation?.factors, "Expected exchange edge": exchangeEdge };
   const entries = STYLE_FACTORS.flatMap((label) => {
     const value = factors[label];
@@ -89,7 +108,7 @@ function StyleBreakdown({ evaluation, exchangeEdge }: { evaluation?: StyleEvalua
   if (!entries.length) return null;
   return (
     <details className="replay-style-breakdown">
-      <summary>Style breakdown</summary>
+      <summary>Style breakdown{word && ` · ${word}`}</summary>
       <dl>
         {entries.map(({ label, value }) => (
           <div key={label}><dt>{label}</dt><FactorValue {...{ label, value }} /></div>
@@ -112,19 +131,21 @@ function StyleBreakdown({ evaluation, exchangeEdge }: { evaluation?: StyleEvalua
 }
 
 export default function ReplayMoveExplanation({
-  id, explanation, position, template, canPreview, previewing, onPreview,
+  explanation, position, template, canPreview, previewing, onPreview, reanalysis,
 }: {
-  id: string;
   explanation: StyleExplanation;
   position?: TurnPosition;
   template: BoardTemplate;
   canPreview: boolean;
   previewing: boolean;
   onPreview: () => void;
+  reanalysis?: { availablePlacement: boolean; estimatedBag: boolean };
 }) {
   const played = explanation.kind === "play" ? explanation.played : undefined;
   const alternative = explanation.alternative;
   const evaluation = played?.evaluation ?? (explanation.kind === "pass" ? explanation.evaluation : undefined);
+  const alternativeBreakdown = !!(reanalysis && alternative && !Object.keys(evaluation?.factors ?? {}).length);
+  const breakdown = alternativeBreakdown ? alternative?.evaluation : evaluation;
   const notation = (candidate: StyleCandidate) => moveNotation(candidate.move, template.size, position?.board);
   const showReply = [played, alternative].some((candidate) => candidate?.evaluation.modeledReply !== undefined);
   const showUtility = [played, alternative].some((candidate) => candidate?.evaluation.total !== undefined);
@@ -134,22 +155,22 @@ export default function ReplayMoveExplanation({
   const rows = [...(played ? [{ candidate: played, alternative: false }] : []),
     ...(alternative ? [{ candidate: alternative, alternative: true }] : [])];
   return (
-    <section id={id} className="replay-explanation" aria-label="Why this move?">
-      <h3>Why this move?</h3>
+    <>
       <p className="replay-explanation-source">
-        {styleLabel(explanation)}{explanation.kind === "play" && !explanation.recommended
+        {styleLabel(explanation)}{reanalysis ? " · Current word list" : explanation.kind === "play" && !explanation.recommended
           ? evaluation?.rank ? ` · You chose rank #${evaluation.rank}` : " · You chose this setup"
           : " recommendation"}
+        {reanalysis?.estimatedBag && " · Estimated bag"}
         {explanation.provisional && " · Provisional"}
         {evaluation?.exact ? " · Exact" : evaluation?.samples ? ` · ${evaluation.samples} samples` : ""}
       </p>
-      <p>{explain(explanation, notation)}</p>
+      <p>{reanalysis ? explainReanalysis(explanation, reanalysis.availablePlacement, notation) : explain(explanation, notation)}</p>
       {alternative && (
         <table className="replay-style-comparison" aria-label="Move comparison">
           <thead><tr>
             <th scope="col">Placement</th><th scope="col">Score</th>
             {showReply && <th scope="col">Est. reply</th>}
-            {showUtility && <th scope="col">{evaluation?.factors["Visibility weight"] !== undefined ? "Appeal" : "Utility"}</th>}
+            {showUtility && <th scope="col">{breakdown?.factors["Visibility weight"] !== undefined ? "Appeal" : "Utility"}</th>}
           </tr></thead>
           <tbody>
             {rows.map(({ candidate, alternative }) => {
@@ -175,7 +196,8 @@ export default function ReplayMoveExplanation({
           </tbody>
         </table>
       )}
-      <StyleBreakdown evaluation={evaluation} exchangeEdge={explanation.kind === "exchange" ? explanation.edge : undefined} />
-    </section>
+      <StyleBreakdown evaluation={breakdown} word={alternativeBreakdown && alternative ? notation(alternative) : undefined}
+        exchangeEdge={explanation.kind === "exchange" ? explanation.edge : undefined} />
+    </>
   );
 }

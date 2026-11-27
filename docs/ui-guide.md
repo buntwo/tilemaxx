@@ -48,7 +48,9 @@ Use your browser’s Back and Forward buttons to return to a page, game, or sele
 | **Bingo trophy** | The gold highlight and trophy next to a bingo in the move list, analysis, or a recorded game. |
 | **Move history** | The board and rack change log in **Game options**. Undo and Redo step through these changes. |
 
-For a saved playing-style decision, select **Why?** beside the score in the replay strip. The explanation uses the ranking and forecasts from the turn, including provisional results when applicable. **Style breakdown** shows favorable values in green and unfavorable values in red. Select the alternative’s word and square to preview it in purple on the same board. Select the recorded word or press **Escape** to return to the played move. Previous turns show this control when they have a saved explanation.
+For a saved playing-style decision, select **Why?** beside the score in the replay strip. The explanation uses the ranking and forecasts from the turn, including provisional results when applicable. **Style breakdown** shows favorable values in green and unfavorable values in red. Select the alternative’s word and square to preview it in purple on the same board. Select the recorded word or press **Escape** to return to the played move.
+
+For an older placement, open **Why?**, choose a **Playing style**, and select **Analyze**. **Reanalysis** compares the recorded play with a fresh ranking using the current word list and the recovered board and rack. It labels estimated bag counts and needs a complete recorded or recovered rack. The recorded turn and scores stay as saved when you preview an alternative.
 
 ## Possible moves and analysis
 

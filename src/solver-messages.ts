@@ -1,12 +1,13 @@
 import type { SimulatedStyle } from "../shared/simulated-styles";
 import type { HunterProgress, HunterSummary } from "./parallel-bingo-hunter";
 import type { BoardOdds, BoardOddsResult, RackOdds } from "../shared/bingo-odds";
-import type { BoardTemplate, Move, Position } from "../shared/model";
+import type { BoardTemplate, Move, Position, TrackedMove, TurnPosition } from "../shared/model";
 import type {
   EndgameRanking,
   MovePage,
   MoveQuery,
   MoveResults,
+  MoveStyle,
   ShortlistOptions,
 } from "../shared/move-results";
 import type { ShortlistEntry } from "../shared/move-shortlist";
@@ -15,6 +16,7 @@ import type { ExchangeAdviceRequest } from "../shared/exchange-advice";
 import type { EndgameSettings } from "../shared/endgame";
 import type { SolverStages } from "./move-timing";
 import type { ReplyCandidate } from "../shared/reply-candidates";
+import type { StyleExplanation } from "../shared/style-explanation";
 
 type PositionRequest = Position & {
   id: number;
@@ -23,10 +25,27 @@ type PositionRequest = Position & {
 };
 export type HunterOptions = EndgameSettings & { bagSize: number; workerLimit: number; style?: SimulatedStyle; resumeFrom?: number };
 
+export type ReplayStyleRequest = PositionRequest & EndgameSettings & {
+  kind: "replay-style";
+  style: MoveStyle;
+  solo?: true;
+  bagSize: number;
+  playerSeed: number;
+  scoreSpread: number;
+  workerLimit: number;
+  recorded: Pick<TrackedMove, "word" | "score"> & Pick<TurnPosition, "tiles" | "direction">;
+};
+
+export type ReplayStyleResult = {
+  explanation: Extract<StyleExplanation, { kind: "play" }>;
+  availablePlacement: boolean;
+};
+
 export type SolverRequest =
   | ({ kind: "bingo-hunter"; id: number; searchId: number } & HunterOptions)
   | { kind: "cancel-bingo-hunter"; id: number }
   | (PositionRequest & { kind: "solve"; solo?: true })
+  | ReplayStyleRequest
   | (PositionRequest & {
       kind: "board-odds";
       candidates: Move[];
@@ -79,6 +98,8 @@ type SolverUpdate =
 export type SolverMessage =
   | { kind: "bingo-hunter"; id: number; summary?: HunterSummary; error?: string }
   | { kind: "bingo-hunter-progress"; id: number; progress: HunterProgress }
+  | { kind: "replay-style"; id: number; result: ReplayStyleResult }
+  | { kind: "replay-style"; id: number; error: string }
   | (SolverUpdate & { id: number })
   | { kind: "page"; id: number; page?: MovePage }
   | { kind: "shortlist"; id: number; shortlist?: ShortlistEntry[] }

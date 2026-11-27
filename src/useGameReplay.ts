@@ -1,6 +1,9 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { gameReplayTimeline, hasRecordedMoves, replayGamePosition } from "../shared/game-replay";
 import type { Game } from "../shared/model";
+import { profileWordHash } from "../shared/player-profiles";
+import { endgameStreaks } from "../shared/endgame";
+import { useReplayStyleAnalysis, type ReplayStylePosition } from "./useReplayStyleAnalysis";
 
 const STEP_MS = 1100;
 type Timeline = ReturnType<typeof gameReplayTimeline>;
@@ -53,6 +56,30 @@ export function useGameReplay(
     return replayGamePosition(current.source, frame, before?.scores ?? { you: 0, opponent: 0 }, index);
   }, [historical, frame, timeline, index, current?.source]);
   const position = setup?.game;
+  const legacyPlacement = historical && frame?.move && !frame.move.action && !frame.move.styleExplanation;
+  const reanalysisPosition = useMemo((): ReplayStylePosition | undefined => {
+    if (!legacyPlacement || trial || !setup || !frame?.position?.tiles.length || !frame.move ||
+      !frame.bag || frame.bag.invalid || setup.rackLayout.incomplete || !current?.source || !timeline) return;
+    const { board, rack, template, dictionaryId, solo, excludedRackSlots, requiredRackSlots, scoring } = setup.game;
+    const streak = endgameStreaks[template.rules];
+    let scorelessTurns = 0;
+    if (streak) {
+      for (let previous = index - 1; previous > timeline.scoreStart; previous--) {
+        const move = timeline.frames[previous].move;
+        if (!move || (streak.passesOnly ? move.action?.kind !== "pass" : move.score > 0)) break;
+        if (scorelessTurns === streak.limit - 1) break;
+        scorelessTurns++;
+      }
+    }
+    return {
+      board, rack, template, dictionaryId, solo, excludedRackSlots, requiredRackSlots, scorelessTurns,
+      bagSize: frame.bag.count, playerSeed: profileWordHash(current.source.id),
+      scoreSpread: (scoring?.you.points ?? 0) - (scoring?.opponent.points ?? 0),
+      recorded: { word: frame.move.word, score: frame.move.score,
+        tiles: frame.position.tiles, direction: frame.position.direction },
+    };
+  }, [legacyPlacement, trial, setup, frame, current?.source, timeline, index]);
+  const reanalysis = useReplayStyleAnalysis(reanalysisPosition);
 
   useEffect(() => {
     if (session && !activeSession) setSession(undefined);
@@ -139,7 +166,7 @@ export function useGameReplay(
     if (current && historical && !trial && frame?.position)
       setSession({ ...current, playing: false, showRecorded: !current.showRecorded, showAlternative: false });
   }
-  const alternative = frame?.move?.styleExplanation?.alternative?.move;
+  const alternative = (frame?.move?.styleExplanation ?? reanalysis.result?.explanation)?.alternative?.move;
   const board = frame?.board;
   const canPreviewAlternative = !!(historical && !trial && board && alternative &&
     alternative.tiles.every(({ index }) => board[index] === ""));
@@ -213,7 +240,17 @@ export function useGameReplay(
       showRecorded: current.showRecorded && !trial,
       alternativePreview: canPreviewAlternative && current.showAlternative ? alternative : undefined,
       canPreviewAlternative,
+      reanalysis: legacyPlacement ? {
+        ...reanalysis,
+        solo: !!position?.solo,
+        estimatedBag: !!frame.bag?.estimated,
+        unavailable: reanalysisPosition ? undefined : trial ? "Return to the recorded position to analyze this move."
+          : !frame.position ? "The board before this move is unavailable."
+          : setup?.rackLayout.incomplete ? "The rack before this move is incomplete."
+          : "Tile counts for this turn are unavailable or invalid.",
+      } : undefined,
       seek,
+      pause,
       togglePlay,
       toggleRecorded,
       toggleAlternative,

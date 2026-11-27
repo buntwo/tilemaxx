@@ -7087,6 +7087,21 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .replay-explanation h3, .replay-explanation p { margin: 0; }
 .replay-explanation h3 { font-size: inherit; }
 .replay-explanation-source { color: var(--existing-letter); font-size: 12px; }
+.replay-reanalysis-controls {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.replay-reanalysis-controls label {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+}
+.replay-reanalysis-controls select { min-height: 32px; }
+@media (pointer: coarse) {
+  .replay-reanalysis-controls :is(select, button) { min-height: 44px; }
+}
 .replay-style-comparison {
   width: 100%;
   margin-block: 3px;

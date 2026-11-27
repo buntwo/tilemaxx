@@ -39,7 +39,8 @@ import { isSoloSimulatedStyle } from "../../shared/simulated-styles";
 import { createSoloStyleSearch } from "../../shared/solo-styles";
 import { prepareEndgameEstimate } from "../../shared/endgame-estimate";
 import { moveRowHeight } from "../../src/useMoveResults";
-import type { SolverMessage, SolverRequest } from "../../src/solver-messages";
+import type { ReplayStyleRequest, SolverMessage, SolverRequest } from "../../src/solver-messages";
+import { styleCandidate } from "../../shared/style-explanation";
 import type { PracticeRequest } from "../../src/practice.worker";
 import type { WordListCheckRequest } from "../../src/word-list-checker.worker";
 import type { EndgamePrecomputeRequest } from "../../src/useEndgameLines";
@@ -1107,7 +1108,7 @@ test("the first six endgame moves report progress and update Analyze with exact 
   );
   const { worker, request } = background!;
   const [first, second] = request.moves;
-  expect(screen.getByText("Solving exact lines · 0/6 checked")).toBeTruthy();
+  expect(await screen.findByText("Solving exact lines · 0/6 checked")).toBeTruthy();
   const spinner = document.querySelector(".calculation-indicator")!;
   expect(spinner.getAttribute("data-phase")).toBe("active");
   expect(
@@ -2466,6 +2467,67 @@ function replayFixture(opponentBlank = false, ownRack = "CATEINS") {
     revision: 1,
   };
 }
+
+test.each([1200, 390])("older replay placements can be reanalyzed and previewed at %ipx", async (width) => {
+  const work: { worker: ReanalysisWorker; request: ReplayStyleRequest }[] = [];
+  class ReanalysisWorker extends SolverWorker {
+    postMessage(request: SolverRequest) {
+      if (request.kind === "replay-style") work.push({ worker: this, request });
+      else super.postMessage(request);
+    }
+  }
+  function finish({ worker, request }: (typeof work)[number]) {
+    const moves = solve(new Lexicon(["CAT", "ACT"]), request.board, request.rack, request.template);
+    const played = moves.find((move) =>
+      move.word === request.recorded.word && move.direction === request.recorded.direction &&
+      move.tiles[0].index === request.recorded.tiles[0].index)!;
+    const other = moves.find(({ word }) => word === "ACT")!;
+    const utility = { rank: 1, total: 15, points: 15, premium: 0, visibility: 1, appeal: 1, leave: 1.5, goingOut: 0, premiumLane: -1.25 };
+    const data: SolverMessage = {
+      id: request.id, kind: "replay-style", result: {
+        availablePlacement: true,
+        explanation: {
+          kind: "play", style: request.style, recommended: false,
+          played: styleCandidate(played, { ...utility, rank: 2 }),
+          alternative: styleCandidate(other, utility),
+        },
+      },
+    };
+    act(() => worker.onmessage?.({ data }));
+  }
+  vi.stubGlobal("Worker", ReanalysisWorker);
+  remote.games[0] = replayFixture();
+  history.replaceState(null, "", "/games/g?move=1");
+  const user = await start(width);
+  await user.click(cell("Why?"));
+  const explanation = () => within(screen.getByRole("region", { name: "Why this move?" }));
+  const picker = explanation().getByRole("combobox", { name: "Playing style" });
+  await user.selectOptions(picker, "strong");
+  await user.click(explanation().getByRole("button", { name: "Analyze" }));
+  expect(work[0].request).toMatchObject({ style: "strong", recorded: { word: "CAT" } });
+  expect([...work[0].request.rack].sort().join("")).toBe("ACEINST");
+  finish(work[0]);
+  expect(explanation().getByRole("heading", { name: "Reanalysis" })).toBeTruthy();
+  expect(explanation().getByText(/Strong ranked ACT first in this run/)).toBeTruthy();
+  await user.click(explanation().getByText("Style breakdown"));
+  expect(explanation().getByText("-1.25").classList.contains("value-bad")).toBe(true);
+  await user.click(explanation().getByRole("button", { name: /^Preview alternative ACT/ }));
+  expect(screen.getByText(/Alternative · ACT/)).toBeTruthy();
+  expect(document.querySelector(".board-panel")?.hasAttribute("data-alternative-preview")).toBe(true);
+  expect(location.search).toBe("?move=1");
+  await user.click(cell("Preview recorded move CAT"));
+  expect(screen.queryByText(/Alternative · ACT/)).toBeNull();
+  expect(current().trackedMoves?.[0].styleExplanation).toBeUndefined();
+
+  await user.selectOptions(explanation().getByRole("combobox", { name: "Playing style" }), "learner");
+  await user.click(explanation().getByRole("button", { name: "Analyze" }));
+  await user.click(cell("Next move"));
+  expect(work[1].worker.terminate).toHaveBeenCalled();
+  finish(work[1]);
+  expect(explanation().getByText("The rack before this move is incomplete.")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /^Preview alternative/ })).toBeNull();
+  expect(location.search).toBe("?move=2");
+});
 
 test("replay uses compact labels for recorded exchanges", async () => {
   const own = recordBoardlessTurn({ ...game(), rack: "CATERS?" }, "you", { kind: "exchange", slots: [0, 1, 2] });

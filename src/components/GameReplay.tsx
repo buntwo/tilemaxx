@@ -14,6 +14,10 @@ import type { ReplayFrame } from "../../shared/game-replay";
 import type { Game, GameScoring } from "../../shared/model";
 import { moveLocation, moveNotation, recordedMoveDetails, trackedTurnLabel } from "../../shared/notation";
 import type { StylePlacement } from "../../shared/style-explanation";
+import type { MoveStyle } from "../../shared/move-results";
+import { PLAYER_PROFILES, PLAYER_PROFILE_LABELS } from "../../shared/player-profiles";
+import { OPPONENT_SIMULATED_STYLES, SIMULATED_STYLE_LABELS, SOLO_SIMULATED_STYLES } from "../../shared/simulated-styles";
+import type { useReplayStyleAnalysis } from "../useReplayStyleAnalysis";
 import ReplayMoveExplanation from "./ReplayMoveExplanation";
 import { ScorePlayers } from "./GameScores";
 import MoveWord from "./MoveWord";
@@ -93,6 +97,8 @@ export function ReplayControls({
   onToggleAlternative,
   detailsTarget,
   playing,
+  pause,
+  reanalysis,
   seek,
   togglePlay,
   close,
@@ -111,6 +117,12 @@ export function ReplayControls({
   onToggleAlternative: () => void;
   detailsTarget?: HTMLElement | null;
   playing: boolean;
+  pause: () => void;
+  reanalysis?: ReturnType<typeof useReplayStyleAnalysis> & {
+    solo: boolean;
+    estimatedBag: boolean;
+    unavailable?: string;
+  };
   seek: (index: number, replace?: boolean) => void;
   togglePlay: () => void;
   close: () => void;
@@ -118,7 +130,44 @@ export function ReplayControls({
   const controls = useRef<HTMLDivElement>(null);
   const explanationId = useId();
   const [whyOpen, setWhyOpen] = useState(false);
-  const explanation = historical ? frame.move?.styleExplanation : undefined;
+  const [style, setStyle] = useState<MoveStyle>("learner");
+  const storedExplanation = historical ? frame.move?.styleExplanation : undefined;
+  const fresh = reanalysis?.result;
+  const explanation = storedExplanation ?? fresh?.explanation;
+  const simulated = reanalysis?.solo ? SOLO_SIMULATED_STYLES : OPPONENT_SIMULATED_STYLES;
+  const selectedStyle = PLAYER_PROFILES.some((profile) => profile === style) || simulated.some((item) => item === style)
+    ? style : "learner";
+  const reanalysisControls = reanalysis && (reanalysis.unavailable ? (
+    <p>{reanalysis.unavailable}</p>
+  ) : (
+    <>
+      <form className="replay-reanalysis-controls" onSubmit={(event) => {
+        event.preventDefault();
+        if (reanalysis.pending) {
+          reanalysis.reset();
+          return;
+        }
+        if (alternativePreview) onToggleAlternative();
+        pause();
+        reanalysis.run(selectedStyle);
+      }}>
+        <label>
+          Playing style
+          <select value={selectedStyle} onChange={(event) => {
+            if (alternativePreview) onToggleAlternative();
+            reanalysis.reset();
+            setStyle(event.currentTarget.value as MoveStyle);
+          }}>
+            {PLAYER_PROFILES.map((profile) => <option key={profile} value={profile}>{PLAYER_PROFILE_LABELS[profile]}</option>)}
+            {simulated.map((item) => <option key={item} value={item}>{SIMULATED_STYLE_LABELS[item]}</option>)}
+          </select>
+        </label>
+        <button type="submit" className="button secondary">{reanalysis.pending ? "Cancel" : "Analyze"}</button>
+      </form>
+      {reanalysis.pending && <p role="status">Analyzing this turn…</p>}
+      {reanalysis.error && <p role="alert" className="value-bad">{reanalysis.error}</p>}
+    </>
+  ));
   const details = (
     <>
       {alternativePreview && (
@@ -128,10 +177,17 @@ export function ReplayControls({
           {" · "}{alternativePreview.score} pts
         </div>
       )}
-      {explanation && whyOpen && (
-        <ReplayMoveExplanation key={index} id={explanationId} explanation={explanation}
-          position={frame.position} template={frame.template} canPreview={canPreviewAlternative}
-          previewing={!!alternativePreview} onPreview={onToggleAlternative} />
+      {whyOpen && (explanation || reanalysis) && (
+        <section id={explanationId} className="replay-explanation" aria-label="Why this move?">
+          <h3>{reanalysis ? "Reanalysis" : "Why this move?"}</h3>
+          {reanalysisControls}
+          {explanation && (
+            <ReplayMoveExplanation key={index} explanation={explanation}
+              position={frame.position} template={frame.template} canPreview={canPreviewAlternative}
+              previewing={!!alternativePreview} onPreview={onToggleAlternative}
+              reanalysis={fresh && { availablePlacement: fresh.availablePlacement, estimatedBag: !!reanalysis?.estimatedBag }} />
+          )}
+        </section>
       )}
     </>
   );
@@ -164,11 +220,13 @@ export function ReplayControls({
       aria-keyshortcuts="ArrowLeft ArrowRight Space"
       tabIndex={-1}
     >
-      <ReplayMoveStrip {...{ frame, historical, showRecorded, onToggleRecorded }} why={explanation && (
+      <ReplayMoveStrip {...{ frame, historical, showRecorded, onToggleRecorded }} why={(explanation || reanalysis) && (
         <button type="button" className="button secondary replay-why" data-move-preview-action
           aria-controls={whyOpen ? explanationId : undefined} aria-expanded={whyOpen}
           onClick={() => {
             if (whyOpen && alternativePreview) onToggleAlternative();
+            if (whyOpen && reanalysis?.pending) reanalysis.reset();
+            if (!whyOpen && reanalysis) pause();
             setWhyOpen(!whyOpen);
           }}>Why?</button>
       )} />

@@ -1,9 +1,9 @@
 import { playTrackedMove, scorePlacement } from "./game-scoring";
-import { type Board, type Game, type Move, type Placement } from "./model";
+import { type Board, type Game, type Move, type Placement, type Position } from "./model";
 import { rackLetters } from "./rack-entry";
 import { unseenTiles } from "./tile-pool";
 
-export function prepareOwnPlay(game: Game, draft: Board, direction: Move["direction"]) {
+export function prepareOwnPlay(game: Position & Pick<Game, "template">, draft: Board, direction: Move["direction"]) {
   const tiles = draft.flatMap((letter, index) =>
     letter && !game.board[index] ? [{ index, letter }] : [],
   );

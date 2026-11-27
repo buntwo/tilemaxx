@@ -6,6 +6,7 @@ import { dictionaryText } from "./word-list-cache";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import {
   solvePositionWithBaseline,
+  solvePosition,
   inspectBoard,
   SearchLimitError,
   type PremiumReply,
@@ -29,7 +30,7 @@ import {
   prepareEndgameEstimate,
   type EndgameEstimate,
 } from "../shared/endgame-estimate";
-import type { SolverMessage, SolverRequest } from "./solver-messages";
+import type { HunterOptions, ReplayStyleRequest, ReplayStyleResult, SolverMessage, SolverRequest } from "./solver-messages";
 import { createPlayerProfiles, profileWordHash, usesLearnerPolicy, type PlayerProfile } from "../shared/player-profiles";
 import { createLearnerLookahead } from "../shared/learner-lookahead";
 import { loadProfileVocabulary } from "./word-frequencies";
@@ -37,12 +38,15 @@ import { rackComposition } from "../shared/rack-entry";
 import { createSoloStyleSearch } from "../shared/solo-styles";
 import type { HunterProgress } from "./parallel-bingo-hunter";
 import { timingNow } from "./move-timing";
+import { prepareOwnPlay } from "../shared/own-play";
+import { screenPlayerExchange, samplePlayerExchange, type PlayerExchangeAdvice } from "../shared/player-exchange";
+import { sameStylePlacement, styleCandidate, stylePlacement } from "../shared/style-explanation";
 
 let activeHunter: { id: number; searchId: number; abort: AbortController; finished: Promise<unknown> } | undefined;
 const hunterSessions = new Map<SimulatedStyle, { searchId: number; key: string; lastId?: number; session: ReturnType<typeof createBingoHunterSession> | ReturnType<typeof createMasterSession> | ReturnType<typeof soloSession> }>();
 type SolveRequest = Extract<SolverRequest, { kind: "solve" }>;
 type SolverResult = MoveResultIndex & {
-  position: SolveRequest;
+  position: Omit<SolveRequest, "kind">;
   lexicon: Lexicon;
   words: readonly string[];
   odds?: ReturnType<RackBingoIndex["calculate"]>;
@@ -257,6 +261,78 @@ function soloSession(search: ReturnType<typeof createSoloStyleSearch>) {
   };
 }
 
+function prepareHunter(result: SolverResult, style: SimulatedStyle,
+  settings: Pick<HunterOptions, "bagSize" | "scorelessTurns" | "opponentHasFinalTurn" | "workerLimit">,
+) {
+  const { position, lexicon, moves, odds } = result;
+  const workerLimit = computeWorkerLimit(settings.workerLimit);
+  if (isSoloSimulatedStyle(style))
+    return soloSession(createSoloStyleSearch(lexicon, position, moves, style));
+  return style === "master"
+    ? createMasterSession(lexicon, { ...position, ...settings }, moves, workerLimit)
+    : createBingoHunterSession(lexicon, { ...position, ...settings }, moves, odds, workerLimit, style);
+}
+
+async function analyzeReplayStyle(
+  request: ReplayStyleRequest,
+  { lexicon, bingo, words }: NonNullable<typeof dictionary>,
+): Promise<ReplayStyleResult> {
+  const { style, recorded, bagSize, template } = request;
+  const moves = solvePosition(lexicon, request, template);
+  const position = Object.assign(new MoveResultIndex(moves, template), { position: request, lexicon, words });
+  const query: MoveQuery = {
+    filter: "", offset: 0, sort: "playing-style", profile: style, profileBagSize: bagSize,
+    profileSeed: request.playerSeed, profileScorelessTurns: request.scorelessTurns,
+    profileScoreSpread: request.scoreSpread,
+  };
+  let preferred: "pass" | "exchange" | undefined;
+  let provisional: boolean | undefined;
+  if (isSimulatedStyle(style)) {
+    if (isSoloSimulatedStyle(style) !== !!request.solo)
+      throw new Error("This playing style is unavailable for this game.");
+    if (style === "bingo-hunter")
+      Object.assign(position, { odds: bingo.calculate(lexicon, request, template, moves, bagSize) });
+    const { ranked, summary } = await prepareHunter(position, style, request).run(
+      new AbortController().signal, () => {}, BINGO_HUNTER_SLICE_MS,
+    );
+    position.setProfile(query, ranked);
+    if ("passRecommended" in summary && summary.passRecommended) preferred = "pass";
+    provisional = summary.limited || (summary.canContinue && !("ceilingPass" in summary && summary.ceilingPass));
+  } else {
+    await prepareProfile(position, style, query, () => true);
+  }
+
+  const legal = moves.find((move) => sameStylePlacement(move, recorded));
+  const page = position.page({ ...query, locateMoveId: legal?.id });
+  const leaders = page.styleLeaders ?? [];
+  let exchange: PlayerExchangeAdvice | undefined = page.styleChoice?.exchange?.advice;
+  if (style === "strong" && !request.solo) {
+    const screened = screenPlayerExchange({ ...request, profile: style, move: page.styleChoice?.move });
+    exchange = screened.comparison && models
+      ? samplePlayerExchange(lexicon, models.choose, screened.comparison)?.advice ?? screened.advice
+      : screened.advice;
+  }
+  if (exchange) preferred = "exchange";
+  const utility = legal && (page.utilities?.[legal.id] ??
+    (page.locatedIndex !== undefined && page.locatedIndex >= 0
+      ? position.page({ ...query, offset: page.locatedIndex }).utilities?.[legal.id]
+      : undefined));
+  const after = [...request.board];
+  for (const { index, letter } of recorded.tiles) after[index] = letter;
+  const placement = legal ?? prepareOwnPlay(request, after, recorded.direction ?? "across").placement;
+  if (!placement) throw new Error("The recorded placement could not be recovered.");
+  const move = { ...stylePlacement(placement), word: recorded.word, score: recorded.score };
+  const played = utility ? styleCandidate(move, utility) : { move, evaluation: { factors: {} } };
+  const recommended = utility?.rank === 1 && !preferred;
+  return {
+    availablePlacement: !!legal,
+    explanation: {
+      kind: "play", style, played, preferred, recommended, provisional,
+      alternative: leaders.find((candidate) => !sameStylePlacement(candidate.move, recorded)),
+    },
+  };
+}
+
 async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
   const { id, searchId, bagSize, workerLimit, style = "bingo-hunter" } = request;
   const hunterSession = hunterSessions.get(style);
@@ -283,13 +359,7 @@ async function hunt(request: Extract<SolverRequest, { kind: "bingo-hunter" }>) {
     if (request.resumeFrom === undefined) {
       hunterSessions.set(style, {
         searchId, key,
-        session: isSoloSimulatedStyle(style)
-          ? soloSession(createSoloStyleSearch(result.lexicon, result.position, result.moves, style))
-          : style === "master"
-            ? createMasterSession(result.lexicon, { ...result.position, ...request },
-              result.moves, computeWorkerLimit(workerLimit))
-            : createBingoHunterSession(result.lexicon, { ...result.position, ...request },
-              result.moves, result.odds, computeWorkerLimit(workerLimit), style),
+        session: prepareHunter(result, style, { ...request, workerLimit }),
       });
     }
     const current = hunterSessions.get(style)!;
@@ -374,6 +444,10 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
       dictionaryElapsed = performance.now() - started;
     }
     const { lexicon, bingo } = index;
+    if (request.kind === "replay-style") {
+      post({ id, kind: "replay-style", result: await analyzeReplayStyle(request, index) });
+      return;
+    }
     if (request.kind === "endgame") {
       const ranking = await rankEndgame(request, lexicon, abort!.signal);
       if (!abort?.signal.aborted) post({ id, kind: "endgame", ranking });
@@ -482,6 +556,8 @@ self.onmessage = async (event: MessageEvent<SolverRequest>) => {
     post(
       request.kind === "endgame"
         ? { id, kind: "endgame" }
+        : request.kind === "replay-style"
+          ? { id, kind: "replay-style", error: message }
         : request.kind === "board-odds"
           ? { id, kind: "board-odds", error: message }
           : { id, kind: "solve-error", error: message },
