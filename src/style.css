@@ -5275,8 +5275,8 @@ label + label {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 3px 5px;
-  min-height: 32px;
-  padding-block: 4px;
+  min-height: 24px;
+  padding-block: 2px 0;
   cursor: pointer;
   font-size: clamp(10px, calc(5cqi - 4.5px), 12px);
   font-variant-numeric: tabular-nums;
@@ -5322,7 +5322,7 @@ label + label {
   font-weight: 700;
 }
 .tile-pool-content {
-  padding-top: 10px;
+  padding-top: 6px;
 }
 .tile-pool-controls {
   display: flex;
@@ -7217,6 +7217,9 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   container-type: inline-size;
   margin-top: 6px;
   padding: 7px 11px 8px;
+}
+.compact-game .rack-panel:has(> .rack-entry > .tile-pool:not([open])) {
+  padding-bottom: 4px;
 }
 .compact-game .rack-panel .rack-bag {
   --bag-width: clamp(18px, calc((100cqi - 102px) / var(--rack-size) - 4px), 36px);
