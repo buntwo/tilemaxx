@@ -136,6 +136,36 @@ test("an archive's final stats use the saved finish and replay stats use recorde
   expect(panel.getByRole("img", { name: "Your turn" })).toBeTruthy();
 });
 
+test("clicking a played move number opens the score editor", () => {
+  const game = gameWithScores(10, 0);
+  game.trackedMoves = [
+    { player: "you", word: "CAT", score: 10, at: "" },
+    { player: "opponent", word: "PASS", score: 0, at: "", action: { kind: "pass" } },
+  ];
+  const onChange = vi.fn();
+  render(<GameScores game={game} onToggle={vi.fn()} onRecord={vi.fn()}
+    onCorrection={vi.fn()} onChange={onChange} />);
+  const details = screen.getByText("Tracked move history").closest("details")!;
+  details.open = true;
+  fireEvent(details, new Event("toggle"));
+
+  const history = within(screen.getByRole("table", { name: "Tracked moves" }));
+  const edit = history.getByRole("button", { name: "Edit move 1: CAT" });
+  expect(edit.textContent).toBe("1");
+  expect(edit.children).toHaveLength(0);
+  expect(history.queryByRole("button", { name: /^Edit move 2/ })).toBeNull();
+  fireEvent.click(edit);
+  const dialog = within(screen.getByRole("dialog", { name: "Edit move 1" }));
+  expect(dialog.getByRole("textbox", { name: "Word" })).toHaveProperty("value", "CAT");
+  fireEvent.change(dialog.getByRole("spinbutton", { name: "Points" }), { target: { value: "12" } });
+  fireEvent.click(dialog.getByRole("button", { name: "Save correction" }));
+  expect(onChange).toHaveBeenCalledOnce();
+  expect(onChange.mock.calls[0][0].trackedMoves).toEqual([
+    expect.objectContaining({ word: "CAT", score: 12 }),
+    game.trackedMoves[1],
+  ]);
+});
+
 test("move history calculates strength when opened and discards results for a changed word list", async () => {
   const workers: StrengthWorker[] = [];
   class StrengthWorker {

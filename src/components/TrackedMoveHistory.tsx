@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import { ChevronDown, Pencil, Play, Plus } from "lucide-react";
+import { ChevronDown, Play, Plus } from "lucide-react";
 import type { scoreHistoryMoves } from "../../shared/game-scoring";
 import type { BoardTemplate } from "../../shared/model";
 import { trackedTurnLabel } from "../../shared/notation";
@@ -30,7 +30,7 @@ function MoveCell({
         onClick={() => onSelect(move.number)}
       >
         {move.action ? <span className="score-history-action">{move.notation}</span> :
-        <DefinitionWord word={move.word} className={move.bingo ? "score-history-word bingo-move-word" : "score-history-word"}>
+        <DefinitionWord word={move.word} className="score-history-word">
           {move.notation}
         </DefinitionWord>}
       </button>
@@ -153,10 +153,10 @@ export default function TrackedMoveHistory({
                           type="button"
                           className="score-edit-move"
                           aria-label={`Edit move ${move.number}: ${move.word}`}
+                          title={`Edit move ${move.number}`}
                           onClick={() => onEdit(move.number)}
                         >
                           {move.number}
-                          <Pencil size={11} aria-hidden="true" />
                         </button>
                       ) : <span className="score-move-index">{move.number}</span>}
                     </td>

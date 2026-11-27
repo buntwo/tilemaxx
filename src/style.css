@@ -1358,7 +1358,7 @@ label + label {
 }
 .score-panel {
   margin-top: 12px;
-  padding: 14px 16px;
+  padding: 14px 16px 4px;
 }
 .score-header,
 .score-header label,
@@ -1614,7 +1614,9 @@ label + label {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--value-good);
 }
+.score-history tr[data-player="opponent"] .score-history-word { color: var(--value-bad); }
 .score-history-action {
   display: block;
   white-space: normal;
@@ -1629,7 +1631,7 @@ label + label {
   font-size: 11px;
 }
 .score-history p {
-  margin-top: 8px;
+  margin: 8px 0 0;
 }
 .score-strength-trigger {
   display: grid;
@@ -1679,7 +1681,6 @@ label + label {
 .score-edit-move {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
   min-height: 30px;
   padding: 0;
   border: 0;
@@ -1687,9 +1688,11 @@ label + label {
   color: inherit;
   font: inherit;
 }
-.score-edit-move svg {
-  flex-shrink: 0;
+.score-edit-move {
+  min-inline-size: 24px;
   color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .score-actions {
   display: flex;
