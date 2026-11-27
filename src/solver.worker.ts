@@ -92,6 +92,7 @@ async function prepareProfile(
   const seed = profileWordHash(profileSample ? `${positionKey}:${profileSample}` : positionKey);
   const profilePosition = {
     ...position, bagSize, seed, playerSeed, scorelessTurns: query.profileScorelessTurns,
+    scoreSpread: query.profileScoreSpread,
   };
   const { considered, learnerSlate } = models.choose(result.moves, profile, profilePosition, {
     all: true, learnerSlate: usesLearnerPolicy(profile),

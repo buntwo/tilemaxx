@@ -55,6 +55,7 @@ export interface MoveQuery {
   profileSeed?: number;
   profileSample?: number;
   profileScorelessTurns?: number;
+  profileScoreSpread?: number;
   requiredSquares?: RequiredSquares;
   sort: MoveSort;
   reversed?: boolean;
@@ -73,14 +74,14 @@ export interface EndgameRanking {
   head: Move[];
 }
 
-type ProfileQuery = Pick<MoveQuery, "profile" | "profileBagSize" | "profileSeed" | "profileSample" | "profileScorelessTurns">;
+type ProfileQuery = Pick<MoveQuery, "profile" | "profileBagSize" | "profileSeed" | "profileSample" | "profileScorelessTurns" | "profileScoreSpread">;
 
 export function styleScorelessTurns(
   profile: MoveStyle | undefined,
   bagSize: number,
   scorelessTurns: number | undefined,
 ) {
-  if ((usesLearnerPolicy(profile) && bagSize > 0) || (profile === "strong" && bagSize === 0))
+  if (usesLearnerPolicy(profile) || (profile === "strong" && bagSize === 0))
     return scorelessTurns;
 }
 
@@ -90,8 +91,9 @@ export function profileQueryKey({
   profileSeed = 0,
   profileSample = 0,
   profileScorelessTurns,
+  profileScoreSpread,
 }: ProfileQuery) {
-  return JSON.stringify([profile, profileBagSize, profileSeed, profileSample, profileScorelessTurns]);
+  return JSON.stringify([profile, profileBagSize, profileSeed, profileSample, profileScorelessTurns, profileScoreSpread]);
 }
 
 type RankedMove = RankedProfileMove | RankedHunterMove | RankedSoloMove | { move: Move; utility: MasterUtility };
@@ -337,6 +339,7 @@ export class MoveResultIndex {
     profileSeed,
     profileSample,
     profileScorelessTurns,
+    profileScoreSpread,
     requiredSquares,
     offset,
     locateMoveId,
@@ -348,7 +351,7 @@ export class MoveResultIndex {
       this.endgame?.id === endgameId ? this.endgame?.estimates : undefined;
     const profileOrder = isSimulatedStyle(profile) ? this.hunterOrders.get(profile) : this.profileOrder;
     const profileKey = profile
-      ? profileQueryKey({ profile, profileBagSize, profileSeed, profileSample, profileScorelessTurns })
+      ? profileQueryKey({ profile, profileBagSize, profileSeed, profileSample, profileScorelessTurns, profileScoreSpread })
       : undefined;
     const ranked = profileOrder?.key === profileKey ? profileOrder : undefined;
     const source = profile ? ranked?.moves ?? [] : this.moves;

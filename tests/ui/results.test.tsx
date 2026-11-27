@@ -16,6 +16,7 @@ import { moveViewTiming } from "../../src/move-timing";
 import OptimalReplyDetails from "../../src/components/OptimalReplyDetails";
 import Results from "../../src/components/Results";
 import { emptyBoard, type Game, type Move } from "../../shared/model";
+import { emptyScoring } from "../../shared/game-scoring";
 import { TILE_SYMBOLS } from "../../shared/tile-pool";
 import { PRESETS } from "../../shared/presets";
 import type { DefenseResults, MoveDefense } from "../../shared/premium-defense";
@@ -870,6 +871,23 @@ const endgame: Game = {
   updatedAt: "",
   archived: false,
 };
+
+test("empty-bag style queries send the current score spread to the worker", async () => {
+  const scoring = emptyScoring();
+  scoring.you.points = 246;
+  scoring.opponent.points = 212;
+  const index = new MoveResultIndex(moves, PRESETS[0]);
+  const fetchPage = vi.fn<FetchMovePage>(async (_searchId, query) => index.page(query));
+  setup(false, {
+    analysisGame: { ...endgame, scoring },
+    playingStyle: "casual",
+    replyEnabled: false,
+    fetchPage,
+  });
+  await waitFor(() => expect(fetchPage).toHaveBeenCalledWith(
+    0, expect.objectContaining({ profile: "casual", profileBagSize: 0, profileScoreSpread: 34 }),
+  ));
+});
 
 test.each(["scrabble", "crossplay"] as const)(
   "%s shows a zero-point rack adjustment only when its rules transfer rack points",

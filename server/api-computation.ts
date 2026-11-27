@@ -19,6 +19,7 @@ export type Computation =
       position: z.infer<typeof boardPosition>;
       operation: z.infer<typeof analysisRequest>["operation"];
       game?: Game;
+      savedScoreSpread?: number;
       profileVocabulary?: Uint8Array;
       root: string;
     }

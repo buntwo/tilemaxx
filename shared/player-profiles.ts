@@ -13,6 +13,7 @@ import {
   createProfileEndgame,
   PROFILE_ENDGAME_TILES,
 } from "./player-profile-endgame";
+import { createProfileRackOut } from "./player-profile-rack-out";
 import {
   DEFAULT_PROFILE_APPEAL,
   learnerAppeal,
@@ -30,7 +31,7 @@ import {
   type EnglishProfileVocabulary,
 } from "./profile-vocabulary";
 import { splitRack } from "./rack-entry";
-import { choose, getTileCounts, unseenTiles } from "./tile-pool";
+import { choose, endgameOpponentRack, getTileCounts, unseenTiles } from "./tile-pool";
 import {
   createWordDifficulty,
   wordFrequencyLanguage,
@@ -120,6 +121,7 @@ export type ProfilePosition = Position & {
   playerSeed: number;
   solo?: true;
   scorelessTurns?: number;
+  scoreSpread?: number;
 };
 export type ProfileUtility = {
   total: number;
@@ -282,6 +284,7 @@ export function createPlayerProfiles(
   );
   let defense: ReturnType<typeof createProfileDefense> | undefined;
   let endgame: ReturnType<typeof createProfileEndgame> | undefined;
+  let rackOutCheck: ReturnType<typeof createProfileRackOut> | undefined;
 
   return (
     moves: readonly Move[],
@@ -307,7 +310,7 @@ export function createPlayerProfiles(
       : (value: number) => profileAppeal(value, sampling.appeal);
     const selectionWeight = (visibility: number, appeal: number) =>
       isLearner ? Math.log(visibility) + appeal : visibility * appeal;
-    const { bagSize, board, seed, playerSeed, rack, solo, scorelessTurns } =
+    const { bagSize, board, seed, playerSeed, rack, solo, scorelessTurns, scoreSpread } =
       position;
     const emptyBag = bagSize === 0 && template.rules !== "crossplay";
     const familiarityWeight = preset.lateFamiliarity
@@ -316,12 +319,14 @@ export function createPlayerProfiles(
     const learnerLeaveBoost =
       isLearner ? Math.min(1, bagSize / template.rackSize) : 0;
     const pool =
-      !solo && emptyBag && profile === "strong"
+      !solo && emptyBag && (profile === "strong" || liveLearner)
         ? unseenTiles(position, template)
         : undefined;
     const canTrack =
       pool && !pool.excess.length && pool.total <= template.rackSize;
+    const opponent = liveLearner && canTrack ? endgameOpponentRack(pool, template.rackSize) : undefined;
     const planEndgame =
+      profile === "strong" &&
       canTrack &&
       scorelessTurns !== undefined &&
       pool.total > 0 &&
@@ -354,6 +359,11 @@ export function createPlayerProfiles(
       return result;
     }
 
+    function knowsMove(move: Move) {
+      return knows(wordData(move.word, vocabularyPolicy)) &&
+        move.crosses.every((cross) => knows(wordData(cross, vocabularyPolicy)));
+    }
+
     const selected = profileAttention(
       board,
       size,
@@ -377,10 +387,7 @@ export function createPlayerProfiles(
         continue;
       }
       const word = wordData(move.word, vocabularyPolicy);
-      if (
-        !knows(word) ||
-        move.crosses.some((cross) => !knows(wordData(cross, vocabularyPolicy)))
-      ) {
+      if (!knowsMove(move)) {
         reject("vocabulary");
         continue;
       }
@@ -427,8 +434,9 @@ export function createPlayerProfiles(
       if (preset.premium)
         for (const tile of move.tiles)
           premium = Math.max(premium, salience[tile.index]);
-      const points = preset.score * move.score;
-      const premiumBonus = preset.premium * premium;
+      const confirmedOut = !!opponent && !move.leave;
+      const points = confirmedOut ? move.score : preset.score * move.score;
+      const premiumBonus = confirmedOut ? 0 : preset.premium * premium;
       const base = points + premiumBonus;
       if (options.metrics && base > bestBase) {
         bestBase = base;
@@ -552,8 +560,54 @@ export function createPlayerProfiles(
       }
     }
     const compareLearner = liveLearner && !solo && bagSize > 0;
-    const limit = options.all ? candidates.length : options.topThree || compareLearner ? 3 : 1;
-    const order = sampleProfilePlacements(candidates, seed, limit, isLearner);
+    const limit = options.all ? candidates.length : options.topThree || compareLearner || opponent ? 3 : 1;
+    let order = sampleProfilePlacements(candidates, seed, limit, isLearner);
+    if (opponent && halfLife !== undefined) {
+      const focusedOut = moves.reduce<Move | undefined>((best, move) =>
+        !move.leave && (!best || move.score > best.score) && knowsMove(move) ? move : best, undefined);
+      let finishing = focusedOut && order.find(({ move }) => move.id === focusedOut.id);
+      if (focusedOut && !finishing) {
+        const value = focusedOut.score + rackOut;
+        const appeal = appealFor(value);
+        finishing = { move: focusedOut, value, visibility: 1, weight: selectionWeight(1, appeal) };
+        if (options.all) finishing.utility = {
+          total: value, points: focusedOut.score, premium: 0, visibility: 1,
+          appeal: learnerAppeal(value, halfLife), leave: 0, goingOut: rackOut,
+        };
+      }
+      const slate = new Map<string, Candidate>();
+      for (const entry of order) {
+        if (!slate.has(entry.move.word)) slate.set(entry.move.word, entry);
+        if (slate.size === preset.finalists) break;
+      }
+      const finalists = [...slate.values()];
+      if (finishing && !finalists.includes(finishing)) finalists.push(finishing);
+      if (finishing && scoreSpread !== undefined && scoreSpread + finishing.value > 0) {
+        order = [finishing, ...order.filter(({ move }) => move.id !== finishing.move.id)];
+      } else if (finishing || scoreSpread !== undefined) {
+        const outcomes = (rackOutCheck ??= createProfileRackOut(lexicon, template))(
+          board, opponent, finalists.map(({ move }) => move), knowsMove,
+          rackOut, preset.endRack, scoreSpread, scorelessTurns,
+        );
+        if (outcomes) {
+          const byMove = new Map(finalists.map((entry) => [entry.move.id, entry]));
+          const ranked = outcomes.map(({ move, value, priority }) => {
+            const entry = byMove.get(move.id)!;
+            if (priority !== 0 && move.leave) {
+              if (entry.utility) entry.utility.endgame = value - entry.value;
+              entry.value = value;
+              updateAppeal(entry);
+            }
+            return entry;
+          });
+          order = [...ranked, ...order.filter(({ move }) => !byMove.has(move.id))];
+        }
+      }
+      if (finishing && order[0]?.move.id === finishing.move.id) {
+        bingoFound ||= isBingo(template, finishing.move.tiles.length);
+        if (rawFirst === finishing.move.id) topReason = "found";
+      }
+    }
     const first = order[0];
     const move = first?.move;
     let learnerSlate: Candidate[] | undefined;

@@ -7,9 +7,11 @@ import { join } from "node:path";
 import { version } from "../version.json";
 import { createApp } from "../server/app";
 import { createStore } from "../server/store";
-import { emptyBoard, type Game } from "../shared/model";
+import { emptyBoard, type BoardTemplate, type Game } from "../shared/model";
+import { emptyScoring } from "../shared/game-scoring";
 import { parseWords } from "../shared/lexicon";
 import { PRESETS } from "../shared/presets";
+import { TILE_SYMBOLS } from "../shared/tile-pool";
 import {
   decodeProfileVocabulary, learnerWordProbability,
   profileDictionaryRevision, profileVocabularyUrl,
@@ -214,6 +216,39 @@ test("server-side Casual uses its higher familiarity cutoff", async (t) => {
   }
   assert.deepEqual(await words("casual"), new Set(["AT"]));
   assert.deepEqual(await words("learner"), new Set(["AT", "QAT"]));
+});
+
+test("empty-bag Learner rankings use the saved score or an explicit score spread", async (t) => {
+  const { store, endpoint } = await fixture(t);
+  const list = store.importDictionary("WOW24", "AN\nAX\nOX\nTAN\nTO\nVA\n");
+  const [game] = store.state().games;
+  const template: BoardTemplate = {
+    ...PRESETS[0], size: 5, start: 12, rackSize: 3, premiums: Array(25).fill(""),
+    tileCounts: Object.fromEntries(TILE_SYMBOLS.map((letter) => [letter, Number("ANOQTVX".includes(letter))])),
+  };
+  template.premiums[7] = "TW";
+  template.premiums[11] = "TL";
+  const board = emptyBoard(5);
+  board[8] = "O";
+  board[12] = "A";
+  board[17] = "N";
+  const scoring = emptyScoring();
+  scoring.you.points = 22;
+  const rack = "VTQ";
+  const saved = store.saveGame({ ...game, template, board, rack, scoring, dictionaryId: list.id });
+  assert(saved);
+  async function best(position: object, scoreSpread?: number) {
+    const response = await endpoint("/analysis", {
+      position,
+      operation: { kind: "moves", style: "learner", sort: "playing-style", bagSize: 0, scoreSpread },
+    });
+    const result = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(result));
+    return result.rows[0]?.word;
+  }
+  assert.equal(await best({ gameId: saved.id }), "VA");
+  assert.equal(await best({ gameId: saved.id }, 60), "TO");
+  assert.equal(await best({ template, board, rack, dictionaryId: list.id }, 22), "VA");
 });
 
 test("move rankings and exchange advice use each style's known options", async (t) => {

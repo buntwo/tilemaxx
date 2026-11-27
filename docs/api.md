@@ -154,7 +154,7 @@ the search for move-specific analysis of the same position.
 | Operation `kind` | Output and options |
 | --- | --- |
 | `position` | Board warnings, unseen tiles, estimated bag size and optional `square` for crossing words. Saved games also return recorded score and turn information. |
-| `moves` | Up to 64 rows with scores and breakdowns, filtered scores and bingo counts, and `nextOffset` when more rows are available. Filter with `word` and `squares`. Optional `sort`, `reversed`, `style`, `seed`, `sample` and bounded `budgetMs` control ranking. A Learner swap recommendation is returned as `exchangeAdvice`. |
+| `moves` | Up to 64 rows with scores and breakdowns, filtered scores and bingo counts, and `nextOffset` when more rows are available. Filter with `word` and `squares`. Optional `sort`, `reversed`, `style`, `seed`, `sample` and bounded `budgetMs` control ranking. For empty-bag Casual and Learner searches, `scoreSpread` is your score minus the opponent’s and defaults to the tracked spread for a saved game. A Learner swap recommendation is returned as `exchangeAdvice`. |
 | `compare` | Compare up to three IDs in `moves`. Optionally set `opponent` to `casual`, `learner`, or `strong`, and request `refined` sampling. |
 | `reply` | Forecast the opponent's reply after `move` against an optional `reference`. Set `heatmap` or `refined` for details. |
 | `endgame-line` · `opponent-endgame` | Solve a player `move` or rank lines when the opponent plays first with an empty bag. |

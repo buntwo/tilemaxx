@@ -75,6 +75,10 @@ The seeded [word familiarity](../shared/word-familiarity.ts) model starts from e
 - NASPA introduces beginners to twos and threes. Scrabble New Zealand's training guide also recommends studying hooks and high-probability bingo racks, balancing the rack, and spending more thought on the endgame. [NASPA director manual](https://scrabbleplayers.org/dirman/dirman-20130721.pdf), [Scrabble New Zealand](https://scrabble.org.nz/resources/16-tips-to-boost-your-scrabble-game/)
 - Scrabble AI research motivates adding score and rack quality before more expensive search and using unseen tiles to screen defense. [Richards and Amir](https://ijcai.org/proceedings/2007/239), [Agarwal](https://arxiv.org/abs/1901.08728), [Tibshirani](https://arxiv.org/abs/1107.2456)
 
+## Empty-bag rack-outs
+
+Casual and Learner check for a finish across the board when the unseen tiles establish the opponent’s rack. The current style’s vocabulary applies to both players’ rack-outs, including cross words. A move that uses the whole rack gains twice the opponent’s remaining tile value in spread. With a tracked score, the style takes an available winning finish and checks its shortlisted alternatives for an opponent rack-out that wins after the rack adjustment. It favors an alternative that avoids that immediate loss.
+
 ## Premium threats
 
 The lane adjustment uses the largest increase in two-premium risk. Strong weights that change three times as much as Learner. The lane check uses rack capacity, perpendicular word constraints, unseen tiles, and the value of letters a reply would play through. Triple- and quadruple-word squares count as major premiums. Strong also checks one-tile hooks onto major word and letter premiums and discounts threats when the needed tile is scarce.

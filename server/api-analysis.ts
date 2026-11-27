@@ -233,7 +233,7 @@ function gameReview(
 export async function analyzePosition(
   lexicon: Lexicon,
   words: string[],
-  { position, operation, root, game, profileVocabulary }: Request,
+  { position, operation, root, game, profileVocabulary, savedScoreSpread }: Request,
 ) {
   const { template, board, solo } = position;
   const vocabulary = profileVocabulary && decodeProfileVocabulary(profileVocabulary, words);
@@ -362,12 +362,16 @@ export async function analyzePosition(
         maximumOpponentRack,
       );
     const index = new MoveResultIndex(moves, template);
+    const scoreSpread = usesLearnerPolicy(style) && !solo && bagSize === 0
+      ? operation.scoreSpread ?? savedScoreSpread
+      : undefined;
     const profileQuery = {
       profile: style,
       profileBagSize: bagSize,
       profileSeed: seed,
       profileSample: sample,
       profileScorelessTurns: settings.scorelessTurns,
+      profileScoreSpread: scoreSpread,
     };
     let styleSummary;
     let exchangeAdvice: PlayerExchangeAdvice | undefined;
@@ -377,6 +381,7 @@ export async function analyzePosition(
         ...settings,
         seed: profileWordHash(sample ? `${positionKey}:${sample}` : positionKey),
         playerSeed: seed,
+        scoreSpread,
         solo: solo ? true as const : undefined,
       };
       const choose = profiles(root, lexicon, template, vocabulary);

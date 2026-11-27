@@ -2,7 +2,7 @@ import { json, Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { version } from "../version.json";
 import { archiveStatistics } from "../shared/archive-stats";
-import { correctSuperLexulousCenter } from "../shared/game-scoring";
+import { correctSuperLexulousCenter, scoreTotalsAtPosition } from "../shared/game-scoring";
 import { ApiError } from "./api-error";
 import { createComputationRunner } from "./api-computation";
 import {
@@ -142,6 +142,9 @@ export function createProgrammaticRouter(
       }
       res.setHeader("X-Tilemaxx-Revision", String(saved.revision));
       const game = correctSuperLexulousCenter(saved);
+      const scores = operation.kind === "moves" && usesLearnerPolicy(operation.style)
+        ? scoreTotalsAtPosition(game)
+        : undefined;
       const review = [
         "position",
         "review-game",
@@ -173,6 +176,7 @@ export function createProgrammaticRouter(
           solo,
         },
         game: review ? game : undefined,
+        savedScoreSpread: scores ? scores.you - scores.opponent : undefined,
       });
     } else {
       await run(res, {

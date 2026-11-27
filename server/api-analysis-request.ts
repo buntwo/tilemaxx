@@ -84,6 +84,7 @@ export const analysisRequest = z.strictObject({
         .optional(),
       reversed: z.boolean().optional(),
       style: z.enum([...PLAYER_PROFILES, ...SIMULATED_STYLES]).optional(),
+      scoreSpread: z.number().int().optional(),
       seed: seed.default(0),
       sample: seed.default(0),
       budgetMs: z.number().int().min(1_000).max(180_000).default(10_000),

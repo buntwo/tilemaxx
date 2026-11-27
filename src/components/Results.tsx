@@ -50,7 +50,7 @@ import {
   REPLY_SAMPLES,
 } from "../../shared/reply-analysis";
 import { ANALYSIS_LIMIT } from "../../shared/move-analysis";
-import { PLAYER_PROFILES, PLAYER_PROFILE_LABELS, profileWordHash } from "../../shared/player-profiles";
+import { PLAYER_PROFILES, PLAYER_PROFILE_LABELS, profileWordHash, usesLearnerPolicy } from "../../shared/player-profiles";
 import { compileMoveWordFilter } from "../../shared/move-word-filter";
 import { endgameAfterRefill } from "../../shared/endgame-refill";
 import { rackLetters } from "../../shared/rack-entry";
@@ -451,6 +451,9 @@ export default function Results({
   const hunterResult = hunterSelected ? hunter.current?.result : undefined;
   const hunterProgress = hunter.current?.progress;
   const hunterPending = hunter.current?.pending;
+  const profileScores = usesLearnerPolicy(profile) && bagSize === 0 && analysisGame && !analysisGame.solo
+    ? scoreTotalsAtPosition(analysisGame)
+    : undefined;
   const profileQuery = {
     profile,
     profileBagSize: profile ? bagSize : undefined,
@@ -459,6 +462,7 @@ export default function Results({
     profileSeed: hunterSelected ? hunterResult?.id :
       profile && analysisGame ? profileWordHash(analysisGame.id) : undefined,
     profileSample: profile && !hunterSelected ? styleSample : undefined,
+    profileScoreSpread: profileScores ? profileScores.you - profileScores.opponent : undefined,
   };
   const profileKey = profile ? profileQueryKey(profileQuery) : undefined;
   const activeProfileReplies = profileKey ? replyAnalysis.profileReplies?.[profileKey] : undefined;

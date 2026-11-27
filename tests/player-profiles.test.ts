@@ -277,6 +277,67 @@ test("profiles value shedding awkward duplicates and keeping flexible leaves", (
   assert.ok(profileLeaveValue("SST") > profileLeaveValue("IIT"));
 });
 
+test("Casual and Learner block winning rack-outs they know with the tracked score", () => {
+  const board = emptyBoard(5);
+  board[8] = "O";
+  board[12] = "A";
+  board[17] = "N";
+  const premiums: Premium[] = Array(25).fill("");
+  premiums[7] = "TW";
+  premiums[11] = "TL";
+  const template = {
+    ...PRESETS[0], size: 5, premiums,
+    tileCounts: Object.fromEntries(TILE_SYMBOLS.map((letter) => [letter, Number("ANOQTVX".includes(letter))])),
+  };
+  const lexicon = new Lexicon(["AN", "AX", "OX", "TAN", "TO", "VA"]);
+  const rack = "VTQ";
+  const moves = solve(lexicon, board, rack, template);
+  function rank(profile: "casual" | "learner", knownCross: boolean, scoreSpread?: number) {
+    const words = ["AN", "AX", "TAN", "TO", "VA", ...(knownCross ? ["OX"] : [])];
+    const vocabulary = new Map(words.map((word) => [word, packFamiliarity(9_000)]));
+    const choose = createPlayerProfiles(lexicon, template, new Map(), { coverage: 4, appeal: 48 }, vocabulary);
+    return choose(moves, profile, { board, rack, bagSize: 0, seed: 0, playerSeed: 0, scoreSpread },
+      { all: true, learnerSlate: true }).considered!;
+  }
+  for (const profile of ["casual", "learner"] as const) {
+    const defended = rank(profile, true, 22);
+    assert.equal(defended[0].move.word, "VA");
+    const dangerous = defended.find(({ move }) => move.word === "TO" && move.score === 15)!;
+    assert.equal(dangerous.utility.total,
+      dangerous.move.score - 18 - 2 * rackPoints(dangerous.move.leave, template.rules));
+    assert.equal(rank(profile, false, 22)[0].move.word, "TO");
+    assert.equal(rank(profile, true, 60)[0].move.word, "TO");
+    assert.deepEqual(rank(profile, true), rank(profile, false));
+  }
+});
+
+test("Casual and Learner credit the full rack transfer for a known winning finish", () => {
+  const board = emptyBoard(5);
+  board[12] = "A";
+  board[17] = "N";
+  const template = {
+    ...PRESETS[0], size: 5, premiums: Array<Premium>(25).fill(""),
+    tileCounts: Object.fromEntries(TILE_SYMBOLS.map((letter) => [letter, Number("ANRTX".includes(letter))])),
+  };
+  const lexicon = new Lexicon(["AN", "ART", "RA", "TAN"]);
+  const rack = "RT";
+  const moves = solve(lexicon, board, rack, template);
+  const position = { board, rack, bagSize: 0, seed: 0, playerSeed: 0, scoreSpread: -10 };
+  for (const profile of ["casual", "learner"] as const) {
+    const known = new Map(["AN", "ART", "RA", "TAN"].map((word) => [word, packFamiliarity(9_000)]));
+    const choose = createPlayerProfiles(lexicon, template, new Map(), undefined, known);
+    const options = { all: true, learnerSlate: true };
+    const result = choose(moves, profile, position, options);
+    assert.equal(result.move?.word, "ART");
+    const { move, utility } = result.considered![0];
+    assert.equal(utility.goingOut, 2 * rackPoints("X", template.rules));
+    assert.equal(utility.total, move.score + utility.goingOut);
+    known.delete("ART");
+    const limited = createPlayerProfiles(lexicon, template, new Map(), undefined, known);
+    assert.ok(limited(moves, profile, position, options).considered!.every(({ move }) => move.word !== "ART"));
+  }
+});
+
 test("Learner gives the whole leave more weight, fading the boost as the bag empties", () => {
   const template = PRESETS[0];
   const board = emptyBoard(template.size);
