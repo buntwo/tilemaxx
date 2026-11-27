@@ -186,10 +186,10 @@ test("packed vocabulary is compressed, checks dictionary content, and revalidate
   assert.equal(mismatch.status, 409);
 });
 
-test("server-side Casual uses its higher familiarity cutoff", async (t) => {
+test("server-side Casual shares short favorites without inheriting Learner's study vocabulary", async (t) => {
   const { store, endpoint } = await fixture(t);
   const profile = store.createProfile("Vocabulary test");
-  const list = store.importDictionary("Vocabulary test", "AT\nQAT\n");
+  const list = store.importDictionary("WOW24", "AT\nQAT\nTUI\nZA\n");
   const created = await endpoint("/games/new", {
     profileId: profile.id,
     templateId: "scrabble",
@@ -201,21 +201,21 @@ test("server-side Casual uses its higher familiarity cutoff", async (t) => {
   assert.equal(created.status, 201, JSON.stringify(game));
   const updated = await endpoint(`/games/${game.id}/actions`, {
     revision: game.revision,
-    command: { action: "rack", rack: "QAT" },
+    command: { action: "rack", rack: "QATUIZ" },
   });
   assert.equal(updated.status, 200);
   const edited: Game = await updated.json();
   async function words(style: "casual" | "learner") {
     const result = await endpoint("/analysis", {
       position: { gameId: edited.id, revision: edited.revision },
-      operation: { kind: "moves", style, seed: 55 },
+      operation: { kind: "moves", style, seed: 1 },
     });
     const payload = await result.json();
     assert.equal(result.status, 200, JSON.stringify(payload));
     return new Set<string>(payload.rows.map((row: { word: string }) => row.word));
   }
-  assert.deepEqual(await words("casual"), new Set(["AT"]));
-  assert.deepEqual(await words("learner"), new Set(["AT", "QAT"]));
+  assert.deepEqual(await words("casual"), new Set(["AT", "QAT", "ZA"]));
+  assert.deepEqual(await words("learner"), new Set(["AT", "QAT", "TUI", "ZA"]));
 });
 
 test("empty-bag Learner rankings use the saved score or an explicit score spread", async (t) => {

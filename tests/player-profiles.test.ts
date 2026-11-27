@@ -279,7 +279,7 @@ test("profiles value shedding awkward duplicates and keeping flexible leaves", (
 
 test("Casual and Learner block winning rack-outs they know with the tracked score", () => {
   const board = emptyBoard(5);
-  board[8] = "O";
+  board[8] = "I";
   board[12] = "A";
   board[17] = "N";
   const premiums: Premium[] = Array(25).fill("");
@@ -287,13 +287,13 @@ test("Casual and Learner block winning rack-outs they know with the tracked scor
   premiums[11] = "TL";
   const template = {
     ...PRESETS[0], size: 5, premiums,
-    tileCounts: Object.fromEntries(TILE_SYMBOLS.map((letter) => [letter, Number("ANOQTVX".includes(letter))])),
+    tileCounts: Object.fromEntries(TILE_SYMBOLS.map((letter) => [letter, Number("AINQTVX".includes(letter))])),
   };
-  const lexicon = new Lexicon(["AN", "AX", "OX", "TAN", "TO", "VA"]);
+  const lexicon = new Lexicon(["AN", "AX", "IX", "TAN", "TI", "VA"]);
   const rack = "VTQ";
   const moves = solve(lexicon, board, rack, template);
   function rank(profile: "casual" | "learner", knownCross: boolean, scoreSpread?: number) {
-    const words = ["AN", "AX", "TAN", "TO", "VA", ...(knownCross ? ["OX"] : [])];
+    const words = ["AN", "AX", "TAN", "TI", "VA", ...(knownCross ? ["IX"] : [])];
     const vocabulary = new Map(words.map((word) => [word, packFamiliarity(9_000)]));
     const choose = createPlayerProfiles(lexicon, template, new Map(), { coverage: 4, appeal: 48 }, vocabulary);
     return choose(moves, profile, { board, rack, bagSize: 0, seed: 0, playerSeed: 0, scoreSpread },
@@ -302,11 +302,11 @@ test("Casual and Learner block winning rack-outs they know with the tracked scor
   for (const profile of ["casual", "learner"] as const) {
     const defended = rank(profile, true, 22);
     assert.equal(defended[0].move.word, "VA");
-    const dangerous = defended.find(({ move }) => move.word === "TO" && move.score === 15)!;
+    const dangerous = defended.find(({ move }) => move.word === "TI" && move.score === 15)!;
     assert.equal(dangerous.utility.total,
       dangerous.move.score - 18 - 2 * rackPoints(dangerous.move.leave, template.rules));
-    assert.equal(rank(profile, false, 22)[0].move.word, "TO");
-    assert.equal(rank(profile, true, 60)[0].move.word, "TO");
+    assert.equal(rank(profile, false, 22)[0].move.word, "TI");
+    assert.equal(rank(profile, true, 60)[0].move.word, "TI");
     assert.deepEqual(rank(profile, true), rank(profile, false));
   }
 });

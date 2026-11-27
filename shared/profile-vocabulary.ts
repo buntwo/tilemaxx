@@ -5,12 +5,14 @@ const scoreMask = 0x3fff;
 const studyFlag = 0x4000;
 const headerSize = 20;
 const magic = "TMV1";
-const favorites = new Set(
+const shortFavorites = new Set(
   (
-    "AAL AAS ADZ AIS AJI AZO CINQ CWM CWMS EAU EAUX HAJ JEE JEU JIN JOW JUS KEX OES OXO " +
-    "PHT PYX QADI QAID QAT QATS QIS QOPH QUA RAJ RAX SUQ SUQS ULU VOX XIS ZAS ZAX ZEK ZOA"
+    "AA AE AX EX JO OE OX QI XI XU ZA " +
+    "AAL AAS ADZ AIS AJI AZO CWM EAU HAJ JEE JEU JIN JOW JUS KEX OES OXO " +
+    "PHT PYX QAT QIS QUA RAJ RAX SUQ ULU VOX XIS ZAS ZAX ZEK ZOA"
   ).split(" "),
 );
+const learnerLongFavorites = new Set("CINQ CWMS EAUX QADI QAID QATS QOPH SUQS".split(" "));
 
 export type EnglishProfileVocabulary = ReadonlyMap<string, number>;
 export type ProfileDictionary = { id: string; words: readonly string[] };
@@ -87,15 +89,18 @@ function familiarityProbability(
     : 2 ** (Math.min(0, score - cutoff) / halfLife);
 }
 
-export function casualWordProbability(entry: number | undefined) {
-  return familiarityProbability(entry, 9_000, 250);
+export function casualWordProbability(
+  spelling: string,
+  entry: number | undefined,
+) {
+  return shortFavorites.has(spelling) ? 1 : familiarityProbability(entry, 9_000, 250);
 }
 
 export function learnerWordProbability(
   spelling: string,
   entry: number | undefined,
 ) {
-  if (favorites.has(spelling)) return 1;
+  if (shortFavorites.has(spelling) || learnerLongFavorites.has(spelling)) return 1;
   const studied = !!((entry ?? 0) & studyFlag);
   if (studied && spelling.length === 2) return 1;
   const familiarity = familiarityProbability(entry, 8_000, 500);

@@ -215,7 +215,7 @@ export function createPlayerProfiles(
     if (vocabulary && usesLearnerPolicy(policy)) {
       const entry = vocabulary.get(spelling);
       const chance = policy === "casual"
-        ? casualWordProbability(entry)
+        ? casualWordProbability(spelling, entry)
         : learnerWordProbability(spelling, entry);
       return (wordInfo.data[policy] = {
         hash: wordInfo.hash,

@@ -4,7 +4,7 @@ Choose **Casual**, **Learner**, or **Strong** in the **Playing style** menu in P
 
 **Casual** samples three words with a ten-point appeal half-life (10/3). **Learner** samples three with a three-point half-life (3/3). Both use the same region promotion and lookahead.
 
-In English games, **Casual** knows legal spellings with a Linguabase familiarity score of at least 90. Below 90, its chance of knowing a spelling halves every 2.5 familiarity points. Unscored spellings have zero chance.
+In English games, **Casual** knows the hand-picked two- and three-letter Scrabble favorites it shares with Learner, plus legal spellings with a Linguabase familiarity score of at least 90. For the other scored spellings below 90, its chance of knowing a spelling halves every 2.5 familiarity points.
 
 **Learner** knows legal spellings with a familiarity score of at least 80. Below 80, the chance of knowing a spelling halves every five familiarity points. Learner knows its short Scrabble favorites and the legal twos from installed WOW24 and CSW24 lists. If neither list is installed, it knows the active list's twos. Import WOW24 to give its threes the additional 50% study chance. Each style keeps its vocabulary decisions consistent across turns, resamples, main words, and crosses in a game. [Data source](../public/dictionaries/LINGUABASE-NOTICE.md)
 

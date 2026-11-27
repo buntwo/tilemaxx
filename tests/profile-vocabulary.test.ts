@@ -27,10 +27,19 @@ test("English Learner halves every five points and keeps its short-word study ru
 });
 
 test("English Casual uses a 90 cutoff and a 2.5-point familiarity half-life", () => {
-  assert.equal(casualWordProbability(packFamiliarity(9_000)), 1);
-  assert.equal(casualWordProbability(packFamiliarity(8_750)), 0.5);
-  assert.equal(casualWordProbability(packFamiliarity(8_500, true)), 0.25);
-  assert.equal(casualWordProbability(packFamiliarity(undefined, true)), 0);
+  assert.equal(casualWordProbability("BOOK", packFamiliarity(9_000)), 1);
+  assert.equal(casualWordProbability("BOOK", packFamiliarity(8_750)), 0.5);
+  assert.equal(casualWordProbability("RE", packFamiliarity(8_500, true)), 0.25);
+  assert.equal(casualWordProbability("TUI", packFamiliarity(undefined, true)), 0);
+});
+
+test("English Casual and Learner share the hand-picked twos and threes", () => {
+  for (const word of ["ZA", "QI", "QAT", "ZEK"]) {
+    assert.equal(casualWordProbability(word, undefined), 1);
+    assert.equal(learnerWordProbability(word, undefined), 1);
+  }
+  assert.equal(casualWordProbability("QOPH", undefined), 0);
+  assert.equal(learnerWordProbability("QOPH", undefined), 1);
 });
 
 test("packed vocabulary requires the same spellings in the same order", () => {
