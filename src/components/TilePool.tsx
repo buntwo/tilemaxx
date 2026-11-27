@@ -43,10 +43,41 @@ export default function TilePool({
       onToggle={(event) => onOpenChange(event.currentTarget.open)}
     >
       <summary>
-        <strong>
-          <span className="tile-pool-count">{total}</span> unseen{" "}
-          {total === 1 ? "tile" : "tiles"}
-        </strong>
+        <span className="tile-pool-summary-counts">
+          <strong>
+            <span className="tile-pool-count">{total}</span> unseen{" "}
+            {total === 1 ? "tile" : "tiles"}
+          </strong>
+          <span className="tile-pool-breakdown">
+            {([
+              ["vowel", "vow."],
+              ["consonant", "cons."],
+              ["blank"],
+            ] as const).map(([kind, short]) => {
+              const count = totals[kind];
+              const label = `${count} ${kind}${count === 1 ? "" : "s"}`;
+              const overdrawn = excess.some((tile) => tile.kind === kind);
+              return (
+                <span key={kind}>
+                  {" · "}
+                  <span
+                    className={overdrawn ? "tile-pool-category-alert" : undefined}
+                    aria-label={overdrawn ? `${label}, count exceeded` : undefined}
+                  >
+                    {short ? (
+                      <>
+                        <span className="tile-pool-full-count">{label}</span>
+                        <abbr className="tile-pool-compact-count" title={label}>
+                          {count} {short}
+                        </abbr>
+                      </>
+                    ) : label}
+                  </span>
+                </span>
+              );
+            })}
+          </span>
+        </span>
         {!!excess.length && (
           <span className="tile-pool-alert">
             <TriangleAlert size={16} aria-hidden="true" />
@@ -58,32 +89,6 @@ export default function TilePool({
           size={15}
           aria-hidden="true"
         />
-        <span className="tile-pool-breakdown">
-          {(
-            [
-              ["vowel", "Vowels"],
-              ["consonant", "Consonants"],
-              ["blank", "Blanks"],
-            ] as const
-          ).map(([kind, label], i) => {
-            const overdrawn = excess.some((tile) => tile.kind === kind);
-            return (
-              <span key={kind}>
-                {i > 0 && " · "}
-                <span
-                  className={overdrawn ? "tile-pool-category-alert" : undefined}
-                  aria-label={
-                    overdrawn
-                      ? `${label} ${totals[kind]}, count exceeded`
-                      : undefined
-                  }
-                >
-                  {label} {totals[kind]}
-                </span>
-              </span>
-            );
-          })}
-        </span>
       </summary>
       <div className="tile-pool-content" id={id}>
         <div className="tile-pool-controls">

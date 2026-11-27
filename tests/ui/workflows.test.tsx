@@ -4252,6 +4252,7 @@ test("unseen tiles reflect rack blanks, assigned board blanks, edits and filters
   expect(
     pool().getByRole("listitem", { name: "Blank: 1 unseen" }),
   ).toBeTruthy();
+  expect(screen.getByText("1 blank", { selector: ".tile-pool-breakdown span" })).toBeTruthy();
   await user.click(bag(91));
   expect(details.open).toBe(false);
 });
@@ -7897,11 +7898,11 @@ test("the bag warns about excess tiles and clears when the rack is fixed", async
   expect(bag.getAttribute("aria-label")).toContain("check tile counts");
   expect(
     screen
-      .getByLabelText("Vowels 37, count exceeded")
+      .getByLabelText("37 vowels, count exceeded")
       .classList.contains("tile-pool-category-alert"),
   ).toBe(true);
-  expect(screen.getByText("Consonants 56")).toBeTruthy();
-  expect(screen.getByText("Blanks 2")).toBeTruthy();
+  expect(screen.getByText("56 consonants")).toBeTruthy();
+  expect(screen.getByText("2 blanks")).toBeTruthy();
   await user.click(bag);
   expect(bag.getAttribute("aria-expanded")).toBe("true");
   const pool = within(screen.getByRole("list", { name: "Unseen tile counts" }));
