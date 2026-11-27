@@ -3632,6 +3632,7 @@ label + label {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+.word-definition-result .definition-loading { font-style: italic; }
 .word-definition-result:not(:empty) {
   margin-top: 10px;
   padding-top: 10px;

@@ -5488,7 +5488,7 @@ test.each(["phone", "tablet", "desktop"])(
   },
 );
 
-test("Word list checker automatically defines the checked word for the selected supported list", async () => {
+test("Word list checker shows lookup progress and defines only words found in a supported list", async () => {
   const base = remote.dictionaries[0];
   remote.dictionaries.push(
     { ...base, id: "french-list", name: "Grammalecte 7.7", builtin: false },
@@ -5498,22 +5498,27 @@ test("Word list checker automatically defines the checked word for the selected 
     postMessage(request: SolverRequest | WordListCheckRequest) {
       if (!("source" in request)) return super.postMessage(request);
       const { id, source, word } = request;
-      queueMicrotask(() => this.onmessage?.({ data: { id, found: source === "french-list" && word === "COEUR" } }));
+      const found = (source === "french-list" && word === "COEUR") ||
+        (source === "english-list" && word === "DOG");
+      queueMicrotask(() => this.onmessage?.({ data: { id, found } }));
     }
   }
   vi.stubGlobal("Worker", CheckerWorker);
   const request = fetch;
+  let finishLookup: (() => void) | undefined;
   const lookup = vi.fn(async (url: string, options?: RequestInit) => {
     if (!url.startsWith("/api/definitions?")) return request(url, options);
     const query = new URLSearchParams(url.split("?")[1]);
     const word = query.get("word");
-    const entries = word === "COEUR" && query.get("language") === "fr" ? [{
-      spelling: "cœur", headword: "cœur", glosses: ["heart"], partOfSpeech: "noun",
-      sourceUrl: "https://en.wiktionary.org/wiki/c%C5%93ur#French",
-    }] : word === "CAT" ? [{
-      spelling: "cat", headword: "cat", glosses: ["A domestic feline."], partOfSpeech: "noun",
-    }] : [];
-    return new Response(JSON.stringify({ available: word !== "DOG", entries: [entries] }));
+    if (word === "COEUR" && query.get("language") === "fr") {
+      return new Promise<Response>((resolve) => {
+        finishLookup = () => resolve(new Response(JSON.stringify({ available: true, entries: [[{
+          spelling: "cœur", headword: "cœur", glosses: ["heart"], partOfSpeech: "noun",
+          sourceUrl: "https://en.wiktionary.org/wiki/c%C5%93ur#French",
+        }]] })));
+      });
+    }
+    return new Response(JSON.stringify({ available: false, entries: [] }));
   });
   vi.stubGlobal("fetch", lookup);
   const requests = () => lookup.mock.calls.map(([url]) => url).filter((url) => url.startsWith("/api/definitions?"));
@@ -5532,10 +5537,13 @@ test("Word list checker automatically defines the checked word for the selected 
   await user.type(input, "cœur");
   expect(requests()).toEqual([]);
   await user.keyboard("{Enter}");
-  expect(await checker.findByText("heart")).toBeTruthy();
   expect(status.textContent).toContain("COEUR is in Grammalecte 7.7.");
-  expect(checker.getByRole("link", { name: "cœur" }).getAttribute("href")).toContain("#French");
+  expect(checker.getByText("Looking up definitions…")).toBeTruthy();
   expect(requests()).toEqual(["/api/definitions?language=fr&word=COEUR"]);
+  await act(() => finishLookup?.());
+  expect(await checker.findByText("heart")).toBeTruthy();
+  expect(checker.queryByText("Looking up definitions…")).toBeNull();
+  expect(checker.getByRole("link", { name: "cœur" }).getAttribute("href")).toContain("#French");
 
   await user.selectOptions(list, "english-list");
   expect(checker.queryByText("heart")).toBeNull();
@@ -5543,20 +5551,20 @@ test("Word list checker automatically defines the checked word for the selected 
   await user.type(input, "cat");
   expect(requests()).toHaveLength(1);
   await user.click(submit);
-  expect(await checker.findByText("A domestic feline.")).toBeTruthy();
   expect(status.textContent).toContain("CAT is absent from CSW24.");
-  expect(requests().at(-1)).toBe("/api/definitions?language=en&word=CAT");
+  expect(checker.queryByText(/definition/i)).toBeNull();
+  expect(requests()).toHaveLength(1);
 
   await user.clear(input);
   await user.type(input, "dog{Enter}");
+  expect(status.textContent).toContain("DOG is in CSW24.");
   expect(requests().at(-1)).toBe("/api/definitions?language=en&word=DOG");
   expect(checker.queryByText(/definitions unavailable/i)).toBeNull();
-  expect(checker.queryByText("A domestic feline.")).toBeNull();
 
   await user.selectOptions(list, "test");
   await user.click(submit);
   expect(status.textContent).toContain("DOG is absent from Test words.");
-  expect(requests()).toHaveLength(3);
+  expect(requests()).toHaveLength(2);
 });
 
 test("word lists confirm removal, display a conflict and update the game selector", async () => {

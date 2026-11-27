@@ -266,7 +266,7 @@ export function DefinitionResults({ language, words, onlyAvailable = false }: {
   onlyAvailable?: boolean;
 }) {
   const result = useDefinitionLookup(language, words);
-  if (onlyAvailable && !result?.lookup?.available) return null;
+  if (onlyAvailable && result && !result.lookup?.available) return null;
   return words ? <DefinitionContent language={language} words={words} result={result} /> : null;
 }
 
@@ -310,7 +310,7 @@ function DefinitionContent({
   result: ReturnType<typeof useDefinitionLookup>;
 }) {
   if (!result)
-    return <p className="definition-muted">Looking up definitions…</p>;
+    return <p className="definition-muted definition-loading">Looking up definitions…</p>;
   const lookup = result.lookup;
   const frequencies = language === "en" ? lookup?.wordFrequencyZipf : undefined;
   if (!lookup || (!lookup.available && !frequencies))

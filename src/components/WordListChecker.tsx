@@ -45,7 +45,7 @@ export default function WordListChecker({
   const result = current?.result;
   const language = !local && dictionary ? dictionaryDefinitionLanguage(dictionary) : undefined;
   const definitionWords = useMemo(() => {
-    if (current?.result === "found" || current?.result === "missing") return [{ word: current.word }];
+    if (current?.result === "found") return [{ word: current.word }];
   }, [current]);
 
   useEffect(() => () => worker.current?.instance.terminate(), []);
