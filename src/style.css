@@ -3101,32 +3101,6 @@ label + label {
     display: inline;
   }
 }
-.companion-note {
-  display: flex;
-  gap: 12px;
-  padding: 24px 8px 15px;
-}
-.note-icon {
-  background: var(--soft);
-  border-radius: 50%;
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  color: var(--primary);
-}
-.companion-note h3 {
-  font-size: 12px;
-  margin-bottom: 5px;
-  font-weight: 600;
-}
-.companion-note p {
-  font-size: 10px;
-  color: var(--muted);
-  line-height: 1.8;
-  max-width: 270px;
-}
 .workspace-footer {
   border-top: 1px solid var(--line);
   display: flex;
@@ -3138,14 +3112,7 @@ label + label {
   padding: 18px 0 25px;
   margin-top: 20px;
 }
-.workspace-footer-meta {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-}
-.workspace-footer-meta .dictionary-sources-button {
+.workspace-footer .dictionary-sources-button {
   padding-inline: 0;
   font-size: inherit;
   white-space: nowrap;
@@ -4193,23 +4160,13 @@ label + label {
     font-size: 10px;
     padding: 12px 14px;
   }
-  .companion-note {
-    padding: 20px 6px 10px;
-  }
-  .companion-note h3 {
-    font-size: 13px;
-  }
-  .companion-note p {
-    font-size: 11px;
-    max-width: none;
-  }
   .workspace-footer {
     justify-content: flex-end;
     width: 100%;
     padding: 4px 0 0;
     margin-top: 15px;
   }
-  .workspace-footer-meta .dictionary-sources-button { min-height: 44px; }
+  .workspace-footer .dictionary-sources-button { min-height: 44px; }
   .game-id { gap: 4px; }
   .game-id .icon-button {
     width: 44px;

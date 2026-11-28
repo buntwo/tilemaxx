@@ -3270,6 +3270,13 @@ test.each(["phone", "desktop"])(
       );
     const copyButton = () =>
       footer().getByRole("button", { name: "Copy Game ID" });
+    if (layout === "desktop") {
+      expect(footer().getByText("Tilemaxx · Local & personal").previousElementSibling).toBeNull();
+    } else {
+      expect(footer().queryByText("Tilemaxx · Local & personal")).toBeNull();
+    }
+    expect(footer().queryByText("Less guessing. More good words.")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "A companion to your game." })).toBeNull();
     expect(footer().getByText("g", { selector: "code" })).toBeTruthy();
     await user.click(copyButton());
     expect(copy).toHaveBeenCalledExactlyOnceWith("g");

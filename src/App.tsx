@@ -1781,21 +1781,6 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
                   finalOutcome={!historical ? gameFinish.score?.outcome : undefined}
                 />
               )}
-              {!narrowLayout && !replay && (
-                <div className="companion-note">
-                  <span className="note-icon">
-                    <BookOpen size={19} />
-                  </span>
-                  <div>
-                    <h3>A companion to your game.</h3>
-                    <p>
-                      {game.solo
-                        ? "Play a suggestion or enter your own play, then refill your rack."
-                        : "Play a suggestion, enter your opponent’s move, then refill your rack. We’ll remember where you left off."}
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
           </GameWorkspace>
         ) : selectedGame ? (
@@ -1836,19 +1821,16 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
           </div>
         )}
         <footer className="workspace-footer">
-          {!narrowLayout && <span>Less guessing. More good words.</span>}
+          {!narrowLayout && <span>Tilemaxx · Local & personal</span>}
           {openId && <GameId id={openId} onNotice={notify} />}
-          <div className="workspace-footer-meta">
-            {!narrowLayout && <span>Tilemaxx · Local & personal</span>}
-            <button
-              type="button"
-              className="text-button dictionary-sources-button"
-              aria-haspopup="dialog"
-              onClick={() => openDialog("dictionary-sources")}
-            >
-              Dictionary sources
-            </button>
-          </div>
+          <button
+            type="button"
+            className="text-button dictionary-sources-button"
+            aria-haspopup="dialog"
+            onClick={() => openDialog("dictionary-sources")}
+          >
+            Dictionary sources
+          </button>
         </footer>
       </main>
       {toast && (
