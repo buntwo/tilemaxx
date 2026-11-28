@@ -1602,6 +1602,10 @@ label + label {
   text-align: center;
 }
 .score-history-short-heading { display: none; }
+.phone-layout .score-move-crosses { width: 23px; }
+.phone-layout .score-move-strength { width: 27px; }
+.phone-layout .score-history-heading .score-history-full-heading { display: none; }
+.phone-layout .score-history-heading .score-history-short-heading { display: inline; }
 @container (max-width: 345px) {
   .score-history :is(th, td) { padding-inline: 2px; }
   .score-move-number { width: 20px; }
@@ -1632,8 +1636,7 @@ label + label {
 }
 .score-history-word {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
   color: var(--value-good);
 }
 .score-history tr[data-player="opponent"] .score-history-word { color: var(--value-bad); }
