@@ -102,24 +102,32 @@ export type WordDifficulty = (word: string) => {
   missing: boolean;
 };
 
+export type WordFrequencyLookup = Pick<ReadonlyMap<string, number>, "get"> &
+  ({ keys(): Iterable<string> } | { anchors: Lexicon });
+
+export function createFrequencyAnchors(
+  lexicon: Lexicon,
+  frequencies: { keys(): Iterable<string> },
+) {
+  const common: string[] = [];
+  for (const token of frequencies.keys()) {
+    if (lexicon.has(token)) common.push(token);
+    if (common.length === 10_000) break;
+  }
+  return new Lexicon(common);
+}
+
 export function createWordDifficulty(
   lexicon: Lexicon,
-  frequencies: ReadonlyMap<string, number>,
+  frequencies: WordFrequencyLookup,
 ): WordDifficulty {
-  let anchors: Lexicon | undefined;
+  let anchors = "anchors" in frequencies ? frequencies.anchors : undefined;
   const pattern = new Int32Array(26);
   return (word) => {
     const zipf = frequencies.get(word);
     if (zipf !== undefined)
       return { difficulty: Math.max(0, 3 * (3 - zipf)), missing: false };
-    if (!anchors) {
-      const common: string[] = [];
-      for (const token of frequencies.keys()) {
-        if (lexicon.has(token)) common.push(token);
-        if (common.length === 10_000) break;
-      }
-      anchors = new Lexicon(common);
-    }
+    anchors ??= "anchors" in frequencies ? frequencies.anchors : createFrequencyAnchors(lexicon, frequencies);
     const edits = /^[A-Z]{2,25}$/.test(word)
       ? cappedDistance(word, anchors, pattern)
       : 4;

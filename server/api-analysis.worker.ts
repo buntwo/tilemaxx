@@ -1,7 +1,6 @@
-import { readFileSync } from "node:fs";
 import { limitedCandidateWorker } from "./api-worker-adapter";
 import { parentPort, workerData } from "node:worker_threads";
-import { Lexicon, parseWords } from "../shared/lexicon";
+import { Lexicon } from "../shared/lexicon";
 import {
   inferWordfeudPremiums,
   openingSequences,
@@ -10,9 +9,13 @@ import { isWordfeudRules } from "../shared/model";
 import { ReplySearchLimitError } from "../shared/reply-analysis";
 import { SearchLimitError } from "../shared/solver";
 import { analyzePosition } from "./api-analysis";
+import { buildDictionaryIndex, buildPlayerIndex, loadDictionaryWords, needsPlayerIndex,
+  type ApiAnalysisIndexes } from "./api-analysis-index";
 import type { ComputationResult, ComputationWorkerInput } from "./api-computation";
 import { ApiError } from "./api-error";
 import { readScreenshot } from "./api-screenshot";
+
+const builtIndexes: ApiAnalysisIndexes = {};
 
 async function compute(input: ComputationWorkerInput) {
   if (input.kind === "screenshot") return readScreenshot(input.request);
@@ -33,21 +36,8 @@ async function compute(input: ComputationWorkerInput) {
       );
     return inferWordfeudPremiums(template, selected, squares, scores);
   }
-  const { dictionary } = input;
-  let text: string;
-  try {
-    text =
-      "text" in dictionary
-        ? dictionary.text
-        : readFileSync(dictionary.file, "utf8");
-  } catch {
-    throw new ApiError(404, "Word list is unavailable.");
-  }
-  const words = parseWords(text);
-  if (!words.length)
-    throw new ApiError(422, "The word list contains no valid entries.");
   if (input.kind === "word-check") {
-    const list = new Set(words);
+    const list = new Set(loadDictionaryWords(input.dictionary));
     return input.words.map((entry) => {
       const word = entry.toUpperCase();
       return { word, found: list.has(word) };
@@ -55,7 +45,14 @@ async function compute(input: ComputationWorkerInput) {
   }
   const workerLimit = input.threadLimit - 1;
   globalThis.Worker = limitedCandidateWorker(workerLimit) as unknown as typeof Worker;
-  return analyzePosition(new Lexicon(words), words, input, workerLimit);
+  let words: string[] | undefined;
+  const graph = input.indexes?.dictionary ??
+    (builtIndexes.dictionary = buildDictionaryIndex(words = loadDictionaryWords(input.dictionary)));
+  const lexicon = Lexicon.fromIndex(graph);
+  const profiles = !needsPlayerIndex(input) ? undefined : input.indexes?.profiles ??
+    (builtIndexes.profiles = buildPlayerIndex(input.root, lexicon,
+      words ?? [...lexicon.words()].sort(), input.position.template, input.profileVocabulary));
+  return analyzePosition(lexicon, input, workerLimit, profiles);
 }
 
 function errorResult(error: unknown): ComputationResult {
@@ -75,6 +72,6 @@ function errorResult(error: unknown): ComputationResult {
 }
 
 void compute(workerData as ComputationWorkerInput).then(
-  (result) => parentPort!.postMessage({ result } satisfies ComputationResult),
-  (error) => parentPort!.postMessage(errorResult(error)),
+  (result) => parentPort!.postMessage({ result, builtIndexes } satisfies ComputationResult),
+  (error) => parentPort!.postMessage({ ...errorResult(error), builtIndexes }),
 );

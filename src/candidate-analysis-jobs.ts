@@ -10,6 +10,7 @@ import { EndgameSearchLimitError, type EndgameLine } from "../shared/endgame";
 import type { Lexicon } from "../shared/lexicon";
 import { createLearnerLineFactory, type LearnerLinePosition } from "../shared/learner-lookahead";
 import type { Board, BoardTemplate, Move } from "../shared/model";
+import { createIndexedPlayerProfiles, type PlayerProfileIndex } from "../shared/player-profile-index";
 import type { createPlayerProfiles } from "../shared/player-profiles";
 import { checkExchangeRacks, createExchangeReplyCheck, type ExchangeBatch, type OptimalExchangeRequest } from "../shared/optimal-exchange";
 import {
@@ -52,8 +53,7 @@ export type CandidateJob =
       action: MasterAction;
       deals: BingoDeal[];
       deadline: number;
-      root: string;
-      vocabulary?: Uint8Array;
+      profiles: PlayerProfileIndex;
     }
   | {
       kind: "master-deals";
@@ -169,9 +169,10 @@ export function createCandidateAnalyzer(
           const deadline = job.deadline - performance.timeOrigin;
           const outcomes: MasterOutcome[] = [];
           if (deadline <= started) return { kind: job.kind, outcomes };
-          if (!learnerProfiles) throw new Error("Learner profile data is unavailable.");
+          const { template } = job.position;
+          const choose = learnerProfiles?.(job) ?? createIndexedPlayerProfiles(lexicon, template, job.profiles);
           const evaluate = createLearnerLineFactory(
-            lexicon, job.position.template, learnerProfiles(job),
+            lexicon, template, choose,
           )(job.position, job.action);
           for (const deal of job.deals) {
             if (performance.now() >= deadline) break;

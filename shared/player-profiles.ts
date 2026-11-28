@@ -33,7 +33,7 @@ import {
 import { splitRack } from "./rack-entry";
 import { choose, endgameOpponentRack, getTileCounts, unseenTiles } from "./tile-pool";
 import {
-  createWordDifficulty,
+  createWordDifficulty, type WordFrequencyLookup,
   wordFrequencyLanguage,
 } from "./word-familiarity";
 
@@ -164,9 +164,9 @@ export type ProfileDecision = {
 export function createPlayerProfiles(
   lexicon: Lexicon,
   template: BoardTemplate,
-  frequencies: ReadonlyMap<string, number>,
+  frequencies: WordFrequencyLookup,
   sampling: ProfileSampling = defaultSampling,
-  englishVocabulary?: EnglishProfileVocabulary,
+  englishVocabulary?: Pick<EnglishProfileVocabulary, "get">,
 ) {
   const difficulty = createWordDifficulty(lexicon, frequencies);
   const vocabulary = wordFrequencyLanguage(template.rules) === "en" ? englishVocabulary : undefined;

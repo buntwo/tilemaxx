@@ -2,13 +2,13 @@ import { createLearnerLookahead, type LearnerLineWork } from "../shared/learner-
 import type { Lexicon } from "../shared/lexicon";
 import type { MasterOutcome } from "../shared/master-evaluation";
 import type { BoardTemplate, Move } from "../shared/model";
+import type { PlayerProfileIndex } from "../shared/player-profile-index";
 import type { createPlayerProfiles, LearnerStyle, ProfilePosition } from "../shared/player-profiles";
 import { createCandidateAnalyzer, type CandidateJob } from "../src/candidate-analysis-jobs";
 import { createCandidatePool } from "../src/candidate-analysis-pool";
 
 type ForecastOptions = {
-  root: string;
-  vocabulary?: Uint8Array;
+  profileIndex: PlayerProfileIndex;
   workerLimit: number;
   reference?: Move;
 };
@@ -17,7 +17,7 @@ async function evaluateFinalists(
   lexicon: Lexicon,
   choose: ReturnType<typeof createPlayerProfiles>,
   work: LearnerLineWork,
-  { root, vocabulary, workerLimit }: ForecastOptions,
+  { profileIndex, workerLimit }: ForecastOptions,
 ) {
   const outcomes = work.actions.map((): MasterOutcome[] => []);
   const jobs = work.actions.map((action, index) => ({
@@ -26,8 +26,7 @@ async function evaluateFinalists(
     action,
     deals: work.deals,
     deadline: performance.timeOrigin + work.deadline,
-    root,
-    vocabulary,
+    profiles: profileIndex,
     index,
   }) satisfies CandidateJob & { index: number });
   const analyze = createCandidateAnalyzer(lexicon, () => choose);

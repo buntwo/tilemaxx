@@ -1,7 +1,7 @@
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { version } from "../version.json";
@@ -136,6 +136,29 @@ test("parallel and serial API Learner produce the same complete shared forecast"
   const serial = await forecast(1);
   assert.deepEqual(await forecast(3), serial);
   assert.deepEqual(await forecast(4), serial);
+});
+
+test("shared analysis indexes refresh after vocabulary and dictionary changes", async (t) => {
+  const { store, endpoint } = await fixture(t);
+  const list = store.importDictionary("CSW24", "AT\nQAT\nTUI\nZA\n");
+  const template = PRESETS[0];
+  async function suggested() {
+    const response = await endpoint("/analysis", {
+      position: { template, board: emptyBoard(template.size), rack: "QATUIZ",
+        dictionaryId: list.id, solo: true },
+      operation: { kind: "moves", style: "learner", seed: 1 },
+    });
+    const result = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(result));
+    return new Set<string>(result.rows.map(({ word }: { word: string }) => word));
+  }
+  assert.deepEqual(await suggested(), new Set(["AT", "QAT", "ZA"]));
+  assert.deepEqual(await suggested(), new Set(["AT", "QAT", "ZA"]));
+  store.importDictionary("WOW24", "TUI\n");
+  assert.deepEqual(await suggested(), new Set(["AT", "QAT", "TUI", "ZA"]));
+
+  writeFileSync(store.dictionaryFile(list.id)!, "AT\nZA\n");
+  assert.deepEqual(await suggested(), new Set(["AT", "ZA"]));
 });
 
 test("profile analysis explanations persist through play, undo, redo and archive", async (t) => {

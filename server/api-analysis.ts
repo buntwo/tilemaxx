@@ -63,11 +63,10 @@ import {
 } from "../shared/solver";
 import { unseenTiles } from "../shared/tile-pool";
 import { reviewGame, reviewTurn, reviewTurns } from "../shared/turn-review";
-import { decodeProfileVocabulary } from "../shared/profile-vocabulary";
+import { createIndexedPlayerProfiles, type PlayerProfileIndex } from "../shared/player-profile-index";
 import type { Computation } from "./api-computation";
 import { ApiError } from "./api-error";
 import { forecastLearner } from "./api-learner-forecast";
-import { apiPlayerProfiles as profiles } from "./api-player-profiles";
 
 type Request = Extract<Computation, { kind: "analysis" }>;
 
@@ -190,12 +189,16 @@ async function gameReview(
 
 export async function analyzePosition(
   lexicon: Lexicon,
-  words: string[],
-  { position, operation, root, game, profileVocabulary, savedScoreSpread }: Request,
+  { position, operation, game, savedScoreSpread }: Request,
   workerLimit = 0,
+  profileIndex?: PlayerProfileIndex,
 ) {
   const { template, board, solo } = position;
-  const vocabulary = profileVocabulary && decodeProfileVocabulary(profileVocabulary, words);
+  const rackBingoIndex = () => new RackBingoIndex([...lexicon.words()].sort());
+  const profiles = () => {
+    if (!profileIndex) throw new Error("Player profile index is unavailable.");
+    return createIndexedPlayerProfiles(lexicon, template, profileIndex);
+  };
   const pool = unseenTiles(position, template);
   if (operation.kind === "position") {
     const { square } = operation;
@@ -269,7 +272,7 @@ export async function analyzePosition(
   if (operation.kind === "optimal-exchange")
     return parallelOptimalExchange(
       lexicon,
-      new RackBingoIndex(words),
+      rackBingoIndex(),
       { ...settings, bag: bagSize },
       () => {},
       workerLimit,
@@ -345,10 +348,10 @@ export async function analyzePosition(
         scoreSpread,
         solo: solo ? true as const : undefined,
       };
-      const choose = profiles(root, lexicon, template, vocabulary);
+      const choose = profiles();
       if (usesLearnerPolicy(style)) {
         const result = await forecastLearner(lexicon, template, choose, style, moves, profilePosition,
-          { root, vocabulary: profileVocabulary, workerLimit });
+          { profileIndex: profileIndex!, workerLimit });
         index.setProfile(profileQuery, result.ranked);
         exchangeAdvice = result.exchange;
       } else {
@@ -373,7 +376,7 @@ export async function analyzePosition(
       } else {
         const odds =
           style === "bingo-hunter"
-            ? new RackBingoIndex(words).calculate(
+            ? rackBingoIndex().calculate(
                 lexicon,
                 position,
                 template,
@@ -426,7 +429,7 @@ export async function analyzePosition(
     }
     const rackOdds =
       operation.sort === "bingo-draw"
-        ? new RackBingoIndex(words).calculate(
+        ? rackBingoIndex().calculate(
             lexicon,
             position,
             template,
@@ -492,7 +495,7 @@ export async function analyzePosition(
   if (operation.kind === "bingo-odds") {
     const candidates = operation.moves.map(find);
     return {
-      draw: new RackBingoIndex(words).calculate(
+      draw: rackBingoIndex().calculate(
         lexicon,
         position,
         template,
@@ -519,13 +522,13 @@ export async function analyzePosition(
       };
     }
     if (usesLearnerPolicy(operation.style) && !solo) {
-      const choose = profiles(root, lexicon, template, vocabulary);
+      const choose = profiles();
       const result = await forecastLearner(lexicon, template, choose, operation.style, moves, {
         ...settings,
         solo: undefined,
         seed: profileWordHash(`${board.join(".")}:${rackComposition(position.rack)}`),
         playerSeed: operation.seed,
-      }, { root, vocabulary: profileVocabulary, workerLimit,
+      }, { profileIndex: profileIndex!, workerLimit,
         reference: operation.move ? find(operation.move) : undefined });
       const advice = result.exchange;
       return { advice, styleExplanation: advice && explainStyleExchange(advice, position.rack, advice.slots) };
@@ -540,7 +543,7 @@ export async function analyzePosition(
       comparison &&
       samplePlayerExchange(
         lexicon,
-        profiles(root, lexicon, template),
+        profiles(),
         comparison,
       );
     const selected = sampled ? sampled.advice : advice;
@@ -569,7 +572,7 @@ export async function analyzePosition(
         endgameBudgetMultiplier: operation.endgameBudgetMultiplier,
       },
       operation.opponent &&
-        profiles(root, lexicon, template, vocabulary),
+        profiles(),
     );
   }
 

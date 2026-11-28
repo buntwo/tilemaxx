@@ -55,10 +55,10 @@ export function packProfileVocabulary(
 export const packFamiliarity = (score: number | undefined, studied = false) =>
   (score ?? missingFamiliarity) | (studied ? studyFlag : 0);
 
-export function decodeProfileVocabulary(
+export function readPackedProfileVocabulary(
   bytes: Uint8Array,
   words: readonly string[],
-): EnglishProfileVocabulary {
+) {
   const invalid = "The familiarity table does not match this word list.";
   if (
     bytes.byteLength !== headerSize + words.length * 2 ||
@@ -67,13 +67,24 @@ export function decodeProfileVocabulary(
   )
     throw new Error(invalid);
   const data = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const vocabulary = new Map<string, number>();
-  for (let i = 0; i < words.length; i++) {
-    const value = data.getUint16(headerSize + i * 2, true);
+  return (index: number) => {
+    const value = data.getUint16(headerSize + index * 2, true);
     const score = value & scoreMask;
     if (value & 0x8000 || (score > 10_000 && score !== missingFamiliarity))
       throw new Error(invalid);
-    if (value !== missingFamiliarity) vocabulary.set(words[i], value);
+    return value === missingFamiliarity ? undefined : value;
+  };
+}
+
+export function decodeProfileVocabulary(
+  bytes: Uint8Array,
+  words: readonly string[],
+): EnglishProfileVocabulary {
+  const entry = readPackedProfileVocabulary(bytes, words);
+  const vocabulary = new Map<string, number>();
+  for (let i = 0; i < words.length; i++) {
+    const value = entry(i);
+    if (value !== undefined) vocabulary.set(words[i], value);
   }
   return vocabulary;
 }

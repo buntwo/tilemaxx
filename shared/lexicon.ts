@@ -17,6 +17,8 @@ export function popcount(bits: number): number {
   return (((bits + (bits >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
 }
 
+export type LexiconIndex = Pick<Lexicon, "first" | "mask" | "terminal" | "maxTail" | "count">;
+
 /** A DAWG with shared outgoing blocks, in descending letter order.
  * Each array entry describes an incoming edge's target; index zero is the root.
  * Terminal flags stay on entries so otherwise identical continuations can share.
@@ -28,9 +30,7 @@ export class Lexicon {
   readonly maxTail: Uint8Array;
   readonly count: number;
 
-  static fromIndex(
-    index: Pick<Lexicon, "first" | "mask" | "terminal" | "maxTail" | "count">,
-  ): Lexicon {
+  static fromIndex(index: LexiconIndex): Lexicon {
     return Object.assign(Object.create(Lexicon.prototype) as Lexicon, index);
   }
 

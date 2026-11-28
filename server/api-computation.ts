@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { stat } from "node:fs/promises";
 import type { Worker } from "node:worker_threads";
 import type { z } from "zod";
 import type {
@@ -7,6 +9,10 @@ import type {
   screenshotRequest,
 } from "./api-analysis-request";
 import type { Game } from "../shared/model";
+import type { LexiconIndex } from "../shared/lexicon";
+import type { PlayerProfileIndex } from "../shared/player-profile-index";
+import { wordFrequencyLanguage } from "../shared/word-familiarity";
+import { needsPlayerIndex, type ApiAnalysisIndexes } from "./api-analysis-index";
 import { ApiError } from "./api-error";
 import { startApiThread } from "./api-thread";
 
@@ -27,15 +33,29 @@ export type Computation =
   | { kind: "screenshot"; request: z.infer<typeof screenshotRequest> };
 
 export type ComputationResult =
-  | { result: unknown }
-  | { error: { status: number; message: string } };
+  ({ result: unknown } | { error: { status: number; message: string } }) &
+  { builtIndexes?: ApiAnalysisIndexes };
 
-export type ComputationWorkerInput = Computation & { threadLimit: number };
+export type ComputationWorkerInput = Computation & {
+  threadLimit: number;
+  indexes?: ApiAnalysisIndexes;
+};
 
 const builtWorker = new URL("./api-analysis.worker.js", import.meta.url);
 const sourceWorker = new URL("./api-analysis.worker.ts", import.meta.url);
 const concurrency = 1;
 const timeout = 210_000;
+const maxCachedIndexes = 4;
+
+function rememberIndex<T>(cache: Map<string, T>, key: string | undefined, built?: T) {
+  if (key === undefined) return;
+  const value = built ?? cache.get(key);
+  if (value === undefined) return;
+  cache.delete(key);
+  cache.set(key, value);
+  if (cache.size > maxCachedIndexes) cache.delete(cache.keys().next().value!);
+  return value;
+}
 
 export function analysisThreadLimit(value = process.env.TILEMAXX_ANALYSIS_THREADS) {
   const limit = value === undefined ? 10 : Number(value);
@@ -46,6 +66,8 @@ export function analysisThreadLimit(value = process.env.TILEMAXX_ANALYSIS_THREAD
 
 export function createComputationRunner() {
   const threadLimit = analysisThreadLimit();
+  const dictionaries = new Map<string, LexiconIndex>();
+  const profiles = new Map<string, PlayerProfileIndex>();
   let active = 0;
   return async (
     signal: AbortSignal,
@@ -60,9 +82,29 @@ export function createComputationRunner() {
     let cancel: (() => void) | undefined;
     try {
       const input = await prepare();
+      let dictionaryKey: string | undefined;
+      let profileKey: string | undefined;
+      if (input.kind === "analysis" && "file" in input.dictionary) {
+        const { file } = input.dictionary;
+        const info = await stat(file).catch(() => {
+          throw new ApiError(404, "Word list is unavailable.");
+        });
+        dictionaryKey = JSON.stringify([file, info.ino, info.size, info.mtimeMs, info.ctimeMs]);
+        if (needsPlayerIndex(input)) {
+          const vocabulary = input.profileVocabulary &&
+            createHash("sha256").update(input.profileVocabulary).digest("hex");
+          profileKey = JSON.stringify([dictionaryKey, input.root,
+            wordFrequencyLanguage(input.position.template.rules), vocabulary]);
+        }
+      }
+      const indexes = {
+        dictionary: rememberIndex(dictionaries, dictionaryKey),
+        profiles: rememberIndex(profiles, profileKey),
+      };
       signal.throwIfAborted();
       const thread = startApiThread(builtWorker, sourceWorker,
-        { ...input, threadLimit } satisfies ComputationWorkerInput);
+        { ...input, ...(indexes.profiles && { profileVocabulary: undefined }),
+          threadLimit, indexes } satisfies ComputationWorkerInput);
       worker = thread;
       const reply = await new Promise<ComputationResult>((resolve, reject) => {
         cancel = () => reject(signal.reason);
@@ -80,6 +122,8 @@ export function createComputationRunner() {
           reject(new Error(`Computation worker exited with code ${code}.`)),
         );
       });
+      rememberIndex(dictionaries, dictionaryKey, reply.builtIndexes?.dictionary);
+      rememberIndex(profiles, profileKey, reply.builtIndexes?.profiles);
       if ("error" in reply)
         throw new ApiError(reply.error.status, reply.error.message);
       return reply.result;

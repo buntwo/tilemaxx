@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { encode } from "@msgpack/msgpack";
+import { Lexicon } from "../shared/lexicon";
+import { indexedProfileLookups, packPlayerProfileIndex } from "../shared/player-profile-index";
 import {
-  packFamiliarity, packProfileVocabulary, profileDictionaryRevision, profileVocabularyUrl,
+  decodeProfileVocabulary, packFamiliarity, packProfileVocabulary,
+  profileDictionaryRevision, profileVocabularyUrl, readPackedProfileVocabulary,
 } from "../shared/profile-vocabulary";
 import {
-  decodeWordFrequencies,
+  createFrequencyAnchors, createWordDifficulty, decodeWordFrequencies,
   wordFrequencyLanguage,
   wordFrequencyUrl,
 } from "../shared/word-familiarity";
@@ -14,6 +17,28 @@ import { loadProfileVocabulary, loadWordFrequencies } from "../src/word-frequenc
 
 const dictionary = { id: "test-english", words: ["BAT", "CAT"] };
 const vocabularyUrl = profileVocabularyUrl(dictionary.id, profileDictionaryRevision(dictionary.words));
+
+test("shared profile lookups preserve scores, study flags, and missing-word difficulty", () => {
+  const words = ["BAT", "CAT", "CATS", "QIS", "ZAX"];
+  const lexicon = new Lexicon(words);
+  const frequencies = new Map([["CAT", 4.23], ["BAT", 2.79], ["MISS", 5.1], ["QIS", 1.23]]);
+  const entries = [packFamiliarity(8412), packFamiliarity(9000),
+    packFamiliarity(undefined), packFamiliarity(undefined, true), packFamiliarity(6291)];
+  const vocabulary = packProfileVocabulary(words, (word) => entries[words.indexOf(word)]);
+  const normal = decodeProfileVocabulary(vocabulary, words);
+  const packed = structuredClone(packPlayerProfileIndex(words, frequencies,
+    createFrequencyAnchors(lexicon, frequencies), readPackedProfileVocabulary(vocabulary, words)));
+  assert(packed.spellings.buffer instanceof SharedArrayBuffer);
+  assert(packed.familiarity?.buffer instanceof SharedArrayBuffer);
+  const views = indexedProfileLookups(packed);
+  const normalDifficulty = createWordDifficulty(lexicon, frequencies);
+  const indexedDifficulty = createWordDifficulty(lexicon, views.frequencies);
+  for (const word of [...words, "MISSING"]) {
+    assert.equal(views.frequencies.get(word), frequencies.get(word));
+    assert.equal(views.vocabulary?.get(word), normal.get(word));
+    assert.deepEqual(indexedDifficulty(word), normalDifficulty(word));
+  }
+});
 
 test("Casual and Learner share cached English frequency and vocabulary assets", async (context) => {
   const paths: string[] = [];
