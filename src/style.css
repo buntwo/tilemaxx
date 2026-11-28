@@ -1351,7 +1351,7 @@ label + label {
 }
 .score-panel {
   margin-top: 12px;
-  padding: 14px 16px 4px;
+  padding: 14px 16px 10px;
 }
 .score-header,
 .score-header label,
@@ -1685,8 +1685,6 @@ label + label {
 .score-edit-move {
   min-inline-size: 24px;
   color: var(--primary);
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 .score-actions {
   display: flex;
