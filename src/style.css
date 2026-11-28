@@ -6896,6 +6896,11 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
 .last-play-word[data-player="you"] { color: var(--value-good); }
 .last-play-word[data-player="opponent"] { color: var(--value-bad); }
 .last-play-word[data-player] .bingo-move-word { color: inherit; }
+.last-play-summary .bingo-move-word {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+}
 .last-play-word .bingo-badge {
   justify-content: center;
   flex: none;
@@ -6905,11 +6910,6 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   border-radius: 3px;
 }
 .last-play-word .bingo-badge svg { flex: none; }
-.last-play-summary .bingo-badge {
-  font: inherit;
-  /* Move from the midpoint of the x-height to the midpoint of the cap height. */
-  transform: translateY(calc(0.5ex - 0.5cap));
-}
 .last-play-points { color: var(--text); white-space: nowrap; }
 .last-play-breakdown {
   position: absolute;
