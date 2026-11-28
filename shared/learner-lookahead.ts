@@ -316,7 +316,8 @@ export function createLearnerLookahead(
         );
         const played =
           outcomes[best][index] ?? (evaluatePlayed ??= createEvaluator(state, actions[best]))(deal, deadline);
-        const delta = spread(0, swapped) - spread(move.score, played);
+        const ownLeaveEdge = profile === "learner" ? swapped.ownLeave - played.ownLeave : 0;
+        const delta = spread(0, swapped) - spread(move.score, played) + ownLeaveEdge;
         sum += delta;
         squares += delta * delta;
         yield;

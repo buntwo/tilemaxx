@@ -295,7 +295,7 @@ test("Learner checks the swap on 32 deals and reuses the placement outcomes", ()
   assert.equal(step.value.ranked[0].move.word, "CART");
 });
 
-test("Learner recommends a simulated exchange when the paired continuation has a clear edge", () => {
+test("Learner credits its follow-up leave when a swap beats the placement", () => {
   const template = PRESETS[0];
   const words =
     "OU FA GO HE IF NO OR OX PA RE TO UH US WE AX ON IS YE HA HI LO AL AG MA PI PE NU SI QI".split(
@@ -303,7 +303,7 @@ test("Learner recommends a simulated exchange when the paired continuation has a
     );
   const lexicon = new Lexicon(words);
   const board = emptyBoard(template.size);
-  const rack = "EIOOOUU";
+  const rack = "EIOOOUV";
   const position = {
     board,
     rack,
@@ -348,15 +348,28 @@ test("Learner recommends a simulated exchange when the paired continuation has a
     step = work.next();
   }
   assert.equal(count, 8 + LEARNER_EXCHANGE_DEALS);
-  const { comparedPlacement, ...exchange } = step.value.exchange!;
+  assert.ok(step.value.exchange);
+  const { comparedPlacement, edge, ...exchange } = step.value.exchange;
   assert.equal(comparedPlacement?.word, "OU");
   assert.deepEqual(exchange, {
     slots: [0, 1, 2, 3, 4, 5, 6],
     profile: "learner",
     comparedWith: { word: "OU", score: 4 },
     problem: "balance",
-    edge: 4.125,
   });
+  assert.ok(edge !== undefined && Math.abs(edge - 5.91875) < 1e-9);
+
+  const casualDecision = choose(solvePosition(lexicon, position, template), "casual", position, {
+    all: true,
+    learnerSlate: true,
+  });
+  const casual = createLearnerLookahead(lexicon, template, fixedReply, "casual")(
+    position, casualDecision.considered!, casualDecision.learnerSlate!, Infinity,
+  );
+  let casualStep = casual.next();
+  while (!casualStep.done) casualStep = casual.next();
+  assert.equal(casualStep.value.exchange, undefined);
+
   const interrupted = evaluate(position, decision.considered!, decision.learnerSlate!, 0).next();
   assert(interrupted.done);
   assert.equal(interrupted.value.exchange, undefined);
