@@ -2887,7 +2887,7 @@ test("replay always highlights opponent placements and exposes tile counts when 
   expect(partial.querySelectorAll(".move-preview")).toHaveLength(2);
   const bag = screen.getByRole("button", { name: /Unseen tiles, .*check tile counts/ });
   expect(bag.hasAttribute("data-overdrawn")).toBe(true);
-  expect(screen.getByRole("img", { name: "Tile count error" }).closest(".last-play-row")).toBeTruthy();
+  expect(screen.getByText("Check tile counts", { selector: ".last-play-tile-warning" }).closest(".last-play-row")).toBeTruthy();
   await user.click(bag);
   expect(screen.getByText("Your rack wasn’t recorded. These counts include any tiles it held.")).toBeTruthy();
   const breakdown = screen.getByRole("list", { name: "Unseen tile counts" });
@@ -5378,7 +5378,7 @@ test("dates are editable, the keyboard picker shows active games, and the sideba
     cell("I8: Z, edited after archiving").classList.contains("archive-edit"),
   ).toBe(true);
   expect(
-    screen.getByText("Check tile counts").querySelector("svg"),
+    screen.getByText("Check tile counts", { selector: ".last-play-tile-warning" }).querySelector("svg"),
   ).toBeTruthy();
   await user.click(cell("Undo"));
   expect(screen.queryByText("Check tile counts")).toBeNull();
@@ -8153,7 +8153,7 @@ test.each([false, true])("the endgame heading and opponent rack follow the bag c
   expect(screen.getByRole("heading", { name: "Possible moves" })).toBeTruthy();
   if (phone) {
     await user.click(panel.getByRole("button", { name: /Unseen tiles,.*check tile counts/ }));
-    expect(screen.getByText("Check tile counts").closest(".phone-rack-details")).toBeTruthy();
+    expect(screen.getByText("Check tile counts", { selector: ".tile-pool-alert" }).closest(".phone-rack-details")).toBeTruthy();
   } else {
     expect(panel.getByText("Check tile counts")).toBeTruthy();
   }
@@ -8167,7 +8167,7 @@ test("the bag and top board strip warn about excess tiles until the rack is fixe
   await waitFor(() => expect(current().revision).toBe(1));
   const bag = screen.getByRole("button", { name: /^Unseen tiles,/ });
   const gameBoard = within(screen.getByRole("region", { name: "Game board" }));
-  const warning = () => gameBoard.queryByRole("img", { name: "Tile count error" });
+  const warning = () => gameBoard.queryByText("Check tile counts");
   expect(bag.hasAttribute("data-overdrawn")).toBe(false);
   expect(warning()).toBeNull();
   await typeRack(user, "UUA");

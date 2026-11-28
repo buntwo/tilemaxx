@@ -6604,6 +6604,10 @@ label + label {
   height: 24px;
   flex-wrap: nowrap;
 }
+.phone-board-column .last-play-row:has(> .last-play-tile-warning) {
+  height: auto;
+  flex-wrap: wrap;
+}
 .phone-board-column .last-play-summary {
   flex-wrap: nowrap;
   overflow: hidden;
@@ -6874,9 +6878,12 @@ label + label {
 }
 .last-play-tile-warning {
   display: flex;
+  align-items: center;
+  gap: 4px;
   flex: none;
   margin-inline-start: auto;
   color: var(--value-bad);
+  white-space: nowrap;
 }
 button.last-play-summary { cursor: pointer; }
 button.last-play-summary:focus-visible { outline-offset: -2px; }

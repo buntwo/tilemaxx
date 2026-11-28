@@ -18,8 +18,9 @@ export type LastPlayBag = {
 
 export function TileCountWarning() {
   return (
-    <span className="last-play-tile-warning" role="img" aria-label="Tile count error" title="Check tile counts">
+    <span className="last-play-tile-warning">
       <TriangleAlert size={14} aria-hidden="true" />
+      Check tile counts
     </span>
   );
 }
