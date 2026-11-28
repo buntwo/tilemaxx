@@ -1,13 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { BingoDeal } from "../shared/bingo-replies";
-import { LEARNER_REPLY_DEALS, screenLearnerReplies } from "../shared/learner-reply-screen";
+import { rackPoints } from "../shared/endgame";
 import {
   createLearnerLookahead,
   LEARNER_EXCHANGE_DEALS,
 } from "../shared/learner-lookahead";
 import { Lexicon } from "../shared/lexicon";
-import type { MasterOutcome } from "../shared/master-evaluation";
 import { emptyBoard } from "../shared/model";
 import {
   createPlayerProfiles, LEARNER_HALF_LIFE,
@@ -16,10 +14,10 @@ import {
 import { learnerAppeal } from "../shared/player-profile-sampling";
 import { PRESETS } from "../shared/presets";
 import { leaveValue } from "../shared/rack-leave";
-import { SearchLimitError, solvePosition } from "../shared/solver";
+import { solvePosition } from "../shared/solver";
 import { TILE_SYMBOLS } from "../shared/tile-pool";
 
-function fixture(bagSize = 86) {
+function fixture(bagSize = 86, ruleset = PRESETS[0], opponent = "AEINRST") {
   const words = [
     "AB",
     "ACT",
@@ -54,10 +52,10 @@ function fixture(bagSize = 86) {
     "TRAPS",
   ];
   const lexicon = new Lexicon(words);
-  const rack = "ABCQRST";
-  const stock = rack + "AEINRST" + "A".repeat(bagSize);
-  const template = bagSize === 86 ? PRESETS[0] : {
-    ...PRESETS[0],
+  const rack = ruleset.rackSize === 8 ? "ABCQRSTE" : "ABCQRST";
+  const stock = rack + opponent + "A".repeat(bagSize);
+  const template = bagSize === 86 && ruleset === PRESETS[0] ? ruleset : {
+    ...ruleset,
     tileCounts: Object.fromEntries(TILE_SYMBOLS.map((symbol) => [symbol, [...stock].filter((c) => c === symbol).length])),
   };
   const position = {
@@ -90,7 +88,7 @@ function fixture(bagSize = 86) {
   };
 }
 
-test("Learner screens three placements with 32 shared replies and uses eight follow-up draws", () => {
+test("Learner compares three placements on 32 complete shared lines", () => {
   const { position, evaluate, ranked, slate } = fixture();
   assert.equal(slate.length, 3);
   assert.equal(new Set(slate.map(({ move }) => move.word)).size, 3);
@@ -110,12 +108,13 @@ test("Learner screens three placements with 32 shared replies and uses eight fol
     result = steps.next();
   }
 
-  assert.equal(comparisons, 3 * (LEARNER_REPLY_DEALS + 8));
+  assert.equal(comparisons, 3 * 32);
   const first = result.value.ranked[0];
   const evaluated = result.value.ranked.filter(({ utility }) => utility.lookahead !== undefined);
   for (const { utility } of evaluated) {
     assert.equal(utility.lookaheadDeals, 32);
-    assert.equal(utility.followUpDeals, 8);
+    assert.equal(utility.followUpDeals, undefined);
+    assert.ok(utility.modeledFollowUp !== undefined);
   }
   const best = evaluated.reduce((winner, entry) =>
     entry.utility.total > winner.utility.total ||
@@ -141,8 +140,8 @@ test("Learner screens three placements with 32 shared replies and uses eight fol
   assert.equal(prior.utility.lookahead, undefined);
 });
 
-test("Learner keeps the full eight-deal forecast when the bag can empty during the line", () => {
-  const { position, evaluate, ranked, slate } = fixture(14);
+test("Learner compares 32 complete lines when the bag can empty on the play", () => {
+  const { position, evaluate, ranked, slate } = fixture(1);
   const work = evaluate({ ...position, requiredRackSlots: [0] }, ranked, slate, Infinity);
   let count = 0;
   let step = work.next();
@@ -150,31 +149,53 @@ test("Learner keeps the full eight-deal forecast when the bag can empty during t
     count++;
     step = work.next();
   }
-  assert.equal(count, 3 * 8);
-  assert.equal(step.value.ranked[0].utility.lookaheadDeals, 8);
-  assert.equal(step.value.ranked[0].utility.followUpDeals, undefined);
+  assert.equal(count, 3 * 32);
+  assert.equal(step.value.ranked[0].utility.lookaheadDeals, 32);
 });
 
-test("Learner discards partial reply and follow-up batches but keeps completed checkpoints", () => {
-  const deals = Array.from({ length: 32 }, (_, replySeed) => ({ opponent: "ABC", bag: "DE", replySeed }));
-  const fixtureMove = fixture().slate[0].move;
-  const evaluator = (score: number, interrupted = false) => Object.assign(
-    (deal: BingoDeal): MasterOutcome => {
-      if (interrupted && (deal.replySeed ?? 0) >= 5) throw new SearchLimitError("time");
-      return { reply: score, followUp: 10, ownLeave: 0, opposingLeave: 0, rackAdjustment: 0, bingo: false, terminal: false };
-    }, {
-      opponentReply: (deal: BingoDeal) => {
-        if (interrupted && (deal.replySeed ?? 0) >= 10) throw new SearchLimitError("time");
-        return { ...fixtureMove, score };
-      },
-    },
-  );
-  const work = screenLearnerReplies([evaluator(7), evaluator(9, true)], deals, Infinity);
+test("Learner evaluates 32 Lexulous lines and counts rack deductions after two passes", () => {
+  const lexulous = PRESETS.find(({ id }) => id === "lexulous")!;
+  const { position, lexicon, template, ranked } = fixture(42, lexulous, "AAAAAAAA");
+  const pointsAfterDraw = (move: typeof ranked[number]["move"]) =>
+    rackPoints(move.leave + "A".repeat(move.tiles.length), template.rules);
+  const byRackPoints = new Map(ranked.map(({ move, utility }) =>
+    [pointsAfterDraw(move), { move, value: utility.total, visibility: 1 }]));
+  const slate = [...byRackPoints.values()].slice(0, 3);
+  assert.equal(slate.length, 3);
+  const forecast = createLearnerLookahead(lexicon, template, () => ({ bingoFound: false }));
+  const work = forecast(position, ranked, slate, Infinity);
   let step = work.next();
   while (!step.done) step = work.next();
-  assert.equal(step.value.replyDeals, 8);
-  assert.deepEqual(step.value.totals, [56, 72]);
-  assert.deepEqual(step.value.outcomes.map((outcomes) => outcomes.length), [4, 4]);
+  const firstRackPoints = pointsAfterDraw(slate[0].move);
+  const compared = step.value.ranked.filter(({ utility }) => utility.lookaheadDeals === 32);
+  assert.equal(compared.length, 3);
+  assert.ok(compared.some(({ utility }) => utility.lookahead !== 0));
+  for (const { move, utility } of compared) {
+    assert.equal(utility.modeledReply, 0);
+    assert.equal(utility.modeledFollowUp, 0);
+    assert.equal(utility.lookahead, 0.55 * (firstRackPoints - pointsAfterDraw(move)));
+  }
+});
+
+test("Learner uses its two-second deadline and keeps only batches all finalists finish", (t) => {
+  const { position, evaluate, ranked, slate } = fixture();
+  let now = 0;
+  t.mock.method(performance, "now", () => now);
+  for (const [deals, checkpoint] of [[6, 0], [13, 8], [22, 16]]) {
+    now = 0;
+    const work = evaluate({ ...position, requiredRackSlots: [0] }, ranked, slate);
+    for (let current = 0; current < deals * slate.length; current++)
+      assert.equal(work.next().done, false);
+    now = 1_999;
+    assert.equal(work.next().done, false);
+    now = 2_001;
+    const result = work.next();
+    assert.equal(result.done, true);
+    if (!result.done) throw new Error("Forecast did not finish");
+    const compared = result.value.ranked.filter(({ utility }) => utility.lookaheadDeals !== undefined);
+    assert.deepEqual(compared.map(({ utility }) => utility.lookaheadDeals),
+      checkpoint ? [checkpoint, checkpoint, checkpoint] : []);
+  }
 });
 
 test("Learner shares a distinct opponent vocabulary seed and reply choices across placements", () => {
@@ -232,11 +253,13 @@ test("Casual samples three finalists and looks ahead with a ten-point half-life"
   const evaluated = next.value.ranked.filter(({ utility }) => utility.lookahead !== undefined);
   assert.equal(evaluated.length, 3);
   assert.equal(next.value.ranked[0].utility.total, Math.max(...evaluated.map(({ utility }) => utility.total)));
-  for (const { utility } of evaluated)
+  for (const { utility } of evaluated) {
+    assert.equal(utility.lookaheadDeals, 8);
     assert.equal(utility.appeal, learnerAppeal(utility.total, 10));
+  }
 });
 
-test("Learner checks the swap on 32 deals and reuses the first eight placement outcomes", () => {
+test("Learner checks the swap on 32 deals and reuses the placement outcomes", () => {
   const { position, evaluate, ranked, slate } = fixture();
   const steps = evaluate(position, ranked, slate, Infinity);
   let count = 0;
@@ -245,7 +268,7 @@ test("Learner checks the swap on 32 deals and reuses the first eight placement o
     count++;
     step = steps.next();
   }
-  assert.equal(count, slate.length * (LEARNER_REPLY_DEALS + 8) + LEARNER_EXCHANGE_DEALS);
+  assert.equal(count, slate.length * 32 + LEARNER_EXCHANGE_DEALS);
   assert.equal(LEARNER_EXCHANGE_DEALS, 32);
   assert.equal(step.value.exchange, undefined);
   assert.equal(step.value.ranked[0].move.word, "CART");

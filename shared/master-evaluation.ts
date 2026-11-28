@@ -68,9 +68,7 @@ export function createMasterEvaluator(
     createReply?.(boardAfter, bagAfter),
   );
   const points = (rack: string) => rackPoints(rack, template.rules);
-  const opponentReply = (deal: BingoDeal, deadline: number) =>
-    search.reply(deal.opponent, deadline, deal.replySeed);
-  const evaluate = (deal: BingoDeal, deadline: number, shuffleSeed = 0): MasterOutcome => {
+  return (deal: BingoDeal, deadline: number, shuffleSeed = 0): MasterOutcome => {
     const rack = rackComposition(leave + deal.bag.slice(0, draw));
     const result = {
       reply: 0,
@@ -96,7 +94,7 @@ export function createMasterEvaluator(
       ? sampleTiles([...(deal.bag.slice(draw) + returned)], bagAfter, randomGenerator(shuffleSeed))
       : deal.bag;
     const replyStart = returned ? 0 : draw;
-    const reply = opponentReply(deal, deadline);
+    const reply = search.reply(deal.opponent, deadline, deal.replySeed);
     result.reply = reply?.score ?? 0;
     const opposingLeave = reply?.leave ?? deal.opponent;
     if (!rule && !bagAfter) return finish(0);
@@ -137,7 +135,6 @@ export function createMasterEvaluator(
       bagAfter > 0 ? leaveValue(opposingLeave) : -points(opposingLeave);
     return result;
   };
-  return Object.assign(evaluate, { opponentReply });
 }
 
 export type MasterUtility = ReturnType<typeof summarizeMaster>;

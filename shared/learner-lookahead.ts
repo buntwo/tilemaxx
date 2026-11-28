@@ -1,11 +1,4 @@
 import { sampleBingoDeals, type BingoDeal, type BingoReplyPicker } from "./bingo-replies";
-import { endgameStreaks, nextEndgameStreak } from "./endgame";
-import {
-  evaluateSharedBatch,
-  INITIAL_LEARNER_DEALS as DEALS,
-  LEARNER_REPLY_DEALS,
-  screenLearnerReplies,
-} from "./learner-reply-screen";
 import type { Lexicon } from "./lexicon";
 import { createMasterEvaluator, type MasterOutcome } from "./master-evaluation";
 import type { Board, BoardTemplate, Move } from "./model";
@@ -30,7 +23,9 @@ import { unseenTiles } from "./tile-pool";
 import { stylePlacement } from "./style-explanation";
 
 export const LEARNER_EXCHANGE_DEALS = 32;
-const BUDGET_MS = { casual: 1_000, learner: 1_500 } as const;
+const INITIAL_DEALS = 8;
+const LEARNER_CHECKPOINTS = [INITIAL_DEALS, 16, 32] as const;
+const BUDGET_MS = { casual: 1_000, learner: 2_000 } as const;
 const FOLLOW_UP_WEIGHT = 0.5;
 const TACTICAL_WEIGHT = 0.55;
 const MINIMUM_SWAP_EDGE = 2;
@@ -50,11 +45,11 @@ function promote(ranked: readonly RankedProfileMove[], move: Move) {
 function rankPlacements(
   ranked: readonly RankedProfileMove[],
   slate: readonly LearnerCandidate[],
-  estimates: readonly { horizon: number; reply: number; followUp?: number }[],
+  outcomes: readonly MasterOutcome[][],
   halfLife: number,
-  replyDeals: number,
-  followUpDeals?: number,
 ) {
+  const estimates = outcomes.map(averageOutcome);
+  const sampleCount = outcomes[0].length;
   const alternatives = slate.map((entry, index) => {
     const { horizon, reply, followUp } = estimates[index];
     const lookahead = TACTICAL_WEIGHT * (horizon - estimates[0].horizon);
@@ -89,8 +84,7 @@ function rankPlacements(
           lookahead,
           modeledReply,
           modeledFollowUp,
-          lookaheadDeals: replyDeals,
-          followUpDeals,
+          lookaheadDeals: sampleCount,
           appeal,
           total: row.utility.total + lookahead,
         },
@@ -108,6 +102,35 @@ function averageOutcome(deals: readonly MasterOutcome[]) {
     horizon += -outcome.reply + (outcome.terminal ? 1 : FOLLOW_UP_WEIGHT) * outcome.followUp + outcome.rackAdjustment;
   }
   return { reply: reply / deals.length, followUp: followUp / deals.length, horizon: horizon / deals.length };
+}
+
+function* evaluatePlacements(
+  evaluators: readonly ReturnType<typeof createMasterEvaluator>[],
+  deals: readonly BingoDeal[],
+  checkpoints: readonly number[],
+  deadline: number,
+): Generator<void, MasterOutcome[][], void> {
+  const completed = evaluators.map((): MasterOutcome[] => []);
+  let previous = 0;
+  for (const count of checkpoints) {
+    const batch = evaluators.map((): MasterOutcome[] => []);
+    try {
+      for (const [index, evaluate] of evaluators.entries()) {
+        for (const deal of deals.slice(previous, count)) {
+          if (performance.now() >= deadline) throw new SearchLimitError("time");
+          batch[index].push(evaluate(deal, deadline));
+          yield;
+        }
+      }
+      if (performance.now() >= deadline) throw new SearchLimitError("time");
+    } catch (error) {
+      if (!(error instanceof SearchLimitError)) throw error;
+      break;
+    }
+    for (const [index, outcomes] of batch.entries()) completed[index].push(...outcomes);
+    previous = count;
+  }
+  return completed;
 }
 
 function learnerOpponent(choose: ReturnType<typeof createPlayerProfiles>, playerSeed: number) {
@@ -226,10 +249,10 @@ export function createLearnerLookahead(
     const moves = rankTactically
       ? slate.map(({ move }) => move)
       : [reference ?? ranked[0].move];
-    const rule = endgameStreaks[template.rules];
-    const replyFirst = pickReply && rankTactically && bagSize > 2 * template.rackSize &&
-      (!rule || moves.every((move) => nextEndgameStreak(rule, state.scorelessTurns, move) + 2 < rule.limit));
-    const deals = drawDeals(replyFirst ? LEARNER_REPLY_DEALS : DEALS);
+    const checkpoints = profile === "learner" && rankTactically
+      ? LEARNER_CHECKPOINTS
+      : [INITIAL_DEALS];
+    const deals = drawDeals(checkpoints[checkpoints.length - 1]);
     const evaluators = moves.map((move) =>
       createMasterEvaluator(
         factory,
@@ -246,32 +269,17 @@ export function createLearnerLookahead(
       ),
     );
     try {
-      const halfLife = LEARNER_HALF_LIFE[profile];
-      let outcomes: MasterOutcome[][];
-      if (replyFirst) {
-        const screened = yield* screenLearnerReplies(evaluators, deals, deadline);
-        if (!screened.replyDeals) return { ranked };
-        outcomes = screened.outcomes;
-        const followUpDeals = outcomes[0].length;
-        const estimates = screened.totals.map((total, index) => {
-          const reply = total / screened.replyDeals;
-          const followUp = followUpDeals ? averageOutcome(outcomes[index]).followUp : undefined;
-          return { reply, followUp, horizon: -reply + FOLLOW_UP_WEIGHT * (followUp ?? 0) };
-        });
-        ranked = rankPlacements(ranked, slate, estimates, halfLife, screened.replyDeals, followUpDeals);
-        if (followUpDeals < DEALS) return { ranked };
-      } else {
-        outcomes = yield* evaluateSharedBatch(evaluators, deals, deadline);
-        if (rankTactically)
-          ranked = rankPlacements(ranked, slate, outcomes.map(averageOutcome), halfLife, DEALS);
-      }
+      const outcomes = yield* evaluatePlacements(evaluators, deals, checkpoints, deadline);
+      if (!outcomes[0].length) return { ranked };
+      if (rankTactically)
+        ranked = rankPlacements(ranked, slate, outcomes, LEARNER_HALF_LIFE[profile]);
       const { advice, learnerSwap } = initialScreen ?? screen(ranked[0]?.move);
       if (!learnerSwap) return { ranked, exchange: advice };
 
       // Use the best full-spread placement from the first eight deals as the
       // reference. Matching the draws measures the opportunity cost of swapping.
       const totals = outcomes.map((results, index) =>
-        results.reduce(
+        results.slice(0, INITIAL_DEALS).reduce(
           (total, outcome) => total + spread(moves[index].score, outcome),
           0,
         ),
