@@ -1,4 +1,4 @@
-import { createBingoReplySearch, type BingoDeal } from "./bingo-replies";
+import { createBingoReplySearch, type BingoDeal, type BingoReplyPicker } from "./bingo-replies";
 import type { HunterPosition } from "./bingo-hunter";
 import { endgameStreaks, nextEndgameStreak, rackPoints } from "./endgame";
 import { isBingo, type Board, type Move } from "./model";
@@ -37,6 +37,7 @@ export function createMasterEvaluator(
   action: MasterAction,
   policy: MasterPolicy,
   selectFollowUp?: (moves: Move[], board: Board, rack: string, bagSize: number) => Move | undefined,
+  createReply?: (board: Board, bagSize: number) => BingoReplyPicker,
 ) {
   const { board, bagSize, template, scorelessTurns } = position;
   const { move, leave, draw, returned, held = "" } = action;
@@ -64,9 +65,12 @@ export function createMasterEvaluator(
         Math.max(0, bagAfter - (reply?.tiles.length ?? 0)),
       ) ?? null;
     },
+    createReply?.(boardAfter, bagAfter),
   );
   const points = (rack: string) => rackPoints(rack, template.rules);
-  return (deal: BingoDeal, deadline: number, shuffleSeed = 0): MasterOutcome => {
+  const opponentReply = (deal: BingoDeal, deadline: number) =>
+    search.reply(deal.opponent, deadline, deal.replySeed);
+  const evaluate = (deal: BingoDeal, deadline: number, shuffleSeed = 0): MasterOutcome => {
     const rack = rackComposition(leave + deal.bag.slice(0, draw));
     const result = {
       reply: 0,
@@ -92,7 +96,7 @@ export function createMasterEvaluator(
       ? sampleTiles([...(deal.bag.slice(draw) + returned)], bagAfter, randomGenerator(shuffleSeed))
       : deal.bag;
     const replyStart = returned ? 0 : draw;
-    const reply = search.reply(deal.opponent, deadline);
+    const reply = opponentReply(deal, deadline);
     result.reply = reply?.score ?? 0;
     const opposingLeave = reply?.leave ?? deal.opponent;
     if (!rule && !bagAfter) return finish(0);
@@ -133,6 +137,7 @@ export function createMasterEvaluator(
       bagAfter > 0 ? leaveValue(opposingLeave) : -points(opposingLeave);
     return result;
   };
+  return Object.assign(evaluate, { opponentReply });
 }
 
 export type MasterUtility = ReturnType<typeof summarizeMaster>;

@@ -337,7 +337,7 @@ test("move rankings and exchange advice use each style's known options", async (
   }
   const learner = await analyze("learner", "moves");
   assert.equal(learner.styleChoice.word, "OU");
-  assert.ok(learner.exchangeAdvice.edge > 2);
+  assert.equal(learner.exchangeAdvice, undefined);
   assert.deepEqual((await analyze("learner", "exchange-advice")).advice, learner.exchangeAdvice);
   assert.deepEqual(
     (await analyze("learner", "exchange-advice", learner.styleChoice.id)).advice,

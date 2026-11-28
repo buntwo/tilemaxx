@@ -136,6 +136,7 @@ export type ProfileUtility = {
   modeledReply?: number;
   modeledFollowUp?: number;
   lookaheadDeals?: number;
+  followUpDeals?: number;
   selection?: "winning-rack-out" | "known-rack";
   defense?: number;
   premiumLane?: number;
@@ -299,6 +300,7 @@ export function createPlayerProfiles(
       topThree?: boolean;
       metrics?: boolean;
       learnerSlate?: boolean;
+      modeledReply?: { choiceSeed: number };
     } = {},
   ): ProfileDecision => {
     if (!moves.length)
@@ -309,6 +311,7 @@ export function createPlayerProfiles(
     const halfLife = usesLearnerPolicy(profile) ? LEARNER_HALF_LIFE[profile] : undefined;
     const isLearner = halfLife !== undefined;
     const liveLearner = isLearner && options.learnerSlate;
+    const modeledReply = profile === "learner" ? options.modeledReply : undefined;
     const appealFor = isLearner
       ? (value: number) => learnerLogAppeal(value, halfLife)
       : (value: number) => profileAppeal(value, sampling.appeal);
@@ -376,7 +379,7 @@ export function createPlayerProfiles(
       preset.focus * sampling.coverage,
       preset.hookAttention,
       seed,
-      liveLearner
+      liveLearner || modeledReply
         ? () => learnerRackCues(board, template, splitRack(position).available,
             (spelling) => lexicon.has(spelling) && knows(wordData(spelling, vocabularyPolicy)))
         : undefined,
@@ -564,13 +567,13 @@ export function createPlayerProfiles(
       }
     }
     const compareLearner = liveLearner && !solo && bagSize > 0;
-    const comparisonLimit = profile === "learner" || emptyBag ? 6 : 3;
+    const comparisonLimit = emptyBag ? 6 : 3;
     const limit = options.all
       ? candidates.length
       : compareLearner || opponent
         ? comparisonLimit
-        : options.topThree ? 3 : 1;
-    let order = sampleProfilePlacements(candidates, seed, limit, isLearner);
+        : options.topThree || modeledReply ? 3 : 1;
+    let order = sampleProfilePlacements(candidates, modeledReply?.choiceSeed ?? seed, limit, isLearner);
     if (opponent && halfLife !== undefined) {
       const focusedOut = moves.reduce<Move | undefined>((best, move) =>
         !move.leave && (!best || move.score > best.score) && knowsMove(move) ? move : best, undefined);
@@ -620,7 +623,9 @@ export function createPlayerProfiles(
       }
     }
     const first = order[0];
-    const move = first?.move;
+    const move = modeledReply
+      ? order.reduce<Candidate | undefined>((best, entry) => !best || entry.value > best.value ? entry : best, undefined)?.move
+      : first?.move;
     let learnerSlate: Candidate[] | undefined;
     if (compareLearner && first) {
       learnerSlate = [];

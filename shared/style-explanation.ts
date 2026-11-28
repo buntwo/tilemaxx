@@ -20,6 +20,7 @@ export type StyleEvaluation = {
   modeledReply?: number;
   modeledFollowUp?: number;
   samples?: number;
+  followUpSamples?: number;
   exact?: boolean;
   selection?: "winning-rack-out" | "known-rack";
 };
@@ -43,9 +44,9 @@ export function styleEvaluation(utility: MoveUtility): StyleEvaluation {
   let evaluation: StyleEvaluation;
   if ("visibility" in utility) {
     const { points, premium, leave, goingOut, defense, premiumLane, endgame,
-      lookahead, visibility, appeal, modeledReply, modeledFollowUp, lookaheadDeals, selection } = utility;
+      lookahead, visibility, appeal, modeledReply, modeledFollowUp, lookaheadDeals, followUpDeals, selection } = utility;
     evaluation = {
-      rank, total, modeledReply, modeledFollowUp, samples: lookaheadDeals, selection,
+      rank, total, modeledReply, modeledFollowUp, samples: lookaheadDeals, followUpSamples: followUpDeals, selection,
       factors: {
         "Weighted points": points,
         "Premium squares": premium || undefined,

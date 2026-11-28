@@ -162,7 +162,11 @@ export default function ReplayMoveExplanation({
           : " recommendation"}
         {reanalysis?.estimatedBag && " · Estimated bag"}
         {explanation.provisional && " · Provisional"}
-        {evaluation?.exact ? " · Exact" : evaluation?.samples ? ` · ${evaluation.samples} samples` : ""}
+        {evaluation?.exact ? " · Exact" : evaluation?.samples ? (
+          evaluation.followUpSamples === undefined
+            ? ` · ${evaluation.samples} samples`
+            : ` · ${evaluation.samples} replies${evaluation.followUpSamples ? ` · ${evaluation.followUpSamples} follow-up draws` : ""}`
+        ) : ""}
       </p>
       <p>{reanalysis ? explainReanalysis(explanation, reanalysis.availablePlacement, notation) : explain(explanation, notation)}</p>
       {alternative && (

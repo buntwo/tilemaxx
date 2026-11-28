@@ -181,6 +181,7 @@ const styleEvaluation = z.object({
   modeledReply: z.number().nonnegative().optional(),
   modeledFollowUp: z.number().nonnegative().optional(),
   samples: z.number().int().nonnegative().optional(),
+  followUpSamples: z.number().int().nonnegative().optional(),
   exact: z.boolean().optional(),
   selection: z.enum(["winning-rack-out", "known-rack"]).optional(),
 });

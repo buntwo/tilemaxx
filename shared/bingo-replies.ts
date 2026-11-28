@@ -6,7 +6,7 @@ import {
   type createSolverFactory,
 } from "./solver";
 
-export type BingoDeal = { opponent: string; bag: string; weight?: number };
+export type BingoDeal = { opponent: string; bag: string; weight?: number; replySeed?: number };
 
 export function sampleBingoDeals(
   pool: string[],
@@ -25,6 +25,12 @@ export function sampleBingoDeals(
 }
 
 type Solver = ReturnType<ReturnType<typeof createSolverFactory>>;
+export type BingoReplyPicker = (
+  solver: Solver,
+  rack: string,
+  limits: { maxMs: number },
+  choiceSeed: number,
+) => Move | null;
 
 export function createBingoReplySearch<T>(
   factory: ReturnType<typeof createSolverFactory>,
@@ -37,6 +43,7 @@ export function createBingoReplySearch<T>(
     board: Board,
     reply: Move | null,
   ) => T,
+  pickReply?: BingoReplyPicker,
 ) {
   const baseline = factory(board);
   const replies = new Map<string, Move | null>();
@@ -52,14 +59,17 @@ export function createBingoReplySearch<T>(
   }
 
   return {
-    reply(opponent: string, deadline: number) {
+    reply(opponent: string, deadline: number, choiceSeed = 0) {
       if (!opponent) return null;
-      if (!replies.has(opponent))
-        replies.set(
-          opponent,
-          baseline.bestReply(opponent, rankLeave, limits(deadline)),
-        );
-      return replies.get(opponent) ?? null;
+      const key = pickReply ? `${opponent}:${choiceSeed}` : opponent;
+      if (!replies.has(key)) {
+        const budget = limits(deadline);
+        const move = pickReply
+          ? pickReply(baseline, opponent, budget, choiceSeed)
+          : baseline.bestReply(opponent, rankLeave, budget);
+        replies.set(key, move);
+      }
+      return replies.get(key) ?? null;
     },
     followUp(reply: Move | null, rack: string, deadline: number) {
       const key = reply?.id ?? null;

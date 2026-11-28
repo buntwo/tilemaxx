@@ -406,7 +406,7 @@ test.each([1200, 390])("replay restores a saved style explanation and previews t
               total: index ? 11 : 12, points: move.score * 0.85, premium: 0.4,
               visibility: 1, appeal: 2, leave: index ? 0 : 1.2, goingOut: 0,
               premiumLane: index ? -2.4 : -1.15, lookahead: index ? 0 : 1.25,
-              modeledReply: index ? 30 : 22, modeledFollowUp: 28, lookaheadDeals: 8,
+              modeledReply: index ? 30 : 22, modeledFollowUp: 28, lookaheadDeals: 32, followUpDeals: 8,
             },
           })));
         }
@@ -433,6 +433,7 @@ test.each([1200, 390])("replay restores a saved style explanation and previews t
   const decision = current().trackedMoves?.[0].styleExplanation;
   expect(decision).toMatchObject({
     style: "learner", kind: "play", recommended: true, alternative: { move: { word: "CATS" } },
+    played: { evaluation: { samples: 32, followUpSamples: 8 } },
   });
   await act(() => store.flush());
   expect(remote.games[0].trackedMoves?.[0].styleExplanation).toMatchObject({ style: "learner" });
@@ -442,6 +443,7 @@ test.each([1200, 390])("replay restores a saved style explanation and previews t
   render(<App />);
   await user.click(await screen.findByRole("button", { name: "Why?" }));
   const why = within(screen.getByRole("region", { name: "Why this move?" }));
+  expect(why.getByText(/32 replies · 8 follow-up draws/)).toBeTruthy();
   expect(why.getByText(/cut the modeled reply by 8/)).toBeTruthy();
   await user.click(why.getByText("Style breakdown"));
   expect(why.getByText("1.25").classList.contains("value-good")).toBe(true);

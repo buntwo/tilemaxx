@@ -1,7 +1,14 @@
-import { sampleBingoDeals, type BingoDeal } from "./bingo-replies";
+import { sampleBingoDeals, type BingoDeal, type BingoReplyPicker } from "./bingo-replies";
+import { endgameStreaks, nextEndgameStreak } from "./endgame";
+import {
+  evaluateSharedBatch,
+  INITIAL_LEARNER_DEALS as DEALS,
+  LEARNER_REPLY_DEALS,
+  screenLearnerReplies,
+} from "./learner-reply-screen";
 import type { Lexicon } from "./lexicon";
 import { createMasterEvaluator, type MasterOutcome } from "./master-evaluation";
-import type { BoardTemplate, Move } from "./model";
+import type { Board, BoardTemplate, Move } from "./model";
 import { randomGenerator, sampleTiles } from "./move-analysis";
 import {
   screenPlayerExchange,
@@ -16,15 +23,14 @@ import {
   type ProfilePosition,
   type RankedProfileMove,
 } from "./player-profiles";
-import { learnerAppeal } from "./player-profile-sampling";
+import { learnerAppeal, mixProfileSeed } from "./player-profile-sampling";
 import { rackComposition, splitRack } from "./rack-entry";
 import { createSolverFactory, SearchLimitError } from "./solver";
 import { unseenTiles } from "./tile-pool";
 import { stylePlacement } from "./style-explanation";
 
-const DEALS = 8;
 export const LEARNER_EXCHANGE_DEALS = 32;
-const BUDGET_MS = 1_000;
+const BUDGET_MS = { casual: 1_000, learner: 1_500 } as const;
 const FOLLOW_UP_WEIGHT = 0.5;
 const TACTICAL_WEIGHT = 0.55;
 const MINIMUM_SWAP_EDGE = 2;
@@ -44,30 +50,22 @@ function promote(ranked: readonly RankedProfileMove[], move: Move) {
 function rankPlacements(
   ranked: readonly RankedProfileMove[],
   slate: readonly LearnerCandidate[],
-  outcomes: readonly MasterOutcome[][],
+  estimates: readonly { horizon: number; reply: number; followUp?: number }[],
   halfLife: number,
+  replyDeals: number,
+  followUpDeals?: number,
 ) {
-  const horizons = outcomes.map(
-    (deals) =>
-      deals.reduce(
-        (total, { reply, followUp, rackAdjustment, terminal }) =>
-          total -
-          reply +
-          (terminal ? 1 : FOLLOW_UP_WEIGHT) * followUp +
-          rackAdjustment,
-        0,
-      ) / DEALS,
-  );
   const alternatives = slate.map((entry, index) => {
-    const lookahead = TACTICAL_WEIGHT * (horizons[index] - horizons[0]);
+    const { horizon, reply, followUp } = estimates[index];
+    const lookahead = TACTICAL_WEIGHT * (horizon - estimates[0].horizon);
     const adjustedUtility = entry.value + lookahead;
     return {
       move: entry.move,
       lookahead,
       appeal: learnerAppeal(adjustedUtility, halfLife),
       adjustedUtility,
-      modeledReply: outcomes[index].reduce((sum, { reply }) => sum + reply, 0) / DEALS,
-      modeledFollowUp: outcomes[index].reduce((sum, { followUp }) => sum + followUp, 0) / DEALS,
+      modeledReply: reply,
+      modeledFollowUp: followUp,
     };
   });
   const picked = alternatives.reduce((best, entry) =>
@@ -91,7 +89,8 @@ function rankPlacements(
           lookahead,
           modeledReply,
           modeledFollowUp,
-          lookaheadDeals: DEALS,
+          lookaheadDeals: replyDeals,
+          followUpDeals,
           appeal,
           total: row.utility.total + lookahead,
         },
@@ -99,6 +98,33 @@ function rankPlacements(
     }),
     picked,
   );
+}
+
+function averageOutcome(deals: readonly MasterOutcome[]) {
+  let reply = 0, followUp = 0, horizon = 0;
+  for (const outcome of deals) {
+    reply += outcome.reply;
+    followUp += outcome.followUp;
+    horizon += -outcome.reply + (outcome.terminal ? 1 : FOLLOW_UP_WEIGHT) * outcome.followUp + outcome.rackAdjustment;
+  }
+  return { reply: reply / deals.length, followUp: followUp / deals.length, horizon: horizon / deals.length };
+}
+
+function learnerOpponent(choose: ReturnType<typeof createPlayerProfiles>, playerSeed: number) {
+  return (board: Board, bagSize: number): BingoReplyPicker => {
+    const legalByRack = new Map<string, Move[]>();
+    return (solver, rack, limits, choiceSeed) => {
+      let moves = legalByRack.get(rack);
+      if (!moves) {
+        moves = solver.solve(rack, limits, { unsorted: true });
+        legalByRack.set(rack, moves);
+      }
+      return choose(moves, "learner", {
+        board, rack, bagSize, playerSeed,
+        seed: profileWordHash(`${board.join(".")}:${rackComposition(rack)}`),
+      }, { modeledReply: { choiceSeed } }).move ?? null;
+    };
+  };
 }
 
 function spread(score: number, outcome: MasterOutcome) {
@@ -132,7 +158,7 @@ export function createLearnerLookahead(
     position: ProfilePosition,
     original: readonly RankedProfileMove[],
     slate: readonly LearnerCandidate[],
-    deadline = performance.now() + BUDGET_MS,
+    deadline = performance.now() + BUDGET_MS[profile],
     reference?: Move,
   ): Generator<void, LearnerLookahead, void> {
     let ranked = original;
@@ -167,14 +193,22 @@ export function createLearnerLookahead(
       `${board.join(".")}:${rackComposition(rack)}:${bagSize}`,
     );
     const random = randomGenerator(dealSeed);
-    const drawDeals = (count: number) =>
-      sampleBingoDeals(
+    const pickReply = profile === "learner"
+      ? learnerOpponent(choose, mixProfileSeed(playerSeed ^ 0x715df9e1))
+      : undefined;
+    let drawn = 0;
+    const drawDeals = (count: number) => {
+      const deals = sampleBingoDeals(
         pool,
         opponentSize,
         Math.min(bagSize, 3 * template.rackSize),
         count,
         random,
       );
+      if (pickReply)
+        for (const deal of deals) deal.replySeed = profileWordHash(`reply:${dealSeed}:${drawn++}`);
+      return deals;
+    };
     const follow: NonNullable<Parameters<typeof createMasterEvaluator>[4]> = (
       moves,
       board,
@@ -192,7 +226,10 @@ export function createLearnerLookahead(
     const moves = rankTactically
       ? slate.map(({ move }) => move)
       : [reference ?? ranked[0].move];
-    const deals = drawDeals(DEALS);
+    const rule = endgameStreaks[template.rules];
+    const replyFirst = pickReply && rankTactically && bagSize > 2 * template.rackSize &&
+      (!rule || moves.every((move) => nextEndgameStreak(rule, state.scorelessTurns, move) + 2 < rule.limit));
+    const deals = drawDeals(replyFirst ? LEARNER_REPLY_DEALS : DEALS);
     const evaluators = moves.map((move) =>
       createMasterEvaluator(
         factory,
@@ -205,22 +242,29 @@ export function createLearnerLookahead(
         },
         policy,
         follow,
+        pickReply,
       ),
     );
-    const outcomes: MasterOutcome[][] = [];
     try {
-      for (const evaluate of evaluators) {
-        const results: MasterOutcome[] = [];
-        for (const deal of deals) {
-          if (performance.now() >= deadline) return { ranked };
-          results.push(evaluate(deal, deadline));
-          yield;
-        }
-        outcomes.push(results);
+      const halfLife = LEARNER_HALF_LIFE[profile];
+      let outcomes: MasterOutcome[][];
+      if (replyFirst) {
+        const screened = yield* screenLearnerReplies(evaluators, deals, deadline);
+        if (!screened.replyDeals) return { ranked };
+        outcomes = screened.outcomes;
+        const followUpDeals = outcomes[0].length;
+        const estimates = screened.totals.map((total, index) => {
+          const reply = total / screened.replyDeals;
+          const followUp = followUpDeals ? averageOutcome(outcomes[index]).followUp : undefined;
+          return { reply, followUp, horizon: -reply + FOLLOW_UP_WEIGHT * (followUp ?? 0) };
+        });
+        ranked = rankPlacements(ranked, slate, estimates, halfLife, screened.replyDeals, followUpDeals);
+        if (followUpDeals < DEALS) return { ranked };
+      } else {
+        outcomes = yield* evaluateSharedBatch(evaluators, deals, deadline);
+        if (rankTactically)
+          ranked = rankPlacements(ranked, slate, outcomes.map(averageOutcome), halfLife, DEALS);
       }
-      if (performance.now() >= deadline) return { ranked };
-      if (rankTactically)
-        ranked = rankPlacements(ranked, slate, outcomes, LEARNER_HALF_LIFE[profile]);
       const { advice, learnerSwap } = initialScreen ?? screen(ranked[0]?.move);
       if (!learnerSwap) return { ranked, exchange: advice };
 
@@ -249,10 +293,11 @@ export function createLearnerLookahead(
         },
         policy,
         follow,
+        pickReply,
       );
       const suffix = randomGenerator(dealSeed ^ 0x523fd101);
       const remix = randomGenerator(dealSeed ^ 0x48eb40a1);
-      const more = drawDeals(LEARNER_EXCHANGE_DEALS - DEALS);
+      const more = drawDeals(LEARNER_EXCHANGE_DEALS - deals.length);
       let sum = 0;
       let squares = 0;
       for (const [index, deal] of [...deals, ...more].entries()) {

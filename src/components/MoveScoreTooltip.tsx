@@ -223,7 +223,9 @@ function UtilityBreakdown({ profile, utility, checksDefense }: UtilityDetails) {
           {utility.endgame !== undefined
             ? "Leading candidates were compared using the known endgame racks."
             : utility.lookahead !== undefined
-              ? "Eight shared tile deals compare your play, the reply, and your next turn."
+              ? utility.followUpDeals === undefined
+                ? `${utility.lookaheadDeals ?? 8} shared tile deals compare your play, the reply, and your next turn.`
+                : `${utility.lookaheadDeals} sampled replies${utility.followUpDeals ? ` · ${utility.followUpDeals} follow-up draws` : ""}`
               : "Leading candidates are checked for premium threats before sampling."}
         </div>
       )}

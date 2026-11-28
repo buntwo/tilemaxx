@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { BingoDeal } from "../shared/bingo-replies";
+import { LEARNER_REPLY_DEALS, screenLearnerReplies } from "../shared/learner-reply-screen";
 import {
   createLearnerLookahead,
   LEARNER_EXCHANGE_DEALS,
 } from "../shared/learner-lookahead";
 import { Lexicon } from "../shared/lexicon";
+import type { MasterOutcome } from "../shared/master-evaluation";
 import { emptyBoard } from "../shared/model";
 import {
   createPlayerProfiles, LEARNER_HALF_LIFE,
@@ -12,9 +15,11 @@ import {
 } from "../shared/player-profiles";
 import { learnerAppeal } from "../shared/player-profile-sampling";
 import { PRESETS } from "../shared/presets";
-import { solvePosition } from "../shared/solver";
+import { leaveValue } from "../shared/rack-leave";
+import { SearchLimitError, solvePosition } from "../shared/solver";
+import { TILE_SYMBOLS } from "../shared/tile-pool";
 
-function fixture() {
+function fixture(bagSize = 86) {
   const words = [
     "AB",
     "ACT",
@@ -49,11 +54,16 @@ function fixture() {
     "TRAPS",
   ];
   const lexicon = new Lexicon(words);
-  const template = PRESETS[0];
+  const rack = "ABCQRST";
+  const stock = rack + "AEINRST" + "A".repeat(bagSize);
+  const template = bagSize === 86 ? PRESETS[0] : {
+    ...PRESETS[0],
+    tileCounts: Object.fromEntries(TILE_SYMBOLS.map((symbol) => [symbol, [...stock].filter((c) => c === symbol).length])),
+  };
   const position = {
     board: emptyBoard(template.size),
-    rack: "ABCQRST",
-    bagSize: 86,
+    rack,
+    bagSize,
     seed: 235,
     playerSeed: 0,
   };
@@ -70,6 +80,8 @@ function fixture() {
   const evaluate = createLearnerLookahead(lexicon, template, choose);
   return {
     position,
+    template,
+    lexicon,
     choose,
     moves,
     evaluate,
@@ -78,11 +90,11 @@ function fixture() {
   };
 }
 
-test("Learner compares six visible words with eight shared deals and can change its recommendation", () => {
+test("Learner screens three placements with 32 shared replies and uses eight follow-up draws", () => {
   const { position, evaluate, ranked, slate } = fixture();
-  assert.equal(slate.length, 6);
-  assert.equal(new Set(slate.map(({ move }) => move.word)).size, 6);
-  assert.deepEqual(slate.map(({ move }) => move), ranked.slice(0, 6).map(({ move }) => move));
+  assert.equal(slate.length, 3);
+  assert.equal(new Set(slate.map(({ move }) => move.word)).size, 3);
+  assert.deepEqual(slate.map(({ move }) => move), ranked.slice(0, 3).map(({ move }) => move));
   assert.equal(slate[0].move, ranked[0].move);
 
   const steps = evaluate(
@@ -98,10 +110,13 @@ test("Learner compares six visible words with eight shared deals and can change 
     result = steps.next();
   }
 
-  assert.equal(comparisons, 48);
+  assert.equal(comparisons, 3 * (LEARNER_REPLY_DEALS + 8));
   const first = result.value.ranked[0];
-  assert.notEqual(first.move.id, ranked[0].move.id);
   const evaluated = result.value.ranked.filter(({ utility }) => utility.lookahead !== undefined);
+  for (const { utility } of evaluated) {
+    assert.equal(utility.lookaheadDeals, 32);
+    assert.equal(utility.followUpDeals, 8);
+  }
   const best = evaluated.reduce((winner, entry) =>
     entry.utility.total > winner.utility.total ||
       (entry.utility.total === winner.utility.total && entry.move.score > winner.move.score)
@@ -124,6 +139,76 @@ test("Learner compares six visible words with eight shared deals and can change 
   );
   assert.equal(result.value.ranked.length, ranked.length);
   assert.equal(prior.utility.lookahead, undefined);
+});
+
+test("Learner keeps the full eight-deal forecast when the bag can empty during the line", () => {
+  const { position, evaluate, ranked, slate } = fixture(14);
+  const work = evaluate({ ...position, requiredRackSlots: [0] }, ranked, slate, Infinity);
+  let count = 0;
+  let step = work.next();
+  while (!step.done) {
+    count++;
+    step = work.next();
+  }
+  assert.equal(count, 3 * 8);
+  assert.equal(step.value.ranked[0].utility.lookaheadDeals, 8);
+  assert.equal(step.value.ranked[0].utility.followUpDeals, undefined);
+});
+
+test("Learner discards partial reply and follow-up batches but keeps completed checkpoints", () => {
+  const deals = Array.from({ length: 32 }, (_, replySeed) => ({ opponent: "ABC", bag: "DE", replySeed }));
+  const fixtureMove = fixture().slate[0].move;
+  const evaluator = (score: number, interrupted = false) => Object.assign(
+    (deal: BingoDeal): MasterOutcome => {
+      if (interrupted && (deal.replySeed ?? 0) >= 5) throw new SearchLimitError("time");
+      return { reply: score, followUp: 10, ownLeave: 0, opposingLeave: 0, rackAdjustment: 0, bingo: false, terminal: false };
+    }, {
+      opponentReply: (deal: BingoDeal) => {
+        if (interrupted && (deal.replySeed ?? 0) >= 10) throw new SearchLimitError("time");
+        return { ...fixtureMove, score };
+      },
+    },
+  );
+  const work = screenLearnerReplies([evaluator(7), evaluator(9, true)], deals, Infinity);
+  let step = work.next();
+  while (!step.done) step = work.next();
+  assert.equal(step.value.replyDeals, 8);
+  assert.deepEqual(step.value.totals, [56, 72]);
+  assert.deepEqual(step.value.outcomes.map((outcomes) => outcomes.length), [4, 4]);
+});
+
+test("Learner shares a distinct opponent vocabulary seed and reply choices across placements", () => {
+  const { position, lexicon, template, choose, ranked, slate } = fixture();
+  const seeds = new Set<number>();
+  const choiceCounts = new Map<number, number>();
+  const wrapped: typeof choose = (...args) => {
+    const modeled = args[3]?.modeledReply;
+    if (modeled) {
+      seeds.add(args[2].playerSeed);
+      choiceCounts.set(modeled.choiceSeed, (choiceCounts.get(modeled.choiceSeed) ?? 0) + 1);
+    }
+    return choose(...args);
+  };
+  const evaluate = createLearnerLookahead(lexicon, template, wrapped);
+  for (const _ of evaluate({ ...position, requiredRackSlots: [0] }, ranked, slate, Infinity)) { /* finish forecast */ }
+  assert.equal(seeds.size, 1);
+  assert.ok(!seeds.has(position.playerSeed));
+  assert.equal(choiceCounts.size, 32);
+  assert.ok([...choiceCounts.values()].every((count) => count === 3));
+});
+
+test("the modeled Learner reply picks the best static value from three sampled ideas", () => {
+  const { position, choose, moves, ranked } = fixture();
+  const values = new Map(ranked.map(({ move, utility }) => [move.id, utility.total]));
+  let promoted = false;
+  for (const choiceSeed of [0, 28, 235, 771]) {
+    const noticed = choose(moves, "learner", { ...position, seed: choiceSeed }, { topThree: true }).suggestions!;
+    const best = noticed.reduce((a, b) => values.get(b.id)! > values.get(a.id)! ? b : a);
+    const reply = choose(moves, "learner", position, { modeledReply: { choiceSeed } }).move;
+    assert.equal(reply, best);
+    promoted ||= best !== noticed[0];
+  }
+  assert.ok(promoted);
 });
 
 test("Casual samples three finalists and looks ahead with a ten-point half-life", () => {
@@ -160,13 +245,13 @@ test("Learner checks the swap on 32 deals and reuses the first eight placement o
     count++;
     step = steps.next();
   }
-  assert.equal(count, slate.length * 8 + LEARNER_EXCHANGE_DEALS);
+  assert.equal(count, slate.length * (LEARNER_REPLY_DEALS + 8) + LEARNER_EXCHANGE_DEALS);
   assert.equal(LEARNER_EXCHANGE_DEALS, 32);
   assert.equal(step.value.exchange, undefined);
   assert.equal(step.value.ranked[0].move.word, "CART");
 });
 
-test("Learner recommends a simulated exchange with a clear edge over a spotted play", () => {
+test("Learner recommends a simulated exchange when the paired continuation has a clear edge", () => {
   const template = PRESETS[0];
   const words =
     "OU FA GO HE IF NO OR OX PA RE TO UH US WE AX ON IS YE HA HI LO AL AG MA PI PE NU SI QI".split(
@@ -198,7 +283,14 @@ test("Learner recommends a simulated exchange with a clear edge over a spotted p
       learnerSlate: true,
     },
   );
-  const evaluate = createLearnerLookahead(lexicon, template, choose);
+  // Fix the opponent's policy so the exchange edge is independently reproducible.
+  const fixedReply: typeof choose = (moves, profile, position, options) => {
+    if (!options?.modeledReply) return choose(moves, profile, position, options);
+    const value = (move: typeof moves[number]) => move.score + (position.bagSize ? leaveValue(move.leave) : 0);
+    const move = moves.length ? moves.reduce((best, next) => value(next) > value(best) ? next : best) : undefined;
+    return { move, bingoFound: false };
+  };
+  const evaluate = createLearnerLookahead(lexicon, template, fixedReply);
   const work = evaluate(
     position,
     decision.considered!,

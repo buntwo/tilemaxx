@@ -112,6 +112,10 @@ test("Casual and Learner gate main words and crosses with their own familiarity 
       assert.equal(decision(extension, seed).move, undefined);
     }
   }
+  const replyPosition = { board, rack: "SIT", bagSize: 65, seed: 0, playerSeed: 61 };
+  const modeledReply = { choiceSeed: 495 };
+  assert.equal(choose([hook, extension], "learner", replyPosition, { modeledReply }).move, undefined);
+  assert.equal(choose([hook, extension, known], "learner", replyPosition, { modeledReply }).move, known);
 });
 
 test("Casual rolls once per game spelling for both main words and crosses", () => {
@@ -277,7 +281,7 @@ test("profiles value shedding awkward duplicates and keeping flexible leaves", (
   assert.ok(profileLeaveValue("SST") > profileLeaveValue("IIT"));
 });
 
-test("live Learner compares six plays throughout, while Casual widens when the bag empties", () => {
+test("live Learner and Casual sample three plays and widen when the bag empties", () => {
   const words = ["ANT", "ART", "ATE", "EAR", "EAT", "RAN", "RAT", "SAT", "SEA", "TAN", "TAR", "TEA", "TEN"];
   const rack = "AENRSTU";
   const template = {
@@ -294,9 +298,9 @@ test("live Learner compares six plays throughout, while Casual widens when the b
   const position = { board, rack, bagSize: 1, seed: 0, playerSeed: 0 };
   const live = { learnerSlate: true };
 
-  for (const [profile, size] of [["casual", 3], ["learner", 6]] as const) {
+  for (const profile of ["casual", "learner"] as const) {
     const withDraws = choose(moves, profile, position, live).learnerSlate!;
-    assert.equal(new Set(withDraws.map(({ move }) => move.word)).size, size);
+    assert.equal(new Set(withDraws.map(({ move }) => move.word)).size, 3);
     assert.deepEqual(
       withDraws.map(({ move }) => move.id),
       choose(moves, profile, position, { ...live, all: true }).learnerSlate!.map(({ move }) => move.id),
