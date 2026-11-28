@@ -6904,6 +6904,11 @@ button.last-play-summary:focus-visible { outline-offset: -2px; }
   border-radius: 3px;
 }
 .last-play-word .bingo-badge svg { flex: none; }
+.last-play-summary .bingo-badge {
+  font: inherit;
+  /* Move from the midpoint of the x-height to the midpoint of the cap height. */
+  transform: translateY(calc(0.5ex - 0.5cap));
+}
 .last-play-points { color: var(--text); white-space: nowrap; }
 .last-play-breakdown {
   position: absolute;
