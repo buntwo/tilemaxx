@@ -74,6 +74,11 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+test("the brand link shows only the Tilemaxx wordmark", () => {
+  setup();
+  expect(screen.getByRole("link", { name: "Tilemaxx" }).textContent).toBe("tilemaxx");
+});
+
 test("only the completed fire combo queues a fire tile and shows a burst", () => {
   const { brand, word, animate, wait } = setup();
   const key = "tilemaxx:fire-next-refresh";

@@ -273,7 +273,6 @@ export default function Brand() {
             </span>
           ))}
         </span>
-        <span className="brand-caption">A LITTLE WORD WISDOM</span>
       </a>
     </div>
   );
