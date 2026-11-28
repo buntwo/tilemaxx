@@ -181,6 +181,7 @@ export default function GameOptions({
             <h3 id="game-option-info">Game details</h3>
             <GameOptionDetails
               game={game}
+              end={position.scoring?.end ?? game.scoring?.end}
               board={board}
               dictionaries={dictionaries}
               disabled={busy}

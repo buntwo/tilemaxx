@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { History, Info } from "lucide-react";
 import { opponentNameMatches } from "../../shared/game-index";
-import { localDate, MAX_GAME_NOTES, type Dictionary, type Game } from "../../shared/model";
+import { localDate, MAX_GAME_NOTES, type Dictionary, type Game, type GameScoring } from "../../shared/model";
 import { gamePlatforms } from "../premium-palettes";
 
 export function IncompleteMoveHistoryIcon() {
@@ -17,60 +17,88 @@ export function IncompleteMoveHistoryIcon() {
   );
 }
 
+const gameDateFormat = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+const gameTimeFormat = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
+
+function GameDate({ date, timestamp, prefix }: {
+  date?: string;
+  timestamp?: string | null;
+  prefix?: string;
+}) {
+  const dateTime = timestamp ?? date;
+  if (!dateTime) return "Date not set";
+  const value = new Date(timestamp ? dateTime : `${dateTime}T00:00:00`);
+  if (!Number.isFinite(value.getTime())) return "Date not set";
+  return (
+    <time dateTime={dateTime}>
+      {prefix}{gameDateFormat.format(value)}
+      {timestamp && <> {gameTimeFormat.format(value)}</>}
+    </time>
+  );
+}
+
 export function GameMetadata({
   game,
   endedOn,
+  endedAt,
   wordList,
 }: {
   game: Pick<Game, "platform" | "startedOn">;
   endedOn?: string;
+  endedAt?: string | null;
   wordList?: string;
 }) {
-  const date = endedOn ?? game.startedOn;
   return (
     <>
       {game.platform && <>{game.platform} · </>}
       {wordList && <>{wordList} · </>}
-      {date ? (
-        <time dateTime={date}>
-          {endedOn && "Ended "}
-          {new Date(date + "T00:00:00").toLocaleDateString(
-            undefined,
-            {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            },
-          )}
-        </time>
-      ) : (
-        "Date not set"
-      )}
+      <GameDate
+        date={endedOn ?? game.startedOn}
+        timestamp={endedAt}
+        prefix={endedOn || endedAt ? "Ended " : undefined}
+      />
     </>
   );
 }
 
 export function GameOptionDetails({
   game,
+  end,
   board,
   dictionaries,
   disabled,
   onChooseDictionary,
   onAboutWordLists,
 }: {
-  game: Pick<Game, "archived" | "startedOn" | "dictionaryId" | "notes">;
+  game: Pick<Game, "archived" | "startedOn" | "startedAt" | "dictionaryId" | "notes">;
+  end?: GameScoring["end"];
   board: string;
   dictionaries: readonly Dictionary[];
   disabled: boolean;
   onChooseDictionary: (id: string) => void;
   onAboutWordLists: () => void;
 }) {
+  const { startedOn, startedAt } = game;
+  // A game entered later can have a play date before its creation timestamp.
+  const startTime = startedAt && localDate(new Date(startedAt)) === startedOn
+    ? startedAt
+    : undefined;
   return (
     <>
       <dl className="game-option-details">
         {game.archived && <><dt>Status</dt><dd>Archived</dd></>}
         <dt>Started</dt>
-        <dd><GameMetadata game={{ startedOn: game.startedOn }} /></dd>
+        <dd><GameDate date={startedOn} timestamp={startTime} /></dd>
+        {startedAt && !startTime && (
+          <><dt>Added</dt><dd><GameDate timestamp={startedAt} /></dd></>
+        )}
+        {(end?.endedOn || end?.endedAt) && (
+          <><dt>Ended</dt><dd><GameDate date={end.endedOn} timestamp={end.endedAt} /></dd></>
+        )}
         <dt>Board</dt>
         <dd>{board}</dd>
         {game.notes && <><dt>Notes</dt><dd className="game-option-notes">{game.notes}</dd></>}

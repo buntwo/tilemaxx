@@ -4863,6 +4863,31 @@ test("solo games show their playing styles and load each sampled utility breakdo
   expect(localStorage.getItem("tilemaxx:playing-style:g")).toBe("triple-threat");
 });
 
+test("game options show the saved start time and keep an edited start date", async () => {
+  const started = new Date(2026, 5, 5, 9, 30);
+  const startedAt = started.toISOString();
+  Object.assign(remote.games[0], { revision: 1, startedOn: localDate(started), startedAt });
+  const user = await start();
+  await waitFor(() => expect(current().startedAt).toBe(startedAt));
+  let options = await openGameOptions(user);
+  const timestamp = (label: string) => options.getByText(label, { selector: "dt" })
+    .nextElementSibling?.querySelector("time");
+  expect(timestamp("Started")?.getAttribute("datetime")).toBe(startedAt);
+  expect(timestamp("Started")?.textContent).toBe(
+    `Jun 5, 2026 ${started.toLocaleTimeString(undefined, { timeStyle: "short" })}`,
+  );
+  expect(options.queryByText("Ended", { selector: "dt" })).toBeNull();
+  expect(options.queryByText("Added", { selector: "dt" })).toBeNull();
+
+  await user.click(options.getByRole("button", { name: "Edit game details" }));
+  const edit = within(screen.getByRole("dialog"));
+  fireEvent.change(edit.getByLabelText("Date"), { target: { value: "2026-06-01" } });
+  await user.click(edit.getByRole("button", { name: "Save details" }));
+  options = await openGameOptions(user);
+  expect(timestamp("Started")?.getAttribute("datetime")).toBe("2026-06-01");
+  expect(timestamp("Added")?.getAttribute("datetime")).toBe(startedAt);
+});
+
 test("starting another game from an archive copies settings onto a fresh board", async () => {
   const original = game();
   original.id = "archived";
@@ -5117,6 +5142,10 @@ test("archived games sort by finishing time with date and last-move fallbacks an
       trackedMoves: [
         { player: "you", word: "CAT", score: 10, at: "2026-06-05T17:00:00.000Z" },
       ],
+      scoring: {
+        ...emptyScoring(),
+        end: { manual: true, endedOn: "2026-06-05" },
+      },
     },
     {
       ...game(),
@@ -5149,7 +5178,20 @@ test("archived games sort by finishing time with date and last-move fallbacks an
 
   expect(count.textContent).toBe("5");
   expect(names()).toEqual(["Sam Cooke", "Zora", "Alba", "Morgan", "Alex Sampson"]);
-  expect(archive.getAllByText("Ended Jun 5, 2026")).toHaveLength(2);
+  const listedEnd = (name: string) => archive.getByRole("button", { name: new RegExp(`^${name}.*Ended`) })
+    .querySelector("time");
+  for (const [name, timestamp] of [
+    ["Sam Cooke", "2026-06-05T20:00:00.000Z"],
+    ["Alba", "2026-06-05T15:00:00.000Z"],
+  ]) {
+    const date = new Date(timestamp);
+    expect(listedEnd(name)?.getAttribute("datetime")).toBe(timestamp);
+    expect(listedEnd(name)?.textContent).toBe(
+      `Ended ${date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} ${date.toLocaleTimeString(undefined, { timeStyle: "short" })}`,
+    );
+  }
+  expect(listedEnd("Zora")?.textContent).toBe("Ended Jun 5, 2026");
+  expect(listedEnd("Zora")?.getAttribute("datetime")).toBe("2026-06-05");
   expect(archive.getByRole("button", { name: /^Sam Cooke.*Club word list.*Ended/ })).toBeTruthy();
   expect(archive.getByRole("button", { name: /^Alex Sampson.*Test words/ })).toBeTruthy();
   expect(archive.getByRole("button", { name: /^Morgan.*Sam · Word list unavailable/ })).toBeTruthy();
@@ -6045,6 +6087,10 @@ test("end game defaults to deductions and archiving with both settings reversibl
     endedAt: expect.any(String),
   });
   expect(remote.games[0].archived).toBe(false);
+  const finishedOptions = await openGameOptions(user);
+  expect(finishedOptions.getByText("Ended", { selector: "dt" }).nextElementSibling
+    ?.querySelector("time")?.getAttribute("datetime")).toBe(remote.games[0].scoring?.end?.endedAt);
+  await user.click(finishedOptions.getByRole("button", { name: "Close dialog" }));
   await user.click(cell("Undo"));
   expect(scoreTotals()).toBe("30–24");
   expect(screen.getByRole("button", { name: "Find moves" })).toBeTruthy();
@@ -6097,6 +6143,8 @@ test.each([false, true])("a finished game can be resumed and have another move r
     await user.keyboard("Q");
     expect(cell("A1: Q, edited after archiving")).toBeTruthy();
     const management = await openGameManagement(user);
+    expect(management.getByText("Ended", { selector: "dt" }).nextElementSibling
+      ?.querySelector("time")?.getAttribute("datetime")).toBe(remote.games[0].archivedState?.scoring?.end?.endedAt);
     const resume = management.getByRole("button", { name: /Resume game/ });
     expect(management.getByRole("group", { name: "Archive actions" }).nextElementSibling).toBe(resume.parentElement);
     await user.click(resume);

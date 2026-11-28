@@ -50,6 +50,7 @@ export type GameSummary = Pick<
 > & {
   dictionaryId?: Game["dictionaryId"];
   endedOn?: string;
+  endedAt?: string | null;
   archiveSortTime?: number | null;
   language?: ReturnType<typeof gameWordLanguage>;
   archiveStats?: ArchivedGameStats | null;
@@ -187,6 +188,7 @@ export function summarizeGame(game: Game): GameSummary {
     revision,
     language: gameWordLanguage(template.rules),
     ...(archived && {
+      endedAt: end?.endedAt ?? null,
       archiveSortTime: Number.isFinite(archiveSortTime) ? archiveSortTime : null,
       archiveStats: summarizeArchivedStats(archivePosition, fullMoveHistory),
     }),

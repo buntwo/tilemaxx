@@ -1007,6 +1007,7 @@ test("the game index backfills old SQLite saves and leaves full history on the d
     ).run(game.id);
     const archiveSummary = (await getIndex()).games[0];
     assert.equal(archiveSummary.endedOn, endedOn);
+    assert.equal(archiveSummary.endedAt, null);
     assert.equal(archiveSummary.archiveSortTime, Date.parse(lastMoveAt));
     assert.equal((await getIndex()).games[0].revision, archived.revision);
     assert.equal(archiveSummary.language, "en");
@@ -1017,6 +1018,15 @@ test("the game index backfills old SQLite saves and leaves full history on the d
       "UPDATE game_summaries SET data=json_remove(data, '$.language', '$.archiveStats') WHERE id=?",
     ).run(game.id);
     assert.deepEqual((await getIndex()).games[0], archiveSummary);
+    const endedAt = "2026-11-16T15:10:00.000Z";
+    const finished = store.saveGame({ ...archiveWithDate(endedOn, endedAt), revision: archived.revision })!;
+    store.db.prepare(
+      "UPDATE game_summaries SET data=json_remove(data, '$.endedAt') WHERE id=?",
+    ).run(game.id);
+    const rebuilt = (await getIndex()).games[0];
+    assert.equal(rebuilt.endedAt, endedAt);
+    assert.equal(rebuilt.archiveSortTime, Date.parse(endedAt));
+    assert.equal(rebuilt.revision, finished.revision);
     store.deleteGame(next.id);
     assert.deepEqual((await getIndex()).games, []);
     assert.equal((await fetch(base + "/games/old")).status, 404);

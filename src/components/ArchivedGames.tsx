@@ -122,6 +122,7 @@ export default function ArchivedGames({
                           <GameMetadata
                             game={game}
                             endedOn={game.endedOn}
+                            endedAt={game.endedAt}
                             wordList={game.dictionaryId
                               ? dictionaryNames.get(game.dictionaryId) ?? "Word list unavailable"
                               : undefined}
