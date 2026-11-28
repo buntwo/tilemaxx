@@ -201,6 +201,17 @@ test.each(["live", "archive"])("%s history shows crosses and opens the points br
   expect(tooltip.getByText("70 pts")).toBeTruthy();
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("tooltip")).toBeNull();
+
+  for (const [heading, explanation] of [
+    ["Explain cross count", "Number of additional words formed by the play."],
+    ["Explain move strength", "Points scored as a percentage of the highest possible score."],
+  ]) {
+    const header = history.getByRole("button", { name: heading });
+    if (view === "live") await user.hover(header);
+    else fireEvent.click(header);
+    expect((await screen.findByRole("tooltip")).textContent).toBe(explanation);
+    await user.keyboard("{Escape}");
+  }
 });
 
 test("move history calculates strength when opened and discards results for a changed word list", async () => {

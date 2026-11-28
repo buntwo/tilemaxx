@@ -1561,7 +1561,7 @@ label + label {
   font-variant-numeric: tabular-nums;
 }
 .score-move-number {
-  width: 29px;
+  width: 23px;
 }
 .score-move-player {
   width: 40px;
@@ -1575,17 +1575,18 @@ label + label {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.score-history-points {
+.score-history :is(.score-history-points, .score-history-heading) {
   width: 100%;
-  min-height: 30px;
   padding: 0;
   border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
-  text-align: end;
+  text-align: inherit;
   white-space: nowrap;
 }
+.score-history-heading { min-height: 26px; }
+.score-history-points { min-height: 30px; }
 .phone-layout .score-history-points { min-height: 44px; }
 .score-move-crosses {
   width: 50px;
@@ -1603,13 +1604,15 @@ label + label {
 .score-history-short-heading { display: none; }
 @container (max-width: 345px) {
   .score-history :is(th, td) { padding-inline: 2px; }
-  .score-move-number { width: 24px; }
+  .score-move-number { width: 20px; }
   .score-move-player { width: 38px; }
   .score-move-points { width: 56px; }
-  .score-move-crosses { width: 45px; }
+  .score-move-crosses { width: 23px; }
   .score-move-total { width: 31px; }
-  .score-move-strength { width: 48px; }
+  .score-move-strength { width: 27px; }
   .score-history th:is(.score-move-crosses, .score-move-strength) { font-size: 10px; }
+  .score-history-heading .score-history-full-heading { display: none; }
+  .score-history-heading .score-history-short-heading { display: inline; }
 }
 @container (max-width: 270px) {
   .score-history table {
@@ -1617,8 +1620,6 @@ label + label {
     margin-inline: -8px;
   }
   .score-move-player { width: 32px; }
-  .score-move-crosses { width: 23px; }
-  .score-move-strength { width: 27px; }
   .score-history-full-heading { display: none; }
   .score-history-short-heading { display: inline; }
 }
@@ -1709,7 +1710,7 @@ label + label {
   font: inherit;
 }
 .score-edit-move {
-  min-inline-size: 20px;
+  width: 100%;
   color: var(--primary);
 }
 .score-actions {

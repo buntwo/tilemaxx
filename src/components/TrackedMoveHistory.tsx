@@ -12,6 +12,10 @@ import { usePractice } from "./usePractice";
 import { useScoreTooltip } from "./useScoreTooltip";
 
 type HistoryMove = ReturnType<typeof scoreHistoryMoves>[number];
+const headingHelp = {
+  crosses: "Number of additional words formed by the play.",
+  strength: "Points scored as a percentage of the highest possible score.",
+};
 
 function MoveCell({
   move,
@@ -108,8 +112,9 @@ export default function TrackedMoveHistory({
   }, [open, request, run, reset]);
   const strengths = activeRequest === request ? result : undefined;
   const calculating = activeRequest === request && !!progress;
-  const scoreTooltip = useScoreTooltip<number>((number) => {
-    const move = moves.find((entry) => entry.number === number);
+  const scoreTooltip = useScoreTooltip<number | keyof typeof headingHelp>((item) => {
+    if (typeof item !== "number") return headingHelp[item];
+    const move = moves.find((entry) => entry.number === item);
     if (!move) return null;
     return (
       <>
@@ -159,19 +164,28 @@ export default function TrackedMoveHistory({
                 </th>}
                 <th scope="col">Play</th>
                 <th scope="col" className="score-move-points" aria-label="Points">Pts</th>
-                <th scope="col" className="score-move-crosses" aria-label="Crosses" title="Crosswords formed">
-                  <span className="score-history-full-heading">Crosses</span>
-                  <span className="score-history-short-heading" aria-hidden="true">Cr.</span>
+                <th scope="col" className="score-move-crosses" aria-label="Crosses">
+                  <button
+                    className="score-history-heading"
+                    {...scoreTooltip.triggerProps("crosses", "crosses", "Explain cross count")}
+                  >
+                    <span className="score-history-full-heading">Crosses</span>
+                    <span className="score-history-short-heading" aria-hidden="true">Xs</span>
+                  </button>
                 </th>
                 <th scope="col" className="score-move-total" aria-label="Running total">Total</th>
                 <th
                   scope="col"
                   className="score-move-strength"
                   aria-label="Move strength"
-                  title="Points scored as a percentage of the highest possible score"
                 >
-                  <span className="score-history-full-heading">Strength</span>
-                  <span className="score-history-short-heading" aria-hidden="true">Str.</span>
+                  <button
+                    className="score-history-heading"
+                    {...scoreTooltip.triggerProps("strength", "strength", "Explain move strength")}
+                  >
+                    <span className="score-history-full-heading">Strength</span>
+                    <span className="score-history-short-heading" aria-hidden="true">Str</span>
+                  </button>
                 </th>
               </tr>
             </thead>
