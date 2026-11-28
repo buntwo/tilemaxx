@@ -26,6 +26,7 @@ type Route = {
   move?: number;
   review?: number | null;
   sort?: "opponent";
+  archiveQuery?: string;
   stats?: StatsView;
   template?: string;
   tool?: WorkspaceTool;
@@ -66,6 +67,7 @@ function readRoute(): Route {
     move,
     review: gameId && move === undefined ? review : undefined,
     sort: workspace === "archive" && params.get("sort") === "opponent" ? "opponent" : undefined,
+    archiveQuery: workspace === "archive" ? params.get("q") || undefined : undefined,
     stats: workspace === "stats" ? {
       platform: params.get("platform") || undefined,
       language: params.get("language") || undefined,
@@ -79,12 +81,13 @@ function readRoute(): Route {
   };
 }
 
-export function routeHref({ workspace, gameId, profileId, move, review, sort, stats, template, tool, guide, wordList }: Route) {
+export function routeHref({ workspace, gameId, profileId, move, review, sort, archiveQuery, stats, template, tool, guide, wordList }: Route) {
   const params = new URLSearchParams();
   if (gameId && move !== undefined) params.set("move", String(move));
   else if (gameId && review !== undefined) params.set("review", review === null ? "game" : String(review));
   if (!gameId && profileId) params.set("profile", profileId);
   if (sort) params.set("sort", sort);
+  if (workspace === "archive" && archiveQuery) params.set("q", archiveQuery);
   if (stats?.platform) params.set("platform", stats.platform);
   if (stats?.language) params.set("language", stats.language);
   if (stats?.year) params.set("year", stats.year);

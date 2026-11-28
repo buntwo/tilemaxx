@@ -2701,6 +2701,7 @@ test("archived replay updates the move link without adding browser history entri
   const user = await start();
   await user.click(navLink("Archived games"));
   await user.selectOptions(screen.getByRole("combobox", { name: "Sort by" }), "opponent");
+  await user.type(screen.getByRole("searchbox", { name: "Filter by opponent" }), "replay");
   const archiveLink = location.href;
   await user.click(screen.getByRole("button", { name: /^Archived replay/ }));
   const slider = await screen.findByRole("slider", { name: "Replay moves" });
@@ -2717,21 +2718,29 @@ test("archived replay updates the move link without adding browser history entri
   const sort = await screen.findByRole("combobox", { name: "Sort by" });
   expect(sort).toHaveProperty("value", "opponent");
   expect(location.href).toBe(archiveLink);
+  expect(screen.getByRole("searchbox", { name: "Filter by opponent" })).toHaveProperty("value", "replay");
   history.forward();
   await screen.findByRole("button", { name: "Preview recorded move CAT" });
   expect(location.pathname + location.search).toBe("/games/archived-replay?move=1");
 });
 
-test("archive and sidebar links restore selections while typed search text stays local", async () => {
-  remote.games.push(archiveGame({ ...game(), id: "archive", name: "Archive opponent" }));
+test("archive and sidebar links restore selections and the archive search", async () => {
+  remote.games.push(
+    archiveGame({ ...game(), id: "archive", name: "Élodie & Sam" }),
+    archiveGame({ ...game(), id: "archive-other", name: "Other opponent" }),
+  );
   remote.templates.push({ ...PRESETS[0], id: "mini", builtin: false, name: "Mini board" });
   remote.dictionaries.push({ ...remote.dictionaries[0], id: "alternate", name: "Alternate list" });
   const user = await start();
   await user.click(navLink("Archived games"));
   await user.selectOptions(screen.getByRole("combobox", { name: "Sort by" }), "opponent");
+  const entries = history.length;
+  await user.type(screen.getByRole("searchbox", { name: "Filter by opponent" }), "Élodie & Sam");
   const archiveLink = location.href;
-  await user.type(screen.getByRole("searchbox", { name: "Filter by opponent" }), "Archive opponent");
-  expect(location.href).toBe(archiveLink);
+  expect(history.length).toBe(entries);
+  expect(new URL(archiveLink).searchParams.get("q")).toBe("Élodie & Sam");
+  expect(screen.getByRole("button", { name: /^Élodie & Sam/ })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /^Other opponent/ })).toBeNull();
 
   await user.click(navLink("Board studio"));
   await user.click(cell("Edit Mini board"));
@@ -2742,7 +2751,7 @@ test("archive and sidebar links restore selections while typed search text stays
   const archiveSort = await screen.findByRole("combobox", { name: "Sort by" });
   expect(archiveSort).toHaveProperty("value", "opponent");
   expect(location.href).toBe(archiveLink);
-  expect(screen.getByRole("searchbox", { name: "Filter by opponent" })).toHaveProperty("value", "");
+  expect(screen.getByRole("searchbox", { name: "Filter by opponent" })).toHaveProperty("value", "Élodie & Sam");
 
   await user.click(navLink("Word list checker"));
   const checker = within(await screen.findByRole("dialog", { name: "Word list checker" }));
@@ -2763,6 +2772,11 @@ test("archive and sidebar links restore selections while typed search text stays
   const reopened = within(await screen.findByRole("dialog", { name: "Word list checker" }));
   expect(reopened.getByRole("combobox", { name: "Word list" })).toHaveProperty("value", "alternate");
   expect(reopened.getByRole("textbox", { name: "Word" })).toHaveProperty("value", "");
+  await user.click(reopened.getByRole("button", { name: "Close dialog" }));
+  await waitFor(() => expect(location.href).toBe(archiveLink));
+  await user.clear(screen.getByRole("searchbox", { name: "Filter by opponent" }));
+  expect(new URL(location.href).searchParams.has("q")).toBe(false);
+  expect(screen.getByRole("button", { name: /^Other opponent/ })).toBeTruthy();
 });
 
 test("live replay opens at the latest recorded move and keeps an in-progress play on exit", async () => {

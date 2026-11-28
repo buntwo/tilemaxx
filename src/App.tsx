@@ -714,6 +714,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
       profileId,
       gameId: next === "games" ? activeId : undefined,
       sort: next === "archive" ? archiveSort : undefined,
+      archiveQuery: next === "archive" ? route.archiveQuery : undefined,
       stats: next === "stats" ? route.stats : undefined,
     };
   }
@@ -725,7 +726,7 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
     showWorkspace("games");
   }
   function selectProfile(id: string) {
-    navigate({ workspace, profileId: id });
+    navigate({ workspace, profileId: id, archiveQuery: route.archiveQuery });
   }
   function toolRoute(tool: WorkspaceTool) {
     return { ...route, profileId, tool };
@@ -1424,6 +1425,8 @@ function Tilemaxx({ preferenceState, concurrencyHint, workerLimit }: {
             headerControl={sidebarButton}
             games={archivedGames}
             dictionaries={data.dictionaries}
+            query={route.archiveQuery ?? ""}
+            onQueryChange={(archiveQuery) => navigate({ ...route, profileId, archiveQuery }, true)}
             sort={route.sort ?? "date"}
             onSort={(sort) => navigate({ ...route, profileId, sort: sort === "date" ? undefined : sort })}
             onOpen={chooseGame}

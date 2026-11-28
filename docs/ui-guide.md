@@ -11,7 +11,7 @@ score. The game finishes when you play the last tile, or you can choose
 
 On narrow windows, the board and rack sit above Possible moves. Wider windows put the board and moves side by side. The sidebar opens over the game as a drawer until there is room to dock it. The side-by-side layout fills the available width and reclaims the sidebar’s space when it switches to a drawer or collapses.
 
-Use your browser’s Back and Forward buttons to return to a page or game. If you open a game from **Archived games**, Back returns to the list in one step and Forward reopens the last move you viewed. Copy the address to reopen the same view. A game link ending in `?move=6` opens replay at move 6, and `?review=6` opens that turn in **Review game**. Links also keep the archive sort, Stats filters and trend metric, the saved board template you’re editing, the UI guide tab, and an installed word list selected in the checker. Search text, local files, unsaved form edits, and move analysis stay out of the address.
+Use your browser’s Back and Forward buttons to return to a page or game. If you open a game from **Archived games**, Back restores the list’s search and sort, and Forward reopens the last move you viewed. Copy the address to reopen the same view. A game link ending in `?move=6` opens replay at move 6, and `?review=6` opens that turn in **Review game**. Links also keep Stats filters and trend metric, the saved board template you’re editing, the UI guide tab, and an installed word list selected in the checker. Other search text, local files, unsaved form edits, and move analysis stay out of the address.
 
 | Name | Where to find it |
 | --- | --- |

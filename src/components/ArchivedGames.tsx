@@ -1,4 +1,4 @@
-import { useState, type ReactNode, type Ref } from "react";
+import type { ReactNode, Ref } from "react";
 import { ArrowLeft, ArrowRight, Pencil } from "lucide-react";
 import { opponentNameMatches, type GameSummary } from "../../shared/game-index";
 import type { Dictionary } from "../../shared/model";
@@ -17,6 +17,8 @@ export default function ArchivedGames({
   dictionaries,
   headerControl,
   filterRef,
+  query,
+  onQueryChange,
   sort,
   onSort,
   onOpen,
@@ -27,13 +29,14 @@ export default function ArchivedGames({
   dictionaries: readonly Dictionary[];
   headerControl?: ReactNode;
   filterRef?: Ref<HTMLInputElement>;
+  query: string;
+  onQueryChange: (query: string) => void;
   sort: ArchiveSort;
   onSort: (sort: ArchiveSort) => void;
   onOpen: (id: string) => void;
   onEdit: (id: string) => void;
   onBack: () => void;
 }) {
-  const [query, setQuery] = useState("");
   const dictionaryNames = new Map(dictionaries.map(({ id, name }) => [id, name]));
   const filterLabel = games.some((game) => game.solo) ? "Filter by name" : "Filter by opponent";
   const results = games
@@ -83,7 +86,7 @@ export default function ArchivedGames({
                 aria-keyshortcuts="Alt+F"
                 placeholder={filterLabel}
                 value={query}
-                onChange={(event) => setQuery(event.currentTarget.value)}
+                onChange={(event) => onQueryChange(event.currentTarget.value)}
               />
               <label className="archive-sort">
                 Sort by
