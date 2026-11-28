@@ -8,7 +8,9 @@ import { findBingoCeiling, prepareCeilingReplies, type BingoCeiling, type Ceilin
 import { checkBoardBingoMove, type BoardOdds } from "../shared/bingo-odds";
 import { EndgameSearchLimitError, type EndgameLine } from "../shared/endgame";
 import type { Lexicon } from "../shared/lexicon";
+import { createLearnerLineFactory, type LearnerLinePosition } from "../shared/learner-lookahead";
 import type { Board, BoardTemplate, Move } from "../shared/model";
+import type { createPlayerProfiles } from "../shared/player-profiles";
 import { checkExchangeRacks, createExchangeReplyCheck, type ExchangeBatch, type OptimalExchangeRequest } from "../shared/optimal-exchange";
 import {
   analyzeOpponentPolicy,
@@ -43,6 +45,15 @@ export type CandidateJob =
       tactics?: { followUp: boolean; laneDeals: number[] };
       deadline: number;
       wavesRemaining: number;
+    }
+  | {
+      kind: "learner-lines";
+      position: LearnerLinePosition;
+      action: MasterAction;
+      deals: BingoDeal[];
+      deadline: number;
+      root: string;
+      vocabulary?: Uint8Array;
     }
   | {
       kind: "master-deals";
@@ -103,11 +114,13 @@ export type CandidateJob =
       key: string;
       input: OpponentPolicyInput;
       deadline: number;
+      maxMs?: number;
     };
 
 export type CandidateResult =
   | { kind: "histogram"; board: ReturnType<typeof summarizeReplyBoard> }
   | { kind: "bingo-hunter"; outcomes: HunterOutcome[]; blocked?: boolean }
+  | { kind: "learner-lines"; outcomes: MasterOutcome[] }
   | { kind: "master-deals"; outcomes: MasterOutcome[]; blocked?: boolean }
   | { kind: "master-endgame"; spread?: number }
   | { kind: "bingo-ceiling"; ceiling?: BingoCeiling }
@@ -132,7 +145,11 @@ export type CandidateRequest = {
 
 export const POLICY_TURN_BUDGET_MS = 1_250;
 
-export function createCandidateAnalyzer(lexicon: Lexicon) {
+export function createCandidateAnalyzer(
+  lexicon: Lexicon,
+  learnerProfiles?: (job: Extract<CandidateJob, { kind: "learner-lines" }>) =>
+    ReturnType<typeof createPlayerProfiles>,
+) {
   // One immutable endgame position stays on this lane across bounded slices.
   let endgame:
     | { key: string; session: ReturnType<typeof createReplyEndgameSession> }
@@ -148,6 +165,28 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
     const started = performance.now();
     try {
       switch (job.kind) {
+        case "learner-lines": {
+          const deadline = job.deadline - performance.timeOrigin;
+          const outcomes: MasterOutcome[] = [];
+          if (deadline <= started) return { kind: job.kind, outcomes };
+          if (!learnerProfiles) throw new Error("Learner profile data is unavailable.");
+          const evaluate = createLearnerLineFactory(
+            lexicon, job.position.template, learnerProfiles(job),
+          )(job.position, job.action);
+          for (const deal of job.deals) {
+            if (performance.now() >= deadline) break;
+            let outcome: MasterOutcome;
+            try {
+              outcome = evaluate(deal, deadline);
+            } catch (error) {
+              if (!(error instanceof SearchLimitError)) throw error;
+              break;
+            }
+            if (performance.now() >= deadline) break;
+            outcomes.push(outcome);
+          }
+          return { kind: job.kind, outcomes };
+        }
         case "bingo-hunter": {
           const deadline = started + (job.deadline - performance.timeOrigin - started) / job.wavesRemaining;
           const outcomes: HunterOutcome[] = [];
@@ -310,7 +349,7 @@ export function createCandidateAnalyzer(lexicon: Lexicon) {
           };
         case "policy-turn": {
           const maxMs = Math.min(
-            POLICY_TURN_BUDGET_MS,
+            job.maxMs ?? POLICY_TURN_BUDGET_MS,
             job.deadline - performance.timeOrigin - started,
           );
           const policy =

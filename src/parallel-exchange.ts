@@ -15,11 +15,12 @@ export async function parallelOptimalExchange(
   progress: (progress: ExchangeProgress) => void,
   workerLimit: number,
   createWorker?: () => Worker,
+  options?: Parameters<typeof planOptimalExchange>[4],
 ) {
   const pool = createCandidatePool(lexicon, workerLimit, createWorker);
   const { board, template, scorelessTurns } = request;
   const position = { board, template, scorelessTurns };
-  const plan = planOptimalExchange(lexicon, rackIndex, request, progress);
+  const plan = planOptimalExchange(lexicon, rackIndex, request, progress, options);
   try {
     let step = plan.next();
     while (!step.done) {

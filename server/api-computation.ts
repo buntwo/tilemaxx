@@ -30,12 +30,22 @@ export type ComputationResult =
   | { result: unknown }
   | { error: { status: number; message: string } };
 
+export type ComputationWorkerInput = Computation & { threadLimit: number };
+
 const builtWorker = new URL("./api-analysis.worker.js", import.meta.url);
 const sourceWorker = new URL("./api-analysis.worker.ts", import.meta.url);
 const concurrency = 1;
 const timeout = 210_000;
 
+export function analysisThreadLimit(value = process.env.TILEMAXX_ANALYSIS_THREADS) {
+  const limit = value === undefined ? 10 : Number(value);
+  if (!Number.isSafeInteger(limit) || limit < 1)
+    throw new Error("TILEMAXX_ANALYSIS_THREADS must be a positive integer.");
+  return limit;
+}
+
 export function createComputationRunner() {
+  const threadLimit = analysisThreadLimit();
   let active = 0;
   return async (
     signal: AbortSignal,
@@ -51,7 +61,8 @@ export function createComputationRunner() {
     try {
       const input = await prepare();
       signal.throwIfAborted();
-      const thread = startApiThread(builtWorker, sourceWorker, input);
+      const thread = startApiThread(builtWorker, sourceWorker,
+        { ...input, threadLimit } satisfies ComputationWorkerInput);
       worker = thread;
       const reply = await new Promise<ComputationResult>((resolve, reject) => {
         cancel = () => reject(signal.reason);

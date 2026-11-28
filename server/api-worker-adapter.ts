@@ -8,7 +8,7 @@ export class CandidateWorker {
   private worker: NodeWorker;
   private terminating = false;
 
-  constructor() {
+  constructor(onExit?: () => void) {
     this.worker = startApiThread(
       new URL("./api-candidate.worker.js", import.meta.url),
       new URL("./api-candidate.worker.ts", import.meta.url),
@@ -27,6 +27,7 @@ export class CandidateWorker {
       } as ErrorEvent);
     this.worker.on("error", fail);
     this.worker.on("exit", (code) => {
+      onExit?.();
       if (!this.terminating) fail(new Error(`Candidate worker exited with code ${code}.`));
     });
   }
@@ -37,4 +38,15 @@ export class CandidateWorker {
     this.terminating = true;
     void this.worker.terminate();
   }
+}
+
+export function limitedCandidateWorker(limit: number) {
+  let active = 0;
+  return class extends CandidateWorker {
+    constructor() {
+      if (active >= limit) throw new Error("No analysis threads are available.");
+      super(() => { active--; });
+      active++;
+    }
+  };
 }

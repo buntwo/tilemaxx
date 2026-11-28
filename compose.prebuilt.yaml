@@ -17,3 +17,4 @@ services:
     environment:
       NODE_ENV: production
       DATA_DIR: /app/data
+      TILEMAXX_ANALYSIS_THREADS: ${TILEMAXX_ANALYSIS_THREADS:-10}

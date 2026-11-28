@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { CandidateWorker } from "./api-worker-adapter";
+import { limitedCandidateWorker } from "./api-worker-adapter";
 import { parentPort, workerData } from "node:worker_threads";
 import { Lexicon, parseWords } from "../shared/lexicon";
 import {
@@ -10,13 +10,11 @@ import { isWordfeudRules } from "../shared/model";
 import { ReplySearchLimitError } from "../shared/reply-analysis";
 import { SearchLimitError } from "../shared/solver";
 import { analyzePosition } from "./api-analysis";
-import type { Computation, ComputationResult } from "./api-computation";
+import type { ComputationResult, ComputationWorkerInput } from "./api-computation";
 import { ApiError } from "./api-error";
 import { readScreenshot } from "./api-screenshot";
 
-globalThis.Worker = CandidateWorker as unknown as typeof Worker;
-
-async function compute(input: Computation) {
+async function compute(input: ComputationWorkerInput) {
   if (input.kind === "screenshot") return readScreenshot(input.request);
   if (input.kind === "premium-inference") {
     const { board, template, squares, sequence, scores } = input.request;
@@ -55,7 +53,9 @@ async function compute(input: Computation) {
       return { word, found: list.has(word) };
     });
   }
-  return analyzePosition(new Lexicon(words), words, input);
+  const workerLimit = input.threadLimit - 1;
+  globalThis.Worker = limitedCandidateWorker(workerLimit) as unknown as typeof Worker;
+  return analyzePosition(new Lexicon(words), words, input, workerLimit);
 }
 
 function errorResult(error: unknown): ComputationResult {
@@ -74,7 +74,7 @@ function errorResult(error: unknown): ComputationResult {
   };
 }
 
-void compute(workerData as Computation).then(
+void compute(workerData as ComputationWorkerInput).then(
   (result) => parentPort!.postMessage({ result } satisfies ComputationResult),
   (error) => parentPort!.postMessage(errorResult(error)),
 );

@@ -177,11 +177,11 @@ test("Learner evaluates 32 Lexulous lines and counts rack deductions after two p
   }
 });
 
-test("Learner uses its two-second deadline and keeps only batches all finalists finish", (t) => {
+test("Learner uses its two-second deadline and keeps every completed shared draw", (t) => {
   const { position, evaluate, ranked, slate } = fixture();
   let now = 0;
   t.mock.method(performance, "now", () => now);
-  for (const [deals, checkpoint] of [[6, 0], [13, 8], [22, 16]]) {
+  for (const deals of [0, 6, 13, 22]) {
     now = 0;
     const work = evaluate({ ...position, requiredRackSlots: [0] }, ranked, slate);
     for (let current = 0; current < deals * slate.length; current++)
@@ -194,10 +194,31 @@ test("Learner uses its two-second deadline and keeps only batches all finalists 
     if (!result.done) throw new Error("Forecast did not finish");
     const compared = result.value.ranked.filter(({ utility }) => utility.lookaheadDeals !== undefined);
     assert.deepEqual(compared.map(({ utility }) => utility.lookaheadDeals),
-      checkpoint ? [checkpoint, checkpoint, checkpoint] : []);
+      deals ? [deals, deals, deals] : []);
   }
 });
 
+test("Learner uses the common prefix when finalist workers finish different numbers of draws", () => {
+  const { position, lexicon, template, choose, ranked, slate } = fixture();
+  const evaluate = createLearnerLookahead(lexicon, template, choose, "learner", true);
+  const work = evaluate({ ...position, requiredRackSlots: [0] }, ranked, slate, Infinity);
+  const request = work.next();
+  assert(!request.done && request.value);
+  assert.equal(request.value.actions.length, 3);
+  assert.equal(request.value.deals.length, 32);
+  const result = work.next([32, 25, 23].map((count) =>
+    Array.from({ length: count }, (_, draw) => ({
+      reply: draw < 23 ? 20 : 100, followUp: 10, ownLeave: 0,
+      opposingLeave: 0, rackAdjustment: 0, bingo: false, terminal: false,
+    }))));
+  assert(result.done);
+  const compared = result.value.ranked.filter(({ utility }) => utility.lookaheadDeals !== undefined);
+  assert.equal(compared.length, 3);
+  for (const { utility } of compared) {
+    assert.equal(utility.lookaheadDeals, 23);
+    assert.equal(utility.modeledReply, 20);
+  }
+});
 test("Learner shares a distinct opponent vocabulary seed and reply choices across placements", () => {
   const { position, lexicon, template, choose, ranked, slate } = fixture();
   const seeds = new Set<number>();
@@ -336,12 +357,12 @@ test("Learner recommends a simulated exchange when the paired continuation has a
     problem: "balance",
     edge: 4.125,
   });
-  assert.equal(
-    evaluate(position, decision.considered!, decision.learnerSlate!, 0).next()
-      .value?.exchange,
-    undefined,
-  );
-  assert.ok(evaluate(position, [], [], 0).next().value?.exchange);
+  const interrupted = evaluate(position, decision.considered!, decision.learnerSlate!, 0).next();
+  assert(interrupted.done);
+  assert.equal(interrupted.value.exchange, undefined);
+  const noPlay = evaluate(position, [], [], 0).next();
+  assert(noPlay.done);
+  assert.ok(noPlay.value.exchange);
 });
 
 test("Learner keeps static suggestions when the deadline or tile counts prevent a fair comparison", () => {

@@ -41,9 +41,9 @@ export function createCandidatePool(
   concurrency = computeWorkerLimit(),
   createWorker = defaultWorker,
   dedicated = false,
+  analyze = createCandidateAnalyzer(lexicon),
 ) {
   const slots: { worker?: Worker; initialized: boolean }[] = [];
-  const analyze = createCandidateAnalyzer(lexicon);
   let capacity = concurrency;
   let closed = false;
   const abort = new AbortController();

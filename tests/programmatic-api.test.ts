@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { version } from "../version.json";
 import { createApp } from "../server/app";
-import { CandidateWorker } from "../server/api-worker-adapter";
+import { CandidateWorker, limitedCandidateWorker } from "../server/api-worker-adapter";
 import { createStore } from "../server/store";
 import { emptyBoard, remember, type BoardTemplate, type Game } from "../shared/model";
 import { emptyScoring } from "../shared/game-scoring";
@@ -27,12 +27,22 @@ async function fixture(
   t: TestContext,
   secured = true,
   browserPassword = credentials.browserPassword,
+  analysisThreads?: number,
 ) {
   const dir = mkdtempSync(join(tmpdir(), "tilemaxx-api-"));
   const store = createStore(dir, process.cwd());
-  const app = createApp(store, {
-    credentials: secured ? { ...credentials, browserPassword } : undefined,
-  });
+  const priorThreads = process.env.TILEMAXX_ANALYSIS_THREADS;
+  if (analysisThreads !== undefined)
+    process.env.TILEMAXX_ANALYSIS_THREADS = String(analysisThreads);
+  let app: ReturnType<typeof createApp>;
+  try {
+    app = createApp(store, {
+      credentials: secured ? { ...credentials, browserPassword } : undefined,
+    });
+  } finally {
+    if (priorThreads === undefined) delete process.env.TILEMAXX_ANALYSIS_THREADS;
+    else process.env.TILEMAXX_ANALYSIS_THREADS = priorThreads;
+  }
   app.get("/", (_req, res) =>
     res.send("<!doctype html><title>Tilemaxx</title>"),
   );
@@ -91,6 +101,41 @@ test("server candidate workers run directly from source", { timeout: 5000 }, asy
     });
   });
   assert.deepEqual(result, { kind: "policy-turn", policy: undefined });
+});
+
+test("server candidate workers enforce their thread allowance", (t) => {
+  const LimitedWorker = limitedCandidateWorker(1);
+  const worker = new LimitedWorker();
+  t.after(() => worker.terminate());
+  assert.throws(() => new LimitedWorker(), /No analysis threads are available/);
+  const NoHelpers = limitedCandidateWorker(0);
+  assert.throws(() => new NoHelpers(), /No analysis threads are available/);
+});
+
+test("parallel and serial API Learner produce the same complete shared forecast", async (t) => {
+  async function forecast(threads: number) {
+    const { store, endpoint } = await fixture(t, true, credentials.browserPassword, threads);
+    const list = store.importDictionary("WOW24",
+      "ACT\nART\nAT\nCARE\nCAR\nCART\nCARTS\nCAT\nCATS\nRATE\nRAT\nSTAR\nTAR\n");
+    const template = PRESETS[0];
+    const response = await endpoint("/analysis", {
+      position: {
+        template, board: emptyBoard(template.size), rack: "CARTELS",
+        requiredRackSlots: [0], dictionaryId: list.id,
+      },
+      operation: { kind: "moves", style: "learner" },
+    });
+    const result = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(result));
+    const finalists = result.rows.filter(({ utility }: { utility?: { lookaheadDeals?: number } }) =>
+      utility?.lookaheadDeals !== undefined);
+    assert.equal(finalists.length, 3);
+    for (const { utility } of finalists) assert.equal(utility.lookaheadDeals, 32);
+    return result;
+  }
+  const serial = await forecast(1);
+  assert.deepEqual(await forecast(3), serial);
+  assert.deepEqual(await forecast(4), serial);
 });
 
 test("profile analysis explanations persist through play, undo, redo and archive", async (t) => {

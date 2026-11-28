@@ -1,9 +1,8 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { gunzipSync } from "node:zlib";
 import { parallelOpponentEndgame } from "../src/parallel-opponent-endgame";
+import { parallelOptimalExchange } from "../src/parallel-exchange";
 import { createBingoHunterSession, type HunterSummary } from "../src/parallel-bingo-hunter";
 import { createMasterSession } from "../src/parallel-master";
+import { runCandidateJobs } from "../src/candidate-analysis-pool";
 import { RackBingoIndex, checkBoardBingo } from "../shared/bingo-odds";
 import { validEndgameStreak } from "../shared/endgame";
 import {
@@ -24,7 +23,6 @@ import {
   scoreTotalsAtPosition,
 } from "../shared/game-scoring";
 import { Lexicon } from "../shared/lexicon";
-import { createLearnerLookahead } from "../shared/learner-lookahead";
 import { scorePlacement } from "../shared/game-scoring";
 import type { Move, Rules } from "../shared/model";
 import {
@@ -36,20 +34,13 @@ import {
 } from "../shared/move-analysis";
 import { MoveResultIndex } from "../shared/move-results";
 import { explainStyleExchange, explainStylePlay, styleCandidate } from "../shared/style-explanation";
-import { analyzeOpponentPolicy } from "../shared/opponent-policy";
-import { optimizeExchange } from "../shared/optimal-exchange";
+import { analyzeOpponentPolicy, type OpponentPolicyResult } from "../shared/opponent-policy";
 import {
   samplePlayerExchange,
   screenPlayerExchange,
   type PlayerExchangeAdvice,
 } from "../shared/player-exchange";
-import {
-  createPlayerProfiles,
-  profileWordHash,
-  usesLearnerPolicy,
-  type LearnerStyle,
-  type ProfilePosition,
-} from "../shared/player-profiles";
+import { profileWordHash, usesLearnerPolicy } from "../shared/player-profiles";
 import { checkPremiumDefense } from "../shared/premium-defense";
 import { rackComposition } from "../shared/rack-entry";
 import {
@@ -72,35 +63,13 @@ import {
 } from "../shared/solver";
 import { unseenTiles } from "../shared/tile-pool";
 import { reviewGame, reviewTurn, reviewTurns } from "../shared/turn-review";
-import {
-  decodeWordFrequencies,
-  wordFrequencyLanguage,
-  wordFrequencyUrl,
-} from "../shared/word-familiarity";
-import { decodeProfileVocabulary, type EnglishProfileVocabulary } from "../shared/profile-vocabulary";
+import { decodeProfileVocabulary } from "../shared/profile-vocabulary";
 import type { Computation } from "./api-computation";
 import { ApiError } from "./api-error";
+import { forecastLearner } from "./api-learner-forecast";
+import { apiPlayerProfiles as profiles } from "./api-player-profiles";
 
 type Request = Extract<Computation, { kind: "analysis" }>;
-
-function profiles(
-  root: string,
-  lexicon: Lexicon,
-  template: Request["position"]["template"],
-  vocabulary?: EnglishProfileVocabulary,
-) {
-  const language = wordFrequencyLanguage(template.rules);
-  const read = (path: string) =>
-    gunzipSync(readFileSync(join(root, "public", path)));
-  const frequencies = decodeWordFrequencies(read(wordFrequencyUrl(language)), language);
-  return createPlayerProfiles(
-    lexicon,
-    template,
-    frequencies,
-    undefined,
-    vocabulary,
-  );
-}
 
 function checkBag(
   rules: Rules,
@@ -118,30 +87,11 @@ function checkBag(
     );
 }
 
-function forecastLearner(
-  lexicon: Lexicon,
-  template: Request["position"]["template"],
-  choose: ReturnType<typeof createPlayerProfiles>,
-  style: LearnerStyle,
-  moves: readonly Move[],
-  position: ProfilePosition,
-  reference?: Move,
-) {
-  const { considered, learnerSlate } = reference ? {} : choose(moves, style, position, {
-    all: true,
-    learnerSlate: true,
-  });
-  const forecast = createLearnerLookahead(lexicon, template, choose, style);
-  const work = forecast(position, considered ?? [], learnerSlate ?? [], undefined, reference);
-  let step = work.next();
-  while (!step.done) step = work.next();
-  return step.value;
-}
-
-function gameReview(
+async function gameReview(
   lexicon: Lexicon,
   game: Request["game"],
   operation: Request["operation"],
+  workerLimit: number,
 ) {
   if (!game) throw new ApiError(422, "Use a saved game for review.");
   const turns = reviewTurns(game);
@@ -163,48 +113,51 @@ function gameReview(
       game.solo,
     );
 
-  function policy(turn: (typeof turns)[number], maxMs?: number) {
+  function policyInput(turn: (typeof turns)[number]) {
     const { move, position } = turn;
-    if (move.action)
-      return { kind: "unavailable", reason: "This turn did not place a word." };
-    if (!position)
-      return {
-        kind: "unavailable",
-        reason: "No board snapshot was recorded for this turn.",
-      };
-    return analyzeOpponentPolicy(
-      lexicon,
-      {
-        position: {
-          board: position.board,
-          tiles: position.tiles,
-          observerRack:
-            move.player === "opponent" ? position.observerRack : undefined,
-        },
-        template: templateForTurn(position),
-        word: move.word,
+    if (!position || move.action) return;
+    return {
+      position: {
+        board: position.board,
+        tiles: position.tiles,
+        observerRack: move.player === "opponent" ? position.observerRack : undefined,
       },
-      { maxMs },
-    );
+      template: templateForTurn(position),
+      word: move.word,
+    };
+  }
+
+  function unavailablePolicy(turn: (typeof turns)[number]): OpponentPolicyResult {
+    return {
+      kind: "unavailable",
+      reason: turn.move.action ? "This turn did not place a word." : "No board snapshot was recorded for this turn.",
+    };
   }
 
   if (operation.kind === "policy-timeline") {
     const available = turns.filter(
       ({ move }) => !move.action && move.player === operation.player,
     );
-    const deadline = performance.now() + 25_000;
+    const deadline = performance.timeOrigin + performance.now() + 25_000;
+    const page = available.slice(operation.offset, operation.offset + 10);
+    const policies = new Map<number, OpponentPolicyResult>();
+    const jobs = page.flatMap((turn) => {
+      const input = policyInput(turn);
+      if (input) return [{ kind: "policy-turn" as const, key: String(turn.index), input, deadline, maxMs: 4_000 }];
+      policies.set(turn.index, unavailablePolicy(turn));
+      return [];
+    });
+    await runCandidateJobs(lexicon, jobs, (job, result) => {
+      if (result.kind !== job.kind) throw new Error(
+        result.kind === "error" ? result.message : "Could not analyze the recorded turn.",
+      );
+      if (result.policy) policies.set(Number(job.key), result.policy);
+    }, workerLimit);
     const rows = [];
-    for (const turn of available.slice(
-      operation.offset,
-      operation.offset + 10,
-    )) {
-      const remaining = deadline - performance.now();
-      if (remaining < 50) break;
-      rows.push({
-        index: turn.index,
-        move: turn.move,
-        policy: policy(turn, Math.min(4_000, remaining)),
-      });
+    for (const turn of page) {
+      const policy = policies.get(turn.index);
+      if (!policy) break;
+      rows.push({ index: turn.index, move: turn.move, policy });
     }
     return {
       rows,
@@ -219,8 +172,12 @@ function gameReview(
   if (operation.kind === "policy" || operation.kind === "review-turn") {
     const turn = turns[operation.index];
     if (!turn) throw new ApiError(404, "Turn not found.");
-    if (operation.kind === "policy")
-      return { policy: policy(turn, operation.refined ? 15_000 : undefined) };
+    if (operation.kind === "policy") {
+      const input = policyInput(turn);
+      return { policy: input
+        ? analyzeOpponentPolicy(lexicon, input, { maxMs: operation.refined ? 15_000 : undefined })
+        : unavailablePolicy(turn) };
+    }
     const { position } = turn;
     return {
       ...turn,
@@ -235,6 +192,7 @@ export async function analyzePosition(
   lexicon: Lexicon,
   words: string[],
   { position, operation, root, game, profileVocabulary, savedScoreSpread }: Request,
+  workerLimit = 0,
 ) {
   const { template, board, solo } = position;
   const vocabulary = profileVocabulary && decodeProfileVocabulary(profileVocabulary, words);
@@ -268,7 +226,7 @@ export async function analyzePosition(
     operation.kind === "policy" ||
     operation.kind === "policy-timeline"
   )
-    return gameReview(lexicon, game, operation);
+    return gameReview(lexicon, game, operation, workerLimit);
 
   const maximumOpponentRack = solo ? 0 : template.rackSize;
   const minimumBag = Math.max(0, pool.total - maximumOpponentRack);
@@ -309,10 +267,12 @@ export async function analyzePosition(
     );
 
   if (operation.kind === "optimal-exchange")
-    return optimizeExchange(
+    return parallelOptimalExchange(
       lexicon,
       new RackBingoIndex(words),
       { ...settings, bag: bagSize },
+      () => {},
+      workerLimit,
       undefined,
       { seed: operation.seed, maxMs: 30_000 },
     );
@@ -326,7 +286,7 @@ export async function analyzePosition(
     return parallelOpponentEndgame(
       lexicon,
       { ...settings, opponentRack: replyPosition(settings).pool.join("") },
-      1,
+      workerLimit,
       () => {},
     );
   }
@@ -387,7 +347,8 @@ export async function analyzePosition(
       };
       const choose = profiles(root, lexicon, template, vocabulary);
       if (usesLearnerPolicy(style)) {
-        const result = forecastLearner(lexicon, template, choose, style, moves, profilePosition);
+        const result = await forecastLearner(lexicon, template, choose, style, moves, profilePosition,
+          { root, vocabulary: profileVocabulary, workerLimit });
         index.setProfile(profileQuery, result.ranked);
         exchangeAdvice = result.exchange;
       } else {
@@ -422,13 +383,13 @@ export async function analyzePosition(
             : undefined;
         const session =
           style === "master"
-            ? createMasterSession(lexicon, settings, moves, 8)
+            ? createMasterSession(lexicon, settings, moves, workerLimit)
             : createBingoHunterSession(
                 lexicon,
                 settings,
                 moves,
                 odds,
-                8,
+                workerLimit,
                 style,
               );
         const { ranked, summary } = await session.run(
@@ -559,12 +520,13 @@ export async function analyzePosition(
     }
     if (usesLearnerPolicy(operation.style) && !solo) {
       const choose = profiles(root, lexicon, template, vocabulary);
-      const result = forecastLearner(lexicon, template, choose, operation.style, moves, {
+      const result = await forecastLearner(lexicon, template, choose, operation.style, moves, {
         ...settings,
         solo: undefined,
         seed: profileWordHash(`${board.join(".")}:${rackComposition(position.rack)}`),
         playerSeed: operation.seed,
-      }, operation.move ? find(operation.move) : undefined);
+      }, { root, vocabulary: profileVocabulary, workerLimit,
+        reference: operation.move ? find(operation.move) : undefined });
       const advice = result.exchange;
       return { advice, styleExplanation: advice && explainStyleExchange(advice, position.rack, advice.slots) };
     }
