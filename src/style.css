@@ -6882,9 +6882,9 @@ label + label {
   gap: 4px;
   flex: none;
   margin-inline-start: auto;
-  color: var(--value-bad);
   white-space: nowrap;
 }
+.last-play-tile-warning svg { color: var(--value-bad); }
 button.last-play-summary { cursor: pointer; }
 button.last-play-summary:focus-visible { outline-offset: -2px; }
 .last-play-word {
