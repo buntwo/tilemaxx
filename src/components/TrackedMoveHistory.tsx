@@ -7,7 +7,9 @@ import type { MoveStrength, MoveStrengthResult } from "../../shared/move-strengt
 import type { PracticeRequest } from "../practice.worker";
 import { DefinitionWord } from "./MoveDefinitions";
 import { BingoBadge } from "./MoveWord";
+import { ScoreBreakdownContent } from "./ScoreBreakdown";
 import { usePractice } from "./usePractice";
+import { useScoreTooltip } from "./useScoreTooltip";
 
 type HistoryMove = ReturnType<typeof scoreHistoryMoves>[number];
 
@@ -29,7 +31,7 @@ function MoveCell({
         aria-current={move.number === replayIndex ? "step" : undefined}
         onClick={() => onSelect(move.number)}
       >
-        {move.action ? <span className="score-history-action">{move.notation}</span> :
+        {move.action ? <span className="score-history-action">{trackedTurnLabel(move, "compact")}</span> :
         <DefinitionWord word={move.word} className="score-history-word">
           {move.notation}
         </DefinitionWord>}
@@ -106,6 +108,24 @@ export default function TrackedMoveHistory({
   }, [open, request, run, reset]);
   const strengths = activeRequest === request ? result : undefined;
   const calculating = activeRequest === request && !!progress;
+  const scoreTooltip = useScoreTooltip<number>((number) => {
+    const move = moves.find((entry) => entry.number === number);
+    if (!move) return null;
+    return (
+      <>
+        <strong>Score breakdown</strong>
+        {move.breakdown ? <ScoreBreakdownContent breakdown={move.breakdown} /> : (
+          <div className="score-breakdown-content">
+            <p>{move.action ? trackedTurnLabel(move) : "Placement details unavailable"}</p>
+            <div className="score-breakdown-line score-breakdown-total">
+              <strong>{move.action ? "Total" : "Recorded total"}</strong>
+              <strong>{move.score} pts</strong>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  });
   return (
     <div className="score-history-section">
       {onStartReplay && (
@@ -119,7 +139,10 @@ export default function TrackedMoveHistory({
       )}
       <details
         className="score-history"
-        onToggle={(event) => setOpen(event.currentTarget.open)}
+        onToggle={(event) => {
+          setOpen(event.currentTarget.open);
+          if (!event.currentTarget.open) scoreTooltip.close();
+        }}
       >
         <summary>
           <span>Tracked move history <small>({moves.length})</small></span>
@@ -130,21 +153,33 @@ export default function TrackedMoveHistory({
             <thead>
               <tr>
                 <th scope="col" className="score-move-number" aria-label="Move number">#</th>
-                {!solo && <th scope="col" className="score-move-player">Player</th>}
+                {!solo && <th scope="col" className="score-move-player" aria-label="Player">
+                  <span className="score-history-full-heading">Player</span>
+                  <span className="score-history-short-heading" aria-hidden="true">Who</span>
+                </th>}
                 <th scope="col">Play</th>
                 <th scope="col" className="score-move-points" aria-label="Points">Pts</th>
+                <th scope="col" className="score-move-crosses" aria-label="Crosses" title="Crosswords formed">
+                  <span className="score-history-full-heading">Crosses</span>
+                  <span className="score-history-short-heading" aria-hidden="true">Cr.</span>
+                </th>
                 <th scope="col" className="score-move-total" aria-label="Running total">Total</th>
                 <th
                   scope="col"
                   className="score-move-strength"
                   aria-label="Move strength"
                   title="Points scored as a percentage of the highest possible score"
-                >Strength</th>
+                >
+                  <span className="score-history-full-heading">Strength</span>
+                  <span className="score-history-short-heading" aria-hidden="true">Str.</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {moves.map((move) => {
                 const strength = strengths?.[move.number];
+                const mainPoints = move.breakdown?.words[0].score;
+                const crosses = move.breakdown ? move.breakdown.words.length - 1 : move.action ? 0 : undefined;
                 return (
                   <tr key={move.number} data-player={move.player}>
                     <td className="score-move-number">
@@ -166,7 +201,21 @@ export default function TrackedMoveHistory({
                       </td>
                     )}
                     <td><MoveCell move={move} onSelect={onSelect} replayIndex={replayIndex} /></td>
-                    <td className="score-move-points">{move.score}</td>
+                    <td className="score-move-points">
+                      <button
+                        className="score-history-points"
+                        {...scoreTooltip.triggerProps(
+                          move.number,
+                          move.number,
+                          `Score breakdown for move ${move.number}: ${move.score} points${mainPoints === undefined ? "" : `, ${mainPoints} from the main word`}`,
+                        )}
+                      >
+                        {move.score}{mainPoints !== undefined && <> <small>({mainPoints})</small></>}
+                      </button>
+                    </td>
+                    <td className="score-move-crosses">
+                      {crosses ?? <span aria-label="Crosses unavailable">—</span>}
+                    </td>
                     <td className="score-move-total">{move.total}</td>
                     <td className="score-move-strength">
                       {strength ? (
@@ -185,6 +234,7 @@ export default function TrackedMoveHistory({
           </button>
         )}
       </details>
+      {scoreTooltip.popup}
     </div>
   );
 }

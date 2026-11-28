@@ -310,6 +310,25 @@ export function scorePlacement(
   };
 }
 
+function recordedPlacement(move: TrackedMove, position: TurnPosition, template: BoardTemplate) {
+  const after = [...position.board];
+  for (const { index, letter } of position.tiles) after[index] = letter;
+  const scored = scorePlacement(
+    position.board,
+    after,
+    { ...template, premiums: position.premiums ?? template.premiums },
+    position.direction,
+  );
+  // A legacy single-tile play may record either word as its main word.
+  const main = scored?.words.find(({ word }) => word === move.word.toUpperCase());
+  const breakdown = scored && main && scored.score === move.score
+    ? scored.words[0] === main
+      ? scored
+      : { ...scored, word: main.word, words: [main, ...scored.words.filter((word) => word !== main)] }
+    : undefined;
+  return { main, breakdown, bingo: scored?.bingo };
+}
+
 export function reviewTurns(game: Game) {
   const used = new Set<number>();
   const historicalPremiums = historyPremiums(game);
@@ -398,6 +417,7 @@ export function scoreHistoryMoves(
     position,
     rackOut: !!ownRackOut && index === last?.index,
     notation: recordedMoveNotation(move, position, template.size),
+    breakdown: position && !move.action ? recordedPlacement(move, position, template).breakdown : undefined,
     bingo: move.bingo ?? (!!position && isBingo(template, position.tiles.length)),
     number: index + 1,
     total: (totals[move.player] += move.score),
@@ -420,23 +440,12 @@ export function lastRecordedBoardPlay(game: Game) {
   if (position.tiles.some(({ index, letter }) => game.board[index] !== letter))
     return;
 
-  const after = [...position.board];
-  for (const { index, letter } of position.tiles) after[index] = letter;
-  const breakdown = scorePlacement(
-    position.board,
-    after,
-    { ...game.template, premiums: position.premiums ?? game.template.premiums },
-    position.direction,
-  );
-  // Either word can be the main word of a single-tile play.
-  const main = breakdown?.words.find(
-    ({ word }) => word === move.word.toUpperCase(),
-  );
+  const { main, breakdown, bingo } = recordedPlacement(move, position, game.template);
   return {
     move,
-    bingo: move.bingo ?? breakdown?.bingo,
+    bingo: move.bingo ?? bingo,
     main,
-    breakdown: main && breakdown?.score === move.score ? breakdown : undefined,
+    breakdown,
   };
 }
 

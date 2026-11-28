@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
 import { gameReplayTimeline } from "../../shared/game-replay";
-import { emptyScoring, recordBoardlessTurn, summarizeGameScore } from "../../shared/game-scoring";
-import { emptyBoard, type Game } from "../../shared/model";
+import { emptyScoring, recordBoardlessTurn, recordOpponentPlay, summarizeGameScore } from "../../shared/game-scoring";
+import { archiveGame, emptyBoard, type Game } from "../../shared/model";
 import { PRESETS } from "../../shared/presets";
 import { ReplayScores } from "../../src/components/GameReplay";
 import GameScores from "../../src/components/GameScores";
@@ -166,6 +167,42 @@ test("clicking a played move number opens the score editor", () => {
   ]);
 });
 
+test.each(["live", "archive"])("%s history shows crosses and opens the points breakdown", async (view) => {
+  const game = gameWithScores(0, 0);
+  const before = [...game.board];
+  before.splice(112, 3, ..."CAT");
+  game.board = [...before];
+  [..."STEALER"].forEach((letter, row) => {
+    game.board[115 + row * 15] = letter;
+  });
+  game.scoring!.pendingBase = before;
+  const live = recordOpponentPlay(game, null);
+  if (view === "archive") {
+    const archive = archiveGame(live);
+    render(<ReplayScores {...gameReplayTimeline(archive)} sourceGame={archive} index={2} seek={vi.fn()} />);
+  } else show(live);
+  const details = screen.getByText("Tracked move history").closest("details")!;
+  details.open = true;
+  fireEvent(details, new Event("toggle"));
+  const history = within(screen.getByRole("table", { name: "Tracked moves" }));
+  expect(history.getByRole("columnheader", { name: "Crosses" })).toBeTruthy();
+  const points = history.getByRole("button", { name: "Score breakdown for move 1: 70 points, 14 from the main word" });
+  expect(points.textContent).toBe("70 (14)");
+  expect(points.closest("tr")!.querySelector(".score-move-crosses")?.textContent).toBe("1");
+
+  const user = userEvent.setup();
+  if (view === "live") await user.hover(points);
+  else fireEvent.click(points);
+  const tooltip = within(await screen.findByRole("tooltip"));
+  expect(tooltip.getByText("STEALER")).toBeTruthy();
+  expect(tooltip.getByText("CATS")).toBeTruthy();
+  expect(tooltip.getByText("7 × 2 = 14")).toBeTruthy();
+  expect(tooltip.getByText("Bingo bonus")).toBeTruthy();
+  expect(tooltip.getByText("70 pts")).toBeTruthy();
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("tooltip")).toBeNull();
+});
+
 test("move history calculates strength when opened and discards results for a changed word list", async () => {
   const workers: StrengthWorker[] = [];
   class StrengthWorker {
@@ -218,7 +255,7 @@ test("move history calculates strength when opened and discards results for a ch
     expect(pill.querySelector<HTMLElement>(".score-strength-fill")?.style.height).toBe(`${percent}%`);
     expect(pill.getAttribute("aria-describedby")).toBe(table.getByText(tooltip).id);
   }
-  expect(within(table.getByRole("button", { name: "Review move 2: DOG" }).closest("tr")!).getByText("—")).toBeTruthy();
+  expect(within(table.getByRole("button", { name: "Review move 2: DOG" }).closest("tr")!).getByLabelText("Move strength unavailable")).toBeTruthy();
   rerender(<GameScores game={{ ...game, dictionaryId: "other" }} onToggle={vi.fn()} onRecord={vi.fn()}
     onCorrection={vi.fn()} onChange={vi.fn()} />);
   await waitFor(() => expect(workers).toHaveLength(2));
@@ -309,6 +346,12 @@ test("Game scores labels passes and exchanges and carries forward both totals", 
     expect(row.querySelector(".score-move-total")?.textContent).toBe(total);
     expect(within(row).getByLabelText("Move strength unavailable")).toBeTruthy();
   }
+  expect(table.getByText("Exch JC")).toBeTruthy();
+  expect(table.getByText("Exch 3")).toBeTruthy();
+  expect(table.getByText("Exch")).toBeTruthy();
+  expect(table.getAllByLabelText("Crosses unavailable")).toHaveLength(2);
+  fireEvent.click(table.getByRole("button", { name: "Score breakdown for move 1: 24 points" }));
+  expect(within(screen.getByRole("tooltip")).getByText("Placement details unavailable")).toBeTruthy();
 
   const chart = within(screen.getByRole("figure", { name: "Score by move" }));
   const cursor = chart.getByRole("slider");

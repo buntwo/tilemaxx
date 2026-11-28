@@ -23,6 +23,7 @@ import {
   recordOpponentPlayForSearch,
   recordOpponentRackOut,
   reopenSearchRecordedOpponentPlay,
+  scoreHistoryMoves,
   scoreTotalsAtPosition,
   setScoreTracking,
   summarizeGameScore,
@@ -73,6 +74,31 @@ function fixture(): Game {
     archived: false,
   };
 }
+
+test("history scores the recorded main word first with historical premiums", () => {
+  const game = fixture();
+  const board = emptyBoard(15);
+  board[111] = "A";
+  board[113] = "T";
+  board[97] = "C";
+  board[127] = "Y";
+  const position = {
+    board, dictionaryId: game.dictionaryId, premiums: game.template.premiums,
+    tiles: [{ index: 112, letter: "R" }],
+  };
+  const template = { ...game.template, premiums: game.template.premiums.map(() => "" as const) };
+  const move = { player: "you" as const, word: "CRY", score: 22, at: "" };
+  const [scored, edited, legacy] = scoreHistoryMoves([
+    { move, position, index: 0 },
+    { move: { ...move, score: 23 }, position, index: 1 },
+    { move, index: 2 },
+  ], { ...game, template });
+  assert.deepEqual(scored.breakdown?.words.map(({ word, score }) => [word, score]), [
+    ["CRY", 16], ["ART", 6],
+  ]);
+  assert.equal(edited.breakdown, undefined);
+  assert.equal(legacy.breakdown, undefined);
+});
 
 test("passes and both kinds of exchange survive validation, undo, and redo", () => {
   const game = { ...fixture(), rack: "A.A?ECT", excludedRackSlots: [4], requiredRackSlots: [6] };
