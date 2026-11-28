@@ -1624,6 +1624,7 @@ label + label {
 .score-move-play .score-history-bingo {
   flex: none;
   margin: 0;
+  padding: 2px;
 }
 .score-history small,
 .score-history p {
